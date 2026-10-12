@@ -1,0 +1,20 @@
+[
+  { "eval": "(function(){ const g=__game, w=g.world; const t=w.places[0]; const d=(a,b)=>Math.hypot(__sim.wrapDx(w,a.x,b.x),a.y-b.y); const fn=w.nodes.filter(n=>n.kind==='forest'&&d(n,t)>=7).sort((a,b)=>d(a,t)-d(b,t))[0]; __sim.placeSite(w,'forestry',fn.x,fn.y); const forest=__sim.siteAt(w,fn.x,fn.y); const mx=Math.round(fn.x+(t.x-fn.x)/2), my=Math.round(fn.y+(t.y-fn.y)/2); let spot=null; for(let r=0;r<8&&!spot;r++){for(let dy=-r;dy<=r&&!spot;dy++){for(let dx=-r;dx<=r&&!spot;dx++){ if(Math.max(Math.abs(dx),Math.abs(dy))!==r) continue; if(__sim.placeError(w,'sawmill',mx+dx,my+dy)===null) spot={x:mx+dx,y:my+dy}; }}} __sim.placeSite(w,'sawmill',spot.x,spot.y); const saw=__sim.siteAt(w,spot.x,spot.y); __sim.createRoute(w,__path(w,forest,saw)); const market=w.sites.find(s=>s.kind==='market'&&s.placeId===t.id); return {forest:{x:forest.x,y:forest.y}, saw:{x:saw.x,y:saw.y}, market:{x:market.x,y:market.y}, town:t.name}; })()", "as": "i", "print": true },
+  { "js": "__game.lookAt((vars.i.saw.x+vars.i.market.x)/2, (vars.i.saw.y+vars.i.market.y)/2, 60, 0, 0)" },
+  { "click": "[402, innerHeight-164+10+15]" },
+  { "click": "[70, innerHeight-164+10+30+8+52]" },
+  { "eval": "__path(__game.world, __sim.siteAt(__game.world, vars.i.saw.x, vars.i.saw.y), __sim.siteAt(__game.world, vars.i.market.x, vars.i.market.y))", "as": "path" },
+  { "drag": "vars.path.map(t=>__game.screenOf(t.x,t.y,0.2))" },
+  { "eval": "({routes: __game.world.routes.length, vehicles: __game.world.vehicles.length, money: Math.floor(__game.world.money)})", "print": true },
+  { "js": "__game.setTool('select')" },
+  { "js": "__game.speed=4" },
+  { "wait": 38000 },
+  { "eval": "(function(){ const w=__game.world; const p=w.places[0]; return {money: Math.floor(w.money), earned: Math.floor(w.earned), delivered: w.delivered, growth: Math.floor(p.growth), level: p.level, tier: w.tier, log: w.log.map(l=>l.text)}; })()", "print": true },
+  { "js": "__game.select({kind:'place', id: __game.world.places[0].id})" },
+  { "shot": "f1-town-panel.png" },
+  { "click": "[402, innerHeight-164+10+15]" },
+  { "click": "[314, innerHeight-164+10+30+8+52]" },
+  { "click": "__game.screenOf(vars.i.forest.x, vars.i.forest.y, 0.4)" },
+  { "eval": "({sites: __game.world.sites.filter(s=>s.kind==='forestry').length, routes: __game.world.routes.length, money: Math.floor(__game.world.money)})", "print": true },
+  { "shot": "f2-demolished.png" }
+]
