@@ -4,9 +4,30 @@
 
 ## Supplyline
 
-**Overall progress:** about 55% (by checklist count; all of it runs, most of it is playtested only through automated clicks)
+**Overall progress:** about 60% (by checklist count; all of it runs, most of it is playtested only through automated clicks)
 **Last updated:** October 12, 2026
 **Status:** Active
+
+---
+
+### Phase 4 — Depth: towns you keep building (Oct 12, 2026)
+
+**Phase progress:** 85% (17/20)
+
+- [x] Touch controls: pinch, twist and tilt, tap-to-preview with a confirm bar, road Undo and Cancel, touch scrolling, lift-to-press buttons, iPad page settings, save on hide
+- [x] The game knows touch from mouse and keyboard and words its text to match
+- [x] Town districts: 17 of them, built and levelled from Manage town, shown as landmarks in the town
+- [x] Specialisation paths: Breadbasket, The Forge, Trade Hub, The Boulevard, chosen per town at level 3
+- [x] Capstone districts at level 5 (one per path)
+- [x] Vehicle ladder (box truck to truck fleet, freight train to heavy haul train, plane to jet) and Trade up
+- [x] Running costs for vehicles, buildings and districts; net income under the money
+- [x] Pacing: sale prices and growth thresholds retuned, Tier 4 Legacy added, new quests for districts, paths and vehicles
+- [x] A scripted player (`src/sim/bot.ts`) and a pacing report (`pacing.test.ts`) to measure how long each tier takes
+- [x] Simulation sped up about 3.5 times (vehicles look for loads a few times a second)
+- [x] Tests for districts, paths, running costs, trade-up (55 pass)
+- [ ] Restaurants, farmers markets and the rest: effects and costs need a playthrough by a person
+- [ ] Per-path quests and path mastery
+- [ ] Deploy and offline play (service worker) so the iPad can load it with no signal
 
 ---
 
@@ -107,9 +128,21 @@
 | Oct 12, 2026 | Towns as districts, 15 goods, sheets, new header | 58% |
 | Oct 12, 2026 | Feedback pass: smooth auto-routed roads, flat build sites, quarry pit, floating dock menu, rail and trains with level crossings | 50% |
 | Oct 12, 2026 | Tunnels placed from the terrain, roads regrade the ground, tier quests with rewards, how-to-play guide, highway joins, everything seated on the drawn ground | 55% |
+| Oct 12, 2026 | Touch controls, districts and specialisation paths, vehicle ladder, running costs, pacing bot | 60% |
 | Oct 11, 2026 | Direction changed to a 3D globe. Rebuilt the renderer in Three.js, added terrain, towns, nodes, push/pull hubs, vehicle classes, levels, demolish, new HUD | 45% (new, larger scope) |
 
 ---
+
+## Next Update (Chris's list, Oct 12, 2026, from playing the first build)
+
+- [ ] **Delete roads.** A way to remove a road, highway or rail (a section or a whole route), with a refund and its vehicles handled.
+- [ ] **Lay roads, highways and rails without a site at either end.** Let them start and finish on any open ground or on an existing road, so the player can lay out a clean network first and connect sites to it afterwards.
+- [ ] **Resource nodes should not look like quarries.** Nodes (farmland, forest, clay, ore, coal and so on) currently show as ringed pits and flat brown or green patches. Each kind needs its own natural look.
+- [ ] **Cleaner, more natural placement of nodes, farms and scenery.** Less clutter, less like assets dropped everywhere: clustering, spacing, fields that follow the land, trees that belong to forests.
+- [ ] **For-sale lots look wrong.** Replace the fenced dirt pads with a town that looks "in development" around its roads: cleared ground, building sites, small buildings that get added and replaced as the town grows. Some plots stay reserved for the player's buildings.
+- [ ] **Every town starts at the bottom.** Major cities currently start at level 2 with 250 growth (code: `level: city ? 2 : 1` in `src/sim/features.ts`), so a new game already shows Villages and a different building count. All towns should start at the first level; a bigger footprint should not mean a later stage.
+- [ ] **Towns list as a full-screen window.** The Towns sheet should be a proper full-screen pop-up, like a normal game menu, instead of a panel over the map. Same for the town side panel, which runs under the bottom bar.
+- [ ] Tooltip and side panel clash with the bottom bar when many goods are listed (the Vehicles card overlaps the panel).
 
 ## What to Tackle Next
 

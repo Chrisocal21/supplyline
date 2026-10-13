@@ -31,6 +31,8 @@
 | Is this a sandbox or does it have an end goal? | Both. Four tiers of quests with rewards lead to an end game (steel, machinery, a metropolis, $250,000 earned); nothing stops you playing on | Oct 12, 2026 |
 | How does a new player learn it? | A How to play guide that opens on a first visit, and a quest bar that always shows the next step with a hint | Oct 12, 2026 |
 | When is a mountain crossing a tunnel? | Only where the hill really stands above the road. Low ground is cut through as open road | Oct 12, 2026 |
+| Do towns just grow, or do you build them up? | Both: districts you build and level, landmarks in the 3D town, and a permanent specialisation path per town | Oct 12, 2026 |
+| Do vehicles level up? | A ladder of classes with Trade up, from box truck through truck fleet, train and plane to jet | Oct 12, 2026 |
 
 ---
 
@@ -40,10 +42,11 @@
 |---|---|
 | Should trains need stations (stops with their own storage) instead of joining sites directly? | Makes rail feel different from roads, but adds a building and more clicks. It would also let trains serve town centres: today track cannot reach a Market or Freight Yard, so a train ends at a hub or an outer-lot factory |
 | Should a station also send goods out? | Today a station only receives. Factories on outer lots can be reached by track directly; the two inner corner lots cannot |
-| Are the quest numbers right? | They are first guesses (100 lumber, 60 tools, 40 machinery, $250,000). They need a real playthrough |
-| Is the economy too fast now? | Town sales used to be stuck, which hid how quickly money and growth come: one camp and one sawmill take a town to level 3 in about five minutes. Prices, growth thresholds and running costs need a pass |
-| What do towns want at levels 3 to 5? | Needs new goods and chains (bricks, tools, furniture, steel) so growth stays interesting |
-| Do vehicles and sites have running costs? | Big lever on how the economy feels |
+| Are the quest numbers right? | They are first guesses. The bot says Tier 3 arrives around 135 game minutes; a human playthrough will say if that feels right |
+| Do the paths feel different enough? | Four paths change price, factory speed, load size and storage. Only a person playing two paths can say if the choice matters |
+| Do running costs bite at the right moment? | Vehicles cost 5% of their price a minute. Bigger classes only pay for themselves when there is enough to carry |
+| What do towns want at levels 3 to 5? | Districts now add some of this, but a few more goods and chains would help |
+| Should paths have their own quests and mastery levels? | It would reward committing to one path for a whole game |
 | Should there be a one-click auto-road tool next to hand-drawn roads? | The path finder exists; it changes how much of the game is route drawing |
 | Art direction beyond the current procedural models | Real assets (Kenney, hand-modelled) versus staying procedural |
 

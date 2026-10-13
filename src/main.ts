@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { Game3D } from './r3d/game3d';
 import * as sim from './sim/world';
+import * as townRules from './sim/town';
 import { findPath } from './sim/path';
 import { HudScene } from './ui/hud';
 
@@ -35,4 +36,4 @@ const phaser = new Phaser.Game({
 });
 
 // Handles for automated checks and debugging from the console.
-Object.assign(window, { __game: game, __phaser: phaser, __sim: sim, __path: findPath });
+Object.assign(window, { __game: game, __phaser: phaser, __sim: sim, __town: townRules, __path: findPath });

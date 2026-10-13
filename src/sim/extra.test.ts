@@ -419,10 +419,10 @@ describe('rail stations', () => {
     expect(createRoute(w, path, 'rail')).toBeNull();
     // trucks cannot use it
     expect(planRoute(w, path, 'road').error).toBeTruthy();
-    const before = w.money;
+    const before = w.earned;
     for (let i = 0; i < 1500; i++) step(w);
     expect(w.delivered[good] ?? 0).toBeGreaterThan(30);
-    expect(w.money).toBeGreaterThan(before);
+    expect(w.earned).toBeGreaterThan(before);
     expect(w.places[0].growth).toBeGreaterThan(0);
   });
 });

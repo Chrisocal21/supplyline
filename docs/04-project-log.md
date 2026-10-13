@@ -256,3 +256,32 @@ Still open: stations only receive goods; planes; a balance pass.
 - **Vehicles.** An idle vehicle at its home end now goes to fetch from the far end when something is waiting there, and takes whatever is there on arrival. Fixes hub-to-station and other two-way links.
 - **Planes and airports.** Airport (Tier 3, $2500, outside towns) is a hub planes fly between. Air Route tool: click one airport then another; a cargo plane (40 units, $7000) comes with it and flies a straight line over any terrain. Air routes draw as a faint arc. New quest "Open an air route" in Tier 3.
 - **Tests:** 43 pass.
+
+
+## Oct 12, 2026 (evening): touch, depth and pacing
+
+**Why.** Chris is taking the game on a four-hour trip to test on an iPad, and the game was too fast: one camp and one sawmill took a town to level 3 in about five minutes. He asked for depth, not just a slowdown: vehicles that level up from a small box truck to trains and planes, towns that keep growing with things to level up (restaurants, farmers markets), and reasons to focus on one city after expanding, with choices that make a second playthrough different.
+
+**Touch.**
+- `src/ui/inputmode.ts` follows the last pointer used (finger, pen or mouse) and guesses from the device before the first input, including iPadOS reporting itself as a Mac. Guide text, hints and key badges change with it.
+- Two fingers: pinch zooms, twist turns, sliding up or down tilts. A tapped build or demolish previews first and a bar with Cancel and Build confirms. Roads get Undo and Cancel buttons. Sheets scroll by dragging. Buttons fire on lift so scrolling does not press them. The page blocks browser zoom and rubber-banding; the game saves when the page is hidden.
+- `tools/drive-touch.cjs` drives the game with emulated touch for tests.
+
+**Towns you keep building.**
+- *Districts* (`DISTRICTS` in defs, rules in `src/sim/town.ts`): each lives on goods, pays more for them, earns money while they are stocked, may add goods the docks ask for, and shows as a landmark on a tile around the streets (`src/r3d/districts.ts`). Each level needs the town one level higher, so growth keeps unlocking things.
+- *Paths* (`PATHS`): a Town commits permanently to Breadbasket, The Forge, Trade Hub or The Boulevard for $3,000. It changes prices, factory speed, load size or storage, strengthens on-theme districts by 50% and opens exclusive districts and a capstone at level 5.
+- The *Manage town* screen is inside the Towns sheet and reachable from a town's panel.
+
+**Vehicles.** Eight classes in three families, with a Trade up tool that swaps the smallest vehicle on a route for the next class and returns half its price. Four new models.
+
+**Running costs.** Vehicles 5% of price a minute, buildings 1% a level, districts 1.5% a level. The figure under the money is now net income.
+
+**Economy.** Towns pay 45% of list price. Level thresholds are now 2,000 / 10,000 / 45,000 / 150,000. Tier 4 "Legacy" is the end game (three specialisations, three Metropolises, three capstones, a cargo jet, $1,000,000). New quests for districts, paths and vehicles in tiers 1 to 3.
+
+**Measuring.** `src/sim/bot.ts` plays the real simulation at about one action per ten game seconds: it builds chains for three towns side by side, follows quests, upgrades, buys districts, picks paths, trades vehicles up. `PACING=1 PACING_HOURS=3 npx vitest run src/sim/pacing.test.ts --reporter=verbose` prints when each tier and town level arrives. On seed 11 the bot reaches Tier 1 at 5 minutes, Tier 2 at about 45, Tier 3 at about 135 game minutes. A person is slower than the bot, so expect roughly double.
+
+**Speed.** Profiling showed vehicles hunting for loads every tick were almost all of the cost. They now look five times a second; a 3 hour run went from 190 s to about 40 s.
+
+**Tests:** 55 pass (12 new for districts, paths, running costs and trade-up). Two old tests were changed: money no longer has to rise on a train sale because running costs offset it, and a town needs longer to reach level 2.
+
+Still open: balance by a human playthrough; per-path quests; offline play for the iPad.

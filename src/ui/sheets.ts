@@ -5,12 +5,20 @@ import {
   GOOD_LIST,
   SITE_DEFS,
   STYLE_LABEL,
+  DISTRICTS,
+  DISTRICT_ORDER,
+  MAX_DISTRICT_LEVEL,
+  PATHS,
+  PATH_COST,
+  PATH_ORDER,
+  PATH_TOWN_LEVEL,
   TICKS_PER_SECOND,
   TIERS,
   TOWN_LEVELS,
   type Good,
 } from '../sim/defs';
 import { questState, tierUnlocks } from '../sim/quests';
+import { buildDistrict, choosePath, districtBoost, districtCost, districtError, districtLevel, districtRevenue, districtSatisfaction, pathError, townUpkeep } from '../sim/town';
 import { dockDemand, isHomePlot, plotTiles, radiusOf, produces, siteCap, stockOf, unitPrice, wants, type Place, type Site, type World } from '../sim/world';
 import { COLORS, Im } from './imui';
 import { isTouch } from './inputmode';
@@ -73,8 +81,22 @@ const GUIDE: { title: string; body: Body; icon?: string }[] = [
     body: 'Every sale adds growth. To level up a town needs growth and variety: the more kinds of goods you sell it, the higher it can go. Bigger towns want more goods and buy more of them, and the major cities buy much more.',
   },
   {
+    title: 'Districts: build a town up',
+    body: 'Select a town and open Manage town. Districts are what a town builds as it grows: a Farmers Market, Restaurant Row, a Hardware Store and more. Each lives on certain goods: it pays more for them, earns money while the town is stocked with them, and appears as a landmark in town. Each level needs the town one level higher. They cost money to run, so keep the town supplied.',
+    icon: 'thumb-market',
+  },
+  {
+    title: 'Specialise a town',
+    body: 'A Town (level 3) can commit to one path: Breadbasket, The Forge, Trade Hub or The Boulevard. It is permanent. A path makes the town pay more for its goods, speeds up the right factories, strengthens the districts that suit it and opens its own districts, with a capstone at level 5. Give different towns different paths.',
+  },
+  {
     title: 'Keeping things moving',
     body: 'Click a building to see its stock and what is holding it up. Full means nothing is taking its goods away: add a vehicle (Vehicles, then click the road) or another customer. Waiting means it is short of an input. Upgrade a building to make it faster and roomier. The Production sheet lists the problems first.',
+    icon: 'thumb-boxtruck',
+  },
+  {
+    title: 'Bigger vehicles and running costs',
+    body: 'Box Truck, Big Box Truck, Big Rig, Truck Fleet. Freight Train, Heavy Haul Train. Cargo Plane, Cargo Jet. In the Vehicles tab, Trade up swaps the smallest vehicle on a route for the next class and returns half of its price. Bigger vehicles carry far more but cost more to run. Vehicles, buildings and districts are paid for every minute, and the figure under your money is what is left after that.',
     icon: 'thumb-boxtruck',
   },
   {
@@ -140,10 +162,13 @@ export interface SheetHooks {
   focusPlace: (p: Place) => void;
   select: (id: SheetId) => void;
   clip: (x: number, y: number, w: number, h: number) => void;
+  toast: (text: string) => void;
 }
 
 export class Sheets {
   scroll = 0;
+  /** The town being managed on the Towns sheet, or null for the list of towns. */
+  manage: number | null = null;
   private maxScroll = 0;
 
   constructor(
@@ -183,7 +208,7 @@ export class Sheets {
     const view = { x0: x + 18, x1: x + w - 18, y0: top, y1: bottom };
     this.hooks.clip(x, top, w, bottom - top);
     this.cim.clipBox = { x, y: top, w, h: bottom - top };
-    const contentH = id === 'production' ? this.production(world, view) : id === 'towns' ? this.towns(world, view) : id === 'quests' ? this.quests(world, view) : this.guide(view);
+    const contentH = id === 'production' ? this.production(world, view) : id === 'towns' ? (this.manage !== null && world.places.some((p) => p.id === this.manage) ? this.townDetail(world, world.places.find((p) => p.id === this.manage)!, view) : this.towns(world, view)) : id === 'quests' ? this.quests(world, view) : this.guide(view);
     this.maxScroll = Math.max(0, contentH - (bottom - top));
     this.scroll = Math.max(0, Math.min(this.maxScroll, this.scroll));
     if (this.maxScroll > 0) {
@@ -341,6 +366,12 @@ export class Sheets {
     const hov = im.hit(`tw-card-${p.id}`, x, y, w, h, () => this.hooks.focusPlace(p), 3);
     im.rect(3, x, y, w, h, hov ? 0x1b2634 : COLORS.panelAlt, 1, 14, COLORS.line, 1);
     im.text(`tw-n-${p.id}`, p.name, x + 16, y + 12, { size: 17, bold: true, layer: 3 });
+    const mhov = im.hit(`tw-m-${p.id}`, x + w - 170, y + 10, 84, 28, () => {
+      this.manage = p.id;
+      this.scroll = 0;
+    }, 4);
+    im.rect(3, x + w - 170, y + 10, 84, 28, mhov ? 0x2a3b50 : 0x1b2735, 1, 14, COLORS.accent, 1);
+    im.text(`tw-mt-${p.id}`, 'Manage', x + w - 128, y + 16, { size: 13, bold: true, color: COLORS.accent, align: 'center', layer: 5 });
     im.rect(3, x + w - 76, y + 12, 60, 24, COLORS.accent, 1, 12);
     im.text(`tw-l-${p.id}`, `Lv ${p.level}`, x + w - 46, y + 16, { size: 12, bold: true, color: 0x1b1204, align: 'center', layer: 4 });
     im.text(`tw-s-${p.id}`, `${radiusOf(p) > 3 ? 'Major city' : lv.name}  ·  ${STYLE_LABEL[p.style]}  ·  population ${fmt(lv.pop * (radiusOf(p) > 3 ? 4 : 1))}`, x + 16, y + 38, { size: 12, color: COLORS.muted, layer: 3 });
@@ -382,6 +413,174 @@ export class Sheets {
       });
       cy += Math.ceil(goods.length / perRow) * (chipH + 6) + 2;
     }
+  }
+
+  // ---- manage a town: its path and its districts ----
+
+  private townDetail(world: World, p: Place, v: View): number {
+    const im = this.cim;
+    const x = v.x0;
+    const w = v.x1 - v.x0;
+    let y = v.y0 - this.scroll;
+    const vis = (yy: number, hh: number): boolean => yy + hh > v.y0 && yy < v.y1;
+    const lv = TOWN_LEVELS[p.level - 1];
+    const path = p.path ? PATHS[p.path] : null;
+    const gap = 12;
+
+    // Back, and the town's name.
+    if (vis(y, 40)) {
+      const bhov = im.hit('td-back', x, y, 132, 36, () => {
+        this.manage = null;
+        this.scroll = 0;
+      }, 3);
+      im.rect(3, x, y, 132, 36, bhov ? 0x243142 : 0x172130, 1, 18, COLORS.line, 1);
+      im.text('td-back-t', '‹  All towns', x + 66, y + 9, { size: 14, bold: true, align: 'center', layer: 4 });
+      im.text('td-name', p.name, x + 150, y + 4, { size: 24, bold: true, layer: 3 });
+      im.text('td-sub', `${radiusOf(p) > 3 ? 'Major city' : lv.name}  ·  ${STYLE_LABEL[p.style]}  ·  level ${p.level}`, x + 150 + 12 + p.name.length * 13, y + 12, { size: 13, color: COLORS.muted, layer: 3 });
+    }
+    y += 50;
+
+    // Summary: growth, and what the districts earn and cost.
+    const next = TOWN_LEVELS[p.level];
+    const kinds = GOOD_LIST.filter((g) => (p.delivered[g] ?? 0) > 0).length;
+    const earn = districtRevenue(world, p);
+    const cost = townUpkeep(p);
+    if (vis(y, 84)) {
+      im.rect(3, x, y, w, 76, COLORS.panelAlt, 1, 14, COLORS.line, 1);
+      if (next) {
+        im.text('td-gh', `GROWING INTO A ${next.name.toUpperCase()}`, x + 16, y + 12, { size: 10, bold: true, color: COLORS.muted, layer: 3 });
+        im.bar(3, x + 16, y + 34, Math.min(420, w - 330), 8, p.growth / next.growth, COLORS.good);
+        im.text('td-g', `${fmt(p.growth)} / ${fmt(next.growth)}`, x + 16 + Math.min(420, w - 330) + 12, y + 29, { size: 12, color: COLORS.muted, layer: 3 });
+        const ok = kinds >= p.level;
+        im.text('td-v', `Variety ${kinds}/${p.level} different goods delivered`, x + 16, y + 50, { size: 12, color: ok ? COLORS.good : COLORS.warn, layer: 3 });
+      } else {
+        im.text('td-gh', 'FULLY GROWN', x + 16, y + 12, { size: 10, bold: true, color: COLORS.good, layer: 3 });
+        im.text('td-v', 'The districts below are how this town keeps getting better.', x + 16, y + 34, { size: 12, color: COLORS.muted, layer: 3 });
+      }
+      im.text('td-e', `+$${fmt(earn)}/min from districts`, x + w - 16, y + 14, { size: 15, bold: true, color: earn > 0 ? COLORS.good : COLORS.muted, align: 'right', layer: 3 });
+      im.text('td-c', `-$${fmt(cost)}/min to run them`, x + w - 16, y + 38, { size: 13, color: cost > 0 ? COLORS.warn : COLORS.muted, align: 'right', layer: 3 });
+    }
+    y += 76 + 18;
+
+    // Specialisation.
+    if (vis(y, 22)) im.text('td-ph', 'SPECIALISATION', x, y + 3, { size: 10, bold: true, color: COLORS.muted, layer: 3 });
+    y += 22;
+    if (path) {
+      const h = 126;
+      if (vis(y, h)) {
+        im.rect(3, x, y, w, h, COLORS.panelAlt, 1, 14, path.color, 0.9);
+        im.rect(3, x, y + 14, 6, h - 28, path.color, 1, 3);
+        im.text('td-pn', path.label, x + 22, y + 12, { size: 20, bold: true, color: path.color, layer: 3 });
+        im.text('td-pb', path.blurb, x + 22, y + 40, { size: 12, color: COLORS.muted, wrap: w - 44, layer: 3 });
+        im.text('td-pp', path.perks.map((s2) => `•  ${s2}`).join('\n'), x + 22, y + 62, { size: 12, layer: 3 });
+      }
+      y += h + 18;
+    } else {
+      const locked = p.level < PATH_TOWN_LEVEL;
+      const intro = locked
+        ? `At level ${PATH_TOWN_LEVEL} (${TOWN_LEVELS[PATH_TOWN_LEVEL - 1].name}) this town can commit to one path. The choice is permanent, and it changes what the town pays for, how its factories work and which districts it can build. Different towns can take different paths.`
+        : `This town is ready to specialise. The choice is permanent, so pick the one that fits the goods you can supply. It costs $${fmt(PATH_COST)}.`;
+      if (vis(y, 48)) im.text('td-pi', intro, x, y, { size: 12, color: locked ? COLORS.muted : COLORS.text, wrap: w, layer: 3 });
+      y += 52;
+      const cols = w >= 900 ? 4 : 2;
+      const cw = (w - gap * (cols - 1)) / cols;
+      const ch = 214;
+      PATH_ORDER.forEach((pid, i) => {
+        const def = PATHS[pid];
+        const cx = x + (i % cols) * (cw + gap);
+        const cy = y + Math.floor(i / cols) * (ch + gap);
+        if (!vis(cy, ch)) return;
+        const err = pathError(world, p, pid);
+        im.rect(3, cx, cy, cw, ch, COLORS.panelAlt, 1, 14, def.color, locked ? 0.35 : 0.8);
+        im.rect(3, cx + 14, cy, cw - 28, 4, def.color, locked ? 0.5 : 1, 2);
+        im.text(`td-p-${pid}`, def.label, cx + 16, cy + 16, { size: 17, bold: true, color: locked ? COLORS.muted : def.color, layer: 3 });
+        im.text(`td-pb-${pid}`, def.blurb, cx + 16, cy + 42, { size: 11, color: COLORS.muted, wrap: cw - 32, layer: 3 });
+        im.text(`td-pk-${pid}`, def.perks.map((s2) => `•  ${s2}`).join('\n'), cx + 16, cy + 92, { size: 11, wrap: cw - 32, layer: 3 });
+        const bw = cw - 32;
+        const by = cy + ch - 46;
+        const hov = !err && im.hit(`td-pc-${pid}`, cx + 16, by, bw, 34, () => {
+          const e = choosePath(world, p, pid);
+          this.hooks.toast(e ?? `${p.name} is now ${def.label}`);
+        }, 4);
+        im.rect(3, cx + 16, by, bw, 34, err ? 0x151c26 : hov ? 0xf0b250 : COLORS.accent, 1, 17, err ? COLORS.line : COLORS.accent, 1);
+        im.text(`td-pct-${pid}`, locked ? `Needs level ${PATH_TOWN_LEVEL}` : err ? err : `Commit  $${fmt(PATH_COST)}`, cx + 16 + bw / 2, by + 9, { size: 14, bold: true, color: err ? COLORS.muted : 0x1b1204, align: 'center', layer: 4 });
+      });
+      y += Math.ceil(PATH_ORDER.length / cols) * (ch + gap) + 6;
+    }
+
+    // Districts.
+    if (vis(y, 22)) im.text('td-dh', 'DISTRICTS', x, y + 3, { size: 10, bold: true, color: COLORS.muted, layer: 3 });
+    if (vis(y, 22)) im.text('td-dn', 'Each level of a district needs the town one level higher.', x + 96, y + 2, { size: 11, color: COLORS.muted, layer: 3 });
+    y += 24;
+    const ids = DISTRICT_ORDER.filter((id) => !DISTRICTS[id].path || !p.path || DISTRICTS[id].path === p.path).sort((a, b) => Number(!!DISTRICTS[a].capstone) - Number(!!DISTRICTS[b].capstone));
+    const cols = w > 760 ? 2 : 1;
+    const cw = (w - gap * (cols - 1)) / cols;
+    const ch = 148;
+    ids.forEach((id, i) => {
+      const cx = x + (i % cols) * (cw + gap);
+      const cy = y + Math.floor(i / cols) * (ch + gap);
+      if (!vis(cy, ch)) return;
+      this.districtCard(world, p, id, cx, cy, cw, ch);
+    });
+    y += Math.ceil(ids.length / cols) * (ch + gap);
+    return y + this.scroll - v.y0 + 6;
+  }
+
+  private districtCard(world: World, p: Place, id: (typeof DISTRICT_ORDER)[number], x: number, y: number, w: number, h: number): void {
+    const im = this.cim;
+    const def = DISTRICTS[id];
+    const lvl = districtLevel(p, id);
+    const err = districtError(world, p, id);
+    const maxed = err === 'Already at max level' || err === 'Already built';
+    const shown = Math.max(1, lvl);
+    const boost = districtBoost(p, def);
+    const tint = def.capstone ? COLORS.accent : lvl > 0 ? COLORS.good : COLORS.line;
+    im.rect(3, x, y, w, h, COLORS.panelAlt, 1, 14, tint, lvl > 0 || def.capstone ? 0.7 : 1);
+    im.text(`dc-n-${p.id}-${id}`, def.label, x + 16, y + 12, { size: 15, bold: true, layer: 3 });
+    // Level pips, or a tag for capstones and path-only districts.
+    if (def.capstone) {
+      im.text(`dc-t-${p.id}-${id}`, lvl > 0 ? 'CAPSTONE · BUILT' : 'CAPSTONE', x + w - 16, y + 15, { size: 10, bold: true, color: COLORS.accent, align: 'right', layer: 3 });
+    } else {
+      for (let k = 0; k < MAX_DISTRICT_LEVEL; k++) im.circle(3, x + w - 24 - (MAX_DISTRICT_LEVEL - 1 - k) * 18, y + 22, 6, k < lvl ? COLORS.good : 0x2a3544);
+    }
+    if (def.path && !def.capstone) im.text(`dc-p-${p.id}-${id}`, `${PATHS[def.path].label} only`, x + 16 + def.label.length * 8.6 + 10, y + 16, { size: 10, bold: true, color: PATHS[def.path].color, layer: 3 });
+    im.text(`dc-b-${p.id}-${id}`, def.blurb, x + 16, y + 36, { size: 11, color: COLORS.muted, wrap: w - 32, layer: 3 });
+
+    // What it lives on: a square per good, bright when the town's docks have it in stock.
+    const docks = world.sites.filter((s) => s.placeId === p.id && SITE_DEFS[s.kind].dock);
+    def.goods.slice(0, 9).forEach((g, k) => {
+      const have = docks.some((d) => stockOf(d, g) >= 1);
+      im.rect(3, x + 16 + k * 20, y + 70, 15, 15, GOODS[g].color, have ? 1 : 0.22, 3);
+    });
+    const bits: string[] = [];
+    if (def.price > 0) bits.push(`+${Math.round(def.price * shown * boost * 100)}% price on ${def.goods.length} goods`);
+    if (def.revenue > 0) {
+      bits.push(`$${fmt(def.revenue * shown * boost)}/min at full supply${lvl > 0 ? ` (now ${Math.round(districtSatisfaction(world, p, id) * 100)}%)` : ''}`);
+    }
+    if (def.effect === 'storage') bits.push(`docks hold +${Math.round((def.capstone ? 30 : 25) * shown * boost)}%`);
+    if (def.effect === 'growth') bits.push(`growth +${20 * shown}%`);
+    if (def.effect === 'visitors') bits.push('income grows with the variety delivered');
+    const ask = [...(def.demand?.market ?? []), ...(def.demand?.freight ?? [])];
+    if (ask.length) bits.push(`asks for ${ask.map((g) => GOODS[g].label.toLowerCase()).join(', ')}`);
+    im.text(`dc-s-${p.id}-${id}`, bits.join('  ·  '), x + 16, y + 92, { size: 11, color: COLORS.text, wrap: w - 32 - 160, layer: 3 });
+
+    // Build or upgrade.
+    const bw = 148;
+    const bx = x + w - 16 - bw;
+    const by = y + h - 46;
+    if (maxed) {
+      im.rect(3, bx, by, bw, 32, 0x14201a, 1, 16, COLORS.good, 0.6);
+      im.text(`dc-m-${p.id}-${id}`, def.capstone ? 'Built' : 'Max level', bx + bw / 2, by + 8, { size: 13, bold: true, color: COLORS.good, align: 'center', layer: 4 });
+      return;
+    }
+    const label = `${lvl > 0 ? 'Upgrade' : 'Build'}  $${fmt(districtCost(p, id))}`;
+    const hov = !err && im.hit(`dc-b2-${p.id}-${id}`, bx, by, bw, 32, () => {
+      const e = buildDistrict(world, p, id);
+      this.hooks.toast(e ?? `${def.label} ${lvl > 0 ? `upgraded to level ${lvl + 1}` : 'built'}`);
+    }, 4);
+    im.rect(3, bx, by, bw, 32, err ? 0x151c26 : hov ? 0xf0b250 : COLORS.accent, 1, 16, err ? COLORS.line : COLORS.accent, 1);
+    im.text(`dc-bt-${p.id}-${id}`, label, bx + bw / 2, by + 8, { size: 13, bold: true, color: err ? COLORS.muted : 0x1b1204, align: 'center', layer: 4 });
+    if (err) im.text(`dc-e-${p.id}-${id}`, err, bx + bw, by - 16, { size: 11, color: err.startsWith('Need $') ? COLORS.warn : COLORS.muted, align: 'right', layer: 3 });
   }
 
   // ---- quests sheet ----

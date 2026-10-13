@@ -1,5 +1,5 @@
 // Named world features: regions, towns and resource nodes. Pure, seeded.
-import { FREIGHT_DEMAND, MARKET_DEMAND, STYLE_TASTE, TOWN_STYLES, type NodeKind, type Stock, type Terrain, type TownStyle } from './defs';
+import { FREIGHT_DEMAND, MARKET_DEMAND, STYLE_TASTE, TOWN_STYLES, type DistrictId, type NodeKind, type PathId, type Stock, type Terrain, type TownStyle } from './defs';
 import { makeNamer } from './names';
 
 export type RegionKind = 'ocean' | 'sea' | 'lake' | 'forest' | 'mountain' | 'land' | 'ice';
@@ -40,6 +40,10 @@ export interface Place {
   radius: number;
   /** Plots (by index) that are already homes along the street, not for sale. */
   homePlots: number[];
+  /** The specialisation this town committed to, if any. */
+  path?: PathId | null;
+  /** Districts built in the town, by id, with their level. */
+  districts?: Partial<Record<DistrictId, number>>;
 }
 
 export const TOWN_RADIUS = 3;

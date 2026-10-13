@@ -55,12 +55,20 @@ Railroads Online has great route building but a thin economy. Farming Sim has de
 
 **Vehicles** differ in capacity and speed:
 
+Vehicles are a ladder, and **Trade up** (Vehicles tab) swaps the smallest vehicle on a route for the next class and returns half of its price.
+
 | Vehicle | Carries | Needs | Status |
 |---|---|---|---|
 | Box truck | 8 | Roads | Built |
-| Big rig | 36 | Roads, Tier 1 | Built |
+| Big box truck | 18 | Roads, Tier 1 | Built |
+| Big rig | 40 | Roads, Tier 2 | Built |
+| Truck fleet (convoy of rigs) | 110 | Roads, Tier 3 | Built |
 | Freight train | 140 | Its own rail network, Tier 2 | Built |
-| Cargo plane | 40 | Air routes between airports, Tier 3 | Built |
+| Heavy haul train | 360 | Rail, Tier 3 | Built |
+| Cargo plane | 60 | Air routes between airports, Tier 3 | Built |
+| Cargo jet | 220 | Air routes, Tier 4 | Built |
+
+**Running costs.** Vehicles cost 5% of their price every minute, buildings 1% per level, districts 1.5% per level. The figure under the money is income after those costs. Money never goes below zero.
 
 ---
 
@@ -75,9 +83,10 @@ World tier is unlocked by **quests**. Each tier has a short list; finishing all 
 | Tier | Name | Quests to finish it | Finishing it unlocks |
 |---|---|---|---|
 | 0 | Startup | Build a Forestry Camp, build a Sawmill in a town, join them with a road, sell 100 lumber | Tier 1: highways, hub, big rig, coal, iron, cotton, sand, jam, feed, pellets, paper, yarn, bricks, stone blocks, building level 2, spans of 4 tiles |
-| 1 | Regional Supplier | Sell 3 different goods, upgrade a building to level 2, build a hub, build a highway, grow a town to level 4 | Tier 2: rail and freight trains, cloth, clothes, furniture, books, cement, concrete, glass, ingots, tools, building level 3, spans of 8 tiles |
-| 2 | Industrial Group | Lay a rail line, make 60 ingots, sell 60 tools, upgrade 2 buildings to level 3, grow 3 towns to level 4 | Tier 3: steel, slag crusher, machinery, spans of 16 tiles |
-| 3 | Global Network | Make 100 steel, sell 40 machinery, grow a town to level 5, earn $250,000 | The end game |
+| 1 | Regional Supplier | Sell 3 different goods, upgrade a building to level 2, build a hub, build a highway, build a district, trade up to a big box truck, grow a town to level 4 | Tier 2: rail and freight trains, cloth, clothes, furniture, books, cement, concrete, glass, ingots, tools, building level 3, spans of 8 tiles |
+| 2 | Industrial Group | Lay a rail line, make 60 ingots, sell 60 tools, upgrade 2 buildings to level 3, specialise a town, upgrade 2 districts to level 2, run a big rig, grow 3 towns to level 4 | Tier 3: steel, slag crusher, machinery, spans of 16 tiles |
+| 3 | Global Network | Make 100 steel, sell 40 machinery, grow a town to level 5, open an air route, build a capstone district, run a truck fleet, earn $250,000 | Tier 4: cargo jet |
+| 4 | Legacy | Run 3 different specialisations, fly a cargo jet, grow 3 towns to level 5, build 3 capstones, earn $1,000,000 | The end game |
 
 Quests are data in `src/sim/defs.ts` (the `TIERS` list) and progress is measured straight from the world, so a quest cannot fall out of step with what is really built. A test checks that no quest asks for something its tier has not unlocked.
 
@@ -88,6 +97,21 @@ A **How to play** guide (H, the ? button, or the menu) walks through the loop in
 | 1 | Deliver 100 lumber | Paper mill, distribution hub, big rig, level 2 buildings, longer bridges and tunnels |
 | 2 | Grow a town to level 3 | Level 3 buildings (rail comes here, when built) |
 | 3 | Grow 3 towns to level 4 | (air freight comes here, when built) |
+
+---
+
+## Districts and Specialisation (the town game)
+
+The point of a town is that you keep building it up. A town starts as a hamlet with a Market, and the player grows it through **districts**: things the town builds and levels, shown in 3D as landmarks on the tiles around its streets (stalls, a hotel tower, a builders' yard with a crane, a university).
+
+- **Manage town** (select a town, then the button; or the Towns sheet) lists every district, its level, what it lives on, what it earns and what the next level costs.
+- A district lives on certain goods. They pay more in that town, the district earns money while the town's docks hold them, and some districts add goods the Market or Freight Yard asks for.
+- Each district level needs the town one level higher. Districts open at different town levels, so growing the town keeps unlocking things to level.
+- Special effects: Warehouse District (docks hold more), University (growth), Hotels and Plaza (visitors pay by variety delivered).
+
+**Specialisation paths.** A Town (level 3) commits permanently to one path for $3,000: **Breadbasket** (food), **The Forge** (metal and building goods), **Trade Hub** (everything pays a little more, bigger loads, more storage) or **The Boulevard** (fine goods and visitors). A path raises the price of its goods, speeds up the right factories in that town, makes on-theme districts 50% stronger, and opens exclusive districts. A Metropolis on a path can build its **capstone**: Grand Food Hall, Heavy Industry Exchange, International Terminal or Grand Plaza. Different towns can take different paths, which is the replay value: a different mix each game.
+
+Rules live in `src/sim/town.ts`, data in `src/sim/defs.ts` (`DISTRICTS`, `PATHS`), landmarks in `src/r3d/districts.ts`, and the screen in `src/ui/sheets.ts`.
 
 ---
 

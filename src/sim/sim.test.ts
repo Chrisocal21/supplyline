@@ -186,6 +186,8 @@ describe('logistics loop', () => {
     for (let i = 0; i < 20000 && w.tier === 0; i++) step(w);
     expect(w.delivered.lumber ?? 0).toBeGreaterThanOrEqual(100);
     expect(w.tier).toBe(1);
+    // The Village threshold is higher than the first quest, so keep selling until the town grows.
+    for (let i = 0; i < 30000 && w.places[0].level < 2; i++) step(w);
     expect(w.places[0].level).toBeGreaterThanOrEqual(2);
     expect(w.log.some((l) => /grew into/.test(l.text))).toBe(true);
     // growing to level 2 opens the freight yard

@@ -20,6 +20,8 @@ import {
   AIR_TIER,
   RAIL_TIER,
   ROAD_COST,
+  SALE_MULT,
+  TRADE_IN,
   type RouteMode,
   SITE_DEFS,
   SPAN_LIMIT,
@@ -36,6 +38,7 @@ import {
 import { generateFeatures, plotEntry, plotFacing, plotTiles, type Place, type Region, type ResourceNode, type Tile } from './features';
 import { generateLand } from './mapgen';
 import { checkQuests } from './quests';
+import { districtDemand, stepEconomy, townGrowthMult, townLoadMult, townPriceMult, townSpeedMult, townStorageMult } from './town';
 
 export type { Place, Region, ResourceNode, Tile };
 export { plotEntry, plotFacing, plotTiles };
@@ -53,6 +56,8 @@ export interface Site {
   nodeId: number | null;
   /** Set on town docks. */
   placeId: number | null;
+  /** The town whose district plot this building stands on (null for none). Worked out on first use. */
+  townId?: number | null;
   /** Hubs: the goods this hub asks suppliers for. */
   pull: Good[];
   /** Rail stations: goods made in the town and waiting for a train. */
@@ -133,6 +138,9 @@ export interface World {
   nextId: number;
   log: LogEntry[];
   logSeq: number;
+  /** Running costs paid since the start, and money that districts have earned. */
+  upkeep?: number;
+  districtIncome?: number;
 }
 
 /** A truck leaves the start of its route once this share of its capacity is ready, or after MAX_LOAD_WAIT ticks. */
@@ -140,6 +148,7 @@ const LOAD_WAIT_FRACTION = 0.6;
 /** A rail station tops the town's docks up to this share of their storage, so prices hold while it sells. */
 const STATION_FEED = 0.6;
 const MAX_LOAD_WAIT = 60;
+const LOAD_CHECK_EVERY = 5;
 
 const DEFAULT_ELEV: Record<Terrain, number> = { water: 50, grass: 130, forest: 130, mountain: 220, ice: 100 };
 
@@ -464,7 +473,7 @@ export function siteCap(world: World, site: Site): number {
   const def = SITE_DEFS[site.kind];
   if (def.dock || def.station) {
     const pl = placeOf(world, site);
-    return def.cap * (pl?.level ?? 1) * (pl && radiusOf(pl) > 3 ? 2 : 1);
+    return def.cap * (pl?.level ?? 1) * (pl && radiusOf(pl) > 3 ? 2 : 1) * (pl ? townStorageMult(pl) : 1);
   }
   return def.cap * LEVEL_CAP[site.level - 1];
 }
@@ -472,7 +481,15 @@ export function siteCap(world: World, site: Site): number {
 /** Output speed multiplier from building level and node quality. */
 export function siteSpeed(world: World, site: Site): number {
   const node = site.nodeId === null ? undefined : world.nodes.find((n) => n.id === site.nodeId);
-  return LEVEL_SPEED[site.level - 1] * (node ? NODE_QUALITY[node.quality].mult : 1);
+  const town = SITE_DEFS[site.kind].inTown ? siteTown(world, site) : undefined;
+  return LEVEL_SPEED[site.level - 1] * (node ? NODE_QUALITY[node.quality].mult : 1) * (town ? townSpeedMult(town, site.kind) : 1);
+}
+
+/** The town a site belongs to: its docks and station, and the buildings on its district plots. */
+export function siteTown(world: World, site: Site): Place | undefined {
+  if (site.placeId !== null) return world.places.find((p) => p.id === site.placeId);
+  if (site.townId === undefined) site.townId = plotAt(world, site.x, site.y)?.place.id ?? null;
+  return site.townId === null ? undefined : world.places.find((p) => p.id === site.townId);
 }
 
 function cityOf(world: World, site: Site): boolean {
@@ -480,13 +497,15 @@ function cityOf(world: World, site: Site): boolean {
   return !!pl && radiusOf(pl) > 3;
 }
 
+const withExtra = (base: Good[], extra: Good[]): Good[] => (extra.length === 0 ? base : [...base, ...extra.filter((g) => !base.includes(g))]);
+
 /** Goods a town dock currently wants. */
 export function dockDemand(world: World, site: Site): Good[] {
   const place = placeOf(world, site);
   if (!place) return [];
   const def = SITE_DEFS[site.kind];
-  if (def.dock === 'market') return MARKET_DEMAND[place.level - 1];
-  return FREIGHT_DEMAND[Math.min(FREIGHT_DEMAND.length, place.level) - 1];
+  if (def.dock === 'market') return withExtra(MARKET_DEMAND[place.level - 1], districtDemand(place, 'market'));
+  return withExtra(FREIGHT_DEMAND[Math.min(FREIGHT_DEMAND.length, place.level) - 1], districtDemand(place, 'freight'));
 }
 
 /** Price per unit a dock pays right now: base, town level bonus, and how stocked it already is. */
@@ -496,7 +515,7 @@ export function unitPrice(world: World, site: Site, good: Good): number {
   const fill = stockOf(site, good) / Math.max(1, siteCap(world, site));
   const taste = place?.taste?.[good] ?? 1;
   const swing = world.events.find((e) => e.good === good && e.until > world.tick)?.mult ?? 1;
-  return GOODS[good].price * taste * swing * (1 + 0.12 * (level - 1)) * Math.min(1.3, Math.max(0.4, 1.3 - fill));
+  return GOODS[good].price * SALE_MULT * taste * swing * (place ? townPriceMult(place, good) : 1) * (1 + 0.12 * (level - 1)) * Math.min(1.3, Math.max(0.4, 1.3 - fill));
 }
 
 // ---- push / pull ----
@@ -686,7 +705,7 @@ function sell(world: World, dock: Site, g: Good, amount: number): void {
   world.earned += gain;
   world.delivered[g] = (world.delivered[g] ?? 0) + amount;
   place.delivered[g] = (place.delivered[g] ?? 0) + amount;
-  place.growth += amount * GOODS[g].price;
+  place.growth += amount * GOODS[g].price * townGrowthMult(place);
   checkTown(world, place);
 }
 
@@ -715,6 +734,11 @@ function stepVehicle(world: World, v: Vehicle): void {
 
   switch (v.state) {
     case 'loading': {
+      // Looking for a load is the costly part of a tick, so each vehicle does it a few times a second, not every tick.
+      if ((world.tick + v.id) % LOAD_CHECK_EVERY !== 0) {
+        v.moveTimer += 1;
+        break;
+      }
       // The vehicle's home is the end that supplies the other one. That is usually where the route was started, but a
       // route drawn from the customer to the supplier works just the same. At home it waits a little for a worthwhile
       // load; at the far end it takes a load back only if it is decent.
@@ -723,11 +747,13 @@ function stepVehicle(world: World, v: Vehicle): void {
       const homeIdx = supplies(world, from, to) || !supplies(world, to, from) ? 0 : last;
       const atHome = v.idx === homeIdx;
       const away: 1 | -1 = v.idx === 0 ? 1 : -1;
-      const pick = pickCargo(world, here, there, vdef.capacity);
+      const hereTown = siteTown(world, here);
+      const capacity = Math.floor(vdef.capacity * (hereTown ? townLoadMult(hereTown) : 1));
+      const pick = pickCargo(world, here, there, capacity);
       const waited = v.moveTimer;
-      const enough = pick !== null && pick.amount >= vdef.capacity * (atHome ? LOAD_WAIT_FRACTION : 0.4);
+      const enough = pick !== null && pick.amount >= capacity * (atHome ? LOAD_WAIT_FRACTION : 0.4);
       // Having come all this way for it (home has nothing to send back), take whatever is waiting.
-      const fetch = pick !== null && !atHome && !pickCargo(world, there, here, vdef.capacity);
+      const fetch = pick !== null && !atHome && !pickCargo(world, there, here, capacity);
       if (pick && (enough || fetch || (atHome && waited >= MAX_LOAD_WAIT))) {
         take(here, pick.good, pick.amount);
         v.cargo = pick.amount;
@@ -735,7 +761,7 @@ function stepVehicle(world: World, v: Vehicle): void {
         v.state = 'moving';
         v.dir = away;
         v.moveTimer = 0;
-      } else if (atHome && !pick && waited >= MAX_LOAD_WAIT && pickCargo(world, there, here, vdef.capacity)) {
+      } else if (atHome && !pick && waited >= MAX_LOAD_WAIT && pickCargo(world, there, here, capacity)) {
         // Nothing to carry from home, but the other end has something for us: go and fetch it.
         v.state = 'moving';
         v.dir = away;
@@ -798,6 +824,7 @@ export function step(world: World): void {
   for (const s of world.sites) stepSite(world, s);
   for (const v of world.vehicles) stepVehicle(world, v);
   if (world.tier >= RAIL_TIER && world.tick % 20 === 0 && ensureStations(world) > 0) addLog(world, 'Rail Stations have opened on the edge of every town');
+  if (world.tick % 10 === 0) stepEconomy(world);
   checkQuests(world, (text) => addLog(world, text));
 }
 
@@ -1118,6 +1145,47 @@ export function addVehicle(world: World, routeId: number, kind: VehicleKind): st
   if (err) return err;
   world.money -= VEHICLE_DEFS[kind].cost;
   newVehicle(world, routeId, kind);
+  return null;
+}
+
+/** The vehicle on a route that a trade-up would replace: the smallest one that has a bigger class to go to. */
+function tradeUpTarget(world: World, routeId: number): Vehicle | undefined {
+  return world.vehicles
+    .filter((v) => v.routeId === routeId && VEHICLE_DEFS[v.kind].next)
+    .sort((a, b) => VEHICLE_DEFS[a.kind].capacity - VEHICLE_DEFS[b.kind].capacity)[0];
+}
+
+/** What trading a vehicle up costs: the next class, less what the old one is worth. */
+export function tradeUpCost(kind: VehicleKind): number {
+  const next = VEHICLE_DEFS[kind].next;
+  return next ? Math.round(VEHICLE_DEFS[next].cost - VEHICLE_DEFS[kind].cost * TRADE_IN) : 0;
+}
+
+/** What a trade-up on this route would do, for the hint: the class it replaces, the class it becomes, and the price. */
+export function tradeUpPreview(world: World, routeId: number): { from: VehicleKind; to: VehicleKind; cost: number } | null {
+  const v = tradeUpTarget(world, routeId);
+  return v ? { from: v.kind, to: VEHICLE_DEFS[v.kind].next!, cost: tradeUpCost(v.kind) } : null;
+}
+
+/** Why the smallest vehicle on this route cannot be traded up, or null. */
+export function tradeUpError(world: World, routeId: number): string | null {
+  const route = world.routes.find((r) => r.id === routeId);
+  if (!route) return 'Click a road, rail line or air route to trade up its smallest vehicle';
+  const v = tradeUpTarget(world, routeId);
+  if (!v) return world.vehicles.some((x) => x.routeId === routeId) ? 'Already the top class on this route' : 'No vehicles on this route';
+  const next = VEHICLE_DEFS[VEHICLE_DEFS[v.kind].next!];
+  if (next.tier > world.tier) return `${next.label} unlocks at Tier ${next.tier}`;
+  const cost = tradeUpCost(v.kind);
+  return world.money < cost ? `Need $${cost.toLocaleString('en-US')}` : null;
+}
+
+/** Swap the smallest vehicle on a route for the next class up. */
+export function tradeUp(world: World, routeId: number): string | null {
+  const err = tradeUpError(world, routeId);
+  if (err) return err;
+  const v = tradeUpTarget(world, routeId)!;
+  world.money -= tradeUpCost(v.kind);
+  v.kind = VEHICLE_DEFS[v.kind].next!;
   return null;
 }
 

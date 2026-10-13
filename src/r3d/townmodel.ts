@@ -1,9 +1,10 @@
 // The model of a town or major city: lots for sale and homes beside the streets, driveways, a signalled crossing,
 // street lamps, and homes or towers around the outside. Everything is built once per change and merged into one mesh.
 import * as THREE from 'three';
-import type { TownStyle } from '../sim/defs';
+import { DISTRICT_ORDER, type DistrictId, type TownStyle } from '../sim/defs';
 import { CITY_RADIUS, homeTiles, plotEntry, plotFacing, plotTiles } from '../sim/features';
 import { R as GLOBE_R } from './geo';
+import { districtLandmark } from './districts';
 import { Parts } from './parts';
 
 const TILE = 3.27;
@@ -55,6 +56,8 @@ export interface TownModelOptions {
   /** Per plot and per home tile: dry land that can be built on. */
   plotOk: boolean[];
   homeOk: boolean[];
+  /** Districts the town has built, each shown as a landmark on one of the tiles around its streets. */
+  districts?: { id: DistrictId; level: number }[];
 }
 
 export function townGeometry(o: TownModelOptions): THREE.BufferGeometry {
@@ -185,12 +188,27 @@ export function townGeometry(o: TownModelOptions): THREE.BufferGeometry {
   const fillFrac = city ? [0.35, 0.5, 0.65, 0.8, 0.9][level - 1] : [0.3, 0.5, 0.75, 0.95, 1][level - 1];
   const filled = Math.floor(around.length * fillFrac);
   const maxD = Math.max(1, ...around.map((h) => h.d));
+  // Each district has its own slot, taken from the tiles nearest the centre, so it stays put as others are added.
+  const slots = homeTiles(0, 0, R)
+    .map((t, i) => ({ i, d: Math.hypot(t.x, t.y) + Math.atan2(t.y, t.x) * 0.001 }))
+    .filter((h) => o.homeOk[h.i])
+    .sort((a, b) => a.d - b.d);
+  const claimed = new Map<number, { id: DistrictId; level: number }>();
+  for (const d of o.districts ?? []) {
+    const slot = slots[DISTRICT_ORDER.indexOf(d.id)];
+    if (slot) claimed.set(slot.i, d);
+  }
   around.forEach((h, idx) => {
     const tx = h.t.x * TILE * sq;
     const tz = h.t.y * TILE;
     // Face the nearest street.
     const face = Math.abs(h.t.x) < Math.abs(h.t.y) ? (h.t.x > 0 ? 'W' : 'E') : h.t.y > 0 ? 'N' : 'S';
     const yaw = YAW[face as 'N' | 'S' | 'E' | 'W'];
+    const landmark = claimed.get(h.i);
+    if (landmark) {
+      districtLandmark(p, landmark.id, landmark.level, tx, tz, yaw);
+      return;
+    }
     if (idx >= filled) {
       if (r() < (city ? 0.8 : 0.55)) tree(tx + (r() - 0.5) * 1.6, tz + (r() - 0.5) * 1.6);
       if (city && r() < 0.5) tree(tx + (r() - 0.5) * 2, tz + (r() - 0.5) * 2);

@@ -437,6 +437,41 @@ export function vehicleGeometry(kind: VehicleKind): THREE.BufferGeometry {
       p.box(0.39, 0.06, 1.05, 0x2f5f8a, { y: 0.34, z: -0.3 });
       for (const [x, z] of [[-0.18, 0.6], [0.18, 0.6], [-0.18, -0.55], [0.18, -0.55], [-0.18, -0.78], [0.18, -0.78]]) wheel(p, x, 0.0, z, 0.1);
       break;
+    case 'bigtruck':
+      p.box(0.36, 0.07, 1.2, 0x2b2d30, { y: 0.1 });
+      p.box(0.36, 0.36, 0.3, 0x2f7a6a, { y: 0.14, z: 0.44 });
+      p.box(0.34, 0.13, 0.02, 0xbcd6e6, { y: 0.32, z: 0.595 });
+      p.box(0.4, 0.46, 0.78, 0xe9eaeb, { y: 0.14, z: -0.2 });
+      p.box(0.41, 0.06, 0.78, 0x2f7a6a, { y: 0.36, z: -0.2 });
+      for (const [x, z] of [[-0.19, 0.42], [0.19, 0.42], [-0.19, -0.3], [0.19, -0.3], [-0.19, -0.5], [0.19, -0.5]]) wheel(p, x, 0.0, z, 0.1);
+      break;
+    case 'convoy':
+      // Three rigs nose to tail, as one unit.
+      for (let i = 0; i < 3; i++) {
+        const z = 1.1 - i * 1.25;
+        p.box(0.34, 0.07, 1.1, 0x2b2d30, { y: 0.1, z });
+        p.box(0.34, 0.36, 0.32, [0xa83a30, 0x2f5f8a, 0xd7a21f][i], { y: 0.14, z: z + 0.4 });
+        p.box(0.32, 0.12, 0.02, 0xbcd6e6, { y: 0.32, z: z + 0.565 });
+        p.box(0.38, 0.44, 0.76, 0xdfe1e3, { y: 0.14, z: z - 0.2 });
+        p.box(0.39, 0.06, 0.76, [0xa83a30, 0x2f5f8a, 0xd7a21f][i], { y: 0.34, z: z - 0.2 });
+        for (const [x, dz] of [[-0.18, 0.4], [0.18, 0.4], [-0.18, -0.4], [0.18, -0.4]]) wheel(p, x, 0.0, z + dz, 0.1);
+      }
+      break;
+    case 'heavytrain':
+      p.box(0.38, 0.42, 0.95, 0x6b2f2a, { y: 0.1, z: 2.4 });
+      p.box(0.3, 0.12, 0.02, 0xbcd6e6, { y: 0.36, z: 2.88 });
+      p.box(0.18, 0.1, 0.3, 0x2b2d30, { y: 0.52, z: 2.35 });
+      for (let i = 0; i < 6; i++) p.box(0.36, 0.38, 0.8, [0x8a4a32, 0x6b7f8e, 0x9a8a5a, 0x4f6a52, 0x8a6a3a, 0x5a6b7c][i], { y: 0.1, z: 1.45 - i * 0.9 });
+      break;
+    case 'jet':
+      p.cyl(0.24, 0.24, 2.3, 0xeceeef, { y: 0.26, z: -1.1, rx: Math.PI / 2 }, 16);
+      p.cone(0.24, 0.5, 0xeceeef, { y: 0.26, z: 1.2, rx: Math.PI / 2 }, 16);
+      p.box(2.7, 0.04, 0.5, 0xcfd3d6, { y: 0.22, z: 0.1 });
+      for (const x of [-0.7, 0.7]) p.cyl(0.07, 0.07, 0.36, 0x9aa3a9, { x, y: 0.12, z: 0.25, rx: Math.PI / 2 }, 10);
+      for (const x of [-1.1, 1.1]) p.cyl(0.06, 0.06, 0.3, 0x9aa3a9, { x, y: 0.14, z: 0.3, rx: Math.PI / 2 }, 10);
+      p.box(0.8, 0.04, 0.3, 0xcfd3d6, { y: 0.28, z: -1.2 });
+      p.box(0.04, 0.42, 0.34, 0x2f5f8a, { y: 0.34, z: -1.22 });
+      break;
     case 'train':
       p.box(0.36, 0.4, 0.9, 0x2f4a36, { y: 0.1, z: 0.8 });
       p.box(0.3, 0.12, 0.02, 0xbcd6e6, { y: 0.34, z: 1.255 });

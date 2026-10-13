@@ -15,6 +15,7 @@ import {
   type QuestGoal,
   type TierDef,
 } from './defs';
+import { builtDistricts, pathsInUse } from './town';
 import type { World } from './world';
 
 export interface Progress {
@@ -62,6 +63,22 @@ export function questProgress(world: World, goal: QuestGoal): Progress {
       break;
     case 'upgrade':
       have = world.sites.filter((s) => !SITE_DEFS[s.kind].dock && s.level >= goal.level).length;
+      need = goal.count;
+      break;
+    case 'district':
+      have = world.places.reduce((n, p) => n + builtDistricts(p).filter((d) => d.level >= goal.level).length, 0);
+      need = goal.count;
+      break;
+    case 'path':
+      have = world.places.filter((p) => p.path).length;
+      need = goal.count;
+      break;
+    case 'paths':
+      have = pathsInUse(world).size;
+      need = goal.count;
+      break;
+    case 'capstone':
+      have = world.places.reduce((n, p) => n + builtDistricts(p).filter((d) => d.def.capstone).length, 0);
       need = goal.count;
       break;
   }

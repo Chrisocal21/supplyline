@@ -11,6 +11,8 @@ import {
   TIERS,
   TOWN_LEVELS,
   VEHICLE_DEFS,
+  VEHICLE_ORDER,
+  PATHS,
   AIR_COST_PER_TILE,
   AIR_TIER,
   type Good,
@@ -25,6 +27,7 @@ import {
   siteCap,
   siteSpeed,
   stockOf,
+  tradeUpPreview,
   unitPrice,
   upgradeCost,
   upgradeError,
@@ -69,7 +72,7 @@ const TABS: Tab[] = [
   { id: 'manufacturing', label: 'Manufacturing', icon: 'thumb-workshop', blurb: 'Paper, textiles, furniture. Build these on a free plot in a town.', tools: sitesIn('manufacturing') },
   { id: 'heavy', label: 'Heavy Industry', icon: 'thumb-smelter', blurb: 'Stone, metal, glass and machinery. Build these on a free plot in a town.', tools: sitesIn('heavy') },
   { id: 'logistics', label: 'Logistics', icon: 'thumb-route', blurb: 'Roads, highways, rails, hubs and clearing the way', tools: ['route', 'highway', 'rail', 'air', 'hub', 'airport', 'demolish'] },
-  { id: 'vehicles', label: 'Vehicles', icon: 'thumb-boxtruck', blurb: 'Click a road to put a vehicle on it', tools: ['boxtruck', 'rig', 'train', 'plane'] },
+  { id: 'vehicles', label: 'Vehicles', icon: 'thumb-boxtruck', blurb: 'Click a road to put a vehicle on it, or trade one up to a bigger class', tools: [...VEHICLE_ORDER, 'tradeup'] },
 ];
 
 const REGION_COLOR: Record<string, number> = {
@@ -141,6 +144,7 @@ export class HudScene extends Phaser.Scene {
         this.game3d.lookAt(place.x, place.y, 55, this.game3d.cam.heading, this.game3d.cam.pitchManual);
       },
       select: (id) => (this.sheet = id),
+      toast: (text) => this.toasts.push({ text, until: this.time.now + 3200 }),
     });
     const el = this.game.canvas;
     el.style.position = 'absolute';
@@ -158,6 +162,7 @@ export class HudScene extends Phaser.Scene {
     this.textures.addCanvas('thumb-highway', this.highwayIcon());
     this.textures.addCanvas('thumb-select', this.cursorIcon());
     this.textures.addCanvas('thumb-demolish', this.demolishIcon());
+    this.textures.addCanvas('thumb-tradeup', this.tradeIcon());
 
     const kb = this.input.keyboard!;
     this.keys = kb.addKeys('W,A,S,D,UP,DOWN,LEFT,RIGHT,Q,E') as Record<string, Phaser.Input.Keyboard.Key>;
@@ -214,6 +219,14 @@ export class HudScene extends Phaser.Scene {
   }
 
   // ---- input helpers ----
+
+  /** Open the Towns sheet on one town's path and districts. */
+  private openManage(id: number): void {
+    this.sheets.manage = id;
+    this.sheets.scroll = 0;
+    this.sheet = 'towns';
+    this.menuOpen = false;
+  }
 
   private toggleSheet(id: SheetId): void {
     this.sheet = this.sheet === id ? null : id;
@@ -382,7 +395,7 @@ export class HudScene extends Phaser.Scene {
     const last = this.incomeSamples[this.incomeSamples.length - 1];
     if (!last || w.tick - last.tick >= 50 || w.tick < last.tick) {
       if (last && w.tick < last.tick) this.incomeSamples = [];
-      this.incomeSamples.push({ tick: w.tick, earned: w.earned });
+      this.incomeSamples.push({ tick: w.tick, earned: w.earned - (w.upkeep ?? 0) });
       if (this.incomeSamples.length > 12) this.incomeSamples.shift();
     }
     const a = this.incomeSamples[0];
@@ -615,6 +628,16 @@ export class HudScene extends Phaser.Scene {
         detail: ['Click a building. Town docks cannot be removed.'],
       };
     }
+    if (tool === 'tradeup') {
+      return {
+        name: 'Trade up',
+        cost: 'less your old one',
+        locked: null,
+        thumb: 'thumb-tradeup',
+        blurb: 'Swap the smallest vehicle on a route for the next class up.',
+        detail: ['Box Truck, Big Box Truck, Big Rig, Truck Fleet. Freight Train, Heavy Haul Train. Cargo Plane, Cargo Jet.', 'You get half of the old vehicle back. Bigger classes unlock with the tiers.', 'Click a road, a rail line or an airport on an air route.'],
+      };
+    }
     if (tool in VEHICLE_DEFS) {
       const d = VEHICLE_DEFS[tool as VehicleKind];
       return {
@@ -727,7 +750,10 @@ export class HudScene extends Phaser.Scene {
     else if (g.tool === 'rail') text = `Drag from a site, ${byInput('click', 'tap')} or drag again to bend the track, and finish on another site`;
     else if (g.tool === 'air') text = g.airFrom === null ? `${byInput('Click', 'Tap')} an airport, then ${byInput('click', 'tap')} the airport to fly to` : `Now ${byInput('click', 'tap')} the airport to fly to (${byInput('click', 'tap')} the same one to cancel)`;
     else if (g.tool === 'demolish') text = h?.site ? `${byInput('Click', 'Tap')} to demolish ${h.site.name}` : `${byInput('Click', 'Tap')} a building to demolish it`;
-    else if (g.tool in VEHICLE_DEFS) {
+    else if (g.tool === 'tradeup') {
+      const pv = h?.route ? tradeUpPreview(w, h.route.id) : null;
+      text = pv ? `${VEHICLE_DEFS[pv.from].label} to ${VEHICLE_DEFS[pv.to].label} for $${fmt(pv.cost)}` : `${byInput('Click', 'Tap')} a road, rail line or airport to trade up its smallest vehicle`;
+    } else if (g.tool in VEHICLE_DEFS) {
       const d = VEHICLE_DEFS[g.tool as VehicleKind];
       text = `${byInput('Click', 'Tap')} ${d.mode === 'air' ? 'an airport on an air route' : d.mode === 'rail' ? 'a rail line' : 'a road'} to add a ${d.label} ($${fmt(d.cost)}, carries ${d.capacity})`;
     } else if (g.tool !== 'select') {
@@ -817,7 +843,7 @@ export class HudScene extends Phaser.Scene {
         if (next.quest.reward > 0) lines.push({ text: `Reward $${fmt(next.quest.reward)}`, color: COLORS.warn });
       }
       lines.push({ text: 'Click for all quests', color: COLORS.muted });
-    } else if (g.hover && !this.dragging && !p.isDown) {
+    } else if (g.hover && !this.dragging && !p.isDown && (!isTouch() || g.pending)) {
       lines.push(...this.hoverLines(g.hover));
     }
     if (lines.length === 0) return;
@@ -856,13 +882,13 @@ export class HudScene extends Phaser.Scene {
       out.push({ text: st.text, color: st.color });
       const goods = Array.from(new Set([...produces(s), ...wants(w, s)])).filter((gd) => stockOf(s, gd) > 0 || (def.dock || def.station ? false : true));
       for (const gd of goods.slice(0, 4)) out.push({ text: `${GOODS[gd].label}  ${Math.floor(stockOf(s, gd))} / ${siteCap(w, s)}` });
-      out.push({ text: 'Click to inspect', color: COLORS.muted });
+      out.push({ text: `${byInput('Click', 'Tap')} to inspect`, color: COLORS.muted });
     } else if (h.place) {
       const p = h.place;
       out.push({ text: p.name, bold: true, size: 14 }, { text: `${TOWN_LEVELS[p.level - 1].name} · population ${fmt(TOWN_LEVELS[p.level - 1].pop)}`, color: COLORS.muted });
       const next = TOWN_LEVELS[p.level];
       if (next) out.push({ text: `Growth ${fmt(p.growth)} / ${fmt(next.growth)}`, color: COLORS.good });
-      out.push({ text: 'Click to inspect', color: COLORS.muted });
+      out.push({ text: `${byInput('Click', 'Tap')} to inspect`, color: COLORS.muted });
     } else if (h.node) {
       const q = NODE_QUALITY[h.node.quality];
       const used = w.sites.some((s) => s.nodeId === h.node!.id);
@@ -1049,7 +1075,10 @@ export class HudScene extends Phaser.Scene {
     im.text('ppName', p.name, x, cy, { size: 17, bold: true, wrap: w - 36, layer: 2 });
     cy += 24;
     im.text('ppKind', `${lv.name}  ·  ${STYLE_LABEL[p.style]}  ·  Level ${p.level}  ·  population ${fmt(lv.pop)}`, x, cy, { size: 12, color: COLORS.muted, wrap: w, layer: 2 });
-    cy += 26;
+    cy += 22;
+    const path = p.path ? PATHS[p.path] : null;
+    im.text('ppPath', path ? path.label : p.level >= 3 ? 'Ready to specialise' : 'No specialisation yet', x, cy, { size: 12, bold: true, color: path ? path.color : p.level >= 3 ? COLORS.accent : COLORS.muted, layer: 2 });
+    cy += 24;
 
     const next = TOWN_LEVELS[p.level];
     im.line(2, x, cy, x + w, cy, COLORS.line, 1);
@@ -1085,6 +1114,10 @@ export class HudScene extends Phaser.Scene {
     cy += 10;
     im.text('ppNote', 'Towns use up what you deliver. Full docks pay less, so spread your deliveries around.', x, cy, { size: 11, color: COLORS.muted, wrap: w, layer: 2 });
     cy += 34;
+    const mhov = im.hit('ppManage', x, cy, w, 42, () => this.openManage(p.id), 2);
+    im.rect(2, x, cy, w, 42, mhov ? 0xf0b250 : COLORS.accent, 1, 21);
+    im.text('ppManageT', 'Manage town', x + w / 2, cy + 12, { size: 15, bold: true, color: 0x1b1204, align: 'center', layer: 3 });
+    cy += 54;
     return cy - y;
   }
 
@@ -1156,6 +1189,45 @@ export class HudScene extends Phaser.Scene {
       ctx.translate(-off * 0.7, 0);
     }
     ctx.restore();
+    return c;
+  }
+
+  private tradeIcon(): HTMLCanvasElement {
+    const c = document.createElement('canvas');
+    c.width = c.height = 160;
+    const ctx = c.getContext('2d')!;
+    // A small truck, an arrow, and a bigger truck.
+    ctx.fillStyle = '#dfe1e3';
+    ctx.fillRect(18, 98, 34, 22);
+    ctx.fillStyle = '#3b6ea5';
+    ctx.fillRect(52, 104, 14, 16);
+    ctx.fillStyle = '#1f2124';
+    ctx.beginPath();
+    ctx.arc(28, 122, 6, 0, Math.PI * 2);
+    ctx.arc(58, 122, 6, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#e8a23a';
+    ctx.beginPath();
+    ctx.moveTo(80, 30);
+    ctx.lineTo(104, 58);
+    ctx.lineTo(90, 58);
+    ctx.lineTo(90, 78);
+    ctx.lineTo(70, 78);
+    ctx.lineTo(70, 58);
+    ctx.lineTo(56, 58);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = '#dfe1e3';
+    ctx.fillRect(86, 84, 56, 36);
+    ctx.fillStyle = '#2f7a6a';
+    ctx.fillRect(86, 84, 56, 6);
+    ctx.fillRect(142, 92, 12, 28);
+    ctx.fillStyle = '#1f2124';
+    ctx.beginPath();
+    ctx.arc(98, 124, 8, 0, Math.PI * 2);
+    ctx.arc(126, 124, 8, 0, Math.PI * 2);
+    ctx.arc(148, 124, 8, 0, Math.PI * 2);
+    ctx.fill();
     return c;
   }
 

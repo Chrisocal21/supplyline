@@ -8,6 +8,7 @@ import {
   VEHICLE_DEFS,
   VEHICLE_ORDER,
   BUILD_ORDER,
+  type DistrictId,
   type NodeKind,
   type SiteKind,
   type VehicleKind,
@@ -18,6 +19,8 @@ import { tileLonLat } from '../sim/mapgen';
 import { findPath } from '../sim/path';
 import {
   addVehicle,
+  tradeUp,
+  tradeUpPreview,
   createAirRoute,
   createRoute,
   createWorld,
@@ -64,7 +67,19 @@ import type { Good } from '../sim/defs';
 export const SAVE_KEY = 'supplyline.save.v8';
 const TICK_MS = 1000 / TICKS_PER_SECOND;
 
-export type Tool = 'select' | 'route' | 'highway' | 'rail' | 'air' | 'demolish' | SiteKind | VehicleKind;
+/** Where the load shows on each vehicle: height and distance along its length. */
+const CARGO_AT: Record<VehicleKind, [number, number]> = {
+  boxtruck: [0.58, -0.14],
+  bigtruck: [0.62, -0.2],
+  rig: [0.62, -0.3],
+  convoy: [0.62, -0.1],
+  train: [0.58, -0.14],
+  heavytrain: [0.58, 0.2],
+  plane: [0.58, -0.14],
+  jet: [0.58, -0.14],
+};
+
+export type Tool = 'select' | 'route' | 'highway' | 'rail' | 'air' | 'demolish' | 'tradeup' | SiteKind | VehicleKind;
 export type Selection = { kind: 'site'; id: number } | { kind: 'place'; id: number } | null;
 
 export interface HoverInfo {
@@ -500,8 +515,9 @@ export class Game3D {
     const sig = [
       w.sites.map((s) => `${s.id}.${s.level}`).join(','),
       w.routes.length,
-      w.places.map((p) => p.level).join(''),
+      w.places.map((p) => `${p.level}${Object.values(p.districts ?? {}).join('')}`).join(''),
       w.vehicles.length,
+      w.vehicles.reduce((n, v) => n + VEHICLE_ORDER.indexOf(v.kind), 0),
     ].join('|');
     if (sig !== this.signature) {
       const routesChanged = !this.signature || this.signature.split('|')[1] !== String(w.routes.length);
@@ -535,7 +551,7 @@ export class Game3D {
   }
 
   private activeNodeKind(): NodeKind | null {
-    if (this.isRouteTool() || this.tool === 'select' || this.tool === 'air' || this.tool === 'demolish') return null;
+    if (this.isRouteTool() || this.tool === 'select' || this.tool === 'air' || this.tool === 'demolish' || this.tool === 'tradeup') return null;
     if ((VEHICLE_ORDER as string[]).includes(this.tool)) return null;
     return SITE_DEFS[this.tool as SiteKind].node ?? null;
   }
@@ -600,7 +616,8 @@ export class Game3D {
       };
       const plotOk = plots.map(landOk);
       const homeOk = homeTiles(p.x, p.y, R).map((t) => landOk(t) && !routeAt(w, t.x, t.y, 'rail') && !siteAt(w, t.x, t.y));
-      const sig = `${p.level}.${occupied.map((o) => (o ? 1 : 0)).join('')}.${homeOk.map((o) => (o ? 1 : 0)).join('')}`;
+      const districts = Object.entries(p.districts ?? {}).filter(([, lv]) => (lv ?? 0) > 0).map(([id, level]) => ({ id: id as DistrictId, level: level as number }));
+      const sig = `${p.level}.${occupied.map((o) => (o ? 1 : 0)).join('')}.${homeOk.map((o) => (o ? 1 : 0)).join('')}.${districts.map((d) => `${d.id}${d.level}`).join(',')}`;
       if (have && have.sig === sig) continue;
       if (have) {
         this.scene.remove(have.mesh);
@@ -609,7 +626,7 @@ export class Game3D {
       const { lat } = tileLonLat(w.width, w.height, p.x, p.y);
       const squeeze = THREE.MathUtils.clamp(Math.cos(lat), 0.55, 1);
       const mesh = new THREE.Mesh(
-        townGeometry({ level: p.level, seed: p.id + w.seed, squeeze, radius: R, style: p.style, occupied, homePlots: p.homePlots ?? [], plotOk, homeOk }),
+        townGeometry({ level: p.level, seed: p.id + w.seed, squeeze, radius: R, style: p.style, occupied, homePlots: p.homePlots ?? [], plotOk, homeOk, districts }),
         siteMaterial,
       );
       mesh.castShadow = true;
@@ -635,17 +652,27 @@ export class Game3D {
     }
     const cargoGeo = new THREE.BoxGeometry(0.16, 0.1, 0.16);
     for (const v of this.world.vehicles) {
-      if (this.vehicleMeshes.has(v.id)) continue;
       let g = this.vehicleGeo.get(v.kind);
       if (!g) {
         g = vehicleGeometry(v.kind);
         this.vehicleGeo.set(v.kind, g);
       }
+      const have = this.vehicleMeshes.get(v.id);
+      if (have) {
+        // Traded up: the same vehicle, a bigger body.
+        if (have.userData.kind !== v.kind) {
+          have.geometry = g;
+          have.userData.kind = v.kind;
+          this.cargoMeshes.get(v.id)?.position.set(0, CARGO_AT[v.kind][0], CARGO_AT[v.kind][1]);
+        }
+        continue;
+      }
       const m = new THREE.Mesh(g, siteMaterial);
+      m.userData.kind = v.kind;
       m.castShadow = true;
       m.matrixAutoUpdate = false;
       const cargo = new THREE.Mesh(cargoGeo, this.cargoMat('logs'));
-      cargo.position.set(0, v.kind === 'rig' ? 0.62 : 0.58, v.kind === 'rig' ? -0.3 : -0.14);
+      cargo.position.set(0, CARGO_AT[v.kind][0], CARGO_AT[v.kind][1]);
       cargo.visible = false;
       m.add(cargo);
       this.scene.add(m);
@@ -721,7 +748,7 @@ export class Game3D {
       m.matrixWorldNeedsUpdate = true;
       const cargo = this.cargoMeshes.get(v.id);
       if (cargo) {
-        cargo.visible = v.cargo > 0 && v.kind !== 'plane';
+        cargo.visible = v.cargo > 0 && vd.mode !== 'air';
         if (v.good) cargo.material = this.cargoMat(v.good);
       }
     }
@@ -848,7 +875,7 @@ export class Game3D {
   }
 
   private isBuildTool(): boolean {
-    return this.tool !== 'select' && !this.isRouteTool() && this.tool !== 'air' && this.tool !== 'demolish' && !(VEHICLE_ORDER as string[]).includes(this.tool);
+    return this.tool !== 'select' && !this.isRouteTool() && this.tool !== 'air' && this.tool !== 'demolish' && this.tool !== 'tradeup' && !(VEHICLE_ORDER as string[]).includes(this.tool);
   }
 
   private setHover(tile: Tile | null): void {
@@ -1031,6 +1058,14 @@ export class Game3D {
       const route = mode === 'air' ? w.routes.find((r) => r.mode === 'air' && here && (r.fromSiteId === here.id || r.toSiteId === here.id)) : routeAt(w, tile.x, tile.y, mode);
       const err = addVehicle(w, route?.id ?? -1, this.tool as VehicleKind);
       this.onToast(err ?? `${VEHICLE_DEFS[this.tool as VehicleKind].label} added`);
+      return;
+    }
+    if (this.tool === 'tradeup') {
+      const here = siteAt(w, tile.x, tile.y);
+      const route = routeAt(w, tile.x, tile.y) ?? w.routes.find((r) => r.mode === 'air' && here && (r.fromSiteId === here.id || r.toSiteId === here.id));
+      const before = route ? tradeUpPreview(w, route.id) : null;
+      const err = tradeUp(w, route?.id ?? -1);
+      this.onToast(err ?? `${VEHICLE_DEFS[before!.from].label} traded up to a ${VEHICLE_DEFS[before!.to].label}`);
       return;
     }
     if (this.tool === 'air') {
