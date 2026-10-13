@@ -265,14 +265,14 @@ describe('towns and levels', () => {
     expect(upgradeSite(w, siteAt(w, 15, 9)!.id)).toMatch(/deliveries/);
   });
 
-  it('refuses vehicles that are not built yet', () => {
+  it('keeps planes off roads', () => {
     const w = testWorld();
     w.money = 100000;
     w.tier = 3;
     placeSite(w, 'forestry', 3, 4);
     put(w, 'sawmill', 9, 4);
     createRoute(w, row(3, 9, 4));
-    expect(addVehicle(w, w.routes[0].id, 'plane')).toMatch(/not available yet/);
+    expect(addVehicle(w, w.routes[0].id, 'plane')).toMatch(/need an air route/);
     expect(addVehicle(w, w.routes[0].id, 'rig')).toBeNull();
   });
 });

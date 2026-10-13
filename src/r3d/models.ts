@@ -354,6 +354,27 @@ function station(): THREE.BufferGeometry {
   return p.build();
 }
 
+function airport(): THREE.BufferGeometry {
+  const p = new Parts();
+  p.slab(2.7, 2.6, 0x8d8f91);
+  p.tex = 5;
+  // Runway with centre dashes
+  p.box(0.55, 0.03, 2.5, 0x3b3d41, { x: 0.7, y: 0.04, z: 0 });
+  for (let i = 0; i < 6; i++) p.box(0.06, 0.01, 0.24, C.white, { x: 0.7, y: 0.07, z: -1.0 + i * 0.4 });
+  // Terminal and tower
+  p.box(0.85, 0.3, 0.5, C.white, { x: -0.7, y: 0.04, z: 0.55 });
+  p.box(0.93, 0.05, 0.58, C.roofDark, { x: -0.7, y: 0.34, z: 0.55 });
+  for (let i = 0; i < 4; i++) p.box(0.14, 0.12, 0.02, C.glass, { x: -0.98 + i * 0.19, y: 0.14, z: 0.81 });
+  p.cyl(0.09, 0.12, 0.9, C.concrete, { x: -0.7, y: 0.04, z: -0.55 }, 10);
+  p.box(0.32, 0.16, 0.32, C.glass, { x: -0.7, y: 0.94, z: -0.55 });
+  p.box(0.38, 0.04, 0.38, C.roofDark, { x: -0.7, y: 1.1, z: -0.55 });
+  // A small plane waiting by the terminal
+  p.cyl(0.07, 0.07, 0.5, 0xe9ebec, { x: -0.2, y: 0.14, z: 0.1, rx: Math.PI / 2 }, 10);
+  p.box(0.55, 0.02, 0.12, 0xcfd3d6, { x: -0.2, y: 0.13, z: 0.1 });
+  p.box(0.02, 0.12, 0.1, C.blue, { x: -0.2, y: 0.2, z: -0.13 });
+  return p.build();
+}
+
 export function siteGeometry(kind: SiteKind): THREE.BufferGeometry {
   switch (kind) {
     case 'forestry':
@@ -388,6 +409,8 @@ export function siteGeometry(kind: SiteKind): THREE.BufferGeometry {
       return freight();
     case 'station':
       return station();
+    case 'airport':
+      return airport();
     default:
       return industryGeometry(kind);
   }

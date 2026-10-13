@@ -11,6 +11,8 @@ import {
   TIERS,
   TOWN_LEVELS,
   VEHICLE_DEFS,
+  AIR_COST_PER_TILE,
+  AIR_TIER,
   type Good,
   BUILD_ORDER,
   type SiteKind,
@@ -34,6 +36,7 @@ import { nextQuest } from '../sim/quests';
 import type { Game3D, HoverInfo, OverlayItem, Tool } from '../r3d/game3d';
 import { COLORS, Im } from './imui';
 import { Rates, Sheets, type SheetId } from './sheets';
+import { byInput, inputMode, isTouch, onInputChange } from './inputmode';
 
 const TOP = 72;
 const DOCK_TAB_W = 96;
@@ -65,7 +68,7 @@ const TABS: Tab[] = [
   { id: 'processing', label: 'Processing', icon: 'thumb-sawmill', blurb: 'Food and materials. Build these on a free plot in a town.', tools: sitesIn('processing') },
   { id: 'manufacturing', label: 'Manufacturing', icon: 'thumb-workshop', blurb: 'Paper, textiles, furniture. Build these on a free plot in a town.', tools: sitesIn('manufacturing') },
   { id: 'heavy', label: 'Heavy Industry', icon: 'thumb-smelter', blurb: 'Stone, metal, glass and machinery. Build these on a free plot in a town.', tools: sitesIn('heavy') },
-  { id: 'logistics', label: 'Logistics', icon: 'thumb-route', blurb: 'Roads, highways, rails, hubs and clearing the way', tools: ['route', 'highway', 'rail', 'hub', 'demolish'] },
+  { id: 'logistics', label: 'Logistics', icon: 'thumb-route', blurb: 'Roads, highways, rails, hubs and clearing the way', tools: ['route', 'highway', 'rail', 'air', 'hub', 'airport', 'demolish'] },
   { id: 'vehicles', label: 'Vehicles', icon: 'thumb-boxtruck', blurb: 'Click a road to put a vehicle on it', tools: ['boxtruck', 'rig', 'train', 'plane'] },
 ];
 
@@ -145,11 +148,13 @@ export class HudScene extends Phaser.Scene {
     el.style.top = '0';
     el.style.zIndex = '5';
     this.input.mouse?.disableContextMenu();
+    this.input.addPointer(1); // a second finger, for pinch and twist
 
     // 3D thumbnails and two drawn icons for the build menu.
     for (const [key, canvas] of this.game3d.makeThumbnails(160)) this.textures.addCanvas(`thumb-${key}`, canvas);
     this.textures.addCanvas('thumb-route', this.roadIcon());
     this.textures.addCanvas('thumb-rail', this.railIcon());
+    this.textures.addCanvas('thumb-air', this.airIcon());
     this.textures.addCanvas('thumb-highway', this.highwayIcon());
     this.textures.addCanvas('thumb-select', this.cursorIcon());
     this.textures.addCanvas('thumb-demolish', this.demolishIcon());
@@ -174,6 +179,12 @@ export class HudScene extends Phaser.Scene {
       this.game3d.pointerDown(p.x, p.y, (p.event as MouseEvent).button ?? 0);
     });
     this.input.on('pointermove', (p: Phaser.Input.Pointer) => {
+      if (p.wasTouch && this.sheet) {
+        // Drag a sheet to scroll it.
+        if (p.isDown) this.sheets.scrollBy(p.prevPosition.y - p.y);
+        return;
+      }
+      if (p.wasTouch && !this.dragging) return;
       const over = this.im.blocked(p.x, p.y) && !this.dragging;
       this.game3d.setHoverBlocked(over);
       if (!over) this.game3d.pointerMove(p.x, p.y);
@@ -189,6 +200,7 @@ export class HudScene extends Phaser.Scene {
     });
 
     this.game3d.onToast = (text) => this.toasts.push({ text, until: this.time.now + 3200 });
+    onInputChange((m) => this.toasts.push({ text: m === 'touch' ? 'Touch controls' : 'Mouse and keyboard controls', until: this.time.now + 2200 }));
 
     // A first-time player gets the guide straight away. Screenshot and demo links skip it.
     try {
@@ -262,6 +274,9 @@ export class HudScene extends Phaser.Scene {
     const H = this.scale.height;
     const now = this.time.now;
 
+    g.touch = isTouch();
+    this.twoFingers();
+
     // Keyboard camera movement.
     const k = this.keys;
     g.setKeys((k.D.isDown || k.RIGHT.isDown ? 1 : 0) - (k.A.isDown || k.LEFT.isDown ? 1 : 0), (k.W.isDown || k.UP.isDown ? 1 : 0) - (k.S.isDown || k.DOWN.isDown ? 1 : 0), (k.E.isDown ? 1 : 0) - (k.Q.isDown ? 1 : 0));
@@ -286,6 +301,80 @@ export class HudScene extends Phaser.Scene {
     this.cim.end();
     const p = this.input.activePointer;
     g.setHoverBlocked(im.blocked(p.x, p.y) && !this.dragging);
+  }
+
+  private gesture: { dist: number; angle: number; midY: number } | null = null;
+
+  /** Pinch to zoom, twist to turn, and slide two fingers up or down to tilt. */
+  private twoFingers(): void {
+    const a = this.input.pointer1;
+    const b = this.input.pointer2;
+    if (!a || !b || !a.isDown || !b.isDown || this.sheet) {
+      this.gesture = null;
+      return;
+    }
+    const dist = Math.hypot(b.x - a.x, b.y - a.y);
+    if (dist < 24) return;
+    const angle = Math.atan2(b.y - a.y, b.x - a.x);
+    const midY = (a.y + b.y) / 2;
+    const gs = this.gesture;
+    this.gesture = { dist, angle, midY };
+    if (!gs) {
+      this.dragging = false;
+      this.game3d.cancelPointer();
+      return;
+    }
+    let da = angle - gs.angle;
+    if (da > Math.PI) da -= Math.PI * 2;
+    if (da < -Math.PI) da += Math.PI * 2;
+    this.game3d.pinch(gs.dist / dist, -da, (midY - gs.midY) * 0.004);
+  }
+
+  /** Touch only: the confirm bar for a tapped build or demolish, and Undo and Cancel while a road is drawn. Returns true when it replaces the hint. */
+  private touchBar(W: number, H: number): boolean {
+    const g = this.game3d;
+    const im = this.im;
+    if (!isTouch()) return false;
+    const top = H - this.bottomInset - 56;
+    const bh = 40;
+    const button = (id: string, label: string, x: number, w: number, primary: boolean, fn: () => void): void => {
+      const hov = im.hit(id, x, top + 8, w, bh, fn, 2);
+      im.rect(2, x, top + 8, w, bh, primary ? COLORS.accent : hov ? 0x243142 : 0x172130, 1, 20, COLORS.line, 1);
+      im.text(`${id}T`, label, x + w / 2, top + 8 + 11, { size: 15, bold: true, align: 'center', color: primary ? 0x0b121b : COLORS.text, layer: 3 });
+    };
+    const info = g.pendingInfo();
+    if (info) {
+      const demolish = g.tool === 'demolish';
+      const d = demolish ? null : SITE_DEFS[g.tool as SiteKind];
+      const label = demolish ? `Demolish ${info.site?.name ?? ''}` : `${d?.label} $${fmt(d?.cost ?? 0)}`;
+      const text = info.error ?? label;
+      const tw = im.text('pendText', text, 0, -100, { size: 14, bold: true, layer: 3 }).w;
+      const cancelW = 92;
+      const okW = info.error ? 0 : 110;
+      const total = 22 + tw + 14 + cancelW + (okW ? 8 + okW : 0) + 8;
+      const x0 = Math.round((W - total) / 2);
+      im.rect(1, x0, top, total, 56, COLORS.panel, 0.96, 28, COLORS.line, 1);
+      im.block({ x: x0, y: top, w: total, h: 56 });
+      im.text('pendText', text, x0 + 22, top + 19, { size: 14, bold: true, color: info.error ? COLORS.bad : COLORS.text, layer: 3 });
+      let bx = x0 + 22 + tw + 14;
+      button('pendCancel', 'Cancel', bx, cancelW, false, () => g.cancelPending());
+      bx += cancelW + 8;
+      if (okW) button('pendOk', demolish ? 'Demolish' : 'Build', bx, okW, true, () => g.confirmPending());
+      return true;
+    }
+    if (g.draft) {
+      const bw = 96;
+      const x0 = Math.round(W / 2 - bw - 4);
+      const y = top - 28;
+      const small = (id: string, label: string, x: number, fn: () => void): void => {
+        const h = im.hit(id, x, y, bw, bh, fn, 2);
+        im.rect(2, x, y, bw, bh, h ? 0x243142 : COLORS.panel, 0.96, 20, COLORS.line, 1);
+        im.text(`${id}T`, label, x + bw / 2, y + 11, { size: 15, bold: true, align: 'center', layer: 3 });
+      };
+      small('draftUndo', 'Undo', x0, () => g.undoDraft());
+      small('draftCancel', 'Cancel', x0 + bw + 8, () => g.cancelDraft());
+    }
+    return false;
   }
 
   private trackIncome(): void {
@@ -442,7 +531,8 @@ export class HudScene extends Phaser.Scene {
     });
     const cy = y + 10 + items.length * 54 + 6;
     im.line(3, x + 14, cy, x + w - 14, cy, COLORS.line, 1, 1);
-    im.text('menuHelp', 'Drag to move. Right-drag to turn and tilt. Wheel to zoom. P, T, G and H open the sheets. Space pauses.', x + 16, cy + 10, { size: 11, color: COLORS.muted, wrap: w - 32, layer: 4 });
+    im.text('menuHelp', byInput('Drag to move. Right-drag to turn and tilt. Wheel to zoom. P, T, G and H open the sheets. Space pauses.', 'Drag to move. Pinch to zoom. Twist two fingers to turn, drag them up or down to tilt.'), x + 16, cy + 10, { size: 11, color: COLORS.muted, wrap: w - 32, layer: 4 });
+    im.text('menuInput', `Controls: ${inputMode() === 'touch' ? 'touch' : 'mouse and keyboard'}`, x + 16, y + ph - 22, { size: 11, color: COLORS.accent, layer: 4 });
   }
 
   /** The production and towns sheets. */
@@ -505,6 +595,16 @@ export class HudScene extends Phaser.Scene {
         detail: ['Rail is its own network, apart from roads.', 'Every town has a Rail Station on its edge. Run track to it (or just point at the Market) and whatever the train unloads is sold on to the town.', 'Where track meets a road it makes a level crossing, at a right angle on a straight stretch.', `Bridges and tunnels: up to ${[2, 4, 8, 16][Math.min(3, w.tier)]} tiles at Tier ${w.tier}.`],
       };
     }
+    if (tool === 'air') {
+      return {
+        name: 'Air Route',
+        cost: `$${AIR_COST_PER_TILE}/tile`,
+        locked: w.tier < AIR_TIER ? `Tier ${AIR_TIER}` : null,
+        thumb: 'thumb-air',
+        blurb: 'Click one airport, then another. A cargo plane comes with it.',
+        detail: ['Planes fly in a straight line over water and mountains.', 'Airports store goods like hubs: tick what they should pull, and connect them to factories by road or rail.', 'Add more planes with the Cargo Plane card.'],
+      };
+    }
     if (tool === 'demolish') {
       return {
         name: 'Demolish',
@@ -523,7 +623,7 @@ export class HudScene extends Phaser.Scene {
         locked: !d.implemented ? 'Coming soon' : d.tier > w.tier ? `Tier ${d.tier}` : null,
         thumb: `thumb-${tool}`,
         blurb: d.blurb,
-        detail: [`Carries ${d.capacity} units`, `${d.mode === 'road' ? 'Roads' : d.mode === 'rail' ? 'Rails' : 'Air routes'}`, d.mode === 'rail' ? 'Click a rail line to add one.' : 'Click a road to add one.'],
+        detail: [`Carries ${d.capacity} units`, `${d.mode === 'road' ? 'Roads' : d.mode === 'rail' ? 'Rails' : 'Air routes'}`, d.mode === 'rail' ? 'Click a rail line to add one.' : d.mode === 'air' ? 'Click an airport on an air route to add one.' : 'Click a road to add one.'],
       };
     }
     const d = SITE_DEFS[tool as SiteKind];
@@ -568,14 +668,14 @@ export class HudScene extends Phaser.Scene {
       im.rect(1, x, y, tabW, DOCK_TAB_H, on ? 0x1f2c3a : hov ? 0x1a2431 : 0x131b25, 1, 12, on ? COLORS.accent : 0x131b25, 1, on ? 2 : 0);
       im.image(`tabImg${t.id}`, t.icon, x + (tabW - 36) / 2, y + 6, 36, 36, on ? 1 : 0.85, 2);
       im.text(`tabT${t.id}`, t.label, x + tabW / 2, y + 46, { size: tabW < 84 ? 10 : 12, bold: true, color: on ? COLORS.accent : COLORS.text, align: 'center', layer: 2 });
-      im.text(`tabK${t.id}`, String(i + 1), x + 7, y + 4, { size: 10, color: COLORS.muted, layer: 2 });
+      if (!isTouch()) im.text(`tabK${t.id}`, String(i + 1), x + 7, y + 4, { size: 10, color: COLORS.muted, layer: 2 });
     });
     this.bottomInset = DOCK_H + EDGE;
 
     // Key hints sit in the corner beside the dock, in as much detail as there is room for.
     const room = W - 14 - (dx + dockW + 12);
     const keys = ['Tab: category   1-9: pick   P: production   T: towns   G: quests   H: guide   Esc: cancel   Space: pause', 'P: production   T: towns   G: quests   H: guide', 'G: quests   H: guide'].find((s) => s.length * 5.7 < room);
-    if (keys) im.text('keysHint', keys, W - 14, H - 22, { size: 11, color: COLORS.muted, align: 'right', alpha: 0.7 });
+    if (keys && !isTouch()) im.text('keysHint', keys, W - 14, H - 22, { size: 11, color: COLORS.muted, align: 'right', alpha: 0.7 });
 
     if (!open) return;
 
@@ -601,7 +701,7 @@ export class HudScene extends Phaser.Scene {
       im.image(`cardImg${tool}`, info.thumb, cx + (CARD_W - 68) / 2, cy + 6, 68, 68, info.locked ? 0.35 : 1, 2);
       im.text(`cardName${tool}`, info.name, cx + CARD_W / 2, cy + 78, { size: info.name.length > 14 ? 11 : 12, bold: true, align: 'center', layer: 2, alpha: info.locked ? 0.55 : 1 });
       im.text(`cardCost${tool}`, info.locked ?? info.cost, cx + CARD_W / 2, cy + 96, { size: 12, color: info.locked ? COLORS.muted : COLORS.warn, align: 'center', layer: 2 });
-      if (i < 9) im.text(`cardKey${tool}`, String(i + 1), cx + 8, cy + 5, { size: 11, color: COLORS.muted, layer: 2 });
+      if (i < 9 && !isTouch()) im.text(`cardKey${tool}`, String(i + 1), cx + 8, cy + 5, { size: 11, color: COLORS.muted, layer: 2 });
       if (hov) im.tip(id);
     });
     this.bottomInset = DOCK_H + EDGE + DOCK_GAP + trayH;
@@ -610,6 +710,7 @@ export class HudScene extends Phaser.Scene {
   // ---- hint line ----
 
   private hint(W: number, H: number): void {
+    if (this.touchBar(W, H)) return;
     const g = this.game3d;
     const w = g.world;
     let text = '';
@@ -619,18 +720,19 @@ export class HudScene extends Phaser.Scene {
       if (plan) {
         const rail = plan.mode === 'rail';
         const first = rail ? VEHICLE_DEFS.train : VEHICLE_DEFS.boxtruck;
-        text = plan.error ? plan.error : `${rail ? 'Track' : plan.grade === 'highway' ? 'Highway' : 'Road'} ${g.draft.length - 1} tiles · ${fmt(plan.cost)} + ${first.label.toLowerCase()} ${first.cost}${plan.bridgeTiles ? ` · ${plan.bridgeTiles} bridge` : ''}${plan.tunnelTiles ? ` · ${plan.tunnelTiles} tunnel` : ''}${plan.crossings ? ` · ${plan.crossings} level crossing${plan.crossings > 1 ? 's' : ''}` : ''} · release to build`;
-      } else text = `${g.tool === 'rail' ? 'Track' : 'Road'} ${g.draft.length - 1} tiles · drag or click to steer, finish on a site · Backspace undoes a bend · Esc cancels`;
-    } else if (g.tool === 'route') text = 'Drag from a site, click or drag again to bend the road, and finish on another site';
-    else if (g.tool === 'highway') text = 'Drag from a site, click or drag again to bend the highway, and finish on another site';
-    else if (g.tool === 'rail') text = 'Drag from a site, click or drag again to bend the track, and finish on another site';
-    else if (g.tool === 'demolish') text = h?.site ? `Click to demolish ${h.site.name}` : 'Click a building to demolish it';
+        text = plan.error ? plan.error : `${rail ? 'Track' : plan.grade === 'highway' ? 'Highway' : 'Road'} ${g.draft.length - 1} tiles · ${fmt(plan.cost)} + ${first.label.toLowerCase()} ${first.cost}${plan.bridgeTiles ? ` · ${plan.bridgeTiles} bridge` : ''}${plan.tunnelTiles ? ` · ${plan.tunnelTiles} tunnel` : ''}${plan.crossings ? ` · ${plan.crossings} level crossing${plan.crossings > 1 ? 's' : ''}` : ''} · ${byInput('release to build', 'lift to build')}`;
+      } else text = `${g.tool === 'rail' ? 'Track' : 'Road'} ${g.draft.length - 1} tiles · ${byInput('drag or click to steer, finish on a site · Backspace undoes a bend · Esc cancels', 'drag or tap to steer, finish on a site')}`;
+    } else if (g.tool === 'route') text = `Drag from a site, ${byInput('click', 'tap')} or drag again to bend the road, and finish on another site`;
+    else if (g.tool === 'highway') text = `Drag from a site, ${byInput('click', 'tap')} or drag again to bend the highway, and finish on another site`;
+    else if (g.tool === 'rail') text = `Drag from a site, ${byInput('click', 'tap')} or drag again to bend the track, and finish on another site`;
+    else if (g.tool === 'air') text = g.airFrom === null ? `${byInput('Click', 'Tap')} an airport, then ${byInput('click', 'tap')} the airport to fly to` : `Now ${byInput('click', 'tap')} the airport to fly to (${byInput('click', 'tap')} the same one to cancel)`;
+    else if (g.tool === 'demolish') text = h?.site ? `${byInput('Click', 'Tap')} to demolish ${h.site.name}` : `${byInput('Click', 'Tap')} a building to demolish it`;
     else if (g.tool in VEHICLE_DEFS) {
       const d = VEHICLE_DEFS[g.tool as VehicleKind];
-      text = `Click a road to add a ${d.label} ($${fmt(d.cost)}, carries ${d.capacity})`;
+      text = `${byInput('Click', 'Tap')} ${d.mode === 'air' ? 'an airport on an air route' : d.mode === 'rail' ? 'a rail line' : 'a road'} to add a ${d.label} ($${fmt(d.cost)}, carries ${d.capacity})`;
     } else if (g.tool !== 'select') {
       const d = SITE_DEFS[g.tool as SiteKind];
-      text = h ? (h.error ? h.error : `Click to build ${d.label} for $${fmt(d.cost)}`) : `${d.label} $${fmt(d.cost)}`;
+      text = h ? (h.error ? h.error : `${byInput('Click', 'Tap')} to build ${d.label} for $${fmt(d.cost)}`) : `${d.label} $${fmt(d.cost)}`;
     } else if (h) {
       text = h.site?.name ?? (h.place ? h.place.name : h.node ? `${h.node.kind} node` : (h.region?.name ?? ''));
     }
@@ -752,7 +854,7 @@ export class HudScene extends Phaser.Scene {
       out.push({ text: s.name, bold: true, size: 14 }, { text: `${def.label}${def.dock || def.station ? '' : ` · Level ${s.level}`}`, color: COLORS.muted });
       const st = this.siteStatus(s);
       out.push({ text: st.text, color: st.color });
-      const goods = Array.from(new Set([...produces(s), ...wants(w, s)])).filter((gd) => stockOf(s, gd) > 0 || (def.dock ? false : true));
+      const goods = Array.from(new Set([...produces(s), ...wants(w, s)])).filter((gd) => stockOf(s, gd) > 0 || (def.dock || def.station ? false : true));
       for (const gd of goods.slice(0, 4)) out.push({ text: `${GOODS[gd].label}  ${Math.floor(stockOf(s, gd))} / ${siteCap(w, s)}` });
       out.push({ text: 'Click to inspect', color: COLORS.muted });
     } else if (h.place) {
@@ -857,13 +959,14 @@ export class HudScene extends Phaser.Scene {
     im.text('spStoreH', 'STORAGE', x, cy, { size: 11, bold: true, color: COLORS.muted, layer: 2 });
     cy += 20;
     const cap = siteCap(world, s);
-    const goods = Array.from(new Set([...(def.hub ? GOOD_LIST : produces(s)), ...wants(world, s)])).filter((gd) => !def.station || stockOf(s, gd) >= 1);
+    const waiting = (gd: Good): number => (def.station ? (s.out?.[gd] ?? 0) : stockOf(s, gd));
+    const goods = Array.from(new Set([...(def.hub ? GOOD_LIST : produces(s)), ...wants(world, s)])).filter((gd) => !def.station || waiting(gd) >= 1);
     if (def.station && goods.length === 0) {
-      im.text('spEmpty', 'The platform is empty', x, cy, { size: 12, color: COLORS.muted, layer: 2 });
+      im.text('spEmpty', 'Nothing waiting for a train', x, cy, { size: 12, color: COLORS.muted, layer: 2 });
       cy += 22;
     }
     goods.forEach((gd) => {
-      const n = stockOf(s, gd);
+      const n = waiting(gd);
       im.text(`spG${gd}`, GOODS[gd].label, x, cy, { size: 12, layer: 2 });
       im.bar(2, x + 78, cy + 5, w - 78 - 70, 7, n / cap, n / cap > 0.85 ? COLORS.bad : COLORS.good);
       im.text(`spN${gd}`, `${Math.floor(n)} / ${cap}`, x + w, cy, { size: 12, color: COLORS.muted, align: 'right', layer: 2 });
@@ -893,7 +996,7 @@ export class HudScene extends Phaser.Scene {
 
     if (def.station) {
       cy += 6;
-      im.text('spStN', 'Lay track here with the Rail tool. The station sells goods on to the Market and Freight Yard as they have room, at their prices.', x, cy, { size: 11, color: COLORS.muted, wrap: w, layer: 2 });
+      im.text('spStN', 'Factories in this town send their goods here once a track serves the station, and trains carry them away. Lay track with the Rail tool. The station sells goods on to the Market and Freight Yard as they have room, at their prices.', x, cy, { size: 11, color: COLORS.muted, wrap: w, layer: 2 });
       cy += 52;
     }
 
@@ -1052,6 +1155,38 @@ export class HudScene extends Phaser.Scene {
       ctx.stroke();
       ctx.translate(-off * 0.7, 0);
     }
+    ctx.restore();
+    return c;
+  }
+
+  private airIcon(): HTMLCanvasElement {
+    const c = document.createElement('canvas');
+    c.width = c.height = 160;
+    const ctx = c.getContext('2d')!;
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = '#d9d4b4';
+    ctx.lineWidth = 6;
+    ctx.setLineDash([2, 14]);
+    ctx.beginPath();
+    ctx.moveTo(28, 124);
+    ctx.quadraticCurveTo(70, 20, 132, 40);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    for (const [x, y, col] of [[28, 124, '#4cc38a'], [132, 40, '#e8a23a']] as [number, number, string][]) {
+      ctx.fillStyle = col;
+      ctx.beginPath();
+      ctx.arc(x, y, 12, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.fillStyle = '#eceeef';
+    ctx.save();
+    ctx.translate(86, 52);
+    ctx.rotate(-0.1);
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 22, 6, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillRect(-4, -20, 8, 40);
+    ctx.fillRect(-20, -4, 8, 8);
     ctx.restore();
     return c;
   }

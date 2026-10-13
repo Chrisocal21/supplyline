@@ -66,7 +66,7 @@
 **Phase progress:** 70% (7/10)
 
 - [x] Rail as its own network, with level crossings, and freight trains
-- [ ] Airports and cargo planes
+- [x] Airports and cargo planes
 - [x] More goods and chains, so bigger towns have more to want (15 goods, by-products, 6 new buildings)
 - [x] Towns as districts with through streets, production and towns sheets, new header
 - [x] Major cities and small towns; for-sale lots, driveways and regional town styles
@@ -115,9 +115,9 @@
 
 - [ ] Playtest on a real machine and fix what feels wrong (performance, camera feel, balance)
 - [ ] Balance pass: how fast towns grow, prices, truck speeds
-- [ ] Planes and airports
+- [x] Planes and airports
 - [x] Rail stations: every town gets one at Tier 2, trains sell through it
-- [ ] Stations that also load goods made in the town onto trains
+- [x] Stations that also load goods made in the town onto trains
 - [ ] Tune the quest numbers and rewards after a real playthrough
 - [ ] Deploy to Vercel once Chris approves
 

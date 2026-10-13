@@ -195,6 +195,7 @@ export class HeightField {
     const runs: Run[] = [];
     const levels = new Map<number, number>();
     for (const r of this.world.routes) {
+      if (r.mode === 'air') continue;
       const p = r.path;
       for (let i = 1; i < p.length; i++) {
         if (!land(p[i - 1]) || !land(p[i])) continue;

@@ -60,7 +60,7 @@ Railroads Online has great route building but a thin economy. Farming Sim has de
 | Box truck | 8 | Roads | Built |
 | Big rig | 36 | Roads, Tier 1 | Built |
 | Freight train | 140 | Its own rail network, Tier 2 | Built |
-| Cargo plane | 30 | Airports, Tier 3 | Designed, not built |
+| Cargo plane | 40 | Air routes between airports, Tier 3 | Built |
 
 ---
 
@@ -107,7 +107,7 @@ Drag from one site to another: the game finds the cheapest buildable route (brid
 
 **Next:**
 - More train types, and loading goods onto trains at a station
-- Airports and planes
+- More plane types, and airports with their own storage upgrades
 - Real economy balancing (prices, speeds, costs)
 - More chains and goods, so higher-level towns have more to want
 - Events: demand spikes, price changes

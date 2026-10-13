@@ -247,3 +247,12 @@ Still open: rail stations so trains can serve town centres, planes, a balance pa
 - **Tests:** 41 pass (two new ones for stations).
 
 Still open: stations only receive goods; planes; a balance pass.
+
+## Oct 12, 2026 (later still): balance, stations that send, planes
+
+- **Balance.** Town growth thresholds are three times higher (Village 750, Town 3600, City 13500, Metropolis 45000), so towns no longer shoot to level 3 in one sitting.
+- **Small towns.** A station holds 60 of a good per town level instead of 240, so a train only takes what the town can absorb.
+- **Stations send goods.** Once a rail line serves a station, the town's factories pass half of what they make to the platform every second and trains carry it away. Goods a train unloads go to the town's factories first, then to the Market and Freight Yard. This also makes inner-lot factories reachable by rail.
+- **Vehicles.** An idle vehicle at its home end now goes to fetch from the far end when something is waiting there, and takes whatever is there on arrival. Fixes hub-to-station and other two-way links.
+- **Planes and airports.** Airport (Tier 3, $2500, outside towns) is a hub planes fly between. Air Route tool: click one airport then another; a cargo plane (40 units, $7000) comes with it and flies a straight line over any terrain. Air routes draw as a faint arc. New quest "Open an air route" in Tier 3.
+- **Tests:** 43 pass.

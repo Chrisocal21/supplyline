@@ -187,6 +187,8 @@ export class Im {
     this.usedI.add(id);
   }
 
+  private touchDown: { id: string; x: number; y: number } | null = null;
+
   /** A clickable area. Returns whether the pointer is over it. */
   hit(id: string, x: number, y: number, w: number, h: number, onClick: () => void, layer = 1): boolean {
     const c = this.clipBox;
@@ -206,7 +208,15 @@ export class Im {
       z = this.scene.add.zone(0, 0, w, h).setOrigin(0, 0);
       z.setInteractive({ useHandCursor: true });
       z.on('pointerdown', (p: Phaser.Input.Pointer) => {
-        if (p.button === 0) this.handlers.get(id)?.();
+        if (p.button !== 0) return;
+        // A finger fires on lift, so dragging a list to scroll it does not press what it started on.
+        if (p.wasTouch) this.touchDown = { id, x: p.x, y: p.y };
+        else this.handlers.get(id)?.();
+      });
+      z.on('pointerup', (p: Phaser.Input.Pointer) => {
+        const t = this.touchDown;
+        this.touchDown = null;
+        if (t && t.id === id && p.wasTouch && Math.hypot(p.x - t.x, p.y - t.y) < 14) this.handlers.get(id)?.();
       });
       z.on('pointerover', () => (this.hoverId = id));
       z.on('pointerout', () => {

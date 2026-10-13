@@ -16,6 +16,14 @@ if (hash.includes('demo')) {
   game.newWorld();
 }
 game.start();
+// Phones and tablets suspend a tab without warning, so save as the page is hidden.
+const saveOnLeave = (): void => {
+  if (!game.demo) game.save();
+};
+window.addEventListener('pagehide', saveOnLeave);
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') saveOnLeave();
+});
 
 // The HUD is a transparent Phaser canvas on top of the 3D view.
 const phaser = new Phaser.Game({

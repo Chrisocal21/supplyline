@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { Terrain } from './defs';
 import { findPath } from './path';
 import { put } from './testutil';
-import { addDock, addVehicle, createBlankWorld, createRoute, demolishSite, dockDemand, ensureStations, placeSite, planRoute, siteAt, step, stockOf, type World } from './world';
+import { addDock, addVehicle, createBlankWorld, createRoute, demolishSite, airPath, createAirRoute, dockDemand, ensureStations, townSites, placeSite, planRoute, siteAt, step, stockOf, type World } from './world';
 
 function open(): World {
   const w = 30;
@@ -424,5 +424,51 @@ describe('rail stations', () => {
     expect(w.delivered[good] ?? 0).toBeGreaterThan(30);
     expect(w.money).toBeGreaterThan(before);
     expect(w.places[0].growth).toBeGreaterThan(0);
+  });
+});
+
+describe('air routes and station freight', () => {
+  it('flies cargo between two airports over water', () => {
+    const w = open();
+    w.tier = 3;
+    w.money = 1e6;
+    placeSite(w, 'airport', 5, 4);
+    placeSite(w, 'airport', 25, 9);
+    const [a, b] = w.sites.filter((s) => s.kind === 'airport');
+    expect(createAirRoute(w, a.id, b.id)).toBeNull();
+    expect(createAirRoute(w, a.id, b.id)).toMatch(/already linked/);
+    const route = w.routes.find((r) => r.mode === 'air')!;
+    expect(route.path.length).toBe(airPath(w, a, b).length);
+    expect(w.vehicles.some((v) => v.kind === 'plane')).toBe(true);
+    a.pull = [];
+    b.pull = ['lumber'];
+    a.stock.lumber = 100;
+    for (let i = 0; i < 1200; i++) step(w);
+    expect(b.stock.lumber ?? 0).toBeGreaterThan(20);
+    expect(planRoute(w, route.path, 'road').error).toBeTruthy();
+    expect(placeSite(w, 'airport', 20, 6)).toMatch(/outside a town|Too close|main street/);
+  });
+
+  it('sends goods from a town factory out by train, and feeds a factory from the platform', () => {
+    const w = open();
+    w.tier = 3;
+    w.money = 1e6;
+    w.places[0].marketTile = { x: 21, y: 5 };
+    w.sites = [];
+    addDock(w, w.places[0], 'market');
+    expect(placeSite(w, 'sawmill', 19, 5)).toBeNull();
+    ensureStations(w);
+    const station = w.sites.find((s) => s.kind === 'station')!;
+    const mill = siteAt(w, 19, 5)!;
+    expect(townSites(w, w.places[0])).toContain(mill);
+    placeSite(w, 'hub', 15, 3);
+    const hub = siteAt(w, 15, 3)!;
+    hub.pull = ['lumber'];
+    createRoute(w, findPath(w, hub, station, 120000, 'rail')!, 'rail');
+    mill.stock.lumber = 40;
+    for (let i = 0; i < 1500; i++) step(w);
+    // The train carried lumber out of the platform: it reached the hub, or came back and was sold in town.
+    expect((hub.stock.lumber ?? 0) + (w.delivered.lumber ?? 0)).toBeGreaterThan(0);
+    expect(station.out?.lumber ?? 0).toBeLessThan(31);
   });
 });

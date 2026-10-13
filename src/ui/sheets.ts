@@ -13,6 +13,7 @@ import {
 import { questState, tierUnlocks } from '../sim/quests';
 import { dockDemand, isHomePlot, plotTiles, radiusOf, produces, siteCap, stockOf, unitPrice, wants, type Place, type Site, type World } from '../sim/world';
 import { COLORS, Im } from './imui';
+import { isTouch } from './inputmode';
 
 export type SheetId = 'production' | 'towns' | 'quests' | 'guide';
 
@@ -26,7 +27,13 @@ interface View {
 const wrapped = (world: World, x: number): number => ((x % world.width) + world.width) % world.width;
 const fmt = (n: number): string => Math.floor(n).toLocaleString('en-US');
 /** The how-to-play guide: a card per topic, in the order a new player needs them. */
-const GUIDE: { title: string; body: string; icon?: string }[] = [
+/** Wording per input type. A plain string is shared; touch also gets Click turned into Tap. */
+type Body = string | { mouse: string; touch: string };
+const bodyText = (b: Body): string => {
+  if (typeof b === 'string') return isTouch() ? b.replace(/Click/g, 'Tap').replace(/click/g, 'tap') : b;
+  return isTouch() ? b.touch : b.mouse;
+};
+const GUIDE: { title: string; body: Body; icon?: string }[] = [
   {
     title: 'The idea',
     body: 'Towns buy goods. You make the goods, haul them to town and get paid. Sales grow the towns, bigger towns want more kinds of goods, and finished quests unlock new tiers of buildings and vehicles.',
@@ -34,7 +41,10 @@ const GUIDE: { title: string; body: string; icon?: string }[] = [
   },
   {
     title: 'Looking around',
-    body: 'Drag to move the map. Right-drag to turn and tilt. Scroll to zoom, from the whole globe down to street level. W A S D or the arrow keys also move, and Q and E turn.',
+    body: {
+      mouse: 'Drag to move the map. Right-drag to turn and tilt. Scroll to zoom, from the whole globe down to street level. W A S D or the arrow keys also move, and Q and E turn.',
+      touch: 'Drag with one finger to move the map. Pinch to zoom, from the whole globe down to street level. Twist two fingers to turn, and drag them up or down to tilt.',
+    },
   },
   {
     title: 'Step 1: produce',
@@ -48,12 +58,15 @@ const GUIDE: { title: string; body: string; icon?: string }[] = [
   },
   {
     title: 'Step 3: build a road',
-    body: 'Open Logistics and pick Road. Drag from one building to the other. The road finds its own way round hills, bridges water and tunnels under mountains (those cost more). To steer it, click along the way to drop corners. Backspace undoes a corner and Esc cancels. A box truck comes with every road.',
+    body: {
+      mouse: 'Open Logistics and pick Road. Drag from one building to the other. The road finds its own way round hills, bridges water and tunnels under mountains (those cost more). To steer it, click along the way to drop corners. Backspace undoes a corner and Esc cancels. A box truck comes with every road.',
+      touch: 'Open Logistics and pick Road. Drag from one building to the other. The road finds its own way round hills, bridges water and tunnels under mountains (those cost more). To steer it, tap along the way to drop corners. Undo and Cancel buttons show while you draw. A box truck comes with every road.',
+    },
     icon: 'thumb-route',
   },
   {
     title: 'Step 4: sell',
-    body: 'The Market buys finished goods. From level 2 a town also has a Freight Yard for raw goods and by-products. Open Towns (T) to see what each town wants and what it pays. A town pays less for something it is already full of, and prices swing with market surges.',
+    body: 'The Market buys finished goods. From level 2 a town also has a Freight Yard for raw goods and by-products. Open Towns to see what each town wants and what it pays. A town pays less for something it is already full of, and prices swing with market surges.',
   },
   {
     title: 'Growing towns',
@@ -61,7 +74,7 @@ const GUIDE: { title: string; body: string; icon?: string }[] = [
   },
   {
     title: 'Keeping things moving',
-    body: 'Click a building to see its stock and what is holding it up. Full means nothing is taking its goods away: add a vehicle (Vehicles, then click the road) or another customer. Waiting means it is short of an input. Upgrade a building to make it faster and roomier. The Production sheet (P) lists the problems first.',
+    body: 'Click a building to see its stock and what is holding it up. Full means nothing is taking its goods away: add a vehicle (Vehicles, then click the road) or another customer. Waiting means it is short of an input. Upgrade a building to make it faster and roomier. The Production sheet lists the problems first.',
     icon: 'thumb-boxtruck',
   },
   {
@@ -75,11 +88,14 @@ const GUIDE: { title: string; body: string; icon?: string }[] = [
   },
   {
     title: 'Quests and tiers',
-    body: 'The bar at the top shows your next quest. Click it, or press G, for the full list. Finish every quest of a tier to unlock the next one: new buildings and vehicles, longer bridges and tunnels, and higher building levels. Each quest pays a reward.',
+    body: 'The bar at the top shows your next quest. Click it for the full list. Finish every quest of a tier to unlock the next one: new buildings and vehicles, longer bridges and tunnels, and higher building levels. Each quest pays a reward.',
   },
   {
     title: 'Shortcuts',
-    body: 'Tab: next category. 1 to 9: pick a card. P: production. T: towns. G: quests. H: this guide. Space: pause. Esc: cancel or close. The game saves by itself every 20 seconds.',
+    body: {
+      mouse: 'Tab: next category. 1 to 9: pick a card. P: production. T: towns. G: quests. H: this guide. Space: pause. Esc: cancel or close. The game saves by itself every 20 seconds.',
+      touch: 'Every action is a button, so no keyboard is needed. The game saves by itself every 20 seconds.',
+    },
   },
 ];
 
@@ -460,7 +476,7 @@ export class Sheets {
       const icon = sec.icon && this.hooks.hasTexture(sec.icon) ? sec.icon : null;
       const tx = x + 18 + (icon ? 66 : 0);
       const t1 = im.text(`gd-t-${i}`, sec.title, tx, y + 14, { size: 16, bold: true, color: COLORS.accent, layer: 3 });
-      const t2 = im.text(`gd-b-${i}`, sec.body, tx, y + 18 + t1.h, { size: 13, wrap: x + cw - 18 - tx, layer: 3 });
+      const t2 = im.text(`gd-b-${i}`, bodyText(sec.body), tx, y + 18 + t1.h, { size: 13, wrap: x + cw - 18 - tx, layer: 3 });
       const h = Math.max(icon ? 88 : 0, 18 + t1.h + t2.h + 18);
       im.rect(3, x, y, cw, h, COLORS.panelAlt, 1, 14, COLORS.line, 1);
       if (icon) im.image(`gd-i-${i}`, icon, x + 12, y + 14, 60, 60, 1, 3);

@@ -93,6 +93,8 @@ export interface SiteDef {
   dock?: 'market' | 'freight';
   /** Town rail station: trains unload here and the goods are sold on to the town's docks. */
   station?: boolean;
+  /** Airport: a hub that planes fly between. */
+  airport?: boolean;
 }
 
 const raw = (label: string, blurb: string, cost: number, tier: number, node: NodeKind, good: Good, every: number, color: number): SiteDef => ({
@@ -198,9 +200,20 @@ const DEFS = {
     category: null,
     cost: 0,
     tier: 2,
-    cap: 240,
+    cap: 60,
     color: 0x8a7a5c,
     station: true,
+  } as SiteDef,
+  airport: {
+    label: 'Airport',
+    blurb: 'Stores goods like a hub, and cargo planes fly between airports over any terrain.',
+    category: 'logistics',
+    cost: 2500,
+    tier: 3,
+    cap: 120,
+    color: 0x7f8d9a,
+    hub: true,
+    airport: true,
   } as SiteDef,
 };
 
@@ -248,7 +261,7 @@ export const VEHICLE_DEFS: Record<VehicleKind, VehicleDef> = {
   boxtruck: { label: 'Box Truck', blurb: 'Small, cheap, good for short hauls.', mode: 'road', cost: 120, tier: 0, capacity: 8, ticksPerTile: 4, implemented: true },
   rig: { label: 'Big Rig', blurb: 'Large trailer, faster on the highway.', mode: 'road', cost: 480, tier: 1, capacity: 36, ticksPerTile: 3, implemented: true },
   train: { label: 'Freight Train', blurb: 'Huge capacity on its own track. Rails cross roads at level crossings.', mode: 'rail', cost: 1800, tier: 2, capacity: 140, ticksPerTile: 2, implemented: true },
-  plane: { label: 'Cargo Plane', blurb: 'Fast, crosses any terrain. Needs airports.', mode: 'air', cost: 7000, tier: 3, capacity: 30, ticksPerTile: 1, implemented: false },
+  plane: { label: 'Cargo Plane', blurb: 'Fast, crosses any terrain. Flies between airports.', mode: 'air', cost: 7000, tier: 3, capacity: 40, ticksPerTile: 2, implemented: true },
 };
 
 export const VEHICLE_ORDER: VehicleKind[] = ['boxtruck', 'rig', 'train', 'plane'];
@@ -271,9 +284,12 @@ export const ROAD_COST: Record<Terrain, number> = { grass: 2, forest: 4, water: 
 export const SPAN_LIMIT = [2, 4, 8, 16];
 
 /** Rails are a separate network from roads. Track costs more per tile, and unlocks at Tier 2. */
-export type RouteMode = 'road' | 'rail';
+export type RouteMode = 'road' | 'rail' | 'air';
 export const RAIL_COST_FACTOR = 1.8;
 export const RAIL_TIER = 2;
+/** Air routes link two airports in a straight line. */
+export const AIR_TIER = 3;
+export const AIR_COST_PER_TILE = 4;
 /** Extra cost where a road and a rail cross at a level crossing. */
 export const CROSSING_COST = 8;
 
@@ -293,10 +309,10 @@ export interface TownLevel {
 
 export const TOWN_LEVELS: TownLevel[] = [
   { name: 'Hamlet', pop: 60, growth: 0 },
-  { name: 'Village', pop: 400, growth: 250 },
-  { name: 'Town', pop: 2200, growth: 1200 },
-  { name: 'City', pop: 11000, growth: 4500 },
-  { name: 'Metropolis', pop: 60000, growth: 15000 },
+  { name: 'Village', pop: 400, growth: 750 },
+  { name: 'Town', pop: 2200, growth: 3600 },
+  { name: 'City', pop: 11000, growth: 13500 },
+  { name: 'Metropolis', pop: 60000, growth: 45000 },
 ];
 
 /** Goods the Market wants at each town level. */
@@ -398,6 +414,7 @@ export const TIERS: TierDef[] = [
       { id: 't3-steel', label: 'Make 100 steel', hint: 'A Steelworks turns ingots and coal into steel.', goal: { kind: 'make', good: 'steel', amount: 100 }, reward: 5000 },
       { id: 't3-machinery', label: 'Sell 40 machinery', hint: 'Machine Works: steel and tools in, machinery out. Only the biggest towns buy it.', goal: { kind: 'deliver', good: 'machinery', amount: 40 }, reward: 10000 },
       { id: 't3-metropolis', label: 'Grow a town to level 5', hint: 'A Metropolis needs four kinds of goods and a lot of them.', goal: { kind: 'town', level: 5, count: 1 }, reward: 10000 },
+      { id: 't3-air', label: 'Open an air route', hint: 'Logistics tab: build an Airport at each end, pick Air Route, then click one airport and the other. A cargo plane comes with it.', goal: { kind: 'route', mode: 'air', count: 1 }, reward: 8000 },
       { id: 't3-earn', label: 'Earn $250,000 in total', hint: 'High-value goods on fast, full vehicles.', goal: { kind: 'earn', amount: 250000 }, reward: 10000 },
     ],
   },

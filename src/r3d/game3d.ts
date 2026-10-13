@@ -18,6 +18,7 @@ import { tileLonLat } from '../sim/mapgen';
 import { findPath } from '../sim/path';
 import {
   addVehicle,
+  createAirRoute,
   createRoute,
   createWorld,
   demolishSite,
@@ -63,7 +64,7 @@ import type { Good } from '../sim/defs';
 export const SAVE_KEY = 'supplyline.save.v8';
 const TICK_MS = 1000 / TICKS_PER_SECOND;
 
-export type Tool = 'select' | 'route' | 'highway' | 'rail' | 'demolish' | SiteKind | VehicleKind;
+export type Tool = 'select' | 'route' | 'highway' | 'rail' | 'air' | 'demolish' | SiteKind | VehicleKind;
 export type Selection = { kind: 'site'; id: number } | { kind: 'place'; id: number } | null;
 
 export interface HoverInfo {
@@ -164,6 +165,13 @@ export class Game3D {
   cam!: GlobeCamera;
 
   tool: Tool = 'select';
+  /** True while the player is on touch input: taps preview a build first and moves need a bigger slop. */
+  touch = false;
+  /** The tile a touch player has tapped to build or demolish on, waiting for the confirm button. */
+  pending: Tile | null = null;
+  /** The airport picked first while drawing an air route. */
+  airFrom: number | null = null;
+  private airGroup: THREE.Group | null = null;
   selection: Selection = null;
   hover: HoverInfo | null = null;
   draft: Tile[] | null = null;
@@ -510,6 +518,7 @@ export class Game3D {
       if (routesChanged) {
         this.roads.rebuild();
         this.rails.rebuild(this.roads.tiles);
+        this.rebuildAir();
         this.scenery.clearTiles(this.roads.tiles);
         this.scenery.clearTiles(this.rails.tiles);
       }
@@ -526,7 +535,7 @@ export class Game3D {
   }
 
   private activeNodeKind(): NodeKind | null {
-    if (this.isRouteTool() || this.tool === 'select' || this.tool === 'demolish') return null;
+    if (this.isRouteTool() || this.tool === 'select' || this.tool === 'air' || this.tool === 'demolish') return null;
     if ((VEHICLE_ORDER as string[]).includes(this.tool)) return null;
     return SITE_DEFS[this.tool as SiteKind].node ?? null;
   }
@@ -558,7 +567,7 @@ export class Game3D {
         yaw = face === 'N' ? Math.PI : face === 'W' ? -Math.PI / 2 : face === 'E' ? Math.PI / 2 : 0;
       } else {
         // Outside a town, turn the front to face the road that serves the site (roads win over rail).
-        const rt = this.world.routes.filter((r) => r.fromSiteId === s.id || r.toSiteId === s.id).sort((p, q) => (p.mode === 'road' ? 0 : 1) - (q.mode === 'road' ? 0 : 1))[0];
+        const rt = this.world.routes.filter((r) => r.fromSiteId === s.id || r.toSiteId === s.id).filter((r) => r.mode !== 'air').sort((p, q) => (p.mode === 'road' ? 0 : 1) - (q.mode === 'road' ? 0 : 1))[0];
         if (rt) {
           const nb = rt.fromSiteId === s.id ? rt.path[1] : rt.path[rt.path.length - 2];
           if (nb) {
@@ -654,6 +663,39 @@ export class Game3D {
     return m;
   }
 
+  /** How high a plane flies, a fraction of the way along its route: low at the airports, high over the middle. */
+  private airAlt(f: number, last: number): number {
+    return 0.5 + 13 * Math.sqrt(Math.max(0, Math.sin((Math.PI * f) / Math.max(1, last))));
+  }
+
+  /** Draw each air route as a faint arc over the globe. */
+  private rebuildAir(): void {
+    if (!this.airGroup) {
+      this.airGroup = new THREE.Group();
+      this.scene.add(this.airGroup);
+    }
+    for (const c of [...this.airGroup.children]) {
+      this.airGroup.remove(c);
+      (c as THREE.Line).geometry.dispose();
+    }
+    const mat = new THREE.LineBasicMaterial({ color: 0xf2ecc8, transparent: true, opacity: 0.55 });
+    for (const r of this.world.routes) {
+      if (r.mode !== 'air') continue;
+      const last = r.path.length - 1;
+      const pts: THREE.Vector3[] = [];
+      for (let f = 0; f <= last + 1e-6; f += 0.5) {
+        const pt = this.roads.pointOnPath(r.path, Math.min(last, f), 1, 0);
+        pts.push(pt.pos.clone().addScaledVector(pt.up, this.airAlt(f, last)));
+      }
+      // The path steps from tile to tile; smooth it so the arc reads as a flight line.
+      for (let pass = 0; pass < 4; pass++) {
+        const prev = pts.map((p) => p.clone());
+        for (let i = 1; i < pts.length - 1; i++) pts[i].copy(prev[i - 1]).add(prev[i]).add(prev[i + 1]).divideScalar(3);
+      }
+      this.airGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), mat));
+    }
+  }
+
   private updateVehicles(): void {
     const alpha = Math.min(this.acc / TICK_MS, 1);
     for (const v of this.world.vehicles) {
@@ -670,13 +712,16 @@ export class Game3D {
       const tail = route.mode === 'rail' ? Math.min(1.33, last / 2) : stop;
       const dir: 1 | -1 = v.state === 'moving' ? v.dir : v.idx === 0 ? 1 : -1;
       f = Math.max(dir === 1 ? tail : stop, Math.min(last - (dir === -1 ? tail : stop), f));
-      const pt = (route.mode === 'rail' ? this.rails : this.roads).pointOnPath(route.path, f, dir, route.mode === 'rail' ? 0 : undefined);
+      const pt = (route.mode === 'rail' ? this.rails : this.roads).pointOnPath(route.path, f, dir, route.mode === 'road' ? undefined : 0);
+      const air = route.mode === 'air';
+      if (air) pt.pos.addScaledVector(pt.up, this.airAlt(f, last));
       m.visible = !pt.hidden;
-      m.matrix.copy(basisMatrix(pt.pos, pt.up, pt.forward)).multiply(new THREE.Matrix4().makeScale(1.35, 1.35, 1.35));
+      const sc = air ? 2.1 : 1.35;
+      m.matrix.copy(basisMatrix(pt.pos, pt.up, pt.forward)).multiply(new THREE.Matrix4().makeScale(sc, sc, sc));
       m.matrixWorldNeedsUpdate = true;
       const cargo = this.cargoMeshes.get(v.id);
       if (cargo) {
-        cargo.visible = v.cargo > 0;
+        cargo.visible = v.cargo > 0 && v.kind !== 'plane';
         if (v.good) cargo.material = this.cargoMat(v.good);
       }
     }
@@ -770,7 +815,9 @@ export class Game3D {
   }
 
   setTool(tool: Tool): void {
+    if (tool !== 'air') this.airFrom = null;
     this.tool = tool;
+    this.pending = null;
     this.draft = null;
     this.committed = null;
     this.draftHistory = [];
@@ -801,7 +848,7 @@ export class Game3D {
   }
 
   private isBuildTool(): boolean {
-    return this.tool !== 'select' && !this.isRouteTool() && this.tool !== 'demolish' && !(VEHICLE_ORDER as string[]).includes(this.tool);
+    return this.tool !== 'select' && !this.isRouteTool() && this.tool !== 'air' && this.tool !== 'demolish' && !(VEHICLE_ORDER as string[]).includes(this.tool);
   }
 
   private setHover(tile: Tile | null): void {
@@ -875,7 +922,7 @@ export class Game3D {
     const d = this.drag;
     const dx = x - d.x;
     const dy = y - d.y;
-    if (d.mode && Math.hypot(x - d.startX, y - d.startY) > 5) d.moved = true;
+    if (d.mode && Math.hypot(x - d.startX, y - d.startY) > (this.touch ? 12 : 5)) d.moved = true;
     if (d.mode === 'pan' && d.moved) {
       this.cam.panPixels(dx, dy, this.h);
     } else if (d.mode === 'rotate') {
@@ -926,7 +973,48 @@ export class Game3D {
     if (d.button !== 0 || d.moved) return;
     const pick = this.pickTile(x, y);
     if (!pick) return;
+    if (this.touch && (this.isBuildTool() || this.tool === 'demolish')) {
+      // A tap only previews. The confirm button builds.
+      this.pending = pick.tile;
+      this.hoverBlocked = false;
+      this.setHover(pick.tile);
+      return;
+    }
     this.click(pick.tile);
+  }
+
+  /** What would happen at the pending tile, for the confirm bar. */
+  pendingInfo(): HoverInfo | null {
+    return this.pending ? this.describe(this.pending) : null;
+  }
+
+  confirmPending(): void {
+    const t = this.pending;
+    if (!t) return;
+    const err = this.describe(t).error;
+    if (err) {
+      this.onToast(err);
+      return;
+    }
+    this.pending = null;
+    this.click(t);
+    this.setHover(null);
+  }
+
+  cancelPending(): void {
+    this.pending = null;
+    this.setHover(null);
+  }
+
+  /** Two fingers: spread zooms, a twist turns, and moving them up or down tilts. */
+  pinch(zoomFactor: number, dHeading: number, dPitch: number): void {
+    this.cam.zoom(zoomFactor);
+    this.cam.rotate(dHeading, dPitch);
+  }
+
+  /** Drop whatever one-finger drag was going, when a second finger lands. */
+  cancelPointer(): void {
+    this.drag.mode = null;
   }
 
   private click(tile: Tile): void {
@@ -938,9 +1026,27 @@ export class Game3D {
       return;
     }
     if ((VEHICLE_ORDER as string[]).includes(this.tool)) {
-      const route = routeAt(w, tile.x, tile.y, VEHICLE_DEFS[this.tool as VehicleKind].mode as 'road' | 'rail');
+      const mode = VEHICLE_DEFS[this.tool as VehicleKind].mode as 'road' | 'rail' | 'air';
+      const here = siteAt(w, tile.x, tile.y);
+      const route = mode === 'air' ? w.routes.find((r) => r.mode === 'air' && here && (r.fromSiteId === here.id || r.toSiteId === here.id)) : routeAt(w, tile.x, tile.y, mode);
       const err = addVehicle(w, route?.id ?? -1, this.tool as VehicleKind);
       this.onToast(err ?? `${VEHICLE_DEFS[this.tool as VehicleKind].label} added`);
+      return;
+    }
+    if (this.tool === 'air') {
+      const site = siteAt(w, tile.x, tile.y);
+      if (!site || !SITE_DEFS[site.kind].airport) {
+        this.onToast('Click an airport');
+        return;
+      }
+      if (this.airFrom === null || this.airFrom === site.id) {
+        this.airFrom = this.airFrom === site.id ? null : site.id;
+        if (this.airFrom !== null) this.onToast('Now click the airport to fly to');
+        return;
+      }
+      const err = createAirRoute(w, this.airFrom, site.id);
+      this.onToast(err ?? 'Air route opened, cargo plane assigned');
+      if (!err) this.airFrom = null;
       return;
     }
     if (this.isRouteTool()) return;
