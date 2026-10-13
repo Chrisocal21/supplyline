@@ -13,7 +13,7 @@ import {
   townSpeedMult,
   upkeepPerMinute,
 } from './town';
-import { createWorld, dockDemand, step, tradeUp, tradeUpCost, tradeUpError, unitPrice, type World } from './world';
+import { connectSites, createBlankWorld, createRoute, createWorld, linkableSites, startRoute, dockDemand, onNetwork, placeAt, planRoute, removeRoute, removeRouteError, roadEndError, routeAt, routeRefund, step, tradeUp, tradeUpCost, tradeUpError, unitPrice, type World } from './world';
 
 function world(): World {
   const w = createWorld(11);
@@ -198,5 +198,103 @@ describe('quests that read districts and paths', () => {
     expect(questProgress(w, { kind: 'capstone', count: 1 }).done).toBe(false);
     buildDistrict(w, a, 'heavyexchange');
     expect(questProgress(w, { kind: 'capstone', count: 1 }).done).toBe(true);
+  });
+});
+
+describe('free roads and removing routes', () => {
+  const line = (x0: number, x1: number, y: number) => {
+    const out = [];
+    for (let x = x0; x <= x1; x++) out.push({ x, y });
+    return out;
+  };
+
+  it('lays a road with no building at either end, and no vehicle comes with it', () => {
+    const w = createWorld(11);
+    w.money = 1e5;
+    // Find a stretch of open grass.
+    let y = 20;
+    let x0 = 0;
+    search: for (y = 12; y < 50; y++) {
+      for (x0 = 0; x0 < w.width - 8; x0++) {
+        const ok = line(x0, x0 + 5, y).every((t) => w.terrain[t.y * w.width + t.x] === 'grass' && !roadEndError(w, t.x, t.y, 'road') && !placeAt(w, t.x, t.y));
+        if (ok) break search;
+      }
+    }
+    const path = line(x0, x0 + 5, y);
+    const plan = planRoute(w, path);
+    expect(plan.error).toBeNull();
+    expect(plan.free).toBe(true);
+    const before = w.money;
+    expect(createRoute(w, path)).toBeNull();
+    expect(w.money).toBe(before - plan.cost);
+    expect(w.routes[w.routes.length - 1].free).toBe(true);
+    expect(w.vehicles.length).toBe(0);
+    // A second road can join it, and the shared tiles are free.
+    expect(onNetwork(w, x0 + 2, y, 'road')).toBe(true);
+    expect(routeAt(w, x0 + 2, y, 'road', { vehicles: true })).toBeUndefined();
+    // Refused on water.
+    const sea = w.terrain.findIndex((t) => t === 'water');
+    expect(roadEndError(w, sea % w.width, Math.floor(sea / w.width), 'road')).toMatch(/water/);
+    // Removing it refunds half and takes the road away.
+    const id = w.routes[w.routes.length - 1].id;
+    const refund = routeRefund(w, w.routes[w.routes.length - 1]);
+    expect(refund).toBeGreaterThan(0);
+    const m = w.money;
+    expect(removeRoute(w, id)).toBeNull();
+    expect(w.money).toBe(m + refund);
+    expect(onNetwork(w, x0 + 2, y, 'road')).toBe(false);
+  });
+
+  it('removing a route takes its vehicles and leaves town streets alone', () => {
+    const w = world();
+    w.routes.push({ id: 900, mode: 'road', grade: 'street', fromSiteId: 1, toSiteId: 2, path: [{ x: 0, y: 0 }, { x: 1, y: 0 }] });
+    w.vehicles.push({ id: 901, routeId: 900, kind: 'boxtruck', idx: 0, dir: 1, state: 'loading', moveTimer: 0, cargo: 0, good: null });
+    w.routes.push({ id: 902, mode: 'road', fromSiteId: 1, toSiteId: 2, path: [{ x: 0, y: 1 }, { x: 1, y: 1 }] });
+    expect(removeRouteError(w, 902)).toMatch(/streets/);
+    expect(removeRoute(w, 900)).toBeNull();
+    expect(w.vehicles.length).toBe(0);
+    expect(w.routes.some((r) => r.id === 900)).toBe(false);
+  });
+});
+
+describe('routes along a network of free roads', () => {
+  it('starts a vehicle route between two buildings that are only joined by free roads', () => {
+    const w = createBlankWorld(40, 16, new Array(40 * 16).fill('grass'));
+    w.money = 10000;
+    w.tier = 1;
+    const site = (kind: 'forestry' | 'sawmill', x: number, y: number) => {
+      w.sites.push({ id: w.nextId++, kind, name: `${kind} ${x}`, x, y, stock: {}, timer: 0, level: 1, nodeId: null, placeId: null, pull: [] });
+    };
+    site('forestry', 3, 8);
+    site('sawmill', 20, 8);
+    const row = (a: number, b: number) => Array.from({ length: b - a + 1 }, (_, i) => ({ x: a + i, y: 8 }));
+    // Two stretches of plain road that meet in the middle: neither ends at both buildings.
+    expect(createRoute(w, row(3, 11))).toBeNull();
+    expect(createRoute(w, row(11, 20))).toBeNull();
+    expect(w.routes.every((r) => r.free)).toBe(true);
+    expect(w.vehicles.length).toBe(0);
+    const camp = w.sites[0];
+    const mill = w.sites[1];
+    const links = linkableSites(w, camp.id);
+    expect(links.map((l) => l.site.id)).toEqual([mill.id]);
+    const before = w.money;
+    expect(startRoute(w, camp.id, mill.id)).toBeNull();
+    expect(w.vehicles.length).toBe(1);
+    expect(w.money).toBe(before - 120);
+    // It is joined now, so it is not offered again.
+    expect(linkableSites(w, camp.id)).toHaveLength(0);
+  });
+
+  it('starts routes by itself for the buildings at the ends of a new road', () => {
+    const w = createBlankWorld(40, 16, new Array(40 * 16).fill('grass'));
+    w.money = 10000;
+    for (const [kind, x] of [['forestry', 3], ['sawmill', 20]] as const) {
+      w.sites.push({ id: w.nextId++, kind, name: `${kind} ${x}`, x, y: 8, stock: {}, timer: 0, level: 1, nodeId: null, placeId: null, pull: [] });
+    }
+    const row = (a: number, b: number) => Array.from({ length: b - a + 1 }, (_, i) => ({ x: a + i, y: 8 }));
+    createRoute(w, row(3, 11));
+    createRoute(w, row(11, 20));
+    expect(connectSites(w, [w.sites[0].id])).toHaveLength(1);
+    expect(w.vehicles).toHaveLength(1);
   });
 });

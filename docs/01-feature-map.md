@@ -55,7 +55,7 @@ Railroads Online has great route building but a thin economy. Farming Sim has de
 
 **Vehicles** differ in capacity and speed:
 
-Vehicles are a ladder, and **Trade up** (Vehicles tab) swaps the smallest vehicle on a route for the next class and returns half of its price.
+Vehicles are a ladder, managed from the buildings they serve: select a building and its **Vehicles** list shows every route it is on, with a class picker and **Buy**, and **Trade up**, which swaps the smallest vehicle on that route for the next class and returns half of its price. There is no vehicle tab and no placing vehicles on roads.
 
 | Vehicle | Carries | Needs | Status |
 |---|---|---|---|

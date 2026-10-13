@@ -159,7 +159,7 @@ describe('roads, bridges and tunnels', () => {
     put(w, 'sawmill', 9, 4);
     // a farm ships grain; a sawmill wants logs
     const path: Tile[] = [...col(3, 12, 8), ...row(4, 9, 8), ...col(9, 7, 5), { x: 9, y: 4 }];
-    expect(planRoute(w, path).error).toMatch(/nothing to trade/);
+    expect(planRoute(w, path).free).toBe(true);
 
     placeSite(w, 'hub', 9, 3 - 0 + 5);
     placeSite(w, 'hub', 20, 2 + 0);

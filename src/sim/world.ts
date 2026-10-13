@@ -69,8 +69,11 @@ export interface Route {
   mode: RouteMode;
   /** Roads only: a street or a multi-lane highway. */
   grade?: RoadGrade;
+  /** Zero on a free road, which joins no two buildings: it is just network to build on. */
   fromSiteId: number;
   toSiteId: number;
+  /** A road, highway or rail laid with no vehicle, so later routes can run along it. */
+  free?: boolean;
   /** Tiles from one site to the other, inclusive. */
   path: Tile[];
 }
@@ -410,9 +413,28 @@ export function openIndustryPlots(place: Place): number {
 }
 
 /** First route whose path passes through the tile. */
-export function routeAt(world: World, x: number, y: number, mode?: RouteMode): Route | undefined {
+export function routeAt(world: World, x: number, y: number, mode?: RouteMode, opts: { newest?: boolean; vehicles?: boolean } = {}): Route | undefined {
   const wx = wrapX(world, x);
-  return world.routes.find((r) => (mode ? r.mode === mode : r.mode !== 'air') && r.path.some((p) => p.x === wx && p.y === y));
+  const hit = (r: Route): boolean => (mode ? r.mode === mode : r.mode !== 'air') && !(opts.vehicles && r.free) && r.path.some((p) => p.x === wx && p.y === y);
+  if (!opts.newest) return world.routes.find(hit);
+  for (let i = world.routes.length - 1; i >= 0; i--) if (hit(world.routes[i])) return world.routes[i];
+  return undefined;
+}
+
+/** Why a road, highway or rail cannot start or end on this tile when no building is there, or null. */
+export function roadEndError(world: World, x: number, y: number, mode: RouteMode): string | null {
+  const t = terrainAt(world, x, y);
+  if (t === null) return 'Out of bounds';
+  if (siteAt(world, x, y)) return null;
+  if (t === 'water' || t === 'mountain' || t === 'ice') return `A ${mode === 'rail' ? 'track' : 'road'} cannot start or end on ${t}`;
+  const town = placeAt(world, x, y);
+  if (town && townBlocks(world, x, y, mode)) return `Not inside ${town.name}: use its streets`;
+  return null;
+}
+
+/** Whether a tile already carries a road or track of this mode, so a new one can join it. */
+export function onNetwork(world: World, x: number, y: number, mode: RouteMode): boolean {
+  return routeAt(world, x, y, mode) !== undefined;
 }
 
 /** How the routes of one mode run through a tile: straight along one axis, or 'x' for ends, turns and junctions. */
@@ -987,12 +1009,14 @@ export interface RoutePlan {
   tunnelTiles: number;
   /** Level crossings with the other network. */
   crossings: number;
+  /** No vehicle comes with it: its ends are not two buildings that trade. */
+  free: boolean;
 }
 
 /** Check a drawn path and price it. Does not change the world. */
 export function planRoute(world: World, rawPath: Tile[], mode: RouteMode = 'road', grade: RoadGrade = 'street'): RoutePlan {
   const path = rawPath.map((p) => ({ x: wrapX(world, p.x), y: p.y }));
-  const plan: RoutePlan = { mode, grade, error: null, path, cost: 0, bridgeTiles: 0, tunnelTiles: 0, crossings: 0 };
+  const plan: RoutePlan = { mode, grade, error: null, path, cost: 0, bridgeTiles: 0, tunnelTiles: 0, crossings: 0, free: true };
   const fail = (e: string): RoutePlan => ({ ...plan, error: e });
   if (path.length < 2) return fail('Route too short');
   if (mode === 'rail' && world.tier < RAIL_TIER) return fail(`Rail unlocks at Tier ${RAIL_TIER}`);
@@ -1006,12 +1030,18 @@ export function planRoute(world: World, rawPath: Tile[], mode: RouteMode = 'road
   const last = path[path.length - 1];
   const from = siteAt(world, first.x, first.y);
   const to = siteAt(world, last.x, last.y);
-  if (!from || !to || from.id === to.id) return fail('Route must connect two different sites');
-  if (mode === 'road' && (SITE_DEFS[from.kind].station || SITE_DEFS[to.kind].station)) return fail('Only trains call at a Rail Station');
+  if (from && to && from.id === to.id) return fail('A road cannot start and end at the same building');
+  for (const [end, site] of [[first, from], [last, to]] as [Tile, Site | undefined][]) {
+    if (site) continue;
+    const e = roadEndError(world, end.x, end.y, mode);
+    if (e) return fail(e);
+  }
+  if (mode === 'road' && ((from && SITE_DEFS[from.kind].station) || (to && SITE_DEFS[to.kind].station))) return fail('Only trains call at a Rail Station');
 
   // A building on a town plot is entered from its street, like a driveway.
   if (mode === 'road') {
-    for (const [end, next] of [[first, path[1]], [last, path[path.length - 2]]] as [Tile, Tile][]) {
+    for (const [end, next, site] of [[first, path[1], from], [last, path[path.length - 2], to]] as [Tile, Tile, Site | undefined][]) {
+      if (!site) continue;
       const entry = entryTile(world, end.x, end.y);
       if (entry && (wrapX(world, next.x) !== entry.x || next.y !== entry.y)) return fail('Enter that lot from its street');
     }
@@ -1027,7 +1057,8 @@ export function planRoute(world: World, rawPath: Tile[], mode: RouteMode = 'road
     if (i > 0 && Math.abs(wrapDx(world, path[i - 1].x, p.x)) + Math.abs(p.y - path[i - 1].y) !== 1) {
       return fail('Route must be connected tiles');
     }
-    if (i === 0 || i === path.length - 1) continue;
+    // Where a building stands at the end, the road simply arrives at its door.
+    if ((i === 0 && from) || (i === path.length - 1 && to)) continue;
     if (siteAt(world, p.x, p.y)) return fail('Route passes through a site');
     const town = placeAt(world, p.x, p.y);
     if (town && townBlocks(world, p.x, p.y, mode)) return fail(`Route passes through ${town.name}`);
@@ -1052,11 +1083,12 @@ export function planRoute(world: World, rawPath: Tile[], mode: RouteMode = 'road
       if (t === 'water' || t === 'mountain') return fail('Roads and rails cannot share a bridge or tunnel');
       if (crossing === 'x' || mine === 'x' || mine === crossing) return fail('Roads and rails can only cross at right angles on straight stretches');
       plan.crossings += 1;
-      plan.cost += CROSSING_COST;
+      if (!own.has(k)) plan.cost += CROSSING_COST;
     }
     if (hwTiles ? !hwTiles.has(k) : !own.has(k)) plan.cost += ROAD_COST[t] * factor;
   }
-  if (!canHaul(world, from, to)) return fail(`${from.name} and ${to.name} have nothing to trade`);
+  // Two buildings that trade get a vehicle with the road. Anything else is just road.
+  plan.free = !(from && to && canHaul(world, from, to));
   return plan;
 }
 
@@ -1080,6 +1112,12 @@ function newVehicle(world: World, routeId: number, kind: VehicleKind): Vehicle {
 export function createRoute(world: World, rawPath: Tile[], mode: RouteMode = 'road', grade: RoadGrade = 'street'): string | null {
   const plan = planRoute(world, rawPath, mode, grade);
   if (plan.error) return plan.error;
+  if (plan.free) {
+    if (world.money < plan.cost) return `Need $${Math.ceil(plan.cost)}`;
+    world.money -= plan.cost;
+    world.routes.push({ id: world.nextId++, mode, grade: mode === 'road' ? grade : undefined, fromSiteId: 0, toSiteId: 0, free: true, path: plan.path });
+    return null;
+  }
   const first: VehicleKind = mode === 'rail' ? 'train' : 'boxtruck';
   const cost = plan.cost + VEHICLE_DEFS[first].cost;
   if (world.money < cost) return `Need $${cost}`;
@@ -1133,6 +1171,7 @@ export function vehicleError(world: World, routeId: number, kind: VehicleKind): 
   if (!def.implemented) return `${def.label}s are not available yet`;
   const route = world.routes.find((r) => r.id === routeId);
   if (!route) return def.mode === 'rail' ? 'Click a rail line to add a train' : def.mode === 'air' ? 'Click an airport that has an air route' : 'Click a road to add a vehicle';
+  if (route.free) return 'That road does not join two buildings yet. Draw a route between them first.';
   if (route.mode !== def.mode) return def.mode === 'rail' ? 'Trains need rails, not a road' : def.mode === 'air' ? 'Planes need an air route' : 'Trucks need a road, not rails';
   if (def.tier > world.tier) return `${def.label} unlocks at Tier ${def.tier}`;
   if (world.money < def.cost) return `Need $${def.cost}`;
@@ -1170,7 +1209,7 @@ export function tradeUpPreview(world: World, routeId: number): { from: VehicleKi
 /** Why the smallest vehicle on this route cannot be traded up, or null. */
 export function tradeUpError(world: World, routeId: number): string | null {
   const route = world.routes.find((r) => r.id === routeId);
-  if (!route) return 'Click a road, rail line or air route to trade up its smallest vehicle';
+  if (!route || route.free) return 'Click a road, rail line or air route to trade up its smallest vehicle';
   const v = tradeUpTarget(world, routeId);
   if (!v) return world.vehicles.some((x) => x.routeId === routeId) ? 'Already the top class on this route' : 'No vehicles on this route';
   const next = VEHICLE_DEFS[VEHICLE_DEFS[v.kind].next!];
@@ -1186,6 +1225,135 @@ export function tradeUp(world: World, routeId: number): string | null {
   const v = tradeUpTarget(world, routeId)!;
   world.money -= tradeUpCost(v.kind);
   v.kind = VEHICLE_DEFS[v.kind].next!;
+  return null;
+}
+
+// ---- joining buildings along the network ----
+
+/** The roads or tracks of one mode as a graph: tiles joined where a route runs from one to the next. */
+export function networkGraph(world: World, mode: RouteMode): Map<number, number[]> {
+  const g = new Map<number, number[]>();
+  const key = (t: Tile): number => t.y * world.width + wrapX(world, t.x);
+  const link = (a: number, b: number): void => {
+    if (!g.has(a)) g.set(a, []);
+    if (!g.get(a)!.includes(b)) g.get(a)!.push(b);
+  };
+  for (const r of world.routes) {
+    if (r.mode !== mode) continue;
+    for (let i = 0; i < r.path.length - 1; i++) {
+      const a = key(r.path[i]);
+      const b = key(r.path[i + 1]);
+      link(a, b);
+      link(b, a);
+    }
+  }
+  return g;
+}
+
+export interface Link {
+  site: Site;
+  mode: RouteMode;
+  /** Tiles along the existing network, from the first building to this one. */
+  path: Tile[];
+}
+
+/** Buildings reachable from this one along roads or tracks already laid, that it could trade with and has no route to yet. */
+export function linkableSites(world: World, siteId: number): Link[] {
+  const site = siteById(world, siteId);
+  if (!site) return [];
+  const out: Link[] = [];
+  for (const mode of ['road', 'rail'] as RouteMode[]) {
+    const g = networkGraph(world, mode);
+    const start = site.y * world.width + site.x;
+    if (!g.has(start)) continue;
+    const prev = new Map<number, number>([[start, -1]]);
+    const queue = [start];
+    for (let qi = 0; qi < queue.length; qi++) {
+      const cur = queue[qi];
+      // A truck cannot drive through a building, so every building is the end of the line.
+      if (cur !== start && siteAt(world, cur % world.width, Math.floor(cur / world.width))) continue;
+      for (const nb of g.get(cur) ?? []) {
+        if (prev.has(nb)) continue;
+        prev.set(nb, cur);
+        queue.push(nb);
+      }
+    }
+    for (const t of queue) {
+      if (t === start) continue;
+      const other = siteAt(world, t % world.width, Math.floor(t / world.width));
+      if (!other || other.id === site.id) continue;
+      if (mode === 'road' && (SITE_DEFS[other.kind].station || SITE_DEFS[site.kind].station)) continue;
+      if (!canHaul(world, site, other)) continue;
+      const joined = world.routes.some((r) => !r.free && r.mode === mode && ((r.fromSiteId === site.id && r.toSiteId === other.id) || (r.fromSiteId === other.id && r.toSiteId === site.id)));
+      if (joined) continue;
+      const path: Tile[] = [];
+      for (let c = t; c !== -1; c = prev.get(c)!) path.push({ x: c % world.width, y: Math.floor(c / world.width) });
+      out.push({ site: other, mode, path: path.reverse() });
+    }
+  }
+  return out;
+}
+
+/** Run a vehicle between two buildings along the network that already joins them. */
+export function startRoute(world: World, siteId: number, otherId: number): string | null {
+  const link = linkableSites(world, siteId).find((l) => l.site.id === otherId);
+  if (!link) return 'Those two are not joined by a road or track yet, or have nothing to trade';
+  return createRoute(world, link.path, link.mode, 'street');
+}
+
+/** After a road is laid, start routes from the buildings at its ends to what they can now reach. Returns what was started. */
+export function connectSites(world: World, siteIds: number[], max = 3): string[] {
+  const made: string[] = [];
+  for (const id of siteIds) {
+    const site = siteById(world, id);
+    if (!site) continue;
+    for (const l of linkableSites(world, id)) {
+      if (made.length >= max) return made;
+      if (!(supplies(world, site, l.site) || supplies(world, l.site, site))) continue;
+      const first: VehicleKind = l.mode === 'rail' ? 'train' : 'boxtruck';
+      if (world.money < VEHICLE_DEFS[first].cost + 50) return made;
+      if (startRoute(world, id, l.site.id) === null) made.push(`${site.name} to ${l.site.name}`);
+    }
+  }
+  return made;
+}
+
+// ---- taking roads out ----
+
+/** Money back for removing a route: half the cost of the tiles only it uses, and half of what its vehicles cost. */
+export function routeRefund(world: World, route: Route): number {
+  const shared = new Set<number>();
+  for (const r of world.routes) if (r.id !== route.id && r.mode === route.mode) for (const p of r.path) shared.add(p.y * world.width + p.x);
+  const factor = (route.mode === 'rail' ? RAIL_COST_FACTOR : 1) * (route.mode === 'road' && route.grade === 'highway' ? HIGHWAY_COST_FACTOR : 1);
+  let refund = 0;
+  if (route.mode === 'air') refund += route.path.length * AIR_COST_PER_TILE * 0.5;
+  else {
+    for (const p of route.path) {
+      const t = terrainAt(world, p.x, p.y);
+      if (t && t !== 'ice' && !shared.has(p.y * world.width + p.x) && !siteAt(world, p.x, p.y)) refund += ROAD_COST[t] * factor * 0.5;
+    }
+  }
+  for (const v of world.vehicles) if (v.routeId === route.id) refund += VEHICLE_DEFS[v.kind].cost * 0.5;
+  return Math.round(refund);
+}
+
+/** Why a route cannot be removed, or null. */
+export function removeRouteError(world: World, routeId: number): string | null {
+  const route = world.routes.find((r) => r.id === routeId);
+  if (!route) return 'Nothing to remove';
+  // The free links inside a town (no grade) are its streets.
+  if (route.mode === 'road' && route.grade === undefined && !route.free) return "Town streets belong to the town";
+  return null;
+}
+
+/** Take a route out, along with its vehicles. The tiles another route still uses stay. */
+export function removeRoute(world: World, routeId: number): string | null {
+  const err = removeRouteError(world, routeId);
+  if (err) return err;
+  const route = world.routes.find((r) => r.id === routeId)!;
+  world.money += routeRefund(world, route);
+  world.routes = world.routes.filter((r) => r.id !== routeId);
+  world.vehicles = world.vehicles.filter((v) => v.routeId !== routeId);
   return null;
 }
 

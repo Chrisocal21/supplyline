@@ -335,66 +335,96 @@ function overlays(world: World, data: Uint8ClampedArray, width: number, height: 
     });
   }
 
-  // Resource nodes: a clearing, a ploughed field, or an open gravel face, so they read at a glance.
+  // Resource nodes, each with its own look: a clearing, a patchwork field, a meadow, an orchard, a wet clay bank, a quarry
+  // pit or a scree slope. Edges are ragged and fields are turned to their own angle, so nothing reads as a stamped shape.
   for (const nd of world.nodes) {
     const cx = nd.x + 0.5;
     const cy = nd.y + CAP_ROWS + 0.5;
+    const ang = (nd.id * 2.399) % (Math.PI * 2);
+    const ca = Math.cos(ang);
+    const sa = Math.sin(ang);
     if (nd.kind === 'forest') {
       stamp(data, width, height, ppt, cx, cy, 1.6, (dx, dy, px, py) => {
         const n = noiseAt(px, py);
-        const d = Math.hypot(dx, dy) * (1 + (n - 0.5) * 0.4);
-        const a = 1 - smoothstep(0.75, 1.15, d);
-        return a > 0 ? [PAL.soil[0] + n * 14, PAL.soil[1] + n * 12, PAL.soil[2] + n * 10, 0.85 * a] : null;
+        const d = Math.hypot(dx, dy) * (1 + (n - 0.5) * 0.6);
+        const a = 1 - smoothstep(0.6, 1.1, d);
+        const fleck = noiseAt(px * 3.1, py * 3.1) > 0.62 ? 10 : 0;
+        return a > 0 ? [PAL.soil[0] + n * 14 + fleck, PAL.soil[1] + n * 12 + fleck, PAL.soil[2] + n * 10, 0.8 * a] : null;
       });
     } else if (nd.kind === 'clay') {
-      stamp(data, width, height, ppt, cx, cy, 1.8, (dx, dy, px, py) => {
+      stamp(data, width, height, ppt, cx, cy, 1.9, (dx, dy, px, py) => {
         const n = noiseAt(px, py);
-        const d = Math.hypot(dx, dy) * (1 + (n - 0.5) * 0.4);
-        const a = 1 - smoothstep(0.7, 1.2, d);
-        return a > 0 ? [170 + n * 20, 104 + n * 14, 72 + n * 10, 0.9 * a] : null;
+        const d = Math.hypot(dx * 1.15, dy) * (1 + (n - 0.5) * 0.55);
+        const bank = 1 - smoothstep(0.75, 1.3, d);
+        if (bank <= 0) return null;
+        const wet = 1 - smoothstep(0.18, 0.55, d);
+        const r = 176 + n * 20;
+        const g = 108 + n * 14;
+        const bl = 76 + n * 10;
+        return [r * (1 - wet) + 112 * wet, g * (1 - wet) + 98 * wet, bl * (1 - wet) + 96 * wet, 0.88 * bank];
       });
     } else if (nd.kind === 'pasture') {
-      stamp(data, width, height, ppt, cx, cy, 2.2, (dx, dy, px, py) => {
+      stamp(data, width, height, ppt, cx, cy, 2.4, (dx, dy, px, py) => {
         const n = noiseAt(px, py);
-        const d = Math.hypot(dx, dy) * (1 + (n - 0.5) * 0.25);
-        const a = 1 - smoothstep(0.9, 1.4, d);
-        return a > 0 ? [110 + n * 16, 156 + n * 14, 84 + n * 10, 0.85 * a] : null;
+        const d = Math.hypot(dx, dy * 1.1) * (1 + (n - 0.5) * 0.5);
+        const a = 1 - smoothstep(1.0, 1.55, d);
+        if (a <= 0) return null;
+        const patch = noiseAt(px * 1.7, py * 1.7);
+        return [112 + patch * 26, 158 + patch * 18, 80 + patch * 12, 0.82 * a];
       });
     } else if (nd.kind === 'orchard') {
-      stamp(data, width, height, ppt, cx, cy, 2.2, (dx, dy, px, py) => {
-        const n = noiseAt(px, py);
-        const ex = Math.abs(dx) - 1.05 + (n - 0.5) * 0.15;
-        const ey = Math.abs(dy) - 0.9 + (n - 0.5) * 0.15;
-        const a = 1 - smoothstep(0, 0.14, Math.max(ex, ey));
-        if (a <= 0) return null;
-        const dot = Math.sin(dx * 11) * Math.sin(dy * 11) > 0.5 ? 1 : 0;
-        return [dot ? 84 : 98, dot ? 130 : 142, dot ? 62 : 72, 0.9 * a];
-      });
-    } else if (nd.kind === 'farmland') {
-      const green = nd.id % 2 === 0;
       stamp(data, width, height, ppt, cx, cy, 2.3, (dx, dy, px, py) => {
         const n = noiseAt(px, py);
-        const ex = Math.abs(dx) - 1.15 + (n - 0.5) * 0.18;
-        const ey = Math.abs(dy) - 0.95 + (n - 0.5) * 0.18;
-        const a = 1 - smoothstep(0, 0.14, Math.max(ex, ey));
+        const lx = dx * ca + dy * sa;
+        const ly = -dx * sa + dy * ca;
+        const ex = Math.abs(lx) - 1.05 + (n - 0.5) * 0.3;
+        const ey = Math.abs(ly) - 0.85 + (n - 0.5) * 0.3;
+        const a = 1 - smoothstep(0, 0.16, Math.max(ex, ey));
         if (a <= 0) return null;
-        const row = Math.sin(dy * 34 + dx * 2) > 0 ? 1 : 0;
-        const base = green ? PAL.crop : PAL.plow;
-        const k = row ? 1 : 0.84;
+        const dot = Math.sin(lx * 10) * Math.sin(ly * 10) > 0.55 ? 1 : 0;
+        return [dot ? 70 : 100, dot ? 114 : 142, dot ? 58 : 74, 0.88 * a];
+      });
+    } else if (nd.kind === 'farmland') {
+      // A patchwork of strips in different crops, edged with a hedge, turned to its own angle.
+      const crops = [PAL.crop, PAL.plow, [188, 164, 84] as [number, number, number]];
+      stamp(data, width, height, ppt, cx, cy, 2.4, (dx, dy, px, py) => {
+        const n = noiseAt(px, py);
+        const lx = dx * ca + dy * sa;
+        const ly = -dx * sa + dy * ca;
+        const ex = Math.abs(lx) - 1.2 + (n - 0.5) * 0.34;
+        const ey = Math.abs(ly) - 0.95 + (n - 0.5) * 0.34;
+        const edge = Math.max(ex, ey);
+        const a = 1 - smoothstep(0, 0.14, edge);
+        if (a <= 0) return null;
+        if (edge > -0.1) return [60, 94, 52, 0.92 * a];
+        const strip = Math.max(0, Math.min(2, Math.floor((lx + 1.2) / 0.8)));
+        const base = crops[(nd.id + strip) % 3];
+        const row = Math.sin(ly * 30 + strip) > 0 ? 1 : 0;
+        const k = row ? 1 : 0.86;
         return [base[0] * k, base[1] * k, base[2] * k, 0.92 * a];
       });
-    } else {
-      // A pit: a pale floor ringed by darker terraced rock walls. Mines and coal seams are darker and redder.
-      const tint = nd.kind === 'coal' ? [-70, -70, -64] : nd.kind === 'mine' ? [-4, -34, -40] : [0, 0, 0];
-      stamp(data, width, height, ppt, cx, cy, 2.6, (dx, dy, px, py) => {
+    } else if (nd.kind === 'quarry') {
+      // A pit: a pale floor ringed by darker terraced rock walls.
+      stamp(data, width, height, ppt, cx, cy, 2.3, (dx, dy, px, py) => {
         const n = noiseAt(px, py);
-        const d = Math.hypot(dx, dy) * (1 + (n - 0.5) * 0.3);
-        const floor = 1 - smoothstep(0.85, 1.05, d);
-        if (floor > 0) return [PAL.gravel[0] + 16 + n * 16 + tint[0], PAL.gravel[1] + 14 + n * 14 + tint[1], PAL.gravel[2] + 10 + n * 12 + tint[2], 0.95 * floor];
-        const wall = 1 - smoothstep(1.4, 2.3, d);
+        const d = Math.hypot(dx, dy) * (1 + (n - 0.5) * 0.4);
+        const floor = 1 - smoothstep(0.8, 1.0, d);
+        if (floor > 0) return [PAL.gravel[0] + 22 + n * 16, PAL.gravel[1] + 20 + n * 14, PAL.gravel[2] + 16 + n * 12, 0.95 * floor];
+        const wall = 1 - smoothstep(1.3, 2.0, d);
         if (wall <= 0) return null;
-        const band = 0.82 + 0.18 * Math.sin(d * 16);
-        return [(PAL.gravel[0] - 14) * band + n * 12, (PAL.gravel[1] - 14) * band + n * 10, (PAL.gravel[2] - 12) * band + n * 8, 0.85 * wall];
+        const band = 0.84 + 0.16 * Math.sin(d * 15);
+        return [(PAL.gravel[0] - 14) * band + n * 12, (PAL.gravel[1] - 14) * band + n * 10, (PAL.gravel[2] - 12) * band + n * 8, 0.8 * wall];
+      });
+    } else {
+      // Ore and coal lie in a scree slope under the hill, not in a pit: rubble in a ragged patch.
+      const coal = nd.kind === 'coal';
+      stamp(data, width, height, ppt, cx, cy, 1.9, (dx, dy, px, py) => {
+        const n = noiseAt(px, py);
+        const d = Math.hypot(dx, dy * 0.9) * (1 + (n - 0.5) * 0.7);
+        const a = 1 - smoothstep(0.7, 1.35, d);
+        if (a <= 0) return null;
+        const speck = noiseAt(px * 4.3, py * 4.3) > 0.64 ? 0.78 : 1;
+        return coal ? [(54 + n * 26) * speck, (54 + n * 26) * speck, (58 + n * 26) * speck, 0.9 * a] : [(126 + n * 30) * speck, (92 + n * 24) * speck, (80 + n * 22) * speck, 0.9 * a];
       });
     }
   }

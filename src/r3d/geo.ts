@@ -127,9 +127,14 @@ export class HeightField {
     for (const p of world.places) this.addPad({ x: p.x + 0.5, y: p.y + 0.5, height: this.relief[p.y * world.width + p.x], core: radiusOf(p) * 1.5, outer: radiusOf(p) * 2 });
     for (const n of world.nodes) {
       if (n.kind !== 'quarry' && n.kind !== 'mine' && n.kind !== 'coal') continue;
-      // Dig down below the surrounding ground: a flat floor with sloped walls on the mountain side.
-      const h = Math.max(0.12, this.relief[n.y * world.width + n.x] - 0.8);
-      this.addPad({ x: n.x + 0.5, y: n.y + 0.5, height: h, core: 0.95, outer: 2.3 });
+      const here = this.relief[n.y * world.width + n.x];
+      if (n.kind === 'quarry') {
+        // Dig down below the surrounding ground: a flat floor with sloped walls on the mountain side.
+        this.addPad({ x: n.x + 0.5, y: n.y + 0.5, height: Math.max(0.12, here - 0.8), core: 0.95, outer: 2.3 });
+      } else {
+        // Mines and coal seams stand on a small level yard at the foot of the hill, not in a pit.
+        this.addPad({ x: n.x + 0.5, y: n.y + 0.5, height: here, core: 0.9, outer: 1.7 });
+      }
     }
   }
 

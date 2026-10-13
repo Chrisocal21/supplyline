@@ -343,7 +343,6 @@ export function generateFeatures(terrain: Terrain[], width: number, height: numb
     // Some plots along the street are already homes, so the street has houses on it and not only empty lots.
     const homePlots: number[] = [];
     for (let i = 4; i < plots.length; i++) if (namer.rand() < (R === CITY_RADIUS ? 0.3 : 0.35)) homePlots.push(i);
-    const city = R === CITY_RADIUS;
     return {
       style,
       taste,
@@ -353,8 +352,8 @@ export function generateFeatures(terrain: Terrain[], width: number, height: numb
       name: namer.town(),
       x,
       y,
-      level: city ? 2 : 1,
-      growth: city ? 250 : 0,
+      level: 1,
+      growth: 0,
       delivered: {},
       marketTile: wrapTile(plots[0]),
       freightTile: wrapTile(plots[1]),
@@ -429,9 +428,28 @@ export function generateFeatures(terrain: Terrain[], width: number, height: numb
       }
       return true;
     });
-    spread(open, Math.max(2, Math.min(5, Math.round(tiles.length / 90))), 4, 'farmland', id);
-    spread(open, Math.max(1, Math.min(3, Math.round(tiles.length / 110))), 4, 'pasture', id);
-    spread(open, Math.max(1, Math.min(2, Math.round(tiles.length / 150))), 4, 'orchard', id);
+    // Farming land clusters into belts on the flattest ground, with pasture and orchards beside the fields, the way a
+    // real district grows up, instead of being scattered evenly over the whole region.
+    const slope = (t: number): number => {
+      if (!elev) return 0;
+      const x = t % width;
+      const y = Math.floor(t / width);
+      let s = 0;
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) s = Math.max(s, Math.abs(elev[idx(x + dx, y + dy)] - elev[t]));
+      return s;
+    };
+    const flat = [...open].sort((a, b) => slope(a) - slope(b) || a - b);
+    const anchors: number[] = [];
+    const wantAnchors = Math.max(1, Math.min(3, Math.round(tiles.length / 160)));
+    for (const t of flat.slice(0, Math.max(12, Math.floor(flat.length / 3)))) {
+      if (anchors.length >= wantAnchors) break;
+      if (anchors.every((a) => dist2(a, t) >= 81)) anchors.push(t);
+    }
+    const belt = anchors.length ? open.filter((t) => anchors.some((a) => dist2(a, t) <= 36)) : open;
+    const farmPool = belt.length >= 6 ? belt : open;
+    spread(farmPool, Math.max(2, Math.min(5, Math.round(tiles.length / 90))), 3, 'farmland', id);
+    spread(farmPool, Math.max(1, Math.min(3, Math.round(tiles.length / 110))), 3, 'pasture', id);
+    spread(farmPool, Math.max(1, Math.min(2, Math.round(tiles.length / 150))), 3, 'orchard', id);
     // Clay lies along the water.
     const shore = tiles.filter((t) => {
       const x = t % width;
@@ -455,6 +473,30 @@ export function generateFeatures(terrain: Terrain[], width: number, height: numb
     spread(pool, Math.max(1, Math.min(2, Math.floor(tiles.length / 10))), 3, 'quarry', id);
     spread(pool, Math.max(1, Math.min(2, Math.floor(tiles.length / 12))), 3, 'mine', id);
     if (tiles.length >= 8) spread(pool, 1, 3, 'coal', id);
+  }
+
+  // Every town has a forest, farmland and pasture within reach, so a first game never starts far from its first chain.
+  const reach = 15;
+  const near = (p: Place, t: number): number => Math.hypot(wrapDelta(p.x, t % width, width), p.y - Math.floor(t / width));
+  const openAny: number[] = [];
+  for (let t = 0; t < width * height; t++) {
+    const y = Math.floor(t / width);
+    if (terrain[t] !== 'grass' || y < ICE_ROWS + 1 || y >= height - ICE_ROWS - 1) continue;
+    const x = t % width;
+    if ([[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => ['water', 'mountain', 'ice'].includes(terrain[idx(x + dx, y + dy)]))) continue;
+    openAny.push(t);
+  }
+  const forestAny = terrain.map((tt, t) => (tt === 'forest' ? t : -1)).filter((t) => t >= 0);
+  for (const p of places) {
+    for (const [kind, pool] of [['forest', forestAny], ['farmland', openAny], ['pasture', openAny]] as [NodeKind, number[]][]) {
+      if (nodes.some((n) => n.kind === kind && near(p, n.y * width + n.x) <= reach)) continue;
+      const free = pool
+        .filter((t) => near(p, t) <= reach && near(p, t) >= 5 + p.radius - 3 && !nearTown(t, 4) && !nodes.some((n) => Math.abs(wrapDelta(n.x, t % width, width)) <= 1 && Math.abs(n.y - Math.floor(t / width)) <= 1))
+        .sort((a, b) => near(p, a) - near(p, b));
+      if (free.length === 0) continue;
+      const t = free[Math.min(free.length - 1, 2)];
+      nodes.push({ id: nodes.length + 1, kind, x: t % width, y: Math.floor(t / width), quality: quality(), regionId: regionMap[t] });
+    }
   }
 
   return { regions, regionMap, places, nodes };

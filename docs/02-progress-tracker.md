@@ -133,16 +133,16 @@
 
 ---
 
-## Next Update (Chris's list, Oct 12, 2026, from playing the first build)
+## Next Update (Chris's list, Oct 12, 2026) — done
 
-- [ ] **Delete roads.** A way to remove a road, highway or rail (a section or a whole route), with a refund and its vehicles handled.
-- [ ] **Lay roads, highways and rails without a site at either end.** Let them start and finish on any open ground or on an existing road, so the player can lay out a clean network first and connect sites to it afterwards.
-- [ ] **Resource nodes should not look like quarries.** Nodes (farmland, forest, clay, ore, coal and so on) currently show as ringed pits and flat brown or green patches. Each kind needs its own natural look.
-- [ ] **Cleaner, more natural placement of nodes, farms and scenery.** Less clutter, less like assets dropped everywhere: clustering, spacing, fields that follow the land, trees that belong to forests.
-- [ ] **For-sale lots look wrong.** Replace the fenced dirt pads with a town that looks "in development" around its roads: cleared ground, building sites, small buildings that get added and replaced as the town grows. Some plots stay reserved for the player's buildings.
-- [ ] **Every town starts at the bottom.** Major cities currently start at level 2 with 250 growth (code: `level: city ? 2 : 1` in `src/sim/features.ts`), so a new game already shows Villages and a different building count. All towns should start at the first level; a bigger footprint should not mean a later stage.
-- [ ] **Towns list as a full-screen window.** The Towns sheet should be a proper full-screen pop-up, like a normal game menu, instead of a panel over the map. Same for the town side panel, which runs under the bottom bar.
-- [ ] Tooltip and side panel clash with the bottom bar when many goods are listed (the Vehicles card overlaps the panel).
+- [x] **Delete roads.** Demolish removes a road, highway or rail with its vehicles and refunds half; town streets cannot be removed.
+- [x] **Lay roads, highways and rails with no site at the ends.** Start anywhere on dry ground or on an existing road; finish on a building or another road (or press Enter / tap Finish). Between two buildings that trade a vehicle comes with it, otherwise it is just road to connect to later.
+- [x] **Nodes no longer look like quarries.** Farmland is a patchwork of crops with a hedge and a tractor, pasture a fenced meadow with cows, orchards are rows of trees, clay a bank with a pond, ore a rust-coloured scree with a timbered adit, coal a black heap with a cart. Only quarries keep a pit. The props disappear when a building takes the node.
+- [x] **Cleaner, more natural placement.** Farmland, pasture and orchards cluster in belts on flat ground; every town has a forest, farmland and pasture within reach; trees grow in groves and glades with clear space round fields and pits.
+- [x] **For-sale lots.** A clean serviced pad with survey stakes replaces the fenced dirt pad and billboard. The edge of the built-up area is full of construction sites in different stages, so a town looks in development and fills in as it grows.
+- [x] **Every town starts at the first level**, major cities included (they keep their larger footprint).
+- [x] **Full-screen sheets.** Towns, Production, Quests and the guide take the whole screen under the top bar, and the Towns list uses up to three columns.
+- [x] **Selection panel no longer runs under the dock.** It scrolls (wheel, or drag on touch) inside the space above it. Hover hints no longer show under open sheets.
 
 ## What to Tackle Next
 

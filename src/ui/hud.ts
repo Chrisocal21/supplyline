@@ -30,6 +30,14 @@ import {
   tradeUpPreview,
   unitPrice,
   upgradeCost,
+  addVehicle,
+  linkableSites,
+  startRoute,
+  routeRefund,
+  siteById,
+  tradeUp,
+  tradeUpError,
+  vehicleError,
   upgradeError,
   wants,
   type Place,
@@ -72,7 +80,6 @@ const TABS: Tab[] = [
   { id: 'manufacturing', label: 'Manufacturing', icon: 'thumb-workshop', blurb: 'Paper, textiles, furniture. Build these on a free plot in a town.', tools: sitesIn('manufacturing') },
   { id: 'heavy', label: 'Heavy Industry', icon: 'thumb-smelter', blurb: 'Stone, metal, glass and machinery. Build these on a free plot in a town.', tools: sitesIn('heavy') },
   { id: 'logistics', label: 'Logistics', icon: 'thumb-route', blurb: 'Roads, highways, rails, hubs and clearing the way', tools: ['route', 'highway', 'rail', 'air', 'hub', 'airport', 'demolish'] },
-  { id: 'vehicles', label: 'Vehicles', icon: 'thumb-boxtruck', blurb: 'Click a road to put a vehicle on it, or trade one up to a bigger class', tools: [...VEHICLE_ORDER, 'tradeup'] },
 ];
 
 const REGION_COLOR: Record<string, number> = {
@@ -172,6 +179,9 @@ export class HudScene extends Phaser.Scene {
     kb.on('keydown-TAB', () => this.cycleTab());
     kb.on('keydown-P', () => this.toggleSheet('production'));
     kb.on('keydown-BACKSPACE', () => this.game3d.undoDraft());
+    kb.on('keydown-ENTER', () => {
+      if (this.game3d.draft) this.game3d.finishDraft();
+    });
     kb.on('keydown-T', () => this.toggleSheet('towns'));
     kb.on('keydown-G', () => this.toggleSheet('quests'));
     kb.on('keydown-H', () => this.toggleSheet('guide'));
@@ -189,6 +199,7 @@ export class HudScene extends Phaser.Scene {
         if (p.isDown) this.sheets.scrollBy(p.prevPosition.y - p.y);
         return;
       }
+      if (p.wasTouch && p.isDown && !this.dragging && this.panelRect && p.prevPosition.x >= this.panelRect.x && p.prevPosition.x <= this.panelRect.x + this.panelRect.w && p.prevPosition.y >= this.panelRect.y && p.prevPosition.y <= this.panelRect.y + this.panelRect.h) this.panelScroll += p.prevPosition.y - p.y;
       if (p.wasTouch && !this.dragging) return;
       const over = this.im.blocked(p.x, p.y) && !this.dragging;
       this.game3d.setHoverBlocked(over);
@@ -201,6 +212,7 @@ export class HudScene extends Phaser.Scene {
     });
     this.input.on('wheel', (p: Phaser.Input.Pointer, _o: unknown, _dx: number, dy: number) => {
       if (this.sheet) this.sheets.scrollBy(dy);
+      else if (this.panelRect && p.x >= this.panelRect.x && p.x <= this.panelRect.x + this.panelRect.w && p.y >= this.panelRect.y && p.y <= this.panelRect.y + this.panelRect.h) this.panelScroll += dy;
       else if (!this.im.blocked(p.x, p.y)) this.game3d.wheel(p.x, p.y, dy);
     });
 
@@ -301,13 +313,15 @@ export class HudScene extends Phaser.Scene {
     this.cim.clipBox = null;
     this.overlay(W, H);
     this.topBar(W);
-    this.bottomBar(W, H);
-    if (this.sheet) this.sheetLayer(W, H);
-    else {
+    if (this.sheet) {
+      this.panelRect = null;
+      this.sheetLayer(W, H);
+    } else {
+      this.bottomBar(W, H);
       this.sheetCam.setVisible(false);
-      this.sidePanel(W);
+      this.sidePanel(W, H);
+      this.hint(W, H);
     }
-    this.hint(W, H);
     this.toastsLayer(W, now);
     this.tooltip(W, H);
     im.end();
@@ -384,8 +398,9 @@ export class HudScene extends Phaser.Scene {
         im.rect(2, x, y, bw, bh, h ? 0x243142 : COLORS.panel, 0.96, 20, COLORS.line, 1);
         im.text(`${id}T`, label, x + bw / 2, y + 11, { size: 15, bold: true, align: 'center', layer: 3 });
       };
-      small('draftUndo', 'Undo', x0, () => g.undoDraft());
-      small('draftCancel', 'Cancel', x0 + bw + 8, () => g.cancelDraft());
+      small('draftUndo', 'Undo', x0 - (bw + 8) / 2, () => g.undoDraft());
+      small('draftCancel', 'Cancel', x0 + (bw + 8) / 2, () => g.cancelDraft());
+      small('draftFinish', 'Finish', x0 + (bw + 8) * 1.5, () => g.finishDraft());
     }
     return false;
   }
@@ -550,10 +565,11 @@ export class HudScene extends Phaser.Scene {
 
   /** The production and towns sheets. */
   private sheetLayer(W: number, H: number): void {
-    const w = Math.min(1040, W - 24);
-    const x = Math.round((W - w) / 2);
+    // A full-screen window: the whole screen under the top bar, like a normal game menu.
+    const w = W - 24;
+    const x = 12;
     const y = TOP + 6;
-    const h = H - y - (DOCK_H + EDGE) - 10;
+    const h = H - y - 12;
     this.sheets.draw(this.game3d.world, this.sheet!, x, y, w, h, () => (this.sheet = null));
   }
 
@@ -584,8 +600,8 @@ export class HudScene extends Phaser.Scene {
         cost: 'from $2/tile',
         locked: null,
         thumb: 'thumb-route',
-        blurb: 'Drag from one site to another. A box truck comes with it.',
-        detail: ['Roads cross water as bridges and mountains as tunnels, at a higher price.', `Bridges and tunnels: up to ${[2, 4, 8, 16][Math.min(3, w.tier)]} tiles at Tier ${w.tier}.`],
+        blurb: 'Drag from anywhere. Between two buildings that trade, a box truck comes with it.',
+        detail: ['Lay roads first and connect buildings to them later: a road can start and end on open ground or on another road.', 'Roads cross water as bridges and mountains as tunnels, at a higher price.', `Bridges and tunnels: up to ${[2, 4, 8, 16][Math.min(3, w.tier)]} tiles at Tier ${w.tier}.`],
       };
     }
     if (tool === 'highway') {
@@ -604,7 +620,7 @@ export class HudScene extends Phaser.Scene {
         cost: 'from $4/tile',
         locked: w.tier < 2 ? 'Tier 2' : null,
         thumb: 'thumb-rail',
-        blurb: 'Drag from one site to another. A freight train comes with it.',
+        blurb: 'Drag from anywhere. Between two buildings that trade, a freight train comes with it.',
         detail: ['Rail is its own network, apart from roads.', 'Every town has a Rail Station on its edge. Run track to it (or just point at the Market) and whatever the train unloads is sold on to the town.', 'Where track meets a road it makes a level crossing, at a right angle on a straight stretch.', `Bridges and tunnels: up to ${[2, 4, 8, 16][Math.min(3, w.tier)]} tiles at Tier ${w.tier}.`],
       };
     }
@@ -624,8 +640,8 @@ export class HudScene extends Phaser.Scene {
         cost: '50% refund',
         locked: null,
         thumb: 'thumb-demolish',
-        blurb: 'Remove a building and the roads that served it.',
-        detail: ['Click a building. Town docks cannot be removed.'],
+        blurb: 'Remove a building, or take out a road, highway or rail.',
+        detail: ['Click a building, or click a road to remove it with its vehicles. You get half the cost back.', 'Town docks and town streets cannot be removed.'],
       };
     }
     if (tool === 'tradeup') {
@@ -743,13 +759,15 @@ export class HudScene extends Phaser.Scene {
       if (plan) {
         const rail = plan.mode === 'rail';
         const first = rail ? VEHICLE_DEFS.train : VEHICLE_DEFS.boxtruck;
-        text = plan.error ? plan.error : `${rail ? 'Track' : plan.grade === 'highway' ? 'Highway' : 'Road'} ${g.draft.length - 1} tiles · ${fmt(plan.cost)} + ${first.label.toLowerCase()} ${first.cost}${plan.bridgeTiles ? ` · ${plan.bridgeTiles} bridge` : ''}${plan.tunnelTiles ? ` · ${plan.tunnelTiles} tunnel` : ''}${plan.crossings ? ` · ${plan.crossings} level crossing${plan.crossings > 1 ? 's' : ''}` : ''} · ${byInput('release to build', 'lift to build')}`;
-      } else text = `${g.tool === 'rail' ? 'Track' : 'Road'} ${g.draft.length - 1} tiles · ${byInput('drag or click to steer, finish on a site · Backspace undoes a bend · Esc cancels', 'drag or tap to steer, finish on a site')}`;
-    } else if (g.tool === 'route') text = `Drag from a site, ${byInput('click', 'tap')} or drag again to bend the road, and finish on another site`;
-    else if (g.tool === 'highway') text = `Drag from a site, ${byInput('click', 'tap')} or drag again to bend the highway, and finish on another site`;
-    else if (g.tool === 'rail') text = `Drag from a site, ${byInput('click', 'tap')} or drag again to bend the track, and finish on another site`;
+        const cost = plan.free ? `$${fmt(plan.cost)}` : `${fmt(plan.cost)} + ${first.label.toLowerCase()} ${first.cost}`;
+        const end = g.draftFinishes ? byInput('release to build', 'lift to build') : byInput('Enter to finish here, or keep steering', 'tap Finish, or keep steering');
+        text = plan.error ? plan.error : `${rail ? 'Track' : plan.grade === 'highway' ? 'Highway' : 'Road'} ${g.draft.length - 1} tiles · ${cost}${plan.bridgeTiles ? ` · ${plan.bridgeTiles} bridge` : ''}${plan.tunnelTiles ? ` · ${plan.tunnelTiles} tunnel` : ''}${plan.crossings ? ` · ${plan.crossings} level crossing${plan.crossings > 1 ? 's' : ''}` : ''} · ${end}`;
+      } else text = `${g.tool === 'rail' ? 'Track' : 'Road'} ${g.draft.length - 1} tiles · ${byInput('drag or click to steer · Enter finishes · Backspace undoes a bend · Esc cancels', 'drag or tap to steer')}`;
+    } else if (g.tool === 'route') text = `Drag to lay a road from anywhere. Finish on a building or on another road, or ${byInput('press Enter', 'tap Finish')}`;
+    else if (g.tool === 'highway') text = `Drag to lay a highway from anywhere. Finish on a building or on another road, or ${byInput('press Enter', 'tap Finish')}`;
+    else if (g.tool === 'rail') text = `Drag to lay track from anywhere. Finish on a building or on other track, or ${byInput('press Enter', 'tap Finish')}`;
     else if (g.tool === 'air') text = g.airFrom === null ? `${byInput('Click', 'Tap')} an airport, then ${byInput('click', 'tap')} the airport to fly to` : `Now ${byInput('click', 'tap')} the airport to fly to (${byInput('click', 'tap')} the same one to cancel)`;
-    else if (g.tool === 'demolish') text = h?.site ? `${byInput('Click', 'Tap')} to demolish ${h.site.name}` : `${byInput('Click', 'Tap')} a building to demolish it`;
+    else if (g.tool === 'demolish') text = h?.site ? `${byInput('Click', 'Tap')} to demolish ${h.site.name}` : h?.route ? (h.error ? h.error : `${byInput('Click', 'Tap')} to remove this ${h.route.mode === 'rail' ? 'track' : h.route.grade === 'highway' ? 'highway' : 'road'} for $${fmt(routeRefund(w, h.route))} back`) : `${byInput('Click', 'Tap')} a building or a road to remove it`;
     else if (g.tool === 'tradeup') {
       const pv = h?.route ? tradeUpPreview(w, h.route.id) : null;
       text = pv ? `${VEHICLE_DEFS[pv.from].label} to ${VEHICLE_DEFS[pv.to].label} for $${fmt(pv.cost)}` : `${byInput('Click', 'Tap')} a road, rail line or airport to trade up its smallest vehicle`;
@@ -926,7 +944,16 @@ export class HudScene extends Phaser.Scene {
 
   // ---- selection panel ----
 
-  private sidePanel(W: number): void {
+  /** Where the selection panel is on screen this frame (for scrolling), and how far it is scrolled. */
+  private panelRect: { x: number; y: number; w: number; h: number } | null = null;
+  private panelScroll = 0;
+  private panelKey = '';
+  /** The Im the selection panel draws into: the clipped one, so a long panel scrolls. */
+  private get pim(): Im {
+    return this.cim;
+  }
+
+  private sidePanel(W: number, H: number): void {
     const g = this.game3d;
     const sel = g.selection;
     if (!sel) return;
@@ -945,10 +972,29 @@ export class HudScene extends Phaser.Scene {
       return;
     }
 
-    // Draw content first into a measured column, then the frame behind it.
-    const frameH = site ? this.sitePanel(site, px, cy, inner) : this.placePanel(place!, px, cy, inner);
-    im.rect(1, x, y, PANEL_W, frameH + 28, COLORS.panel, 0.96, 14, COLORS.line, 1);
-    im.block({ x, y, w: PANEL_W, h: frameH + 28 });
+    // Draw content first into a measured column, then the frame behind it. A long panel scrolls inside the space above the dock.
+    const key = sel.kind + sel.id;
+    if (key !== this.panelKey) {
+      this.panelKey = key;
+      this.panelScroll = 0;
+    }
+    const maxH = Math.max(180, H - this.bottomInset - y - 10);
+    this.cim.clipBox = { x, y, w: PANEL_W, h: maxH };
+    const contentH = site ? this.sitePanel(site, px, cy - this.panelScroll, inner) : this.placePanel(place!, px, cy - this.panelScroll, inner);
+    const full = contentH + 28;
+    const frameH = Math.min(full, maxH);
+    const maxScroll = Math.max(0, full - frameH);
+    this.panelScroll = Math.max(0, Math.min(maxScroll, this.panelScroll));
+    im.rect(1, x, y, PANEL_W, frameH, COLORS.panel, 0.96, 14, COLORS.line, 1);
+    im.block({ x, y, w: PANEL_W, h: frameH });
+    this.panelRect = { x, y, w: PANEL_W, h: frameH };
+    this.sheetCam.setVisible(true).setViewport(x, y + 2, PANEL_W, frameH - 4).setScroll(x, y + 2);
+    if (maxScroll > 0) {
+      const barH = Math.max(30, ((frameH - 20) * frameH) / full);
+      const by = y + 10 + ((frameH - 20 - barH) * this.panelScroll) / maxScroll;
+      im.rect(2, x + PANEL_W - 8, y + 10, 4, frameH - 20, 0xffffff, 0.06, 2);
+      im.rect(2, x + PANEL_W - 8, by, 4, barH, 0xffffff, 0.3, 2);
+    }
     const hov = im.hit('closePanel', x + PANEL_W - 38, y + 10, 26, 26, () => g.select(null));
     im.rect(2, x + PANEL_W - 38, y + 10, 26, 26, hov ? 0x2a3646 : 0x1b2430, 1, 13);
     im.line(2, x + PANEL_W - 31, y + 17, x + PANEL_W - 19, y + 29, COLORS.text, 1, 2);
@@ -957,7 +1003,7 @@ export class HudScene extends Phaser.Scene {
 
   /** Returns the content height. */
   private sitePanel(s: Site, x: number, y: number, w: number): number {
-    const im = this.im;
+    const im = this.pim;
     const g = this.game3d;
     const world = g.world;
     const def = SITE_DEFS[s.kind];
@@ -1045,6 +1091,8 @@ export class HudScene extends Phaser.Scene {
       cy += 34;
     }
 
+    cy += this.vehicleSection(s, x, cy + 6, w) + 6;
+
     if (!def.dock && !def.station) {
       cy += 4;
       const err = upgradeError(world, s.id);
@@ -1067,8 +1115,97 @@ export class HudScene extends Phaser.Scene {
     return cy - y;
   }
 
+  /** Which class each route's Buy button buys. */
+  private buyKind = new Map<number, VehicleKind>();
+
+  /** The vehicles that serve a building: for each route it is on, what runs there, with Buy and Trade up. */
+  private vehicleSection(s: Site, x: number, y: number, w: number): number {
+    const im = this.pim;
+    const world = this.game3d.world;
+    const SHORT: Record<VehicleKind, string> = { boxtruck: 'Box', bigtruck: 'Big box', rig: 'Rig', convoy: 'Fleet', train: 'Train', heavytrain: 'Heavy', plane: 'Plane', jet: 'Jet' };
+    const say = (text: string): void => {
+      this.toasts.push({ text, until: this.time.now + 3200 });
+    };
+    let cy = y;
+    im.line(2, x, cy - 6, x + w, cy - 6, COLORS.line, 1);
+    im.text('spVehH', 'VEHICLES', x, cy, { size: 11, bold: true, color: COLORS.muted, layer: 2 });
+    cy += 20;
+    const routes = world.routes.filter((r) => !r.free && (r.fromSiteId === s.id || r.toSiteId === s.id));
+    const links = linkableSites(world, s.id);
+    if (routes.length === 0 && links.length === 0) {
+      im.text('spVehN', 'No routes yet. Lay a road from this building to a building that trades with it (or onto a road that reaches one), and a truck comes with it. Then buy more here, or trade them up.', x, cy, { size: 11, color: COLORS.muted, wrap: w, layer: 2 });
+      return cy + 64 - y;
+    }
+    for (const r of routes.slice(0, 8)) {
+      const other = siteById(world, r.fromSiteId === s.id ? r.toSiteId : r.fromSiteId);
+      const vs = world.vehicles.filter((v) => v.routeId === r.id);
+      const counts = new Map<VehicleKind, number>();
+      for (const v of vs) counts.set(v.kind, (counts.get(v.kind) ?? 0) + 1);
+      const carries = vs.reduce((n, v) => n + VEHICLE_DEFS[v.kind].capacity, 0);
+      im.rect(2, x, cy, w, 128, 0x131a24, 1, 10, COLORS.line, 1);
+      im.text(`vr${r.id}n`, `To ${other?.name ?? 'a building'}`, x + 10, cy + 8, { size: 12, bold: true, wrap: w - 20, layer: 3 });
+      const mix = [...counts.entries()].map(([k, n]) => `${n} ${VEHICLE_DEFS[k].label}${n > 1 ? 's' : ''}`).join(', ');
+      im.text(`vr${r.id}m`, vs.length ? `${mix}  ·  carries ${carries} per trip` : 'No vehicles', x + 10, cy + 26, { size: 11, color: COLORS.muted, wrap: w - 20, layer: 3 });
+      // Pick a class, then buy it.
+      const classes = VEHICLE_ORDER.filter((k) => VEHICLE_DEFS[k].mode === r.mode && VEHICLE_DEFS[k].implemented);
+      const chosen = this.buyKind.get(r.id) && classes.includes(this.buyKind.get(r.id)!) ? this.buyKind.get(r.id)! : classes[0];
+      const gap = 4;
+      const cw = (w - 20 - gap * (classes.length - 1)) / classes.length;
+      classes.forEach((k, i) => {
+        const cx = x + 10 + i * (cw + gap);
+        const locked = VEHICLE_DEFS[k].tier > world.tier;
+        const on = k === chosen;
+        const hov = im.hit(`vr${r.id}c${k}`, cx, cy + 50, cw, 24, () => (locked ? say(`${VEHICLE_DEFS[k].label} unlocks at Tier ${VEHICLE_DEFS[k].tier}`) : this.buyKind.set(r.id, k)), 3);
+        im.rect(3, cx, cy + 50, cw, 24, on ? 0x1f2c3a : hov ? 0x1a2431 : 0x10161e, 1, 8, on ? COLORS.accent : COLORS.line, 1);
+        im.text(`vr${r.id}ct${k}`, SHORT[k], cx + cw / 2, cy + 56, { size: 10, bold: true, color: locked ? 0x566170 : on ? COLORS.accent : COLORS.text, align: 'center', layer: 4 });
+      });
+      const bw = (w - 20 - gap) / 2;
+      const buyErr = vehicleError(world, r.id, chosen);
+      const bx = x + 10;
+      const by = cy + 84;
+      const bh = im.hit(`vr${r.id}b`, bx, by, bw, 34, () => {
+        const e = addVehicle(world, r.id, chosen);
+        say(e ?? `${VEHICLE_DEFS[chosen].label} added`);
+      }, 3);
+      im.rect(3, bx, by, bw, 34, buyErr ? 0x151c26 : bh ? 0xf2b04c : COLORS.accent, 1, 10, buyErr ? COLORS.line : COLORS.accent, 1);
+      im.text(`vr${r.id}bt`, `Buy ${SHORT[chosen]}  $${fmt(VEHICLE_DEFS[chosen].cost)}`, bx + bw / 2, by + 10, { size: 12, bold: true, color: buyErr ? COLORS.muted : 0x1b1204, align: 'center', layer: 4 });
+      const pv = tradeUpPreview(world, r.id);
+      const upErr = pv ? tradeUpError(world, r.id) : 'Already the top class';
+      const ux = bx + bw + gap;
+      const uh = im.hit(`vr${r.id}u`, ux, by, bw, 34, () => {
+        const before = tradeUpPreview(world, r.id);
+        const e = tradeUp(world, r.id);
+        say(e ?? `${VEHICLE_DEFS[before!.from].label} traded up to a ${VEHICLE_DEFS[before!.to].label}`);
+      }, 3);
+      im.rect(3, ux, by, bw, 34, upErr ? 0x151c26 : uh ? 0x2a3b50 : 0x1b2735, 1, 10, upErr ? COLORS.line : COLORS.accent, 1);
+      im.text(`vr${r.id}ut`, pv ? `Trade up  $${fmt(pv.cost)}` : 'Top class', ux + bw / 2, by + 10, { size: 12, bold: true, color: upErr ? COLORS.muted : COLORS.accent, align: 'center', layer: 4 });
+      cy += 136;
+    }
+    // Buildings already reached by road or track, with no route yet: one button starts it.
+    if (links.length) {
+      im.text('spLinkH', 'CONNECTED, NO ROUTE YET', x, cy + 2, { size: 11, bold: true, color: COLORS.muted, layer: 2 });
+      cy += 22;
+      for (const l of links.slice(0, 8)) {
+        const first: VehicleKind = l.mode === 'rail' ? 'train' : 'boxtruck';
+        const err = world.money < VEHICLE_DEFS[first].cost ? 'Need money' : null;
+        im.rect(2, x, cy, w, 44, 0x131a24, 1, 10, COLORS.line, 1);
+        im.text(`lk${l.site.id}n`, l.site.name, x + 10, cy + 6, { size: 12, bold: true, wrap: w - 130, layer: 3 });
+        im.text(`lk${l.site.id}d`, `${l.path.length - 1} tiles by ${l.mode === 'rail' ? 'rail' : 'road'}`, x + 10, cy + 24, { size: 10, color: COLORS.muted, layer: 3 });
+        const bx = x + w - 118;
+        const hov = im.hit(`lk${l.site.id}b`, bx, cy + 6, 108, 32, () => {
+          const e = startRoute(world, s.id, l.site.id);
+          say(e ?? `${VEHICLE_DEFS[first].label} on its way to ${l.site.name}`);
+        }, 3);
+        im.rect(3, bx, cy + 6, 108, 32, err ? 0x151c26 : hov ? 0xf2b04c : COLORS.accent, 1, 10);
+        im.text(`lk${l.site.id}bt`, `Start  $${fmt(VEHICLE_DEFS[first].cost)}`, bx + 54, cy + 15, { size: 12, bold: true, color: err ? COLORS.muted : 0x1b1204, align: 'center', layer: 4 });
+        cy += 50;
+      }
+    }
+    return cy - y;
+  }
+
   private placePanel(p: Place, x: number, y: number, w: number): number {
-    const im = this.im;
+    const im = this.pim;
     const world = this.game3d.world;
     let cy = y;
     const lv = TOWN_LEVELS[p.level - 1];

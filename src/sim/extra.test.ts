@@ -53,7 +53,8 @@ describe('pathfinding', () => {
     expect(path!.some((t) => Math.abs(t.x - 20) <= 1 && Math.abs(t.y - 6) <= 1)).toBe(false);
     // a farm sends grain, which a market does not want, so the plan is refused for that reason alone
     const plan = planRoute(w, path!);
-    expect(plan.error).toMatch(/nothing to trade/);
+    expect(plan.error).toBeNull();
+    expect(plan.free).toBe(true);
   });
 
   it('routes grain farm to mill and the plan is accepted', () => {
@@ -274,8 +275,10 @@ describe('cities, entrances and highways', () => {
       expect(w.places.filter((p) => p.radius === 3).length).toBeGreaterThanOrEqual(5);
       expect(w.places[0].radius).toBe(3);
       for (const c of w.places.filter((p) => p.radius === 5)) {
-        expect(c.level).toBe(2);
-        expect(w.sites.some((s) => s.kind === 'freight' && s.placeId === c.id)).toBe(true);
+        // Every town starts at the bottom, however big its footprint.
+        expect(c.level).toBe(1);
+        expect(c.growth).toBe(0);
+        expect(w.sites.some((s) => s.kind === 'freight' && s.placeId === c.id)).toBe(false);
       }
     }
   });

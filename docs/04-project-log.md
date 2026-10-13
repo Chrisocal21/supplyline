@@ -285,3 +285,25 @@ Still open: stations only receive goods; planes; a balance pass.
 **Tests:** 55 pass (12 new for districts, paths, running costs and trade-up). Two old tests were changed: money no longer has to rise on a train sale because running costs offset it, and a town needs longer to reach level 2.
 
 Still open: balance by a human playthrough; per-path quests; offline play for the iPad.
+
+
+## Oct 12, 2026 (night): Chris's playtest list
+
+Chris played the first build and listed what bothered him. All of it is done.
+
+- **Free roads.** A route can now be a *free* road (`free: true`, no site ids, no vehicle). `planRoute` decides: two different buildings that trade give a vehicle route, anything else is plain road. Free ends must be on dry, buildable ground (`roadEndError`), and a drag that reaches a building or an existing road of the same kind finishes by itself (`endsHere`); otherwise Enter or the Finish button builds it. Existing tiles cost almost nothing, so later routes run along a network you laid first. Vehicle tools and Trade up ignore free roads.
+- **Removing routes.** `removeRoute` takes a route and its vehicles, refunds half (`routeRefund`) and leaves tiles another route still uses. Town streets are refused. The Demolish tool handles roads as well as buildings.
+- **Nodes.** Each kind has its own ragged-edged ground paint (`paint.ts`) and a small 3D scene (`nodeProps` in `scenery.ts`) shown until a building takes the node. Only quarries dig a pit; mines and coal get a level yard (`geo.ts`). Trees come in groves (`grove()` noise) and keep clear of every non-forest node.
+- **Placement.** World generation puts farmland, pasture and orchards in belts around the flattest ground, then makes sure every town has a forest, farmland and pasture within 15 tiles (`features.ts`).
+- **Towns.** All towns start at level 1 and growth 0. Lots are a clean pad with stakes; the frontier of the built-up area is construction sites (stages 1 to 3, a crane from level 2).
+- **Windows.** Sheets are full screen; the dock and hint hide while one is open. The selection panel draws into the clipped layer and scrolls above the dock.
+- **Tests:** 57 pass (2 new for free roads and removal; four old expectations updated: nothing-to-trade is now a plain road, cities start at level 1).
+- Pacing after the change, seed 11 (bot): Tier 1 at about 6 minutes, Tier 2 at about 55.
+
+## Oct 12, 2026 (late night): vehicles from the building
+
+The click-a-road way of adding vehicles was confusing (free roads, shared tiles). It is gone, along with the Vehicles tab and the Trade up tool. Select a building and its panel lists every route it is on (`vehicleSection` in hud.ts): what runs there, a class picker, **Buy** and **Trade up**. Same sim calls (`addVehicle`, `tradeUp`), so the economy is unchanged. Quest hints and the guide were reworded. Verified with real clicks: buy, pick a class and buy, trade up.
+
+## Oct 12, 2026 (late night, fix): roads that joined buildings gave no trucks
+
+A road drawn from a building onto another road is a free road (no vehicle), so a camp could be "connected" with no truck, and the new vehicle panel said "No routes yet". Now routes follow the network: `linkableSites` walks the roads and tracks already laid (tiles joined where a route runs from one to the next; a building is the end of the line) and lists every building the one it is selecting could trade with and has no route to. The building panel shows them under "Connected, no route yet" with a **Start** button (\`startRoute\`), and when a road is laid the buildings at its ends get routes started automatically (\`connectSites\`, up to three, only if money allows). Existing level crossings are no longer charged again. Tests: 59 pass (two new, including the exact two-free-roads case).

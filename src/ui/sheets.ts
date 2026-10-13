@@ -67,8 +67,8 @@ const GUIDE: { title: string; body: Body; icon?: string }[] = [
   {
     title: 'Step 3: build a road',
     body: {
-      mouse: 'Open Logistics and pick Road. Drag from one building to the other. The road finds its own way round hills, bridges water and tunnels under mountains (those cost more). To steer it, click along the way to drop corners. Backspace undoes a corner and Esc cancels. A box truck comes with every road.',
-      touch: 'Open Logistics and pick Road. Drag from one building to the other. The road finds its own way round hills, bridges water and tunnels under mountains (those cost more). To steer it, tap along the way to drop corners. Undo and Cancel buttons show while you draw. A box truck comes with every road.',
+      mouse: 'Open Logistics and pick Road. Drag from one building to the other. The road finds its own way round hills, bridges water and tunnels under mountains (those cost more). To steer it, click along the way to drop corners. Enter finishes, Backspace undoes a corner and Esc cancels. Between two buildings that trade a box truck comes with the road. You can also lay roads from open ground or from another road and connect buildings later. The Demolish tool removes a road.',
+      touch: 'Open Logistics and pick Road. Drag from one building to the other. The road finds its own way round hills, bridges water and tunnels under mountains (those cost more). To steer it, tap along the way to drop corners. Undo, Cancel and Finish buttons show while you draw. Between two buildings that trade a truck comes with the road. You can also lay roads from open ground or from another road and connect buildings later. The Demolish tool removes a road.',
     },
     icon: 'thumb-route',
   },
@@ -96,7 +96,7 @@ const GUIDE: { title: string; body: Body; icon?: string }[] = [
   },
   {
     title: 'Bigger vehicles and running costs',
-    body: 'Box Truck, Big Box Truck, Big Rig, Truck Fleet. Freight Train, Heavy Haul Train. Cargo Plane, Cargo Jet. In the Vehicles tab, Trade up swaps the smallest vehicle on a route for the next class and returns half of its price. Bigger vehicles carry far more but cost more to run. Vehicles, buildings and districts are paid for every minute, and the figure under your money is what is left after that.',
+    body: 'Box Truck, Big Box Truck, Big Rig, Truck Fleet. Freight Train, Heavy Haul Train. Cargo Plane, Cargo Jet. Select any building to see the vehicles that serve it: pick a class and Buy, or Trade up to swap the smallest one for the next class and get half its price back. Bigger vehicles carry far more but cost more to run. Vehicles, buildings and districts are paid for every minute, and the figure under your money is what is left after that.',
     icon: 'thumb-boxtruck',
   },
   {
@@ -330,12 +330,12 @@ export class Sheets {
 
   private towns(world: World, v: View): number {
     const gap = 14;
-    const cols = v.x1 - v.x0 > 760 ? 2 : 1;
+    const cols = v.x1 - v.x0 > 1500 ? 3 : v.x1 - v.x0 > 760 ? 2 : 1;
     const cw = (v.x1 - v.x0 - gap * (cols - 1)) / cols;
     const places = [...world.places].sort((a, b) => b.level - a.level || b.growth - a.growth || a.id - b.id);
     if (places.length === 0) return 0;
 
-    const chipW = 100;
+    const chipW = 116;
     const chipH = 30;
     const perRow = Math.max(1, Math.floor((cw - 28 + 6) / (chipW + 6)));
     const heights = places.map((p) => {

@@ -34,7 +34,7 @@ export function questProgress(world: World, goal: QuestGoal): Progress {
       break;
     case 'route':
       // Roads the player laid: the free street links inside a town have no grade and do not count.
-      have = world.routes.filter((r) => r.mode === goal.mode && (r.mode !== 'road' || r.grade !== undefined) && (!goal.grade || r.grade === goal.grade)).length;
+      have = world.routes.filter((r) => !r.free && r.mode === goal.mode && (r.mode !== 'road' || r.grade !== undefined) && (!goal.grade || r.grade === goal.grade)).length;
       need = goal.count;
       break;
     case 'vehicle':

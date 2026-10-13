@@ -21,6 +21,12 @@ import {
   addVehicle,
   tradeUp,
   tradeUpPreview,
+  onNetwork,
+  connectSites,
+  removeRoute,
+  removeRouteError,
+  roadEndError,
+  routeRefund,
   createAirRoute,
   createRoute,
   createWorld,
@@ -547,7 +553,9 @@ export class Game3D {
       const ter = terrainAt(w, t.x, t.y);
       return !siteAt(w, t.x, t.y) && !isHomePlot(pl, index) && (ter === 'grass' || ter === 'forest');
     });
-    this.scenery.showMarkers(this.activeNodeKind(), new Set(w.sites.map((s) => s.nodeId).filter((n): n is number => n !== null)));
+    const usedNodes = new Set(w.sites.map((s) => s.nodeId).filter((n): n is number => n !== null));
+    this.scenery.showMarkers(this.activeNodeKind(), usedNodes);
+    this.scenery.setNodesUsed(usedNodes);
   }
 
   private activeNodeKind(): NodeKind | null {
@@ -826,7 +834,10 @@ export class Game3D {
     info.route = routeAt(w, tile.x, tile.y, this.tool === 'rail' || this.tool === 'train' ? 'rail' : undefined);
     info.region = w.regions.find((r) => r.id === w.regionMap[tile.y * w.width + tile.x]);
     if (this.isBuildTool()) info.error = placeError(w, this.tool as SiteKind, tile.x, tile.y);
-    if (this.tool === 'demolish') info.error = info.site ? null : 'Click a building to demolish it';
+    if (this.tool === 'demolish') {
+      info.route = routeAt(w, tile.x, tile.y, undefined, { newest: true });
+      info.error = info.site ? null : info.route ? removeRouteError(w, info.route.id) : 'Click a building or a road to remove it';
+    }
     return info;
   }
 
@@ -929,7 +940,7 @@ export class Game3D {
         this.draft = [...this.committed];
         this.draftTarget = null;
         d.mode = 'draft';
-      } else if (pick && siteAt(this.world, pick.tile.x, pick.tile.y)) {
+      } else if (pick && !this.startError(pick.tile)) {
         this.committed = [{ ...pick.tile }];
         this.draftHistory = [];
         this.draft = [...this.committed];
@@ -937,7 +948,7 @@ export class Game3D {
         d.mode = 'draft';
         this.updateDraft();
       } else {
-        this.onToast(`Start the ${this.tool === 'rail' ? 'track' : 'road'} on a site, then drag or click to steer it to another site`);
+        if (pick) this.onToast(this.startError(pick.tile)!);
         d.mode = 'pan';
       }
       return;
@@ -977,15 +988,8 @@ export class Game3D {
         if (pick) this.autoDraft(pick.tile);
       }
       const path = this.draft ?? this.committed;
-      const end = path[path.length - 1];
-      if (path.length > 1 && siteAt(this.world, end.x, end.y)) {
-        const rail = this.tool === 'rail';
-        const err = createRoute(this.world, path, rail ? 'rail' : 'road', this.tool === 'highway' ? 'highway' : 'street');
-        this.onToast(err ?? (rail ? 'Track laid, freight train assigned' : this.tool === 'highway' ? 'Highway built, box truck assigned' : 'Road built, box truck assigned'));
-        if (!err) {
-          this.cancelDraft();
-          return;
-        }
+      if (path.length > 1 && this.endsHere(path)) {
+        if (this.buildDraft(path)) return;
         // Keep what was steered so far and let the player try another way in.
         this.draft = [...this.committed];
       } else if (path.length > this.committed.length) {
@@ -1055,14 +1059,14 @@ export class Game3D {
     if ((VEHICLE_ORDER as string[]).includes(this.tool)) {
       const mode = VEHICLE_DEFS[this.tool as VehicleKind].mode as 'road' | 'rail' | 'air';
       const here = siteAt(w, tile.x, tile.y);
-      const route = mode === 'air' ? w.routes.find((r) => r.mode === 'air' && here && (r.fromSiteId === here.id || r.toSiteId === here.id)) : routeAt(w, tile.x, tile.y, mode);
+      const route = mode === 'air' ? w.routes.find((r) => r.mode === 'air' && here && (r.fromSiteId === here.id || r.toSiteId === here.id)) : routeAt(w, tile.x, tile.y, mode, { vehicles: true });
       const err = addVehicle(w, route?.id ?? -1, this.tool as VehicleKind);
       this.onToast(err ?? `${VEHICLE_DEFS[this.tool as VehicleKind].label} added`);
       return;
     }
     if (this.tool === 'tradeup') {
       const here = siteAt(w, tile.x, tile.y);
-      const route = routeAt(w, tile.x, tile.y) ?? w.routes.find((r) => r.mode === 'air' && here && (r.fromSiteId === here.id || r.toSiteId === here.id));
+      const route = routeAt(w, tile.x, tile.y, undefined, { vehicles: true }) ?? w.routes.find((r) => r.mode === 'air' && here && (r.fromSiteId === here.id || r.toSiteId === here.id));
       const before = route ? tradeUpPreview(w, route.id) : null;
       const err = tradeUp(w, route?.id ?? -1);
       this.onToast(err ?? `${VEHICLE_DEFS[before!.from].label} traded up to a ${VEHICLE_DEFS[before!.to].label}`);
@@ -1087,11 +1091,18 @@ export class Game3D {
     if (this.isRouteTool()) return;
     if (this.tool === 'demolish') {
       const site = siteAt(w, tile.x, tile.y);
-      if (!site) {
-        this.onToast('Click a building to demolish it');
+      if (site) {
+        this.demolish(site.id);
         return;
       }
-      this.demolish(site.id);
+      const route = routeAt(w, tile.x, tile.y, undefined, { newest: true });
+      if (!route) {
+        this.onToast('Click a building or a road to remove it');
+        return;
+      }
+      const refund = routeRefund(w, route);
+      const err = removeRoute(w, route.id);
+      this.onToast(err ?? `Removed for $${refund.toLocaleString('en-US')} back`);
       return;
     }
     const err = placeSite(w, this.tool as SiteKind, tile.x, tile.y);
@@ -1118,6 +1129,58 @@ export class Game3D {
       }
     }
     this.cam.zoom(factor);
+  }
+
+  private get routeMode(): 'rail' | 'road' {
+    return this.tool === 'rail' ? 'rail' : 'road';
+  }
+
+  /** Why a road cannot start on this tile, or null. */
+  private startError(t: Tile): string | null {
+    return roadEndError(this.world, t.x, t.y, this.routeMode);
+  }
+
+  /** A drag that reaches a building or an existing road of the same kind is finished: it joins them. */
+  private endsHere(path: Tile[]): boolean {
+    const end = path[path.length - 1];
+    if (siteAt(this.world, end.x, end.y)) return true;
+    return path.length > 1 && onNetwork(this.world, end.x, end.y, this.routeMode);
+  }
+
+  /** Whether lifting the pointer now would build the draft. */
+  get draftFinishes(): boolean {
+    const path = this.draft;
+    return !!path && path.length > 1 && this.endsHere(path);
+  }
+
+  private buildDraft(path: Tile[]): boolean {
+    const rail = this.tool === 'rail';
+    const grade = this.tool === 'highway' ? 'highway' : 'street';
+    const plan = planRoute(this.world, path, this.routeMode, grade);
+    if (!plan.error && !path.some((t) => !onNetwork(this.world, t.x, t.y, this.routeMode))) {
+      this.onToast('That is already built');
+      return false;
+    }
+    const err = createRoute(this.world, path, this.routeMode, grade);
+    const what = rail ? 'Track' : this.tool === 'highway' ? 'Highway' : 'Road';
+    this.onToast(err ?? (plan.free ? `${what} laid` : rail ? 'Track laid, freight train assigned' : `${what} built, box truck assigned`));
+    if (err) return false;
+    // Buildings the new road joins to the network get their routes started.
+    const ends = [path[0], path[path.length - 1]].map((t) => siteAt(this.world, t.x, t.y)).filter((s): s is NonNullable<typeof s> => !!s);
+    const made = connectSites(this.world, ends.map((s) => s.id));
+    if (made.length) this.onToast(`Routes started: ${made.join(', ')}`);
+    this.cancelDraft();
+    return true;
+  }
+
+  /** Build what has been drawn so far, wherever it ends. */
+  finishDraft(): void {
+    const path = this.draft ?? this.committed;
+    if (!path || path.length < 2) {
+      this.onToast('Drag or click to draw first');
+      return;
+    }
+    this.buildDraft(path);
   }
 
   /** Take back the last waypoint. */
@@ -1173,7 +1236,7 @@ export class Game3D {
       // Track cannot run along streets or over lots: in a town, trains call at its station.
       const inTown = mode === 'rail' && placeAt(this.world, target.x, target.y);
       const error = inTown ? 'Track cannot run through the middle of a town: end it at the Rail Station on the edge of town' : 'No buildable way through there';
-      this.draftPlan = { mode, grade: 'street', error, path: [], cost: 0, bridgeTiles: 0, tunnelTiles: 0, crossings: 0 };
+      this.draftPlan = { mode, grade: 'street', error, path: [], cost: 0, bridgeTiles: 0, tunnelTiles: 0, crossings: 0, free: true };
       this.updateDraftMesh();
       return;
     }
@@ -1185,7 +1248,8 @@ export class Game3D {
     const path = this.draft;
     if (!path) return;
     const end = path[path.length - 1];
-    this.draftPlan = path.length > 1 && siteAt(this.world, end.x, end.y) ? planRoute(this.world, path, this.tool === 'rail' ? 'rail' : 'road', this.tool === 'highway' ? 'highway' : 'street') : null;
+    void end;
+    this.draftPlan = path.length > 1 ? planRoute(this.world, path, this.routeMode, this.tool === 'highway' ? 'highway' : 'street') : null;
     this.updateDraftMesh();
   }
 

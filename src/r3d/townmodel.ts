@@ -157,27 +157,23 @@ export function townGeometry(o: TownModelOptions): THREE.BufferGeometry {
       return;
     }
 
-    // A lot for sale: a dirt pad on a foundation, a low fence with a gate gap at the driveway, and a sign.
+    // A lot held for the player: a level, serviced pad with a painted edge and survey stakes at the corners.
     const hw = 1.3 * sq;
     p.tex = 6;
-    p.box(hw * 2, 0.03, 2.6, 0xa89c7e, { x: cx, y: 0.0, z: cz });
+    p.box(hw * 2, 0.03, 2.6, 0xb7b1a3, { x: cx, y: 0.0, z: cz });
     p.box(hw * 2 - 0.1, 2.5, 2.5, 0x6d6b66, { x: cx, y: -2.5, z: cz });
-    p.tex = 2;
+    p.box(hw * 2 - 0.34, 0.012, 2.26, 0xc9c4b6, { x: cx, y: 0.03, z: cz });
     for (const sx of [-1, 1]) {
-      if (fx === 0 || sx !== fx) p.box(0.04, 0.2, 2.6, 0x8a6a48, { x: cx + sx * hw, y: 0.03, z: cz });
-      else for (const seg of [-1, 1]) p.box(0.04, 0.2, 0.9, 0x8a6a48, { x: cx + sx * hw, y: 0.03, z: cz + seg * 0.85 });
+      for (const sz of [-1, 1]) {
+        p.tex = 0;
+        p.box(0.04, 0.34, 0.04, 0x6a5a48, { x: cx + sx * (hw - 0.1), y: 0.03, z: cz + sz * 1.2 });
+        p.box(0.07, 0.07, 0.07, 0xe0792b, { x: cx + sx * (hw - 0.1), y: 0.37, z: cz + sz * 1.2 });
+      }
     }
-    for (const sz of [-1, 1]) {
-      if (fz === 0 || sz !== fz) p.box(hw * 2, 0.2, 0.04, 0x8a6a48, { x: cx, y: 0.03, z: cz + sz * 1.3 });
-      else for (const seg of [-1, 1]) p.box(0.9 * sq, 0.2, 0.04, 0x8a6a48, { x: cx + seg * 0.85 * sq, y: 0.03, z: cz + sz * 1.3 });
-    }
+    // The drive meets the street where the plot is entered.
+    p.tex = 6;
+    p.box(fx === 0 ? 0.6 : 0.5, 0.012, fz === 0 ? 0.6 : 0.5, 0xa39e92, { x: cx + fx * hw * 0.92, y: 0.03, z: cz + fz * 1.2 });
     p.tex = 0;
-    const [sx, sz] = at(cx, cz, yaw, 0.95, 1.2);
-    p.box(0.05, 0.85, 0.05, 0x6a4a30, { x: sx, y: 0.03, z: sz });
-    p.box(0.72, 0.36, 0.04, 0xf4f1e8, { x: sx, y: 0.6, z: sz, ry: yaw });
-    p.box(0.72, 0.1, 0.05, 0xc0392b, { x: sx, y: 0.86, z: sz, ry: yaw });
-    p.box(0.46, 0.05, 0.05, 0x2a2a2a, { x: sx, y: 0.7, z: sz, ry: yaw });
-    p.box(0.34, 0.05, 0.05, 0x2a2a2a, { x: sx, y: 0.62, z: sz, ry: yaw });
   });
 
   // ---- homes and towers around the outside ----
@@ -187,6 +183,43 @@ export function townGeometry(o: TownModelOptions): THREE.BufferGeometry {
     .sort((a, b) => a.d - b.d);
   const fillFrac = city ? [0.35, 0.5, 0.65, 0.8, 0.9][level - 1] : [0.3, 0.5, 0.75, 0.95, 1][level - 1];
   const filled = Math.floor(around.length * fillFrac);
+  // Just beyond the finished streets, the next blocks are being built: sites in several stages, so the town is plainly
+  // in development and fills in as it grows. A fully grown town has none.
+  const frontier = fillFrac >= 1 ? 0 : Math.max(2, Math.min(8, Math.round(around.length * 0.14)));
+
+  const construction = (cx: number, cz: number, yaw: number, stage: number): void => {
+    p.tex = 6;
+    p.box(1.6, 0.03, 1.5, 0x9c968a, { x: cx, y: 0.0, z: cz, ry: yaw });
+    p.box(1.55, 1.5, 1.45, 0x6d6b66, { x: cx, y: -1.5, z: cz, ry: yaw });
+    const [bx, bz] = at(cx, cz, yaw, -0.1, -0.05);
+    p.box(0.95, 0.07, 0.75, 0xc4c0b6, { x: bx, y: 0.03, z: bz, ry: yaw });
+    p.tex = 1;
+    if (stage >= 1) p.box(0.95, 0.34 * stage, 0.75, 0xcbbfa6, { x: bx, y: 0.1, z: bz, ry: yaw });
+    p.tex = 0;
+    if (stage >= 2) {
+      for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
+        const [px, pz] = at(bx, bz, yaw, sx * 0.5, sz * 0.4);
+        p.box(0.03, 0.8, 0.03, 0x9a8a5a, { x: px, y: 0.1, z: pz });
+      }
+      p.box(1.0, 0.025, 0.025, 0x9a8a5a, { x: bx, y: 0.55, z: bz - 0.4, ry: yaw });
+      p.box(1.0, 0.025, 0.025, 0x9a8a5a, { x: bx, y: 0.55, z: bz + 0.4, ry: yaw });
+    }
+    // Materials, a site cabin and orange safety fencing along the street side.
+    const [mx, mz] = at(cx, cz, yaw, 0.55, 0.45);
+    p.box(0.34, 0.16, 0.24, 0xa4523f, { x: mx, y: 0.03, z: mz, ry: yaw });
+    p.box(0.26, 0.1, 0.2, 0xb08a4a, { x: mx + 0.05, y: 0.19, z: mz, ry: yaw });
+    const [kx, kz] = at(cx, cz, yaw, -0.6, 0.5);
+    p.box(0.3, 0.2, 0.22, 0x3f6f9a, { x: kx, y: 0.03, z: kz, ry: yaw });
+    for (let i = -2; i <= 2; i++) {
+      const [fx2, fz2] = at(cx, cz, yaw, i * 0.3, 0.7);
+      p.box(0.24, 0.16, 0.02, 0xe0792b, { x: fx2, y: 0.03, z: fz2, ry: yaw });
+    }
+    if (stage >= 2 && level >= 2) {
+      const [tx, tz] = at(cx, cz, yaw, 0.65, -0.5);
+      p.box(0.05, 1.25, 0.05, 0xd7a21f, { x: tx, y: 0.03, z: tz });
+      p.box(0.85, 0.04, 0.04, 0xd7a21f, { x: tx - 0.3, y: 1.25, z: tz, ry: yaw });
+    }
+  };
   const maxD = Math.max(1, ...around.map((h) => h.d));
   // Each district has its own slot, taken from the tiles nearest the centre, so it stays put as others are added.
   const slots = homeTiles(0, 0, R)
@@ -207,6 +240,10 @@ export function townGeometry(o: TownModelOptions): THREE.BufferGeometry {
     const landmark = claimed.get(h.i);
     if (landmark) {
       districtLandmark(p, landmark.id, landmark.level, tx, tz, yaw);
+      return;
+    }
+    if (idx >= filled && idx < filled + frontier) {
+      construction(tx, tz, yaw, 1 + Math.floor(r() * 3));
       return;
     }
     if (idx >= filled) {
