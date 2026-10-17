@@ -35,6 +35,8 @@ import {
   buyOptions,
   destinationsOf,
   fleetOf,
+  inboundTo,
+  HISTORY_JOBS,
   buyersFor,
   roadPlan,
   sellVehicleValue,
@@ -67,11 +69,12 @@ import {
 import { nextQuest } from '../sim/quests';
 import { Game3D, type HoverInfo, type OverlayItem, type Tool } from '../r3d/game3d';
 import { COLORS, Im } from './imui';
+import { VERSION, VERSION_NOTE } from '../version';
 import { Rates, Sheets, type SheetId } from './sheets';
 import { Title, type TitleChoice } from './title';
 import { byInput, inputMode, isTouch, onInputChange } from './inputmode';
 
-const TOP = 72;
+let TOP = 72;
 const DOCK_TAB_W = 96;
 const DOCK_TAB_H = 66;
 const DOCK_PAD = 8;
@@ -319,31 +322,20 @@ export class HudScene extends Phaser.Scene {
     if (this.sheet) this.activeTab = 'select';
   }
 
+  /** Esc: close every menu, sheet, build tool and selection at once and go back to plain play. */
   private escape(): void {
     const g = this.game3d;
-    if (this.menuOpen) {
-      this.menuOpen = false;
-      return;
-    }
-    if (this.saves) {
-      this.saves = null;
-      return;
-    }
-    if (this.sheet) {
-      this.sheet = null;
-      return;
-    }
-    if (this.dash !== null) {
-      this.dash = null;
-      return;
-    }
+    this.menuOpen = false;
+    g.removal = null;
+    this.saves = null;
+    this.sheet = null;
+    this.dash = null;
+    this.confirm = null;
+    const grow = this.pendingGrowth();
+    if (grow) this.growLater.add(`${grow.id}:${grow.level}`);
     if (g.draft) g.cancelDraft();
-    else if (g.tool !== 'select') {
-      const tab = this.activeTab;
-      this.setTool('select');
-      this.activeTab = tab;
-    }
-    else g.select(null);
+    if (g.tool !== 'select') this.setTool('select');
+    g.select(null);
   }
 
   private setTool(tool: Tool): void {
@@ -406,6 +398,7 @@ export class HudScene extends Phaser.Scene {
     this.cim.begin();
     this.cim.clipBox = null;
     this.overlay(W, H);
+    TOP = this.topBarHeight(W);
     this.topBar(W);
     const growing = !this.sheet && !g.draft && !this.saves ? this.pendingGrowth() : undefined;
     if (g.canGoBack && !this.sheet && !this.saves && this.dash === null) this.backButton(W, H);
@@ -430,6 +423,11 @@ export class HudScene extends Phaser.Scene {
       this.sidePanel(W, H);
       this.hint(W, H);
     }
+    if (g.removal) {
+      this.sheetCam.setVisible(false);
+      this.removalModal(W, H);
+    }
+    this.offersLayer(W, H);
     this.toastsLayer(W, now);
     this.tooltip(W, H);
     if (this.fadeIn >= 0) {
@@ -546,16 +544,25 @@ export class HudScene extends Phaser.Scene {
     return hov;
   }
 
+  /** How tall the top bar is: one row on a wide screen, two rows (and the stuck badges) on a phone. */
+  private topBarHeight(W: number): number {
+    if (W >= 640) return 72;
+    const badges = this.dash === null && !this.sheet && !this.saves && this.game3d.world.sites.length > 0;
+    return badges ? 146 : 106;
+  }
+
   private topBar(W: number): void {
     const im = this.im;
     const g = this.game3d;
     const w = g.world;
-    const y = 10;
-    const h = 52;
+    const narrow = W < 640;
+    const y = narrow ? 8 : 10;
+    const h = narrow ? 44 : 52;
     const mid = y + h / 2;
 
     // Money, bottom left of the top edge.
-    const mw = 214;
+    const br = narrow ? 20 : 26;
+    const mw = narrow ? W - 24 - 4 * (br * 2 + 4) - 8 : 214;
     this.pill(12, y, mw, h);
     const bankOn = this.sheet === 'bank';
     const bankHov = im.hit('btnBank', 12, y, mw, h, () => this.toggleSheet('bank'), 1);
@@ -568,8 +575,11 @@ export class HudScene extends Phaser.Scene {
     const inc = this.income;
     im.text('income', `${inc >= 0 ? '+' : '-'}$${fmt(Math.abs(inc))} per min`, 66, y + 31, { size: 12, color: inc > 0 ? COLORS.good : COLORS.muted, layer: 2 });
 
+    // Under the money: how many buildings are stuck. Tap it to jump to the first one, again for the next.
+    if (this.dash === null && !this.sheet && !this.saves) this.stuckBadge(12, narrow ? y + h + 6 + 40 + 8 : y + h + 8, narrow ? Math.min(210, W / 2 - 18) : mw, narrow);
+
     // Right cluster: speed, then the sheets and menu.
-    const bw = 54;
+    const bw = narrow ? br * 2 + 4 : 54;
     const btn = 26;
     const rx = W - 12;
     const menuX = rx - bw / 2;
@@ -577,56 +587,64 @@ export class HudScene extends Phaser.Scene {
     const townX = helpX - bw - 6;
     const prodX = townX - bw - 6;
     const sp = [0, 1, 2, 4];
-    const spW = sp.length * 46 + 10;
-    const spX = prodX - bw / 2 - 10 - spW;
-    this.pill(spX, y, spW, h);
+    const sStep = narrow ? 36 : 46;
+    const spW = sp.length * sStep + 10;
+    const spX = narrow ? 12 : prodX - bw / 2 - 10 - spW;
+    const sy = narrow ? y + h + 6 : y;
+    const sh = narrow ? 40 : h;
+    const smid = sy + sh / 2;
+    this.pill(spX, sy, spW, sh);
     sp.forEach((v, i) => {
-      const cx = spX + 5 + 23 + i * 46;
+      const cx = spX + 5 + sStep / 2 + i * sStep;
       const on = g.speed === v;
-      this.roundButton(`speed${v}`, cx, mid, 20, on, () => (g.speed = v));
+      this.roundButton(`speed${v}`, cx, smid, narrow ? 15 : 20, on, () => (g.speed = v));
       const col = on ? 0x1b1204 : COLORS.text;
       if (v === 0) {
-        im.rect(2, cx - 7, mid - 8, 4.5, 16, col, 1, 1);
-        im.rect(2, cx + 2.5, mid - 8, 4.5, 16, col, 1, 1);
+        im.rect(2, cx - 6, smid - 7, 4, 14, col, 1, 1);
+        im.rect(2, cx + 2, smid - 7, 4, 14, col, 1, 1);
       } else {
-        im.text(`speedT${v}`, `${v}x`, cx, mid - 9, { size: 15, bold: true, color: col, align: 'center', layer: 2 });
+        im.text(`speedT${v}`, `${v}x`, cx, smid - 8, { size: narrow ? 13 : 15, bold: true, color: col, align: 'center', layer: 2 });
       }
     });
     void btn;
 
-    this.roundButton('btnProd', prodX, mid, 26, this.sheet === 'production', () => this.toggleSheet('production'));
+    this.roundButton('btnProd', prodX, mid, br, this.sheet === 'production', () => this.toggleSheet('production'));
     this.pillRing(prodX, mid, this.sheet === 'production');
     this.factoryIcon(prodX, mid, this.sheet === 'production' ? 0x1b1204 : COLORS.text);
-    this.roundButton('btnTown', townX, mid, 26, this.sheet === 'towns', () => this.toggleSheet('towns'));
+    this.roundButton('btnTown', townX, mid, br, this.sheet === 'towns', () => this.toggleSheet('towns'));
     this.pillRing(townX, mid, this.sheet === 'towns');
     this.townIcon(townX, mid, this.sheet === 'towns' ? 0x1b1204 : COLORS.text);
-    this.roundButton('btnHelp', helpX, mid, 26, this.sheet === 'guide', () => this.toggleSheet('guide'));
+    this.roundButton('btnHelp', helpX, mid, br, this.sheet === 'guide', () => this.toggleSheet('guide'));
     this.pillRing(helpX, mid, this.sheet === 'guide');
     im.text('helpQ', '?', helpX, mid - 15, { size: 25, bold: true, color: this.sheet === 'guide' ? 0x1b1204 : COLORS.text, align: 'center', layer: 2 });
-    this.roundButton('btnMenu', menuX, mid, 26, this.menuOpen, () => (this.menuOpen = !this.menuOpen));
+    this.roundButton('btnMenu', menuX, mid, br, this.menuOpen, () => (this.menuOpen = !this.menuOpen));
     this.pillRing(menuX, mid, this.menuOpen);
     const mc = this.menuOpen ? 0x1b1204 : COLORS.text;
     for (const dy of [-8, 0, 8]) im.rect(2, menuX - 11, mid + dy - 1.5, 22, 3, mc, 1, 1.5);
 
     // The quest bar: tier and the next quest, in the space between the money and the buttons. Click it for the full list.
-    const free0 = 12 + mw + 12;
-    const free1 = spX - 12;
-    const cw = Math.min(430, free1 - free0);
-    if (cw >= 250) {
-      const cx0 = Math.round(Math.max(free0, Math.min(free1 - cw, W / 2 - cw / 2)));
+    const free0 = narrow ? 12 + spW + 8 : 12 + mw + 12;
+    const free1 = narrow ? W - 12 : spX - 12;
+    const cw = narrow ? free1 - free0 : Math.min(430, free1 - free0);
+    if (cw >= (narrow ? 150 : 250)) {
+      const cx0 = narrow ? free0 : Math.round(Math.max(free0, Math.min(free1 - cw, W / 2 - cw / 2)));
+      const qy = narrow ? sy : y;
+      const qh = narrow ? sh : h;
+      const qmid = qy + qh / 2;
       const on = this.sheet === 'quests';
-      const hov = im.hit('questPill', cx0, y, cw, h, () => this.toggleSheet('quests'), 1);
-      im.rect(1, cx0, y, cw, h, hov ? 0x18212d : COLORS.panel, 0.94, h / 2, on || hov ? COLORS.accent : COLORS.line, on || hov ? 0.9 : 1);
-      im.circle(1, cx0 + 28, mid, 20, COLORS.accent);
-      im.text('tierN', String(w.tier), cx0 + 28, mid - 13, { size: 24, bold: true, color: 0x1b1204, align: 'center', layer: 2 });
-      const bx = cx0 + 62;
+      const hov = im.hit('questPill', cx0, qy, cw, qh, () => this.toggleSheet('quests'), 1);
+      im.rect(1, cx0, qy, cw, qh, hov ? 0x18212d : COLORS.panel, 0.94, qh / 2, on || hov ? COLORS.accent : COLORS.line, on || hov ? 0.9 : 1);
+      const tr = narrow ? 14 : 20;
+      im.circle(1, cx0 + (narrow ? 20 : 28), qmid, tr, COLORS.accent);
+      im.text('tierN', String(w.tier), cx0 + (narrow ? 20 : 28), qmid - (narrow ? 10 : 13), { size: narrow ? 18 : 24, bold: true, color: 0x1b1204, align: 'center', layer: 2 });
+      const bx = cx0 + (narrow ? 42 : 62);
       const next = nextQuest(w);
       if (next) {
-        im.text('goal', next.quest.label, bx, y + 7, { size: cw < 330 ? 12 : 13, bold: true, layer: 2 });
-        im.bar(1, bx, y + 34, cw - 62 - 98, 8, next.progress.have / next.progress.need, COLORS.accent);
-        im.text('goalN', `${fmt(next.progress.have)} / ${fmt(next.progress.need)}`, cx0 + cw - 18, y + 27, { size: 13, bold: true, color: COLORS.warn, align: 'right', layer: 2 });
+        im.text('goal', next.quest.label, bx, qy + (narrow ? 4 : 7), { size: narrow || cw < 330 ? 11 : 13, bold: true, wrap: narrow ? cw - 50 : undefined, layer: 2 });
+        im.bar(1, bx, qy + (narrow ? 27 : 34), cw - (narrow ? 42 + 58 : 62 + 98), narrow ? 6 : 8, next.progress.have / next.progress.need, COLORS.accent);
+        im.text('goalN', `${fmt(next.progress.have)} / ${fmt(next.progress.need)}`, cx0 + cw - (narrow ? 12 : 18), qy + (narrow ? 21 : 27), { size: narrow ? 11 : 13, bold: true, color: COLORS.warn, align: 'right', layer: 2 });
       } else {
-        im.text('goal', 'All quests complete', bx, y + 16, { size: 14, bold: true, color: COLORS.good, layer: 2 });
+        im.text('goal', 'All quests complete', bx, qy + (narrow ? 12 : 16), { size: 14, bold: true, color: COLORS.good, layer: 2 });
       }
       if (hov) im.tip('questPill');
     }
@@ -670,7 +688,8 @@ export class HudScene extends Phaser.Scene {
       ['Save / Load', 'S', () => this.openSaves('manage')],
       ['New world', 'N', () => this.openSaves('new')],
     ];
-    const ph = items.length * 54 + 20 + 92;
+    const noteLines = Math.ceil((`What is new: ${VERSION_NOTE}`.length * 5.6) / (w - 32));
+    const ph = items.length * 54 + 20 + 92 + 70 + noteLines * 13;
     im.rect(3, x, y, w, ph, COLORS.panel, 0.98, 18, COLORS.line, 1);
     im.block({ x, y, w, h: ph });
     items.forEach(([label, , fn], i) => {
@@ -682,6 +701,9 @@ export class HudScene extends Phaser.Scene {
     const cy = y + 10 + items.length * 54 + 6;
     im.line(3, x + 14, cy, x + w - 14, cy, COLORS.line, 1, 1);
     im.text('menuHelp', byInput('Drag to move. Right-drag to turn and tilt. Wheel to zoom. P, T, G and H open the sheets. Space pauses.', 'Drag to move. Pinch to zoom. Twist two fingers to turn, drag them up or down to tilt.'), x + 16, cy + 10, { size: 11, color: COLORS.muted, wrap: w - 32, layer: 4 });
+    im.line(3, x + 14, y + ph - 88 - noteLines * 13, x + w - 14, y + ph - 88 - noteLines * 13, COLORS.line, 1, 1);
+    im.text('menuVer', `Early build  ·  v${VERSION}`, x + 16, y + ph - 80 - noteLines * 13, { size: 12, bold: true, color: COLORS.muted, layer: 4 });
+    im.text('menuNote', `What is new: ${VERSION_NOTE}`, x + 16, y + ph - 62 - noteLines * 13, { size: 10, color: COLORS.muted, wrap: w - 32, layer: 4 });
     im.text('menuInput', `Controls: ${inputMode() === 'touch' ? 'touch' : 'mouse and keyboard'}`, x + 16, y + ph - 22, { size: 11, color: COLORS.accent, layer: 4 });
   }
 
@@ -907,16 +929,25 @@ export class HudScene extends Phaser.Scene {
     const dy = H - EDGE - DOCK_H;
     im.rect(1, dx, dy, dockW, DOCK_H, COLORS.panel, 0.95, 18, COLORS.line, 1);
     im.block({ x: dx, y: dy, w: dockW, h: DOCK_H });
+    // First-time help: a pulsing ring on the exact button the current quest needs.
+    const coach = this.coachTarget();
+    let coachRect = { x: 0, y: 0, w: 0, h: 0 };
+    let coachText = '';
     TABS.forEach((t, i) => {
       const x = dx + DOCK_PAD + i * (tabW + 6);
       const y = dy + DOCK_PAD;
       const on = this.activeTab === t.id;
+      if (coach && t.id === coach.tab && !(open && tab.id === coach.tab)) {
+        coachRect = { x, y, w: tabW, h: DOCK_TAB_H };
+        coachText = `Tap ${t.label}`;
+      }
       const hov = im.hit(`tab${t.id}`, x, y, tabW, DOCK_TAB_H, () => (on && t.id !== 'select' && g.tool === 'select' ? this.openTab('select') : this.openTab(t.id)));
       im.rect(1, x, y, tabW, DOCK_TAB_H, on ? 0x1f2c3a : hov ? 0x1a2431 : 0x131b25, 1, 12, on ? COLORS.accent : 0x131b25, 1, on ? 2 : 0);
       im.image(`tabImg${t.id}`, t.icon, x + (tabW - 36) / 2, y + 6, 36, 36, on ? 1 : 0.85, 2);
       im.text(`tabT${t.id}`, t.label, x + tabW / 2, y + 46, { size: tabW < 84 ? 10 : 12, bold: true, color: on ? COLORS.accent : COLORS.text, align: 'center', layer: 2 });
       if (!isTouch()) im.text(`tabK${t.id}`, String(i + 1), x + 7, y + 4, { size: 10, color: COLORS.muted, layer: 2 });
     });
+    if (!open && coach) this.coachRing(coachRect.x, coachRect.y, coachRect.w, coachRect.h, coachText);
     this.bottomInset = DOCK_H + EDGE;
 
     // Key hints sit in the corner beside the dock, in as much detail as there is room for.
@@ -927,31 +958,90 @@ export class HudScene extends Phaser.Scene {
     if (!open) return;
 
     // Tray: the cards for the open category float above the dock, wrapping onto more rows when there are many.
-    const n = tab.tools.length;
-    const perRow = Math.max(1, Math.min(n, Math.floor((W - 48 - TRAY_PAD * 2 + 10) / (CARD_W + 10))));
+    // On a phone the cards shrink to three across and only show what can be built now, so the tray stays short.
+    const narrow = W < 640;
+    const CW = narrow ? Math.floor((W - 24 - TRAY_PAD * 2 + 10) / 3) - 10 : CARD_W;
+    const CH = narrow ? 96 : CARD_H;
+    const IMG = narrow ? 50 : 68;
+    const tools = narrow ? tab.tools.filter((t) => !this.cardInfo(t).locked || g.tool === t) : tab.tools;
+    const n = tools.length;
+    const perRow = Math.max(1, Math.min(n, Math.floor((W - (narrow ? 24 : 48) - TRAY_PAD * 2 + 10) / (CW + 10))));
     const rows = Math.ceil(n / perRow);
-    const trayW = perRow * CARD_W + (perRow - 1) * 10 + TRAY_PAD * 2;
-    const trayH = 24 + TRAY_PAD * 2 + rows * CARD_H + (rows - 1) * 10;
+    const trayW = perRow * CW + (perRow - 1) * 10 + TRAY_PAD * 2;
+    const trayH = 24 + TRAY_PAD * 2 + rows * CH + (rows - 1) * 10;
     const tx = Math.round(W / 2 - trayW / 2);
     const ty = dy - DOCK_GAP - trayH;
     im.rect(1, tx, ty, trayW, trayH, COLORS.panel, 0.95, 18, COLORS.line, 1);
     im.block({ x: tx, y: ty, w: trayW, h: trayH });
-    im.text('trayTitle', tab.blurb, tx + TRAY_PAD + 4, ty + 9, { size: 12, color: COLORS.muted, layer: 2 });
-    tab.tools.forEach((tool, i) => {
-      const cx = tx + TRAY_PAD + (i % perRow) * (CARD_W + 10);
-      const cy = ty + TRAY_PAD + 24 + Math.floor(i / perRow) * (CARD_H + 10);
+    im.text('trayTitle', tab.blurb, tx + TRAY_PAD + 4, ty + 9, { size: 12, color: COLORS.muted, layer: 2, wrap: narrow ? trayW - 2 * TRAY_PAD - 8 : undefined });
+    tools.forEach((tool, i) => {
+      const cx = tx + TRAY_PAD + (i % perRow) * (CW + 10);
+      const cy = ty + TRAY_PAD + 24 + Math.floor(i / perRow) * (CH + 10);
       const info = this.cardInfo(tool);
       const on = g.tool === tool;
       const id = `card${tool}`;
-      const hov = im.hit(id, cx, cy, CARD_W, CARD_H, () => this.setTool(tool));
-      im.rect(1, cx, cy, CARD_W, CARD_H, on ? 0x1b3a36 : hov ? 0x1f2b3a : COLORS.panelAlt, 1, 12, on ? COLORS.good : hov ? 0x3a4a5e : COLORS.line, 1, on ? 2 : 1);
-      im.image(`cardImg${tool}`, info.thumb, cx + (CARD_W - 68) / 2, cy + 6, 68, 68, info.locked ? 0.35 : 1, 2);
-      im.text(`cardName${tool}`, info.name, cx + CARD_W / 2, cy + 78, { size: info.name.length > 14 ? 11 : 12, bold: true, align: 'center', layer: 2, alpha: info.locked ? 0.55 : 1 });
-      im.text(`cardCost${tool}`, info.locked ?? info.cost, cx + CARD_W / 2, cy + 96, { size: 12, color: info.locked ? COLORS.muted : COLORS.warn, align: 'center', layer: 2 });
+      if (coach && tool === coach.tool && tab.id === coach.tab && g.tool !== tool) {
+        coachRect = { x: cx, y: cy, w: CW, h: CH };
+        coachText = `Pick ${info.name}`;
+      }
+      const hov = im.hit(id, cx, cy, CW, CH, () => this.setTool(tool));
+      im.rect(1, cx, cy, CW, CH, on ? 0x1b3a36 : hov ? 0x1f2b3a : COLORS.panelAlt, 1, 12, on ? COLORS.good : hov ? 0x3a4a5e : COLORS.line, 1, on ? 2 : 1);
+      im.image(`cardImg${tool}`, info.thumb, cx + (CW - IMG) / 2, cy + 6, IMG, IMG, info.locked ? 0.35 : 1, 2);
+      im.text(`cardName${tool}`, info.name, cx + CW / 2, cy + IMG + 10, { size: info.name.length > 14 ? 11 : 12, bold: true, align: 'center', layer: 2, alpha: info.locked ? 0.55 : 1 });
+      im.text(`cardCost${tool}`, info.locked ?? info.cost, cx + CW / 2, cy + IMG + 28, { size: 12, color: info.locked ? COLORS.muted : COLORS.warn, align: 'center', layer: 2 });
       if (i < 9 && !isTouch()) im.text(`cardKey${tool}`, String(i + 1), cx + 8, cy + 5, { size: 11, color: COLORS.muted, layer: 2 });
       if (hov) im.tip(id);
     });
+    if (coach) this.coachRing(coachRect.x, coachRect.y, coachRect.w, coachRect.h, coachText);
     this.bottomInset = DOCK_H + EDGE + DOCK_GAP + trayH;
+  }
+
+  private coachOff = (() => {
+    try {
+      return !!localStorage.getItem('sl-coach-off');
+    } catch {
+      return false;
+    }
+  })();
+
+  /** Which button the current quest needs, while the player is still new: its category tab and tool. */
+  private coachTarget(): { tab: string; tool?: Tool } | null {
+    const w = this.game3d.world;
+    if (this.coachOff || w.tier > 0 || this.game3d.demo) return null;
+    const next = nextQuest(w);
+    if (!next || next.progress.done) return null;
+    const goal = next.quest.goal;
+    if (goal.kind === 'build') {
+      const tab = TABS.find((t) => t.tools.includes(goal.site));
+      return tab && this.game3d.tool !== goal.site ? { tab: tab.id, tool: goal.site } : null;
+    }
+    if (goal.kind === 'route') {
+      const tool: Tool = goal.mode === 'rail' ? 'rail' : goal.grade === 'highway' ? 'highway' : 'route';
+      return this.game3d.tool !== tool && !this.game3d.draft ? { tab: 'logistics', tool } : null;
+    }
+    return null;
+  }
+
+  /** A pulsing ring and a label around one button. The little X turns first-time help off for good. */
+  private coachRing(x: number, y: number, w: number, h: number, text: string): void {
+    if (w === 0 || !text) return;
+    const im = this.im;
+    const pulse = 0.5 + 0.5 * Math.sin(this.time.now / 260);
+    im.rect(4, x - 4 - pulse * 3, y - 4 - pulse * 3, w + 8 + pulse * 6, h + 8 + pulse * 6, 0xffffff, 0, 16, COLORS.accent, 0.55 + pulse * 0.45, 3);
+    const lw = text.length * 8 + 60;
+    const lx = Math.max(8, Math.min(x + w / 2 - lw / 2, this.scale.width - lw - 8));
+    const ly = y - 46 - pulse * 3;
+    im.rect(5, lx, ly, lw, 30, COLORS.accent, 1, 15);
+    im.text('coachT', text, lx + 14, ly + 7, { size: 13, bold: true, color: 0x1b1204, layer: 6 });
+    const xh = im.hit('coachX', lx + lw - 28, ly + 3, 24, 24, () => {
+      this.coachOff = true;
+      try {
+        localStorage.setItem('sl-coach-off', '1');
+      } catch {
+        /* ignore */
+      }
+    }, 7);
+    im.text('coachXT', 'x', lx + lw - 16, ly + 6, { size: 14, bold: true, color: xh ? 0xffffff : 0x1b1204, align: 'center', layer: 6 });
   }
 
   // ---- hint line ----
@@ -991,6 +1081,38 @@ export class HudScene extends Phaser.Scene {
   }
 
   // ---- toasts ----
+
+  /** Trucks that buildings with Auto-buy are asking for. They sit on the right and never pause the game. */
+  private offersLayer(W: number, H: number): void {
+    // Menus draw on their own layer above the main one, so inside a menu the card is drawn there, at the bottom corner.
+    const inMenu = this.dash !== null || !!this.sheet;
+    const im = inMenu ? this.pim : this.im;
+    const g = this.game3d;
+    const world = g.world;
+    const offers = (world.offers ?? []).slice(0, 3);
+    const w = Math.min(330, W - 24);
+    const x = inMenu ? W - w - 28 : 12;
+    offers.forEach((o, i) => {
+      const s = siteById(world, o.siteId);
+      if (!s) return;
+      const y = inMenu ? H - 140 - i * 120 : TOP + 130 + i * 120;
+      const cost = VEHICLE_DEFS[o.kind].cost;
+      const can = buyError(world, o.siteId, o.kind) === null;
+      const label = vehicleLabel(o.kind, bodyForLine(s, o.line));
+      const goods = lineGoods(s, o.line).map((gd) => GOODS[gd].label.toLowerCase()).join(' + ');
+      im.rect(5, x, y, w, 112, COLORS.panel, 1, 14, COLORS.accent, 1.5);
+      const th = im.text(`of${i}t`, `${s.name} needs another ${label.toLowerCase()}`, x + 14, y + 10, { size: 13, bold: true, wrap: w - 28, layer: 6 }).h;
+      im.text(`of${i}s`, `Its ${goods} is piling up and all its trucks are busy.`, x + 14, y + 14 + th, { size: 11, color: COLORS.muted, wrap: w - 28, layer: 6 });
+      const bw = (w - 28 - 8) / 2;
+      const by = y + 74;
+      const yh = im.hit(`of${i}y`, x + 14, by, bw, 30, () => can && g.answerOffer(o, true), 7);
+      im.rect(6, x + 14, by, bw, 30, !can ? 0x151c26 : yh ? 0xf2b04c : COLORS.accent, 1, 15);
+      im.text(`of${i}yT`, can ? `Buy  $${fmt(cost)}` : `Need $${fmt(cost)}`, x + 14 + bw / 2, by + 8, { size: 13, bold: true, color: can ? 0x1b1204 : COLORS.muted, align: 'center', layer: 7 });
+      const nh = im.hit(`of${i}n`, x + 22 + bw, by, bw, 30, () => g.answerOffer(o, false), 7);
+      im.rect(6, x + 22 + bw, by, bw, 30, nh ? 0x2a3646 : 0x1b2430, 1, 15, COLORS.line, 1);
+      im.text(`of${i}nT`, 'Not now', x + 22 + bw + bw / 2, by + 8, { size: 13, bold: true, align: 'center', layer: 7 });
+    });
+  }
 
   private toastsLayer(W: number, now: number): void {
     this.toasts = this.toasts.filter((t) => t.until > now).slice(-3);
@@ -1217,6 +1339,11 @@ export class HudScene extends Phaser.Scene {
     this.planBudget = 1;
     const sel = g.selection;
     if (!sel) return;
+    // On a phone the build tray takes the width: the panel waits until it is closed.
+    if (this.menuOpen || (W < 640 && this.trayOpen())) {
+      this.panelRect = null;
+      return;
+    }
     const w = g.world;
     const x = W - PANEL_W - 12;
     const y = TOP + 12;
@@ -1293,6 +1420,20 @@ export class HudScene extends Phaser.Scene {
     const moving = trucks.filter((v) => v.routeId !== 0).length;
     im.text('spSum', `Selling to ${buyers}  ·  ${trucks.length} truck${trucks.length === 1 ? '' : 's'}${trucks.length ? `, ${moving} working` : ''}`, x, cy, { size: 12, color: COLORS.muted, layer: 2 });
     cy += 24;
+    // What is on the road to this building, and whether it is held up waiting for supply.
+    const coming = inboundTo(world, s);
+    const waiting = diagnoseAll(world, s).level === 'wait';
+    if (coming.length > 0 || waiting) {
+      const total: Partial<Record<Good, number>> = {};
+      for (const o of coming) total[o.good] = (total[o.good] ?? 0) + o.amount;
+      const txt = coming.length
+        ? `Coming in: ${Object.entries(total).map(([gd, n]) => `${Math.floor(n ?? 0)} ${GOODS[gd as Good].label.toLowerCase()}`).join(', ')} (${coming.length} truck${coming.length === 1 ? '' : 's'})`
+        : 'Waiting on supply: nothing is on the road yet';
+      im.rect(2, x, cy, w, 30, 0x14202f, 1, 15, COLORS.info, 1);
+      im.circle(3, x + 16, cy + 15, 5, COLORS.info);
+      im.text('spIn', txt, x + 30, cy + 8, { size: 11, bold: true, wrap: w - 40, layer: 3 });
+      cy += 38;
+    }
     this.button('spOpen', 'Open building', x, cy, w, 42, true, () => this.openDash(s.id), 'main');
     cy += 50;
     return cy - y;
@@ -1312,7 +1453,7 @@ export class HudScene extends Phaser.Scene {
       const t2 = im.text('rlB', role, x, cy + t1.h + 4, { size: 11, color: COLORS.info, wrap: w, layer: 2 });
       cy += t1.h + t2.h + 14;
     }
-    if (maker) cy += this.flowCard(s, x, cy, w) + 10;
+    if (maker) cy += this.flowCard(s, x, cy, w, false) + 10;
     else if (def.dock) cy += this.dockTable(s, x, cy, w);
     else {
       im.line(2, x, cy, x + w, cy, COLORS.line, 1);
@@ -1390,26 +1531,27 @@ export class HudScene extends Phaser.Scene {
       cy += 4;
       const err = upgradeError(world, s.id);
       const can = !err;
-      const label = s.level >= 3 ? 'Max level' : `Upgrade building to level ${s.level + 1}   $${fmt(upgradeCost(s))}`;
-      const hov = s.level < 3 && im.hit('upgrade', x, cy, w, 34, () => {
-        if (!can) return;
-        g.upgrade(s.id);
-      });
-      im.rect(2, x, cy, w, 34, can ? (hov ? 0x2a3b50 : 0x1b2735) : 0x151c26, 1, 10, can ? COLORS.accent : COLORS.line, 1);
-      im.text('upgT', label, x + w / 2, cy + 9, { size: 12, bold: true, color: can ? COLORS.accent : COLORS.muted, align: 'center', layer: 3 });
-      cy += 40;
+      const pause = !!def.recipe && !!s.making;
+      const n = pause ? 3 : 2;
+      const gap = 10;
+      const bw = (w - gap * (n - 1)) / n;
+      let bx = x;
+      if (pause) {
+        this.button('flGo', 'Pause production', bx, cy, bw, 36, true, () => g.making(s.id, false));
+        bx += bw + gap;
+      }
+      const label = s.level >= 3 ? 'Max level' : `Upgrade to level ${s.level + 1}   $${fmt(upgradeCost(s))}`;
+      this.button('upgrade', label, bx, cy, bw, 36, can && s.level < 3, () => g.upgrade(s.id));
+      bx += bw + gap;
+      const dh = im.hit('demolish', bx, cy, bw, 36, () => g.demolish(s.id));
+      im.rect(2, bx, cy, bw, 36, dh ? 0x4a2420 : 0x2a1a1a, 1, 10, COLORS.bad, 0.6);
+      im.text('demT', `Demolish   +$${fmt(demolishRefund(s))}`, bx + bw / 2, cy + 10, { size: 12, bold: true, color: COLORS.bad, align: 'center', layer: 3 });
+      cy += 44;
       if (s.level < 3) {
         const nextBoost = `Level ${s.level + 1} makes ${[1, 1.8, 3.2][s.level]}x as much and stores ${LEVEL_CAP[s.level]}x more.`;
-        im.text('upgInfo', err && !can ? `${err}. ${nextBoost}` : nextBoost, x, cy, { size: 11, color: err ? COLORS.warn : COLORS.muted, wrap: w, layer: 2 });
-        cy += 34;
+        const t = im.text('upgInfo', err && !can ? `${err}. ${nextBoost}` : nextBoost, x, cy, { size: 11, color: err ? COLORS.warn : COLORS.muted, wrap: w, layer: 2 });
+        cy += t.h + 8;
       }
-      const dh = im.hit('demolish', x, cy, w, 30, () => {
-        this.dash = null;
-        g.demolish(s.id);
-      });
-      im.rect(2, x, cy, w, 30, dh ? 0x4a2420 : 0x2a1a1a, 1, 8, COLORS.bad, 0.6);
-      im.text('demT', `Demolish   +$${fmt(demolishRefund(s))}`, x + w / 2, cy + 7, { size: 12, bold: true, color: COLORS.bad, align: 'center', layer: 3 });
-      cy += 38;
     }
     return cy - y;
   }
@@ -1479,48 +1621,35 @@ export class HudScene extends Phaser.Scene {
       this.pim.circle(2, x + pad + 5, cy + 8, 4, st.color);
       this.pim.text('dsStatus', st.text, x + pad + 16, cy, { size: 14, color: st.color, layer: 2 });
       cy += 30;
+      if (def.dock) cy += this.dockStrip(s, x + pad, cy, inner) + 14;
     } else {
-      cy += this.nextStepCard(s, x + pad, cy, inner) + 12;
       if (hasByLine(s)) cy += this.lineToggle(s, x + pad, cy, inner);
+      cy += this.nextStepCard(s, x + pad, cy, inner) + 10;
       cy += this.statStrip(s, x + pad, cy, inner) + 12;
       cy += this.inventorySection(s, x + pad, cy, inner);
     }
-    const cols = inner >= 960 ? 3 : inner >= 620 ? 2 : 1;
-    const gap = 26;
-    const cw = (inner - gap * (cols - 1)) / cols;
-    const colX = (i: number): number => x + pad + i * (cw + gap);
     type Col = (cx: number, yy: number, ww: number) => number;
     const info: Col = (cx, yy, ww) => {
       const t = def.dock ? 'WHAT IT BUYS' : def.station ? 'THE STATION' : def.produce || def.recipe ? 'PRODUCTION' : 'STORAGE';
       const top2 = this.sectionHead('dcA', t, cx, yy + 6, ww);
       return top2 - yy + this.infoColumn(s, cx, top2, ww);
     };
+    // Every part is a full-width section, stacked, with its own cards laid out across the width.
     const parts: Col[] = def.dock || def.station
       ? [info, (cx, yy, ww) => this.suppliersSection(s, cx, yy + 6, ww) + 6, (cx, yy, ww) => this.townSection(s, cx, yy + 6, ww) + 6]
       : [
-          info,
           (cx, yy, ww) => this.buyerSection(s, cx, yy + 6, ww) + 6,
-          (cx, yy, ww) => {
-            const h = this.truckSection(s, cx, yy + 6, ww) + 6;
-            return h + this.salesSection(s, cx, yy + h + 14, ww) + 14;
-          },
+          (cx, yy, ww) => this.inboundSection(s, cx, yy + 6, ww) + 6,
+          (cx, yy, ww) => this.truckSection(s, cx, yy + 6, ww) + 6,
+          (cx, yy, ww) => this.salesSection(s, cx, yy + 6, ww) + 6,
+          (cx, yy, ww) => this.historySection(s, cx, yy + 6, ww) + 6,
+          info,
         ];
-    let hA = 0;
-    let hB = 0;
-    let hC = 0;
-    if (cols === 3) {
-      hA = parts[0](colX(0), cy, cw);
-      hB = parts[1](colX(1), cy, cw);
-      hC = parts[2](colX(2), cy, cw);
-    } else if (cols === 2) {
-      hA = parts[0](colX(0), cy, cw);
-      hA += parts[2](colX(0), cy + hA + 6, cw) + 6;
-      hB = parts[1](colX(1), cy, cw);
-    } else {
-      hA = parts[0](colX(0), cy, cw);
-      hA += parts[1](colX(0), cy + hA + 6, cw) + 6;
-      hA += parts[2](colX(0), cy + hA + 6, cw) + 6;
-    }
+    let used = 0;
+    for (const part of parts) used += part(x + pad, cy + used, inner) + 12;
+    const hA = used;
+    const hB = 0;
+    const hC = 0;
     const contentH = cy + this.dashScroll - top + Math.max(hA, hB, hC) + 20;
     this.dashMax = Math.max(0, contentH - (bottom - top));
     this.dashScroll = Math.max(0, Math.min(this.dashMax, this.dashScroll));
@@ -1557,6 +1686,32 @@ export class HudScene extends Phaser.Scene {
     return cy + 40 - y;
   }
 
+  /** Four numbers across the top of a market or yard: what it buys, who sells to it, what it has paid you, and its town. */
+  private dockStrip(s: Site, x: number, y: number, w: number): number {
+    const im = this.pim;
+    const world = this.game3d.world;
+    const sellers = this.suppliersOf(s);
+    const paid = sellers.reduce((n, o) => n + (o.sales?.[s.id]?.money ?? 0), 0);
+    const town = siteTown(world, s);
+    const tiles: [string, string, number][] = [
+      ['KINDS IT BUYS', String(wants(world, s).length), COLORS.text],
+      ['BUILDINGS SELLING HERE', String(sellers.length), sellers.length ? COLORS.good : COLORS.warn],
+      ['PAID TO YOU', `$${fmt(paid)}`, COLORS.good],
+      [town ? `${town.name.toUpperCase()}` : 'TOWN', town ? TOWN_LEVELS[town.level - 1].name : '', COLORS.text],
+    ];
+    const gap = 10;
+    const cols = w < 560 ? 2 : tiles.length;
+    const tw = (w - gap * (cols - 1)) / cols;
+    tiles.forEach(([label, value, color], i) => {
+      const tx = x + (i % cols) * (tw + gap);
+      const ty = y + Math.floor(i / cols) * 66;
+      im.rect(2, tx, ty, tw, 58, 0x131a24, 1, 10, COLORS.line, 1);
+      im.text(`dk${i}v`, value, tx + 14, ty + 9, { size: 22, bold: true, color, layer: 3 });
+      im.text(`dk${i}l`, label, tx + 14, ty + 38, { size: 10, bold: true, color: COLORS.muted, layer: 3 });
+    });
+    return 58 + (Math.ceil(tiles.length / cols) - 1) * 66;
+  }
+
   /** Your buildings that sell to this one: joined to it, with the sale switched on. */
   private suppliersOf(s: Site): Site[] {
     const world = this.game3d.world;
@@ -1571,14 +1726,19 @@ export class HudScene extends Phaser.Scene {
       im.text('suN', 'None of your buildings sell here yet. Open a factory or a camp, and tap Sell here next to this one.', x, cy, { size: 11, color: COLORS.muted, wrap: w, layer: 2 });
       return cy + 40 - y;
     }
-    for (const o of list) {
+    const sGap = 12;
+    const sCols = Math.max(1, Math.min(3, Math.floor((w + sGap) / (300 + sGap))));
+    const sW = (w - sGap * (sCols - 1)) / sCols;
+    list.forEach((o, k) => {
       const rec = o.sales?.[s.id];
-      im.rect(2, x, cy, w, 50, 0x12261f, 1, 10, COLORS.good, 1);
-      im.text(`su${o.id}n`, o.name, x + 10, cy + 8, { size: 12, bold: true, wrap: w - 100, layer: 3 });
-      im.text(`su${o.id}s`, rec ? `Sold ${fmt(rec.units)} for $${fmt(rec.money)}` : 'Nothing sold yet', x + 10, cy + 28, { size: 11, color: rec ? COLORS.good : COLORS.muted, layer: 3 });
-      this.button(`su${o.id}o`, 'Open', x + w - 80, cy + 9, 70, 32, true, () => this.openDash(o.id));
-      cy += 56;
-    }
+      const sx = x + (k % sCols) * (sW + sGap);
+      const sy = cy + Math.floor(k / sCols) * 58;
+      im.rect(2, sx, sy, sW, 50, 0x12261f, 1, 10, COLORS.good, 1);
+      im.text(`su${o.id}n`, o.name, sx + 10, sy + 8, { size: 12, bold: true, wrap: sW - 100, layer: 3 });
+      im.text(`su${o.id}s`, rec ? `Sold ${fmt(rec.units)} for $${fmt(rec.money)}` : 'Nothing sold yet', sx + 10, sy + 28, { size: 11, color: rec ? COLORS.good : COLORS.muted, layer: 3 });
+      this.button(`su${o.id}o`, 'Open', sx + sW - 80, sy + 9, 70, 32, true, () => this.openDash(o.id));
+    });
+    cy += Math.ceil(list.length / sCols) * 58;
     return cy - y;
   }
 
@@ -1672,13 +1832,53 @@ export class HudScene extends Phaser.Scene {
   }
   private planBudget = 1;
 
+  private stuckCount = 0;
+  private stuckAt = 0;
+  private waitCount = 0;
+
+  /** A small pill under the money: green when everything runs, amber with a count when buildings are stuck. */
+  private stuckBadge(x: number, y: number, w: number, narrow = false): void {
+    const im = this.im;
+    const world = this.game3d.world;
+    // Working out why each building is stuck is not free, so look once a second.
+    if (this.time.now - this.stuckAt > 1000) {
+      this.stuckAt = this.time.now;
+      const levels = world.sites.filter((s) => !SITE_DEFS[s.kind].dock && !SITE_DEFS[s.kind].station).map((s) => diagnoseAll(world, s).level);
+      this.stuckCount = levels.filter((l) => l === 'warn' || l === 'bad').length;
+      this.waitCount = levels.filter((l) => l === 'wait').length;
+    }
+    const n = this.stuckCount;
+    if (world.sites.length === 0) return;
+    const h = 32;
+    const hov = im.hit('btnStuck', x, y, w, h, () => this.nextProblem(), 1);
+    const col = n === 0 ? COLORS.good : COLORS.warn;
+    im.rect(1, x, y, w, h, n === 0 ? 0x12261f : hov ? 0x3a2f14 : 0x2a2312, 0.95, h / 2, col, 1);
+    im.circle(2, x + 18, y + h / 2, 6, col);
+    im.text('stuckT', n === 0 ? 'All running' : `${n} stuck: tap to fix`, x + 34, y + 8, { size: 13, bold: true, color: n === 0 ? COLORS.good : COLORS.text, layer: 2 });
+    // Held up but working: needs more supply, or buyers are full. Not a fault, so a quieter badge of its own.
+    if (this.waitCount > 0) {
+      const wx = narrow ? x + w + 8 : x;
+      const ww = narrow ? this.scale.width - 12 - wx : w;
+      const y2 = narrow ? y + 2 : y + h + 6;
+      const h2 = 28;
+      const wh = im.hit('btnWait', wx, y2, ww, h2, () => this.nextProblem('wait'), 1);
+      im.rect(1, wx, y2, ww, h2, wh ? 0x1b2c40 : 0x14202f, 0.95, h2 / 2, COLORS.info, 1);
+      im.circle(2, wx + 18, y2 + h2 / 2, 5, COLORS.info);
+      im.text('waitT', narrow ? `${this.waitCount} waiting` : `${this.waitCount} waiting on supply`, wx + 34, y2 + 6, { size: 12, bold: true, color: COLORS.text, layer: 2 });
+    }
+  }
+
   private problemAt = -1;
 
   /** Jump to the next building that is stuck, and say why. Press N again for the one after. */
-  private nextProblem(): void {
+  private nextProblem(which: 'stuck' | 'wait' = 'stuck'): void {
     const g = this.game3d;
     const w = g.world;
-    const list = w.sites.filter((s) => !SITE_DEFS[s.kind].dock && !SITE_DEFS[s.kind].station && diagnoseAll(w, s).level !== 'ok');
+    const list = w.sites.filter((s) => {
+      if (SITE_DEFS[s.kind].dock || SITE_DEFS[s.kind].station) return false;
+      const l = diagnoseAll(w, s).level;
+      return which === 'wait' ? l === 'wait' : l === 'warn' || l === 'bad';
+    });
     if (list.length === 0) {
       this.toasts.push({ text: 'Nothing is stuck. All running.', until: this.time.now + 2600 });
       return;
@@ -1711,7 +1911,7 @@ export class HudScene extends Phaser.Scene {
     const g = this.game3d;
     const world = g.world;
     const d = this.lineOf(s) === 'by' ? diagnose(world, s, 'by') : diagnoseAll(world, s);
-    const color = d.level === 'ok' ? COLORS.good : COLORS.warn;
+    const color = d.level === 'ok' ? COLORS.good : d.level === 'wait' ? COLORS.info : COLORS.warn;
     const f = d.fix;
     if (!f) return { text: d.text || 'Nothing to move on this line yet.', color };
     if (f.kind === 'start') return { text: d.text, color, label: 'Start', ok: true, act: () => g.making(s.id, true) };
@@ -1725,6 +1925,12 @@ export class HudScene extends Phaser.Scene {
   private nextStepCard(s: Site, x: number, y: number, w: number): number {
     const im = this.pim;
     const step = this.nextStep(s);
+    // Nothing to fix: just a small status line, not a box.
+    if (!step.label && step.color === COLORS.good) {
+      im.circle(2, x + 8, y + 10, 4, COLORS.good);
+      im.text('nsT', step.text, x + 20, y + 2, { size: 12, color: COLORS.good, wrap: w - 24, layer: 3 });
+      return 22;
+    }
     const bw = step.label ? 104 : 0;
     const t = im.text('nsT', step.text, x + 12, y + 10, { size: 12, bold: true, color: step.color === COLORS.good ? COLORS.good : COLORS.text, wrap: w - 24 - (bw ? bw + 8 : 0), layer: 3 });
     const h = Math.max(step.label ? 50 : 36, t.h + 20);
@@ -1734,7 +1940,7 @@ export class HudScene extends Phaser.Scene {
   }
 
   /** What goes in, the building, and what comes out, as one picture. */
-  private flowCard(s: Site, x: number, y: number, w: number): number {
+  private flowCard(s: Site, x: number, y: number, w: number, withPause = true): number {
     const im = this.pim;
     const g = this.game3d;
     const world = g.world;
@@ -1774,7 +1980,7 @@ export class HudScene extends Phaser.Scene {
     let cy = y + 62;
     if (def.recipe) {
       // Start lives in the next-step card above; once running, this is where you pause it.
-      if (s.making) {
+      if (s.making && withPause) {
         this.button('flGo', 'Pause production', x, cy, w, 32, true, () => g.making(s.id, false));
         cy += 38;
       }
@@ -1802,14 +2008,16 @@ export class HudScene extends Phaser.Scene {
       [def.airport ? 'PLANES OUT' : 'VEHICLES OUT', `${out} of ${fleet.length}`, fleet.length === 0 ? COLORS.warn : COLORS.text],
     ];
     const gap = 10;
-    const tw = (w - gap * (tiles.length - 1)) / tiles.length;
+    const cols = w < 560 ? 2 : tiles.length;
+    const tw = (w - gap * (cols - 1)) / cols;
     tiles.forEach(([label, value, color], i) => {
-      const tx = x + i * (tw + gap);
-      im.rect(2, tx, y, tw, 58, 0x131a24, 1, 10, COLORS.line, 1);
-      im.text(`st${i}v`, value, tx + 14, y + 9, { size: 22, bold: true, color, layer: 3 });
-      im.text(`st${i}l`, label, tx + 14, y + 38, { size: 10, bold: true, color: COLORS.muted, layer: 3 });
+      const tx = x + (i % cols) * (tw + gap);
+      const ty = y + Math.floor(i / cols) * 66;
+      im.rect(2, tx, ty, tw, 58, 0x131a24, 1, 10, COLORS.line, 1);
+      im.text(`st${i}v`, value, tx + 14, ty + 9, { size: 22, bold: true, color, layer: 3 });
+      im.text(`st${i}l`, label, tx + 14, ty + 38, { size: 10, bold: true, color: COLORS.muted, layer: 3 });
     });
-    return 58;
+    return 58 + (Math.ceil(tiles.length / cols) - 1) * 66;
   }
 
   /** The building's shelves across the full width: one card per good it takes in or makes, filled to how full its store is. */
@@ -1823,10 +2031,13 @@ export class HudScene extends Phaser.Scene {
     const goods = [...ins, ...outs.filter((gd) => !ins.includes(gd))];
     const cap = siteCap(world, s);
     const gap = 10;
-    const cw = (w - gap * (goods.length - 1)) / goods.length;
+    const per = Math.max(1, Math.min(goods.length, Math.floor((w + gap) / (170 + gap))));
+    const cw = (w - gap * (per - 1)) / per;
     const ch = 74;
+    const baseY = y;
     goods.forEach((gd, i) => {
-      const cx = x + i * (cw + gap);
+      const cx = x + (i % per) * (cw + gap);
+      const y = baseY + Math.floor(i / per) * (ch + 10);
       const n = stockOf(s, gd);
       const f = Math.max(0, Math.min(1, n / cap));
       const full = f >= 0.85;
@@ -1841,7 +2052,7 @@ export class HudScene extends Phaser.Scene {
       im.bar(3, cx + 12, y + ch - 16, cw - 24, 6, f, full ? COLORS.bad : COLORS.good);
       im.text(`iv${gd}c`, `of ${cap}`, cx + cw - 12, y + 36, { size: 10, color: COLORS.muted, align: 'right', layer: 4 });
     });
-    return ch + 14;
+    return Math.ceil(goods.length / per) * (ch + 10) + 4;
   }
 
   /** Where the money came from: sales to each buyer as bars, biggest first. */
@@ -1863,14 +2074,99 @@ export class HudScene extends Phaser.Scene {
     const top = Math.max(1, ...rows.map((r) => r.money));
     const total = Object.values(s.sales ?? {}).reduce((n, r) => n + r.money, 0);
     const units = Object.values(s.sales ?? {}).reduce((n, r) => n + r.units, 0);
-    im.text('slT', `Sold ${fmt(units)} for $${fmt(total)} in all`, x, cy, { size: 12, bold: true, color: COLORS.good, layer: 2 });
-    cy += 22;
+    im.text('slT', `Sold ${fmt(units)} for $${fmt(total)} in all`, x, cy, { size: 13, bold: true, color: COLORS.good, layer: 2 });
+    cy += 24;
+    const gap = 12;
+    const cols = Math.max(1, Math.min(3, Math.floor((w + gap) / (340 + gap))));
+    const cw = (w - gap * (cols - 1)) / cols;
     rows.forEach((r, i) => {
-      im.text(`sl${i}n`, r.site!.name, x, cy, { size: 11, wrap: w - 70, layer: 2 });
-      im.text(`sl${i}m`, `$${fmt(r.money)}`, x + w, cy, { size: 11, bold: true, color: COLORS.warn, align: 'right', layer: 2 });
-      im.bar(2, x, cy + 16, w, 6, r.money / top, COLORS.good);
-      cy += 32;
+      const cx = x + (i % cols) * (cw + gap);
+      const ry = cy + Math.floor(i / cols) * 54;
+      im.rect(2, cx, ry, cw, 46, 0x131a24, 1, 10, COLORS.line, 1);
+      im.text(`sl${i}n`, r.site!.name, cx + 12, ry + 7, { size: 12, bold: true, wrap: cw - 90, layer: 3 });
+      im.text(`sl${i}m`, `$${fmt(r.money)}`, cx + cw - 12, ry + 7, { size: 13, bold: true, color: COLORS.warn, align: 'right', layer: 3 });
+      im.bar(3, cx + 12, ry + 31, cw - 24, 6, r.money / top, COLORS.good);
     });
+    cy += Math.ceil(rows.length / cols) * 54;
+    return cy - y;
+  }
+
+  /** Trucks on their way here with a load: who sent it, what it is and how much. */
+  private inboundSection(s: Site, x: number, y: number, w: number): number {
+    const im = this.pim;
+    const world = this.game3d.world;
+    const def = SITE_DEFS[s.kind];
+    if (def.dock || def.station) return 0;
+    const list = inboundTo(world, s);
+    let cy = this.sectionHead('inH', `COMING IN  (${list.length})`, x, y, w);
+    if (list.length === 0) {
+      const waiting = diagnoseAll(world, s).level === 'wait';
+      im.text('inN', waiting ? 'Nothing on the road yet. This building is waiting on supply: build a route from something that makes what it needs, or buy more trucks there.' : 'No trucks are bringing anything here right now.', x, cy, { size: 11, color: waiting ? COLORS.info : COLORS.muted, wrap: w, layer: 2 });
+      return cy + 30 - y;
+    }
+    const total: Partial<Record<Good, number>> = {};
+    for (const o of list) total[o.good] = (total[o.good] ?? 0) + o.amount;
+    im.text('inT', Object.entries(total).map(([gd, n]) => `${Math.floor(n!)} ${GOODS[gd as Good].label.toLowerCase()}`).join('  ·  ') + ' on the way', x, cy, { size: 13, bold: true, color: COLORS.info, layer: 2 });
+    cy += 24;
+    const gap = 12;
+    const cols = Math.max(1, Math.min(4, Math.floor((w + gap) / (300 + gap))));
+    const cw = (w - gap * (cols - 1)) / cols;
+    list.forEach((o, i) => {
+      const cx = x + (i % cols) * (cw + gap);
+      const ry = cy + Math.floor(i / cols) * 58;
+      const from = siteById(world, o.fromId);
+      im.rect(2, cx, ry, cw, 50, 0x14202f, 1, 10, COLORS.info, 0.8);
+      im.circle(3, cx + 18, ry + 17, 6, GOODS[o.good].color);
+      im.text(`in${i}a`, `${Math.floor(o.amount)} ${GOODS[o.good].label.toLowerCase()}`, cx + 32, ry + 8, { size: 13, bold: true, layer: 3 });
+      im.text(`in${i}b`, `from ${from?.name ?? 'somewhere'}`, cx + 12, ry + 30, { size: 11, color: COLORS.muted, wrap: cw - 24, layer: 3 });
+      im.text(`in${i}c`, vehicleLabel(o.vehicle.kind, o.vehicle.body), cx + cw - 12, ry + 9, { size: 11, color: COLORS.muted, align: 'right', layer: 3 });
+    });
+    cy += Math.ceil(list.length / cols) * 58;
+    return cy - y;
+  }
+
+  /** The last jobs that were sold from this building, with what each paid, so swings in price and volume show. */
+  private historySection(s: Site, x: number, y: number, w: number): number {
+    const im = this.pim;
+    const world = this.game3d.world;
+    const def = SITE_DEFS[s.kind];
+    if (def.dock || def.station) return 0;
+    const all = s.history ?? [];
+    const jobs = [...all].reverse();
+    let cy = this.sectionHead('hsH', `SELLING HISTORY  (last ${jobs.length} of ${HISTORY_JOBS} jobs)`, x, y, w);
+    if (jobs.length === 0) {
+      im.text('hsN', 'Nothing sold yet. Every delivery that is paid for is listed here, newest first.', x, cy, { size: 11, color: COLORS.muted, wrap: w, layer: 2 });
+      return cy + 30 - y;
+    }
+    // A bar chart of what each job paid, oldest on the left, so the ups and downs are easy to see.
+    const chartH = 64;
+    const top = Math.max(1, ...all.map((j) => j.money / Math.max(1, j.units)));
+    im.rect(2, x, cy, w, chartH, 0x131a24, 1, 10, COLORS.line, 1);
+    const slot = (w - 24) / HISTORY_JOBS;
+    all.forEach((j, i) => {
+      const per = j.money / Math.max(1, j.units);
+      const bh = Math.max(3, (per / top) * (chartH - 22));
+      const bx = x + 12 + i * slot;
+      im.rect(3, bx, cy + chartH - 8 - bh, Math.max(3, slot - 3), bh, GOODS[j.good].color, 1, 2);
+    });
+    im.text('hsC', `price per unit, highest $${top.toFixed(1)}`, x + 12, cy + 4, { size: 10, color: COLORS.muted, layer: 3 });
+    cy += chartH + 10;
+    const gap = 12;
+    const cols = Math.max(1, Math.min(3, Math.floor((w + gap) / (380 + gap))));
+    const cw = (w - gap * (cols - 1)) / cols;
+    const now = world.tick;
+    jobs.forEach((j, i) => {
+      const cx = x + (i % cols) * (cw + gap);
+      const ry = cy + Math.floor(i / cols) * 34;
+      const to = siteById(world, j.toId);
+      const mins = Math.max(0, Math.round((now - j.tick) / (TICKS_PER_SECOND * 60)));
+      im.rect(2, cx, ry, cw, 30, 0x131a24, 1, 8);
+      im.circle(3, cx + 14, ry + 15, 5, GOODS[j.good].color);
+      im.text(`hs${i}a`, `${Math.floor(j.units)} ${GOODS[j.good].label.toLowerCase()}  to ${to?.name ?? 'a buyer'}`, cx + 26, ry + 8, { size: 11, wrap: cw - 150, layer: 3 });
+      im.text(`hs${i}b`, `${mins === 0 ? 'just now' : `${mins} min ago`}`, cx + cw - 78, ry + 8, { size: 10, color: COLORS.muted, align: 'right', layer: 3 });
+      im.text(`hs${i}c`, `$${fmt(j.money)}`, cx + cw - 10, ry + 7, { size: 12, bold: true, color: COLORS.warn, align: 'right', layer: 3 });
+    });
+    cy += Math.ceil(jobs.length / cols) * 34;
     return cy - y;
   }
 
@@ -1905,7 +2201,13 @@ export class HudScene extends Phaser.Scene {
       im.text('byN', def.hub ? 'Nobody yet. Build a road from this warehouse to a market or a factory.' : 'Nobody nearby buys this yet. Towns want more kinds of goods as they grow.', x, cy, { size: 11, color: COLORS.muted, wrap: w, layer: 2 });
       return cy + 40 - y + (def.store ? feeds(cy + 40) : 0);
     }
-    for (const b of buyers) {
+    const gGap = 12;
+    const gCols = Math.max(1, Math.min(3, Math.floor((w + gGap) / (380 + gGap))));
+    const gW = (w - gGap * (gCols - 1)) / gCols;
+    buyers.forEach((b, bi) => {
+      const gx = x + (bi % gCols) * (gW + gGap);
+      const gy = cy + Math.floor(bi / gCols) * 76;
+      ((x: number, cy: number, w: number): void => {
       const id = `by${b.site.id}`;
       const dock = SITE_DEFS[b.site.kind].dock;
       const asked = b.goods.filter((gd) => wants(world, b.site).includes(gd) || !b.connected);
@@ -1936,13 +2238,16 @@ export class HudScene extends Phaser.Scene {
           : wanted ? this.demand(b.site, gd) : { label: 'Not buying right now', color: COLORS.muted, want: 0 };
         im.text(`${id}s`, dm.label, x + 10, cy + 28, { size: 11, color: dm.color, wrap: w - 130, layer: 3 });
         im.bar(3, x + 10, cy + 46, w - 140, 6, dm.want, dm.color);
-        this.button(`${id}b`, store ? (b.on ? 'Storing' : 'Store here') : b.on ? 'Selling' : 'Sell here', bx, by, 100, 32, true, () => g.sendTo(s.id, b.site.id, !b.on, line), b.on ? 'on' : 'plain');
+        // No switch to flip: every joined buyer is a destination, and each truck's Settings pick who it goes to.
+        im.rect(3, bx, by, 100, 32, 0x17382c, 1, 8, COLORS.good, 1);
+        im.text(`${id}b`, store ? 'Storing here' : 'Selling here', bx + 50, by + 8, { size: 12, bold: true, color: COLORS.good, align: 'center', layer: 4 });
       }
       const rec = s.sales?.[b.site.id];
       if (rec && rec.units > 0) im.text(`${id}r`, store ? `Stored ${fmt(rec.units)}. Paid when it sells on` : `Sold ${fmt(rec.units)} for $${fmt(rec.money)}`, x + 10, cy + 54, { size: 10, color: COLORS.muted, layer: 3 });
-      cy += h + 6;
-    }
-    im.text('byX', def.produce ? 'Tap Selling to stop selling somewhere.' : 'Tap Sell here to start selling. Tap again to stop.', x, cy, { size: 10, color: COLORS.muted, wrap: w, layer: 2 });
+      })(gx, gy, gW);
+    });
+    cy += Math.ceil(buyers.length / gCols) * 76;
+    im.text('byX', 'Your trucks pick the buyer. Open a truck and tap Settings to send it to one place or choose what it prefers.', x, cy, { size: 10, color: COLORS.muted, wrap: w, layer: 2 });
     return cy + 24 - y + (def.store ? feeds(cy + 24) : 0);
   }
 
@@ -1954,14 +2259,30 @@ export class HudScene extends Phaser.Scene {
 
   /** The toggle between a building's main good and its by-product: two pages in one menu. */
   private lineToggle(s: Site, x: number, y: number, w: number): number {
+    const im = this.pim;
     const world = this.game3d.world;
     const line = this.lineOf(s);
     const names = (l: Line): string => lineGoods(s, l).map((gd) => GOODS[gd].label).join(' + ');
     const bw = (w - 8) / 2;
+    const th = 54;
     const count = (l: Line): number => fleetOf(world, s.id, l).length;
-    this.button('lnMain', `Main: ${names('main')}  (${count('main')} truck${count('main') === 1 ? '' : 's'})`, x, y, bw, 38, true, () => this.lineTab.set(s.id, 'main'), line === 'main' ? 'on' : 'plain');
-    this.button('lnBy', `By-product: ${names('by')}  (${count('by')} truck${count('by') === 1 ? '' : 's'})`, x + bw + 8, y, bw, 38, true, () => this.lineTab.set(s.id, 'by'), line === 'by' ? 'on' : 'plain');
-    return 46;
+    // Page tabs: a bright line runs under both, and the open tab is solid and joins it, so it reads as the page you are on.
+    im.rect(2, x, y + th - 2, w, 4, 0x2f9a69, 1, 2);
+    ([['main', 'MAIN PRODUCT'], ['by', 'BY-PRODUCT']] as [Line, string][]).forEach(([l, title], i) => {
+      const cx = x + i * (bw + 8);
+      const on = line === l;
+      const hov = im.hit(`ln${l}`, cx, y, bw, th, () => this.lineTab.set(s.id, l), 3);
+      const top = on ? y : y + 8;
+      const hh = th + 2 - (top - y);
+      im.rect(3, cx, top, bw, hh, on ? 0x2f9a69 : hov ? 0x243246 : 0x0d1118, 1, 12, on ? 0x2f9a69 : COLORS.line, 1);
+      // square off the bottom so the tab sits flat on the line
+      im.rect(3, cx, top + hh - 14, bw, 14, on ? 0x2f9a69 : hov ? 0x243246 : 0x0d1118, 1, 0);
+      const n = count(l);
+      im.text(`ln${l}t`, title, cx + 16, top + (on ? 9 : 5), { size: 11, bold: true, color: on ? 0xd8f5e6 : COLORS.muted, layer: 4 });
+      im.text(`ln${l}n`, names(l), cx + 16, top + (on ? 24 : 20), { size: on ? 19 : 16, bold: true, color: on ? 0xffffff : COLORS.text, layer: 4 });
+      if (bw >= 200) im.text(`ln${l}c`, `${n} truck${n === 1 ? '' : 's'}`, cx + bw - 16, top + (on ? 12 : 8), { size: 12, bold: true, color: on ? 0xffffff : n === 0 ? COLORS.warn : COLORS.muted, align: 'right', layer: 4 });
+    });
+    return th + 14;
   }
 
   /** Which trucks have their extra buttons open. */
@@ -1981,6 +2302,7 @@ export class HudScene extends Phaser.Scene {
     const homeIdx = route.fromSiteId === v.homeId ? 0 : route.path.length - 1;
     if (v.state === 'unloading') return { text: `Unloading at ${v.idx === homeIdx ? 'home' : name}`, color: COLORS.good };
     if (v.state === 'loading') return v.idx === homeIdx ? { text: `Loading ${this.goodsWord(home)}`, color: COLORS.good } : { text: `At ${name}`, color: COLORS.good };
+    if (v.cargo > 0 && v.good && v.fromId === v.homeId && (v.dir === 1) !== (homeIdx === 0)) return { text: `${Math.floor(v.cargo)} ${GOODS[v.good].label.toLowerCase()} left over: heading back to find another buyer`, color: COLORS.warn };
     if (v.cargo > 0 && v.good) return { text: `Carrying ${Math.floor(v.cargo)} ${GOODS[v.good].label.toLowerCase()} to ${(v.dir === 1) === (homeIdx === 0) ? name : home.name}`, color: COLORS.good };
     return { text: (v.dir === 1) === (homeIdx === 0) ? `Driving to ${name}` : 'Heading home', color: COLORS.good };
   }
@@ -1997,48 +2319,75 @@ export class HudScene extends Phaser.Scene {
     const forWhat = line === 'by' ? ` FOR ${lineGoods(s, 'by').map((gd) => GOODS[gd].label.toUpperCase()).join(' + ')}` : hasByLine(s) ? ` FOR ${lineGoods(s, 'main').map((gd) => GOODS[gd].label.toUpperCase()).join(' + ')}` : '';
     let cy = this.sectionHead('trH', `YOUR ${def.airport ? 'PLANES' : 'TRUCKS'}${def.port ? ' AND SHIPS' : ''}${forWhat} (${fleet.length})`, x, y, w);
     const options = buyOptions(world, s.id);
-    const gap = 6;
-    options.forEach((k, i) => {
-      const bw = (w - gap * (options.length - 1)) / options.length;
-      this.button(`tb${k}`, `+ ${vehicleLabel(k, bodyForLine(s, line))}  $${fmt(VEHICLE_DEFS[k].cost)}`, x + i * (bw + gap), cy, bw, 34, buyError(world, s.id, k) === null, () => g.buy(s.id, k, line), fleet.length === 0 ? 'main' : 'plain');
-    });
-    if (options.length) cy += 42;
-    else {
+    const gap = 8;
+    // The switch and the buy buttons share one row.
+    const nBtn = options.length + (options.length && !def.hub ? 1 : 0);
+    if (nBtn > 0) {
+      const bw = (w - gap * (nBtn - 1)) / nBtn;
+      let bx = x;
+      if (options.length && !def.hub) {
+        const on = !!s.autoBuy;
+        this.button('trAuto', on ? 'Ask me about trucks: ON' : 'Ask me about trucks: off', bx, cy, bw, 38, true, () => g.autoBuy(s.id, !on), on ? 'on' : 'plain');
+        bx += bw + gap;
+      }
+      options.forEach((k) => {
+        this.button(`tb${k}`, `+ ${vehicleLabel(k, bodyForLine(s, line))}  $${fmt(VEHICLE_DEFS[k].cost)}`, bx, cy, bw, 38, buyError(world, s.id, k) === null, () => g.buy(s.id, k, line), fleet.length === 0 ? 'main' : 'plain');
+        bx += bw + gap;
+      });
+      cy += 46;
+    } else {
       im.text('trN', 'Lay track from this building to run trains.', x, cy, { size: 11, color: COLORS.muted, wrap: w, layer: 2 });
       cy += 24;
     }
+    const tCols = Math.max(1, Math.min(3, Math.floor((w + 12) / (380 + 12))));
+    const tW = (w - 12 * (tCols - 1)) / tCols;
+    const cardH = (v: Vehicle): number => (this.truckOpen.has(v.id) ? 222 : 108);
+    const rowH: number[] = [];
+    fleet.forEach((v, k) => {
+      const row = Math.floor(k / tCols);
+      rowH[row] = Math.max(rowH[row] ?? 0, cardH(v));
+    });
+    const rowY = [0];
+    rowH.forEach((hh, k) => rowY.push(rowY[k] + hh + 8));
     fleet.forEach((v, n) => {
+      const gx = x + (n % tCols) * (tW + 12);
+      const gy = cy + rowY[Math.floor(n / tCols)];
+      ((x: number, cy: number, w: number): void => {
       const vd = VEHICLE_DEFS[v.kind];
       const st = this.truckStatus(v);
       const open = this.truckOpen.has(v.id);
-      const h = open ? 190 : 64;
+      const h = open ? 222 : 108;
       im.rect(2, x, cy, w, h, 0x131a24, 1, 10, COLORS.line, 1);
-      im.text(`tv${v.id}n`, `${vehicleLabel(v.kind, v.body)} ${n + 1}`, x + 10, cy + 8, { size: 12, bold: true, layer: 3 });
-      im.text(`tv${v.id}c`, `carries ${vd.capacity} t`, x + 10, cy + 26, { size: 10, color: COLORS.muted, layer: 3 });
-      im.text(`tv${v.id}s`, st.text, x + 10, cy + 42, { size: 11, color: st.color, wrap: w - 20, layer: 3 });
+      im.text(`tv${v.id}n`, `${vehicleLabel(v.kind, v.body)} ${n + 1}`, x + 12, cy + 10, { size: 15, bold: true, layer: 3 });
+      im.text(`tv${v.id}c`, `carries ${vd.capacity} t`, x + w - 12, cy + 12, { size: 12, color: COLORS.muted, align: 'right', layer: 3 });
+      im.text(`tv${v.id}s`, st.text, x + 12, cy + 34, { size: 12, color: st.color, wrap: w - 24, layer: 3 });
       const upErr = upgradeVehicleError(world, v.id);
       const next = vd.next ? VEHICLE_DEFS[vd.next] : null;
-      this.button(`tv${v.id}u`, !next ? 'Top class' : next.tier > world.tier ? `Bigger at Tier ${next.tier}` : `Upgrade  $${fmt(upgradeVehicleCost(v.kind))}`, x + w - 170, cy + 8, 116, 28, upErr === null, () => {
+      const bw3 = (w - 24 - 12) / 3;
+      const by = cy + 66;
+      this.button(`tv${v.id}u`, !next ? 'Top class' : next.tier > world.tier ? `Tier ${next.tier} bigger` : `Upgrade $${fmt(upgradeVehicleCost(v.kind))}`, x + 12, by, bw3, 32, upErr === null, () => {
         this.dash = null;
         g.select(null);
         g.upgradeVeh(v.id);
       });
-      this.button(`tv${v.id}m`, open ? 'Less' : 'More', x + w - 48, cy + 8, 40, 28, true, () => (open ? this.truckOpen.delete(v.id) : this.truckOpen.add(v.id)));
+      this.button(`tv${v.id}k`, `Copy $${fmt(vd.cost)}`, x + 12 + bw3 + 6, by, bw3, 32, buyError(world, s.id, v.kind) === null, () => g.duplicateVeh(v.id));
+      this.button(`tv${v.id}m`, open ? 'Less' : 'Settings', x + 12 + (bw3 + 6) * 2, by, bw3, 32, true, () => (open ? this.truckOpen.delete(v.id) : this.truckOpen.add(v.id)));
       if (open) {
         const dests = destinationsOf(world, v);
         const pinned = dests.find((d) => d.id === v.destId);
         const label = pinned ? `Only to ${pinned.name}` : 'Goes to: any buyer';
-        this.button(`tv${v.id}d`, label.length > 26 ? `${label.slice(0, 25)}…` : label, x + 10, cy + 68, w - 20, 32, dests.length > 0, () => {
+        this.button(`tv${v.id}d`, label.length > 26 ? `${label.slice(0, 25)}…` : label, x + 12, cy + 108, w - 24, 32, dests.length > 0, () => {
           const ids = [0, ...dests.map((d) => d.id)];
           g.vehicleDest(v.id, ids[(ids.indexOf(v.destId) + 1) % ids.length]);
         });
         const mode = v.pick ?? 'any';
-        this.button(`tv${v.id}p`, `Prefers: ${PICK_LABEL[mode]}`, x + 10, cy + 106, w - 20, 32, dests.length > 1 && !v.destId, () => g.vehiclePick(v.id, PICK_MODES[(PICK_MODES.indexOf(mode) + 1) % PICK_MODES.length]));
+        this.button(`tv${v.id}p`, `Prefers: ${PICK_LABEL[mode]}`, x + 12, cy + 146, w - 24, 32, dests.length > 1 && !v.destId, () => g.vehiclePick(v.id, PICK_MODES[(PICK_MODES.indexOf(mode) + 1) % PICK_MODES.length]));
         const unit = vd.mode === 'rail' ? 'train' : vd.mode === 'air' ? 'plane' : vd.mode === 'sea' ? 'ship' : 'truck';
-        this.button(`tv${v.id}x`, `Sell ${unit}  +$${fmt(sellVehicleValue(v))}`, x + 10, cy + 144, w - 20, 32, true, () => g.sellVeh(v.id));
+        this.button(`tv${v.id}x`, `Sell ${unit}  +$${fmt(sellVehicleValue(v))}`, x + 12, cy + 184, w - 24, 32, true, () => g.sellVeh(v.id));
       }
-      cy += h + 6;
+      })(gx, gy, tW);
     });
+    cy += (rowY[rowH.length] ?? 0);
     return cy - y;
   }
 
@@ -2055,6 +2404,35 @@ export class HudScene extends Phaser.Scene {
   private showGrow(p: Place): void {
     this.growLater.delete(`${p.id}:${p.level}`);
     this.dash = null;
+  }
+
+  /** A pop-up that asks before anything is demolished or a road is removed. */
+  private removalModal(W: number, H: number): void {
+    const im = this.im;
+    const g = this.game3d;
+    const rm = g.removal!;
+    im.rect(5, 0, 0, W, H, 0x05080c, 0.7);
+    im.block({ x: 0, y: 0, w: W, h: H });
+    const w = Math.min(440, W - 24);
+    const h = 190;
+    const x = (W - w) / 2;
+    const y = (H - h) / 2;
+    im.rect(6, x, y, w, h, COLORS.panel, 1, 18, COLORS.bad, 2);
+    im.text('rmT', rm.title, x + w / 2, y + 22, { size: 20, bold: true, align: 'center', wrap: w - 40, layer: 7 });
+    im.text('rmD', rm.detail, x + w / 2, y + 62, { size: 13, color: COLORS.muted, align: 'center', wrap: w - 48, layer: 7 });
+    const bw = (w - 48 - 12) / 2;
+    const by = y + h - 66;
+    const ch = im.hit('rmNo', x + 24, by, bw, 46, () => (g.removal = null), 8);
+    im.rect(7, x + 24, by, bw, 46, ch ? 0x2a3646 : 0x1b2430, 1, 23, COLORS.line, 1);
+    im.text('rmNoT', 'Keep it', x + 24 + bw / 2, by + 14, { size: 15, bold: true, align: 'center', layer: 8 });
+    const oh = im.hit('rmYes', x + 36 + bw, by, bw, 46, () => {
+      const run = rm.run;
+      g.removal = null;
+      this.dash = null;
+      run();
+    }, 8);
+    im.rect(7, x + 36 + bw, by, bw, 46, oh ? 0xd9534f : 0xb8433f, 1, 23);
+    im.text('rmYesT', rm.verb, x + 36 + bw + bw / 2, by + 14, { size: 15, bold: true, align: 'center', layer: 8 });
   }
 
   private growModal(W: number, H: number, p: Place): void {

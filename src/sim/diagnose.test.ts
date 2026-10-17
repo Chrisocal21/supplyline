@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { diagnose } from './diagnose';
-import { createBlankWorld, buyVehicle, siteById, step, produces, type World } from './world';
+import { createBlankWorld, buyVehicle, siteById, step, produces, siteCap, fleetOf, AUTO_BUY_MAX, acceptOffer, declineOffer, type World } from './world';
 import { GOOD_LIST, vehicleLabel, type SiteKind, type Terrain } from './defs';
 
 function world(): World {
@@ -64,7 +64,7 @@ describe('diagnose', () => {
     // Gravel waits on the shelf like stone, and the building says so once it piles up.
     const cement = add(w, 'stonecutter', 9, 5);
     cement.making = true;
-    quarry.stock.gravel = 55;
+    quarry.stock.gravel = 230;
     quarry.stock.stone = 10;
     expect(buyVehicle(w, quarry.id, 'boxtruck')).toBeNull();
     w.routes.push({ id: w.nextId++, mode: 'road', fromSiteId: quarry.id, toSiteId: cement.id, over: true, path: [5, 6, 7, 8, 9].map((x) => ({ x, y: 5 })) } as never);
@@ -168,5 +168,78 @@ describe('bodies and full loads', () => {
     camp.stock.logs = 20;
     for (let i = 0; i < 60; i++) step(w);
     expect(v.state).not.toBe('loading');
+  });
+});
+
+describe('auto-buy trucks', () => {
+  it('asks before buying, buys only on a yes, and stays quiet after a no', () => {
+    const w = world();
+    w.money = 1e6;
+    const camp = add(w, 'forestry', 3, 4);
+    const mill = add(w, 'sawmill', 9, 4);
+    mill.making = true;
+    w.routes.push({ id: w.nextId++, mode: 'road', fromSiteId: camp.id, toSiteId: mill.id, over: true, path: [3, 4, 5, 6, 7, 8, 9].map((x) => ({ x, y: 4 })) } as never);
+    expect(buyVehicle(w, camp.id, 'boxtruck')).toBeNull();
+    camp.autoBuy = true;
+    for (let i = 0; i < 1500; i++) {
+      camp.stock.logs = siteCap(w, camp);
+      step(w);
+    }
+    // It asked, and bought nothing by itself.
+    expect(w.offers?.length).toBe(1);
+    expect(fleetOf(w, camp.id, 'main')).toHaveLength(1);
+    expect(acceptOffer(w, w.offers![0])).toBeNull();
+    expect(fleetOf(w, camp.id, 'main')).toHaveLength(2);
+    // A no keeps the building quiet for a while.
+    for (let i = 0; i < 600; i++) {
+      camp.stock.logs = siteCap(w, camp);
+      step(w);
+    }
+    expect(w.offers?.length).toBe(1);
+    declineOffer(w, w.offers![0]);
+    for (let i = 0; i < 600; i++) {
+      camp.stock.logs = siteCap(w, camp);
+      step(w);
+    }
+    expect(w.offers?.length ?? 0).toBe(0);
+    expect(fleetOf(w, camp.id, 'main').length).toBeLessThanOrEqual(AUTO_BUY_MAX);
+  });
+});
+
+describe('a load the buyer cannot fully take', () => {
+  it('takes the rest to the next best buyer before loading again', () => {
+    const w = world();
+    w.money = 1e6;
+    const camp = add(w, 'forestry', 3, 4);
+    const a = add(w, 'sawmill', 9, 4);
+    const b = add(w, 'sawmill', 3, 10);
+    a.making = true;
+    b.making = true;
+    const ra = { id: w.nextId++, mode: 'road', fromSiteId: camp.id, toSiteId: a.id, over: true, path: [3, 4, 5, 6, 7, 8, 9].map((x) => ({ x, y: 4 })) };
+    const rb = { id: w.nextId++, mode: 'road', fromSiteId: camp.id, toSiteId: b.id, over: true, path: [4, 5, 6, 7, 8, 9, 10].map((y) => ({ x: 3, y })) };
+    w.routes.push(ra as never, rb as never);
+    expect(buyVehicle(w, camp.id, 'boxtruck')).toBeNull();
+    const v = w.vehicles[0];
+    const cap = siteCap(w, a);
+    // Arrives at A carrying 12 logs, but A only has room for 5.
+    a.stock.logs = cap - 5;
+    v.routeId = ra.id;
+    v.idx = ra.path.length - 1;
+    v.dir = 1;
+    v.state = 'unloading';
+    v.cargo = 12;
+    v.good = 'logs';
+    v.fromId = camp.id;
+    step(w);
+    expect(a.stock.logs).toBe(cap);
+    expect(v.cargo).toBe(7);
+    expect(v.state).toBe('moving');
+    const before = b.stock.logs ?? 0;
+    for (let i = 0; i < 2000 && (b.stock.logs ?? 0) === before; i++) {
+      // keep A full so B is the only buyer with room
+      a.stock.logs = cap;
+      step(w);
+    }
+    expect((b.stock.logs ?? 0) - before).toBe(7);
   });
 });

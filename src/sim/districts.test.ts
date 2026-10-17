@@ -52,6 +52,8 @@ describe('districts as buildings', () => {
     const d = districtSite(w, p, 'restaurants')!;
     expect(districtRevenue(w, p)).toBe(0);
     expect(buyVehicle(w, bakery.id, 'boxtruck')).toBeNull();
+    // Pinned to the district, so the market in town does not take the bread first.
+    w.vehicles[0].destId = d.id;
     for (let i = 0; i < 4000 && (d.stock.bread ?? 0) < 1; i++) step(w);
     expect(d.stock.bread ?? 0).toBeGreaterThan(0);
     expect(districtSatisfaction(w, p, 'restaurants')).toBeGreaterThan(0);

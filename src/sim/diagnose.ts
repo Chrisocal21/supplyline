@@ -11,8 +11,8 @@ export type Fix =
   | { kind: 'upgrade' };
 
 export interface Diagnosis {
-  /** ok: nothing wrong. warn: stuck, and you can fix it. bad: losing goods right now. */
-  level: 'ok' | 'warn' | 'bad';
+  /** ok: nothing wrong. wait: working, but held up for now (needs more supply, or buyers are full). warn: stuck, and you can fix it. bad: losing goods right now. */
+  level: 'ok' | 'wait' | 'warn' | 'bad';
   text: string;
   fix?: Fix;
 }
@@ -64,7 +64,7 @@ export function diagnose(world: World, s: Site, line: Line = 'main'): Diagnosis 
     if (short) {
       const supplied = world.sites.some((o) => o.id !== s.id && produces(o).includes(short) && world.routes.some((r) => !r.free && ((r.fromSiteId === o.id && r.toSiteId === s.id) || (r.fromSiteId === s.id && r.toSiteId === o.id))));
       if (!supplied) return { level: 'warn', text: `Out of ${GOODS[short].label.toLowerCase()}. Build a road from something that makes it, or put a Warehouse next to this factory.` };
-      return { level: 'warn', text: `Waiting for ${GOODS[short].label.toLowerCase()}. It is on its way: check the trucks that bring it.` };
+      return { level: 'wait', text: `Waiting for ${GOODS[short].label.toLowerCase()}. It is on its way. Needs more supply to keep going.` };
     }
   }
 
@@ -78,24 +78,25 @@ export function diagnose(world: World, s: Site, line: Line = 'main'): Diagnosis 
 
   const buyersFull = selling.every((b) => b.goods.every((g) => !wants(world, b.site).includes(g) || stockOf(b.site, g) / Math.max(1, siteCap(world, b.site)) >= 0.99));
   const pct = main ? Math.round((stockOf(s, main) / Math.max(1, cap)) * 100) : 0;
-  const piling = def.hub ? shelfFull : pct >= 80;
+  const piling = def.hub ? shelfFull : pct >= 90;
   if (buyersFull) {
     const far = buyers.find((b) => !b.connected);
-    if (far) return { level: 'warn', text: `Buyers are full${piling ? `, storage ${pct}% full` : ''}. Sell to another town: ${far.site.name} would buy ${word}.`, fix: { kind: 'road', to: far.site.id } };
-    if (!def.hub) return { level: piling ? 'bad' : 'warn', text: `Buyers are full${piling ? `, storage ${pct}% full` : ''}. Build a Warehouse nearby to hold the extra, then send it to another town.` };
-    return { level: shelfFull ? 'bad' : 'warn', text: 'Everything you sell to is full. Join this warehouse to a Rail Yard, Port or Airport to ship goods to another town.' };
+    if (far) return { level: 'wait', text: `Buyers are full${piling ? `, storage ${pct}% full` : ''}. Sell to another town: ${far.site.name} would buy ${word}.`, fix: { kind: 'road', to: far.site.id } };
+    if (!def.hub) return { level: 'wait', text: `Buyers are full${piling ? `, storage ${pct}% full` : ''}. Build a Warehouse nearby to hold the extra, then send it to another town.` };
+    return { level: 'wait', text: 'Everything you sell to is full. Join this warehouse to a Rail Yard, Port or Airport to ship goods to another town.' };
   }
 
+  // Goods piling up is a tip, not a fault: the suggestion shows in the building's menu but never counts as stuck.
   if (piling) {
-    if (def.hub) return { level: 'bad', text: 'The shelves are nearly full. Sell to more buyers, or ship goods out through a terminal.' };
+    if (def.hub) return { level: 'wait', text: 'The shelves are nearly full. Sell to more buyers, or ship goods out through a terminal.' };
     const idle = fleet.filter((v) => v.routeId === 0).length;
     if (fleet.length > 0 && idle === fleet.length) return { level: 'warn', text: 'Your trucks are waiting with no route. Switch a sale on, or check the road is still there.' };
     const more = buyOptions(world, s.id)[0];
     if (more && buyError(world, s.id, more) === null) {
-      return { level: 'warn', text: `Goods are piling up (${pct}% full) and ${fleet.length} truck${fleet.length === 1 ? ' is' : 's are'} not keeping up. Build more trucks.`, fix: { kind: 'buy', vehicle: more, line } };
+      return { level: 'ok', text: `Goods are piling up (${pct}% full) and ${fleet.length} truck${fleet.length === 1 ? ' is' : 's are'} not keeping up. Build more trucks.`, fix: { kind: 'buy', vehicle: more, line } };
     }
-    if (upgradeError(world, s.id) === null) return { level: 'warn', text: `Goods are piling up (${pct}% full). Upgrade for more storage and faster work, or a bigger vehicle.`, fix: { kind: 'upgrade' } };
-    return { level: 'warn', text: `Goods are piling up (${pct}% full). ${buyError(world, s.id, more ?? 'boxtruck') ?? 'Add another buyer or a Warehouse.'}` };
+    if (upgradeError(world, s.id) === null) return { level: 'ok', text: `Goods are piling up (${pct}% full). Upgrade for more storage and faster work, or a bigger vehicle.`, fix: { kind: 'upgrade' } };
+    return { level: 'ok', text: `Goods are piling up (${pct}% full). ${buyError(world, s.id, more ?? 'boxtruck') ?? 'Add another buyer or a Warehouse.'}` };
   }
 
   return ok(def.hub && held > 0 ? 'All running. Holding goods for your buyers.' : 'All running.');
@@ -107,6 +108,7 @@ export function shortOf(d: Diagnosis): string {
   if (named) return `${named[1]}: ${shortOf({ ...d, text: named[2] }).toLowerCase()}`;
   const t = d.text;
   if (t.includes('is piling up and nobody')) return `${t.split(' is piling')[0]}: no buyer`;
+  if (t.startsWith('Waiting for')) return 'Needs more supply';
   if (d.level === 'ok') return t.startsWith('All running') ? 'Running' : t;
   const starts: [string, string][] = [
     ['Off.', 'Off: press Start'],
@@ -130,9 +132,10 @@ export function shortOf(d: Diagnosis): string {
 /** The worst thing going on across a building's lines: the main good first, then its by-product, named so it is clear which. */
 export function diagnoseAll(world: World, s: Site): Diagnosis {
   const main = diagnose(world, s);
-  if (main.level !== 'ok' || !hasByLine(s)) return main;
+  if (main.level === 'warn' || main.level === 'bad' || !hasByLine(s)) return main;
   const by = diagnose(world, s, 'by');
-  if (by.level === 'ok') return main;
+  if (by.level === 'ok' || (by.level === 'wait' && main.level === 'wait')) return main;
+  if (by.level === 'wait' && main.level === 'ok') return { ...by, text: `${lineGoods(s, 'by').map((g) => GOODS[g].label).join(' and ')}: ${by.text}` };
   const names = lineGoods(s, 'by').map((g) => GOODS[g].label).join(' and ');
   return { ...by, text: `${names}: ${by.text}` };
 }

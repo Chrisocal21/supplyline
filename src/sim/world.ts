@@ -36,6 +36,7 @@ import {
   UPGRADE_COST_FACTOR,
   VEHICLE_DEFS,
   bodyOf,
+  TICKS_PER_SECOND,
   type Body,
   type Good,
   type NodeKind,
@@ -117,8 +118,48 @@ export interface Site {
   /** The same two lists for the by-product line. Unset means it follows the main line until the player changes it. */
   byTo?: number[];
   byOff?: number[];
+  /** When on, the building buys another truck by itself once goods keep piling up and every truck it has is busy. */
+  autoBuy?: boolean;
+  /** Tick before which a declined truck offer is not made again. */
+  autoSnooze?: number;
   /** What this building has sold to each buyer, by buyer id: units and money. */
   sales?: Record<number, { units: number; money: number }>;
+  /** The last jobs that went out and were paid for, newest last: what, how much, to whom, and what it paid. */
+  history?: SaleJob[];
+}
+
+/** One delivery that was sold. */
+export interface SaleJob {
+  tick: number;
+  good: Good;
+  units: number;
+  money: number;
+  toId: number;
+}
+
+/** How many sold jobs a building remembers. */
+export const HISTORY_JOBS = 30;
+
+/** A vehicle on its way to a building with goods to drop off. */
+export interface Inbound {
+  vehicle: Vehicle;
+  good: Good;
+  amount: number;
+  /** The building it picked the load up at. */
+  fromId: number;
+}
+
+/** The loaded vehicles heading for this building, so the player can see what is on the way and how much. */
+export function inboundTo(world: World, site: Site): Inbound[] {
+  const out: Inbound[] = [];
+  for (const v of world.vehicles) {
+    if (v.cargo <= 0 || !v.good || v.fromId === undefined || v.fromId === site.id || v.back) continue;
+    const route = v.routeId === 0 ? undefined : world.routes.find((r) => r.id === v.routeId);
+    if (!route) continue;
+    const dest = route.fromSiteId === v.fromId ? route.toSiteId : route.fromSiteId;
+    if (dest === site.id) out.push({ vehicle: v, good: v.good, amount: v.cargo, fromId: v.fromId });
+  }
+  return out;
 }
 
 export interface Route {
@@ -197,8 +238,17 @@ export interface LogEntry {
   text: string;
 }
 
+/** A truck a building with Auto-buy wants, waiting for the player to say yes. The game keeps running meanwhile. */
+export interface TruckOffer {
+  siteId: number;
+  line: Line;
+  kind: VehicleKind;
+}
+
 export interface World {
   version: 4;
+  /** Trucks buildings are asking for. Not saved: they come back on their own if the need is still there. */
+  offers?: TruckOffer[];
   seed: number;
   width: number;
   height: number;
@@ -1010,14 +1060,13 @@ export function pickCargo(world: World, src: Site, dst: Site, capacity: number, 
 }
 
 /**
- * Whether `a` may send to `b`. Raw producers sell to anything they are joined to unless the player stopped it, and
- * stations hand goods to trains. Everything else only sends where the player has switched the sale on.
+ * Whether `a` may send to `b`. Everything sells to anything it is joined to; which buyer a truck goes to is settled by
+ * the truck's own destination and what it prefers. Only an old save's switched-off sale still holds.
  */
 export function sendAllowed(a: Site, b: Site, line: Line = 'main'): boolean {
   const def = SITE_DEFS[a.kind];
   if (def.station) return true;
-  if (def.produce) return !(line === 'by' ? a.byOff ?? a.sendOff ?? [] : a.sendOff ?? []).includes(b.id);
-  return (line === 'by' ? a.byTo ?? a.sendTo ?? [] : a.sendTo ?? []).includes(b.id);
+  return !(line === 'by' ? a.byOff ?? a.sendOff ?? [] : a.sendOff ?? []).includes(b.id);
 }
 
 /** Whether `a` makes or passes on something `b` asks for, and is allowed to send it. */
@@ -1072,19 +1121,11 @@ export function setSendTo(world: World, siteId: number, destId: number, on: bool
   const site = siteById(world, siteId);
   if (!site) return;
   const by = line === 'by';
-  if (SITE_DEFS[site.kind].produce) {
-    // The by-product list starts as a copy of the main one, then goes its own way.
-    const off = by ? (site.byOff ??= [...(site.sendOff ?? [])]) : (site.sendOff ??= []);
-    const next = on ? off.filter((id) => id !== destId) : off.includes(destId) ? off : [...off, destId];
-    if (by) site.byOff = next;
-    else site.sendOff = next;
-    return;
-  }
-  const list = by ? (site.byTo ??= [...(site.sendTo ?? [])]) : (site.sendTo ??= []);
-  const has = list.includes(destId);
-  const next = on && !has ? [...list, destId] : !on && has ? list.filter((id) => id !== destId) : list;
-  if (by) site.byTo = next;
-  else site.sendTo = next;
+  // The by-product list starts as a copy of the main one, then goes its own way.
+  const off = by ? (site.byOff ??= [...(site.sendOff ?? [])]) : (site.sendOff ??= []);
+  const next = on ? off.filter((id) => id !== destId) : off.includes(destId) ? off : [...off, destId];
+  if (by) site.byOff = next;
+  else site.sendOff = next;
 }
 
 export interface Buyer {
@@ -1425,12 +1466,27 @@ function sell(world: World, dock: Site, g: Good, amount: number): number {
   return gain;
 }
 
-function deliver(world: World, site: Site, v: Vehicle): void {
+/** How much of a good a building has room to take right now. */
+function roomFor(world: World, site: Site, g: Good): number {
+  return Math.max(0, Math.floor(siteCap(world, site) - stockOf(site, g)));
+}
+
+/**
+ * Hand a load over. A buyer only takes what it has room for; whatever is left stays on the vehicle (v.cargo, v.good) so it
+ * can try the next best buyer. Returns how much was left.
+ */
+function deliver(world: World, site: Site, v: Vehicle, all = true): number {
   const g = v.good;
-  const amount = v.cargo;
-  v.cargo = 0;
-  v.good = null;
-  if (!g || amount <= 0) return;
+  const total = v.cargo;
+  if (!g || total <= 0) {
+    v.cargo = 0;
+    v.good = null;
+    return 0;
+  }
+  const amount = all ? total : Math.min(total, roomFor(world, site, g));
+  v.cargo = total - amount;
+  if (v.cargo <= 0) v.good = null;
+  if (amount <= 0) return v.cargo;
   if (SITE_DEFS[site.kind].dock) {
     const gain = sell(world, site, g, amount);
     const src = v.fromId === undefined ? undefined : siteById(world, v.fromId);
@@ -1438,9 +1494,37 @@ function deliver(world: World, site: Site, v: Vehicle): void {
       const rec = ((src.sales ??= {})[site.id] ??= { units: 0, money: 0 });
       rec.units += amount;
       rec.money += gain;
+      const hist = (src.history ??= []);
+      hist.push({ tick: world.tick, good: g, units: amount, money: gain, toId: site.id });
+      if (hist.length > HISTORY_JOBS) hist.shift();
     }
   }
   else addStock(site, g, amount);
+  return v.cargo;
+}
+
+/**
+ * A vehicle back home with part of a load the first buyer could not take: the best other run that will take it, or none.
+ * "Best" is the one that pays the most for it, then the nearest.
+ */
+function detourRoute(world: World, v: Vehicle, from: Route): Route | undefined {
+  const g = v.good;
+  const home = siteById(world, v.homeId);
+  if (!g || !home) return undefined;
+  let best: Route | undefined;
+  let bestPay = -Infinity;
+  for (const r of world.routes) {
+    if (r.id === from.id || !laneOk(world, v, r)) continue;
+    const other = siteById(world, r.fromSiteId === v.homeId ? r.toSiteId : r.fromSiteId);
+    if (!other || roomFor(world, other, g) < 1 || !wants(world, other).includes(g)) continue;
+    const pay = SITE_DEFS[other.kind].dock ? unitPrice(world, other, g) : SITE_DEFS[other.kind].hub ? 0 : GOODS[g].price * 0.6;
+    const score = pay - r.path.length * 0.001;
+    if (score > bestPay) {
+      best = r;
+      bestPay = score;
+    }
+  }
+  return best;
 }
 
 /** Ticks to cover one tile on this route: highways are faster. */
@@ -1577,14 +1661,14 @@ function stepVehicle(world: World, v: Vehicle): void {
       const capacity = Math.floor(vdef.capacity * (hereTown ? townLoadMult(hereTown) : 1));
       const pick = pickCargo(world, here, there, capacity, atHome ? v.line ?? 'main' : undefined, atHome ? v.body : undefined);
       // A full load is the vehicle's capacity, or nine tenths of what the building can hold when that is smaller, so it can always fill.
-      const fullLoad = Math.max(1, Math.min(capacity, Math.floor(siteCap(world, here) * 0.9)));
+      // The same goes for the buyer: it can never take more than it can hold, so a small buyer sets the size of a full load.
+      const fullLoad = Math.max(1, Math.min(capacity, Math.floor(siteCap(world, here) * 0.9), Math.floor(siteCap(world, there) * 0.9)));
       const waited = v.moveTimer;
-      // When the buyer can only take part of a load, that part is a full load for this trip, as long as it is worth driving.
-      const buyerLimited = pick !== null && pick.amount >= Math.floor(needs(world, there, pick.good, here));
-      const enough = pick !== null && (atHome ? pick.amount >= fullLoad * LOAD_WAIT_FRACTION || (buyerLimited && pick.amount >= fullLoad * 0.4) : pick.amount >= capacity * 0.4);
+      // Leaving home always takes a full load: the vehicle waits until it has one. Only a backhaul from the far end may go part full.
+      const enough = pick !== null && (atHome ? pick.amount >= fullLoad * LOAD_WAIT_FRACTION : pick.amount >= capacity * 0.4);
       // Having come all this way for it (home has nothing to send back), take whatever is waiting.
       const fetch = pick !== null && !atHome && !pickCargo(world, there, here, capacity);
-      if (pick && (enough || fetch || (atHome && waited >= MAX_LOAD_WAIT))) {
+      if (pick && (enough || fetch)) {
         take(here, pick.good, pick.amount);
         v.fromId = here.id;
         v.cargo = pick.amount;
@@ -1619,7 +1703,30 @@ function stepVehicle(world: World, v: Vehicle): void {
       break;
     }
     case 'unloading': {
-      deliver(world, v.idx === 0 ? from : to, v);
+      const atHomeEnd = (v.idx === 0) === (homeEnd(route, v) === 0);
+      const site = v.idx === 0 ? from : to;
+      if (atHomeEnd) {
+        if (v.cargo > 0 && v.good && v.fromId === v.homeId) {
+          // Back home still carrying what the buyer could not take: try the next best buyer before loading again.
+          const next = detourRoute(world, v, route);
+          if (next) {
+            v.routeId = next.id;
+            v.idx = homeEnd(next, v) === 0 ? 0 : next.path.length - 1;
+            v.dir = v.idx === 0 ? 1 : -1;
+            v.state = 'moving';
+            v.moveTimer = 0;
+            break;
+          }
+        }
+        // Nothing else will take it: it goes back on the shelf.
+        deliver(world, site, v);
+      } else if (v.fromId === v.homeId && deliver(world, site, v, false) > 0) {
+        // The buyer filled up: take the rest back along the same road and look for another buyer.
+        v.dir = homeEnd(route, v) === 0 ? -1 : 1;
+        v.state = 'moving';
+        v.moveTimer = 0;
+        break;
+      }
       v.state = 'loading';
       break;
     }
@@ -1665,7 +1772,66 @@ export function step(world: World): void {
     linkNetwork(world, 'rail');
     sendToDistricts(world);
   }
+  if (world.tick % 300 === 0) stepAutoBuy(world);
   checkQuests(world, (text) => addLog(world, text));
+}
+
+/** The most trucks a building asks for on each line. */
+export const AUTO_BUY_MAX = 6;
+
+/** How long a declined offer stays quiet. */
+const SNOOZE_TICKS = TICKS_PER_SECOND * 180;
+
+/**
+ * Buildings with Auto-buy on ask for a truck when a line is nearly full, at least one truck is already on it and none are
+ * idle. The player confirms each purchase, so nothing is bought behind their back, and play carries on while they decide.
+ */
+function stepAutoBuy(world: World): void {
+  const offers = (world.offers ??= []);
+  // Drop offers that no longer make sense: the building is gone, switched off, or the need has passed.
+  world.offers = offers.filter((o) => {
+    const s = siteById(world, o.siteId);
+    return !!s && !!s.autoBuy && offerNeeded(world, s, o.line);
+  });
+  for (const s of world.sites) {
+    if (!s.autoBuy || world.tick < (s.autoSnooze ?? 0)) continue;
+    for (const line of ['main', 'by'] as Line[]) {
+      if (world.offers.some((o) => o.siteId === s.id && o.line === line)) continue;
+      if (!offerNeeded(world, s, line)) continue;
+      const kind = buyOptions(world, s.id)[0];
+      if (kind) world.offers.push({ siteId: s.id, line, kind });
+    }
+  }
+}
+
+function offerNeeded(world: World, s: Site, line: Line): boolean {
+  const def = SITE_DEFS[s.kind];
+  if (def.dock || def.station || def.hub) return false;
+  if (line === 'by' && !hasByLine(s)) return false;
+  const cap = siteCap(world, s);
+  const full = lineGoods(s, line).some((g) => stockOf(s, g) / Math.max(1, cap) >= 0.9);
+  const fleet = fleetOf(world, s.id, line);
+  return full && fleet.length > 0 && fleet.length < AUTO_BUY_MAX && !fleet.some((v) => v.routeId === 0);
+}
+
+/** The player said yes to a truck offer. */
+export function acceptOffer(world: World, offer: TruckOffer): string | null {
+  const s = siteById(world, offer.siteId);
+  world.offers = (world.offers ?? []).filter((o) => o !== offer);
+  if (!s) return 'That building is gone';
+  return buyVehicle(world, offer.siteId, offer.kind, offer.line);
+}
+
+/** The player said not now: ask again in a few minutes. */
+export function declineOffer(world: World, offer: TruckOffer): void {
+  world.offers = (world.offers ?? []).filter((o) => o !== offer);
+  const s = siteById(world, offer.siteId);
+  if (s) s.autoSnooze = world.tick + SNOOZE_TICKS;
+}
+
+export function setAutoBuy(world: World, siteId: number, on: boolean): void {
+  const s = siteById(world, siteId);
+  if (s) s.autoBuy = on;
 }
 
 // ---- player actions. Each returns an error string, or null on success. ----
@@ -2409,6 +2575,20 @@ export function buyVehicle(world: World, siteId: number, kind: VehicleKind, line
     const body = bodyForLine(site, v.line ?? 'main');
     if (body !== 'box') v.body = body;
   }
+  assignVehicle(world, v);
+  return null;
+}
+
+/** Buy another vehicle just like this one: same class, same line, same pinned destination and buyer choice. */
+export function duplicateVehicle(world: World, vehicleId: number): string | null {
+  const src = world.vehicles.find((x) => x.id === vehicleId);
+  if (!src) return 'No such vehicle';
+  const err = buyVehicle(world, src.homeId, src.kind, src.line ?? 'main');
+  if (err) return err;
+  const v = world.vehicles[world.vehicles.length - 1];
+  v.destId = src.destId;
+  if (src.pick) v.pick = src.pick;
+  v.routeId = 0;
   assignVehicle(world, v);
   return null;
 }

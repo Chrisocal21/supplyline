@@ -297,16 +297,19 @@ export class Sheets {
     im.block({ x, y, w, h });
 
     // Header: tabs and a close button.
-    const tabs: [SheetId, string][] = [['production', 'Production'], ['towns', 'Towns'], ['bank', 'Bank'], ['quests', 'Quests'], ['guide', 'How to play']];
+    const narrow = w < 640;
+    const tabs: [SheetId, string][] = [['production', 'Production'], ['towns', 'Towns'], ['bank', 'Bank'], ['quests', 'Quests'], ['guide', narrow ? 'Guide' : 'How to play']];
+    const tabW = narrow ? Math.floor((w - 36 - 52 - 4 * 4) / 5) : 120;
+    const tabStep = tabW + (narrow ? 4 : 8);
     tabs.forEach(([tid, label], i) => {
-      const tx = x + 18 + i * 128;
+      const tx = x + (narrow ? 12 : 18) + i * tabStep;
       const on = tid === id;
-      const hov = im.hit(`sheetTab${tid}`, tx, y + 14, 120, 40, () => {
+      const hov = im.hit(`sheetTab${tid}`, tx, y + 14, tabW, 40, () => {
         this.hooks.select(tid);
         this.scroll = 0;
       }, 3);
-      im.rect(3, tx, y + 14, 120, 40, on ? 0x1f2c3a : hov ? 0x1a2431 : 0x131b25, 1, 12, on ? COLORS.accent : COLORS.line, 1, on ? 2 : 1);
-      im.text(`sheetTabT${tid}`, label, tx + 60, y + 24, { size: 15, bold: true, color: on ? COLORS.accent : COLORS.text, align: 'center', layer: 3 });
+      im.rect(3, tx, y + 14, tabW, 40, on ? 0x1f2c3a : hov ? 0x1a2431 : 0x131b25, 1, 12, on ? COLORS.accent : COLORS.line, 1, on ? 2 : 1);
+      im.text(`sheetTabT${tid}`, label, tx + tabW / 2, y + (narrow ? 27 : 24), { size: narrow ? 10 : 15, bold: true, color: on ? COLORS.accent : COLORS.text, align: 'center', layer: 3 });
     });
     const cx = x + w - 58;
     const chov = im.hit('sheetClose', cx, y + 14, 40, 40, close, 3);
@@ -340,95 +343,113 @@ export class Sheets {
 
   private production(world: World, v: View): number {
     const im = this.cim;
-    const colW = 392;
-    let ly = v.y0 - this.scroll;
-    const lx = v.x0;
-    const vis = (y: number, hh: number): boolean => y + hh > v.y0 && y < v.y1;
-
-    // Left column: every good, grouped, with what is in store and how fast it is made and used.
-    if (vis(ly, 24)) {
-      im.text('pg-h-stock', 'In store', lx + 232, ly + 2, { size: 11, bold: true, color: COLORS.muted, align: 'right', layer: 3 });
-      im.text('pg-h-made', 'Made/min', lx + 308, ly + 2, { size: 11, bold: true, color: COLORS.muted, align: 'right', layer: 3 });
-      im.text('pg-h-used', 'Used/min', lx + colW, ly + 2, { size: 11, bold: true, color: COLORS.muted, align: 'right', layer: 3 });
-    }
-    ly += 24;
-    for (const group of KIND_ORDER) {
-      const goods = GOOD_LIST.filter((g) => GOODS[g].kind === group.kind);
-      if (vis(ly, 22)) im.text(`pg-g-${group.kind}`, group.label, lx, ly + 4, { size: 10, bold: true, color: COLORS.muted, layer: 3 });
-      ly += 22;
-      for (const g of goods) {
-        if (vis(ly, 26)) {
-          const stored = world.sites.filter((s) => !SITE_DEFS[s.kind].dock).reduce((n, s) => n + stockOf(s, g), 0);
-          const made = this.rates.made(g);
-          const used = this.rates.used(g);
-          im.rect(3, lx, ly + 5, 12, 12, GOODS[g].color, 1, 3);
-          im.text(`pg-n-${g}`, GOODS[g].label, lx + 22, ly + 3, { size: 13, layer: 3 });
-          im.text(`pg-s-${g}`, fmt(stored), lx + 232, ly + 3, { size: 13, align: 'right', layer: 3 });
-          im.text(`pg-m-${g}`, made > 0.05 ? made.toFixed(1) : '-', lx + 308, ly + 3, { size: 13, color: made > 0.05 ? COLORS.good : COLORS.muted, align: 'right', layer: 3 });
-          im.text(`pg-u-${g}`, used > 0.05 ? used.toFixed(1) : '-', lx + colW, ly + 3, { size: 13, color: used > 0.05 ? COLORS.warn : COLORS.muted, align: 'right', layer: 3 });
-          im.line(3, lx, ly + 25, lx + colW, ly + 25, 0xffffff, 0.05, 1);
-        }
-        ly += 26;
-      }
-    }
-    const leftH = ly + this.scroll - v.y0;
-
-    // Right column: market swings, then every building and how it is doing.
-    const rx = v.x0 + colW + 28;
-    const rw = v.x1 - rx;
-    let ry = v.y0 - this.scroll;
-    const swings = world.events.filter((e) => e.until > world.tick);
-    if (vis(ry, 22)) im.text('pg-ev-h', 'MARKET SWINGS', rx, ry + 3, { size: 10, bold: true, color: COLORS.muted, layer: 3 });
-    ry += 22;
-    if (swings.length === 0) {
-      if (vis(ry, 24)) im.text('pg-ev-none', 'Prices are steady.', rx, ry + 2, { size: 13, color: COLORS.muted, layer: 3 });
-      ry += 28;
-    }
-    swings.forEach((e, i) => {
-      if (vis(ry, 28)) {
-        const up = e.mult > 1;
-        const secs = Math.max(0, Math.round((e.until - world.tick) / TICKS_PER_SECOND));
-        im.rect(3, rx, ry, rw, 26, up ? 0x15332a : 0x38201d, 1, 8, up ? COLORS.good : COLORS.bad, 0.6);
-        im.text(`pg-ev-${i}`, `${GOODS[e.good].label}  ${up ? '+' : '-'}${Math.round(Math.abs(e.mult - 1) * 100)}%`, rx + 12, ry + 5, { size: 13, bold: true, color: up ? COLORS.good : COLORS.bad, layer: 3 });
-        im.text(`pg-evt-${i}`, `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')} left`, rx + rw - 12, ry + 6, { size: 12, color: COLORS.muted, align: 'right', layer: 3 });
-      }
-      ry += 32;
-    });
-    ry += 10;
-
+    const W = v.x1 - v.x0;
+    let y = v.y0 - this.scroll;
+    const vis = (yy: number, hh: number): boolean => yy + hh > v.y0 && yy < v.y1;
+    const head = (id: string, text: string, color: number = COLORS.muted): void => {
+      if (vis(y, 22)) im.text(id, text, v.x0, y + 3, { size: 11, bold: true, color, layer: 3 });
+      y += 26;
+    };
     const buildings = world.sites.filter((s) => !SITE_DEFS[s.kind].dock && !SITE_DEFS[s.kind].station);
-    if (vis(ry, 22)) im.text('pg-b-h', `BUILDINGS  ${buildings.length}`, rx, ry + 3, { size: 10, bold: true, color: COLORS.muted, layer: 3 });
-    ry += 22;
-    if (buildings.length === 0) {
-      if (vis(ry, 24)) im.text('pg-b-none', 'Nothing built yet. Pick Production from the menu below.', rx, ry + 2, { size: 13, color: COLORS.muted, wrap: rw, layer: 3 });
-      ry += 30;
-    }
-    // Problems first: full and starved buildings float to the top.
     const rank = (s: Site): number => {
       const c = this.hooks.status(s).color;
       return c === COLORS.bad ? 0 : c === COLORS.warn ? 1 : 2;
     };
-    const sorted = [...buildings].sort((a, b) => rank(a) - rank(b) || a.id - b.id);
-    for (const s of sorted) {
-      const rh = 46;
-      if (vis(ry, rh)) {
-        const def = SITE_DEFS[s.kind];
-        const st = this.hooks.status(s);
-        const hov = im.hit(`pg-row-${s.id}`, rx, ry, rw, rh - 4, () => this.hooks.focusSite(s), 3);
-        im.rect(3, rx, ry, rw, rh - 4, hov ? 0x1f2b3a : COLORS.panelAlt, 1, 10, COLORS.line, 1);
-        const key = `thumb-${s.kind}`;
-        if (this.hooks.hasTexture(key)) im.image(`pg-i-${s.id}`, key, rx + 6, ry + 3, 36, 36, 1, 3);
-        im.text(`pg-nm-${s.id}`, s.name, rx + 50, ry + 4, { size: 13, bold: true, layer: 3 });
-        im.text(`pg-lv-${s.id}`, `${def.label} · Lv ${s.level}`, rx + 50, ry + 22, { size: 11, color: COLORS.muted, layer: 3 });
-        im.circle(3, rx + rw - 150, ry + 17, 4, st.color);
-        im.text(`pg-st-${s.id}`, st.text, rx + rw - 140, ry + 10, { size: 12, color: st.color, wrap: 128, layer: 3 });
-        const ratio = this.fill(world, s);
-        im.bar(3, rx + 50, ry + 38, 90, 3, ratio, ratio > 0.85 ? COLORS.bad : COLORS.good);
+    const problems = buildings.filter((s) => rank(s) < 2).length;
+    const totalMade = GOOD_LIST.reduce((n, g) => n + this.rates.made(g), 0);
+    const totalStored = GOOD_LIST.reduce((n, g) => n + world.sites.filter((s) => !SITE_DEFS[s.kind].dock).reduce((m, s) => m + stockOf(s, g), 0), 0);
+
+    // Four numbers across the top, like a building's dashboard.
+    const tiles: [string, string, number][] = [
+      ['BUILDINGS', String(buildings.length), COLORS.text],
+      ['MADE PER MINUTE', totalMade.toFixed(0), COLORS.good],
+      ['GOODS IN STORE', fmt(totalStored), COLORS.text],
+      [problems ? 'NEED A LOOK' : 'EVERYTHING RUNNING', problems ? String(problems) : 'Yes', problems ? COLORS.warn : COLORS.good],
+    ];
+    const gap = 10;
+    const tc = W < 560 ? 2 : 4;
+    const tw = (W - gap * (tc - 1)) / tc;
+    tiles.forEach(([label, value, color], k) => {
+      const tx = v.x0 + (k % tc) * (tw + gap);
+      const ty = y + Math.floor(k / tc) * 66;
+      if (vis(ty, 58)) {
+        im.rect(3, tx, ty, tw, 58, 0x131a24, 1, 10, COLORS.line, 1);
+        im.text(`pg-t${k}v`, value, tx + 14, ty + 9, { size: 22, bold: true, color, layer: 3 });
+        im.text(`pg-t${k}l`, label, tx + 14, ty + 38, { size: 10, bold: true, color: COLORS.muted, layer: 3 });
       }
-      ry += rh;
+    });
+    y += 72 + (Math.ceil(tiles.length / tc) - 1) * 66;
+
+    // Market swings, only when there are some.
+    const swings = world.events.filter((e) => e.until > world.tick);
+    if (swings.length) {
+      head('pg-ev-h', 'MARKET SWINGS');
+      const sw = W < 560 ? W : Math.min(280, (W - gap * 2) / 3);
+      swings.forEach((e, k) => {
+        const sx = v.x0 + (k % Math.max(1, Math.floor((W + gap) / (sw + gap)))) * (sw + gap);
+        const sy = y + Math.floor(k / Math.max(1, Math.floor((W + gap) / (sw + gap)))) * 40;
+        const up = e.mult > 1;
+        const secs = Math.max(0, Math.round((e.until - world.tick) / TICKS_PER_SECOND));
+        if (vis(sy, 36)) {
+          im.rect(3, sx, sy, sw, 34, up ? 0x15332a : 0x38201d, 1, 10, up ? COLORS.good : COLORS.bad, 0.7);
+          im.text(`pg-ev-${k}`, `${GOODS[e.good].label}  ${up ? '+' : '-'}${Math.round(Math.abs(e.mult - 1) * 100)}%`, sx + 14, sy + 8, { size: 14, bold: true, color: up ? COLORS.good : COLORS.bad, layer: 3 });
+          im.text(`pg-evt-${k}`, `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')} left`, sx + sw - 14, sy + 9, { size: 12, color: COLORS.muted, align: 'right', layer: 3 });
+        }
+      });
+      y += Math.ceil(swings.length / Math.max(1, Math.floor((W + gap) / (sw + gap)))) * 40 + 10;
     }
-    const rightH = ry + this.scroll - v.y0;
-    return Math.max(leftH, rightH) + 8;
+
+    // Buildings first, problems on top: a card each, in columns.
+    head('pg-b-h', `YOUR BUILDINGS  ${buildings.length}`);
+    if (buildings.length === 0) {
+      if (vis(y, 24)) im.text('pg-b-none', 'Nothing built yet. Pick Production from the menu below.', v.x0, y + 2, { size: 13, color: COLORS.muted, wrap: W, layer: 3 });
+      y += 34;
+    }
+    const cols = W > 1500 ? 4 : W > 1000 ? 3 : W > 640 ? 2 : 1;
+    const bw = (W - gap * (cols - 1)) / cols;
+    const sorted = [...buildings].sort((a, b) => rank(a) - rank(b) || a.id - b.id);
+    sorted.forEach((s, k) => {
+      const bx = v.x0 + (k % cols) * (bw + gap);
+      const by = y + Math.floor(k / cols) * 74;
+      if (!vis(by, 70)) return;
+      const def = SITE_DEFS[s.kind];
+      const st = this.hooks.status(s);
+      const hov = im.hit(`pg-row-${s.id}`, bx, by, bw, 66, () => this.hooks.focusSite(s), 3);
+      im.rect(3, bx, by, bw, 66, hov ? 0x1f2b3a : COLORS.panelAlt, 1, 12, st.color === COLORS.good ? COLORS.line : st.color, st.color === COLORS.good ? 1 : 0.8);
+      const key = `thumb-${s.kind}`;
+      if (this.hooks.hasTexture(key)) im.image(`pg-i-${s.id}`, key, bx + 8, by + 9, 48, 48, 1, 3);
+      im.text(`pg-nm-${s.id}`, s.name, bx + 66, by + 8, { size: 13, bold: true, wrap: bw - 76, layer: 3 });
+      im.text(`pg-lv-${s.id}`, `${def.label} · Lv ${s.level}`, bx + 66, by + 26, { size: 11, color: COLORS.muted, layer: 3 });
+      im.circle(3, bx + 70, by + 52, 4, st.color);
+      im.text(`pg-st-${s.id}`, st.text, bx + 80, by + 45, { size: 11, color: st.color, layer: 3 });
+      const ratio = this.fill(world, s);
+      im.bar(3, bx + bw - 76, by + 50, 64, 5, ratio, ratio > 0.85 ? COLORS.bad : COLORS.good);
+    });
+    y += Math.ceil(buildings.length / cols) * 74 + 14;
+
+    // Every good as a card: what is in store, and how fast it is made and used.
+    for (const group of KIND_ORDER) {
+      const goods = GOOD_LIST.filter((g) => GOODS[g].kind === group.kind);
+      head(`pg-g-${group.kind}`, group.label.toUpperCase());
+      const gc = W > 1500 ? 6 : W > 1100 ? 5 : W > 860 ? 4 : W > 600 ? 3 : 2;
+      const gw = (W - gap * (gc - 1)) / gc;
+      goods.forEach((g, k) => {
+        const gx = v.x0 + (k % gc) * (gw + gap);
+        const gy = y + Math.floor(k / gc) * 70;
+        if (!vis(gy, 64)) return;
+        const stored = world.sites.filter((s) => !SITE_DEFS[s.kind].dock).reduce((n, s) => n + stockOf(s, g), 0);
+        const made = this.rates.made(g);
+        const used = this.rates.used(g);
+        im.rect(3, gx, gy, gw, 62, 0x131a24, 1, 10, COLORS.line, 1);
+        im.circle(3, gx + 16, gy + 17, 6, GOODS[g].color);
+        im.text(`pg-n-${g}`, GOODS[g].label, gx + 30, gy + 9, { size: 13, bold: true, layer: 3 });
+        im.text(`pg-s-${g}`, fmt(stored), gx + gw - 12, gy + 6, { size: 20, bold: true, align: 'right', color: stored > 0 ? COLORS.text : COLORS.muted, layer: 3 });
+        im.text(`pg-m-${g}`, made > 0.05 ? `+${made.toFixed(1)}/min` : 'not made', gx + 12, gy + 38, { size: 11, color: made > 0.05 ? COLORS.good : COLORS.muted, layer: 3 });
+        im.text(`pg-u-${g}`, used > 0.05 ? `-${used.toFixed(1)}/min` : 'not used', gx + gw - 12, gy + 38, { size: 11, color: used > 0.05 ? COLORS.warn : COLORS.muted, align: 'right', layer: 3 });
+      });
+      y += Math.ceil(goods.length / gc) * 70 + 8;
+    }
+    return y + this.scroll - v.y0 + 8;
   }
 
   /** How full the fullest shelf of a building is, 0..1. */

@@ -30,6 +30,11 @@ import {
   relayoutNodes,
   homesNow,
   upgradeVehicle,
+  duplicateVehicle,
+  setAutoBuy,
+  acceptOffer,
+  declineOffer,
+  type TruckOffer,
   sellVehicle,
   setVehicleDest,
   setVehiclePick,
@@ -50,6 +55,7 @@ import {
   createWorldFromMap,
   type MapData,
   demolishSite,
+  demolishRefund,
   nodeAt,
   plotFacing,
   layoutOf,
@@ -264,6 +270,8 @@ export class Game3D {
   touch = false;
   /** The tile a touch player has tapped to build or demolish on, waiting for the confirm button. */
   pending: Tile | null = null;
+  /** A demolish waiting for the player to confirm it in a pop-up. */
+  removal: { title: string; detail: string; verb: string; run: () => void } | null = null;
   /** The airport picked first while drawing an air route. */
   airFrom: number | null = null;
   private airGroup: THREE.Group | null = null;
@@ -924,16 +932,11 @@ export class Game3D {
       // A district is drawn with its town (a landmark on its lot), not as a building of its own.
       if (SITE_DEFS[s.kind].dock === 'civic') continue;
       let m = this.siteMeshes.get(s.id);
-      const before = this.siteLevels.get(s.id);
       this.siteLevels.set(s.id, s.level);
       // Built since the world was first shown, or upgraded: it goes up behind scaffolding.
       const isNew = !m && this.sitesShown;
-      const upgraded = before !== undefined && s.level > before;
-      void upgraded;
-      if (isNew && this.construction) {
-        const text = SITE_DEFS[s.kind].dock || SITE_DEFS[s.kind].station ? '' : `${s.name} is open`;
-        this.construction.start(s.id, this.nowMs, text, null, this.siteGeometryFor(s.kind, s.level));
-      }
+      // No build-up animation for a new or upgraded building: only towns growing are shown.
+      if (isNew && !SITE_DEFS[s.kind].dock && !SITE_DEFS[s.kind].station) this.onToast(`${s.name} is open`);
       if (!m) {
         m = new THREE.Mesh(this.siteGeometryFor(s.kind, s.level), siteMaterial);
         m.castShadow = true;
@@ -1310,7 +1313,6 @@ export class Game3D {
       if (have) {
         // Traded up: the same vehicle, a bigger body.
         if (have.userData.kind !== v.kind) {
-          have.userData.pop = this.nowMs;
           have.geometry = g;
           have.userData.kind = v.kind;
           this.cargoMeshes.get(v.id)?.position.set(0, CARGO_AT[v.kind][0], CARGO_AT[v.kind][1]);
@@ -1418,12 +1420,7 @@ export class Game3D {
       // Ships ride the swell a little.
       if (sea) pt.pos.addScaledVector(pt.up, 0.05 * Math.sin(this.nowMs / 650 + v.id));
       m.visible = !pt.hidden;
-      // Just upgraded: it swells, overshoots and settles, in a puff of dust.
-      const pop = m.userData.pop as number | undefined;
-      const k = pop === undefined ? 1 : (this.nowMs - pop) / 1200;
-      const bounce = k < 1 ? 1 + 0.6 * Math.sin(k * Math.PI * 2.5) * (1 - k) : 1;
-      if (k < 0.7) this.popDust.set(-2e6 - v.id, { pos: pt.pos.clone().addScaledVector(pt.up, 0.3), up: pt.up.clone(), every: 0.06 });
-      const sc = (air ? 2.1 : sea ? 1.7 : 1.35) * bounce;
+      const sc = air ? 2.1 : sea ? 1.7 : 1.35;
       const units = m.userData.units as { z: number; len: number }[] | null;
       if (units && route.mode === 'rail') {
         // Each unit sits where its own centre falls along the track and points along the chord between its ends, so
@@ -1836,9 +1833,17 @@ export class Game3D {
         return;
       }
       const refund = routeRefund(w, route);
-      const err = removeRoute(w, route.id);
-      this.showRemoval(undefined);
-      this.onToast(err ?? `Removed for $${refund.toLocaleString('en-US')} back`);
+      const what = route.mode === 'rail' ? 'track' : route.grade === 'highway' ? 'highway' : route.mode === 'road' ? 'road' : 'line';
+      this.removal = {
+        title: `Remove this stretch of ${what}?`,
+        detail: `Vehicles using it will have to find another way. You get $${refund.toLocaleString('en-US')} back.`,
+        verb: 'Remove',
+        run: () => {
+          const err = removeRoute(w, route.id);
+          this.showRemoval(undefined);
+          this.onToast(err ?? `Removed for $${refund.toLocaleString('en-US')} back`);
+        },
+      };
       return;
     }
     const err = placeSite(w, this.tool as SiteKind, tile.x, tile.y);
@@ -2019,7 +2024,20 @@ export class Game3D {
 
   // ---- actions used by the HUD panels ----
 
+  /** Ask first: the pop-up runs the demolish once the player confirms. */
   demolish(siteId: number): void {
+    const s = siteById(this.world, siteId);
+    if (!s) return;
+    const n = this.world.vehicles.filter((v) => v.homeId === siteId).length;
+    this.removal = {
+      title: `Demolish ${s.name}?`,
+      detail: `The roads that join it go too${n ? `, and its ${n} vehicle${n === 1 ? ' is' : 's are'} sold` : ''}. You get $${demolishRefund(s).toLocaleString('en-US')} back.`,
+      verb: 'Demolish',
+      run: () => this.demolishNow(siteId),
+    };
+  }
+
+  private demolishNow(siteId: number): void {
     const name = siteById(this.world, siteId)?.name ?? 'Building';
     const err = demolishSite(this.world, siteId);
     if (!err && this.selection?.kind === 'site' && this.selection.id === siteId) this.select(null);
@@ -2044,14 +2062,27 @@ export class Game3D {
     this.onToast(err ?? `${vehicleLabel(kind, site ? bodyForLine(site, line) : 'box')} bought`);
   }
 
+  autoBuy(siteId: number, on: boolean): void {
+    setAutoBuy(this.world, siteId, on);
+    this.onToast(on ? 'Auto-buy on: it will ask before buying' : 'Auto-buy off');
+  }
+
+  answerOffer(offer: TruckOffer, yes: boolean): void {
+    if (!yes) return declineOffer(this.world, offer);
+    const site = siteById(this.world, offer.siteId);
+    const err = acceptOffer(this.world, offer);
+    this.onToast(err ?? `${vehicleLabel(offer.kind, site ? bodyForLine(site, offer.line) : 'box')} bought`);
+  }
+
+  duplicateVeh(id: number): void {
+    const err = duplicateVehicle(this.world, id);
+    this.onToast(err ?? 'Bought another just like it');
+  }
+
   upgradeVeh(id: number): void {
     const err = upgradeVehicle(this.world, id);
     const v = this.world.vehicles.find((x) => x.id === id);
     this.onToast(err ?? (v ? `Upgraded to a ${VEHICLE_DEFS[v.kind].label}` : 'Vehicle upgraded'));
-    if (err || !v) return;
-    const route = vehicleRoute(this.world, v);
-    const at = route?.path[Math.max(0, Math.min(route.path.length - 1, v.idx))] ?? siteById(this.world, v.homeId);
-    if (at) this.watch(at.x, at.y, 12, 1800);
   }
 
   sellVeh(id: number): void {

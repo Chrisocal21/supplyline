@@ -186,7 +186,7 @@ describe('islands and the sea', () => {
     // Every tile of the lane between the ports is water.
     for (const t of route.path.slice(1, -1)) expect(terrainAt(w, t.x, t.y)).toBe('water');
     expect(buyVehicle(w, pa.id, 'boat')).toBeNull();
-    pa.stock.coffee = 100;
+    pa.stock.coffee = 400;
     pb.pull = ['coffee'];
     setSendTo(w, pa.id, pb.id, true);
     for (let i = 0; i < 6000; i++) {

@@ -20,6 +20,8 @@ import {
   siteAt,
   siteById,
   step,
+  inboundTo,
+  HISTORY_JOBS,
   stockOf,
   upgradeSite,
   wrapX,
@@ -201,6 +203,20 @@ describe('logistics loop', () => {
     // growing to level 2 opens the freight yard
     expect(w.sites.some((s) => s.kind === 'freight')).toBe(true);
     expect(w.earned).toBeGreaterThan(0);
+  });
+
+  it('remembers its last sold jobs, never more than 30, and shows loads on the way', () => {
+    const w = buildChain();
+    const saw = w.sites.find((x) => x.kind === 'sawmill')!;
+    let inbound = 0;
+    for (let i = 0; i < 12000; i++) {
+      step(w);
+      if (i % 20 === 0) inbound = Math.max(inbound, inboundTo(w, saw).length);
+    }
+    expect(inbound).toBeGreaterThan(0);
+    expect(saw.history?.length ?? 0).toBeGreaterThan(5);
+    expect(saw.history!.length).toBeLessThanOrEqual(HISTORY_JOBS);
+    expect(saw.history!.every((j) => j.money > 0 && j.units > 0)).toBe(true);
   });
 
   it('never carries more than the truck holds', () => {

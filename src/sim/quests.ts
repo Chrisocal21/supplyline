@@ -20,7 +20,7 @@ import {
   type TierDef,
 } from './defs';
 import { builtDistricts, pathsInUse } from './town';
-import type { World } from './world';
+import { sellTargets, type World } from './world';
 
 export interface Progress {
   have: number;
@@ -58,7 +58,7 @@ export function questProgress(world: World, goal: QuestGoal): Progress {
       need = goal.count;
       break;
     case 'selling':
-      have = world.sites.filter((s) => (s.sendTo ?? []).length > 0).length;
+      have = world.sites.filter((s) => sellTargets(world, s).some((t) => t.on)).length;
       need = goal.count;
       break;
     case 'deliver':

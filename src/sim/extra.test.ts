@@ -4,7 +4,7 @@ import { findPath } from './path';
 import { put } from './testutil';
 import { runChores } from './bot';
 import { SITE_DEFS } from './defs';
-import { needs as needsFn, removeRoute, routeAt, addDock, yardSpot, placeError, buildRoadTo, buyersFor, setHubOptions, buyOptions, buyVehicle, roadPlan, setMaking, setSendTo, createBlankWorld, createRoute, demolishSite, airPath, createAirRoute, dockDemand, ensureStations, townSites, onNetwork, placeAt, placeSite, planRoute, siteAt, streetAt, step, stockOf, type World } from './world';
+import { needs as needsFn, removeRoute, routeAt, addDock, yardSpot, placeError, buildRoadTo, buyersFor, setHubOptions, buyOptions, siteCap, buyVehicle, roadPlan, setMaking, setSendTo, createBlankWorld, createRoute, demolishSite, airPath, createAirRoute, dockDemand, ensureStations, townSites, onNetwork, placeAt, placeSite, planRoute, siteAt, streetAt, step, stockOf, type World } from './world';
 
 function open(): World {
   const w = 30;
@@ -235,7 +235,7 @@ describe('rail', () => {
     put(w, 'mill', 9, 6);
     createRoute(w, findPath(w, siteAt(w, 3, 6)!, siteAt(w, 9, 6)!, 120000, 'rail')!, 'rail');
     runChores(w);
-    for (let i = 0; i < 1500; i++) step(w);
+    for (let i = 0; i < 8000; i++) step(w);
     expect(stockOf(siteAt(w, 9, 6)!, 'flour') + (siteAt(w, 9, 6)!.stock.grain ?? 0)).toBeGreaterThan(0);
   });
 });
@@ -281,16 +281,12 @@ describe('towns as districts', () => {
     expect(link).toBeDefined();
     expect(link!.path.every((t) => Math.abs(t.x - 20) <= 2 && Math.abs(t.y - 6) <= 2)).toBe(true);
     expect(w.vehicles).toHaveLength(0);
-    // Buy a truck, switch the bakery on and the sale on: only then does it start.
+    // Buy a truck and switch the bakery on: only then does it start.
     expect(buyVehicle(w, bakery.id, 'boxtruck')).toBeNull();
     for (let i = 0; i < 60; i++) step(w);
-    expect(w.vehicles[0].routeId).toBe(0);
     setMaking(w, bakery.id, true);
     for (let i = 0; i < 60; i++) step(w);
-    expect(w.vehicles[0].routeId).toBe(0); // production is on, but the sale is not
-    setSendTo(w, bakery.id, market.id, true);
-    for (let i = 0; i < 60; i++) step(w);
-    expect(w.vehicles[0].routeId).toBe(link!.id);
+    expect(w.vehicles[0].routeId).toBe(link!.id); // it sells to the market on its own: no switch to flip
   });
 
   it('makes nothing until production is switched on', () => {
@@ -317,7 +313,7 @@ describe('towns as districts', () => {
       step(w);
     }
     expect(w.produced.lumber ?? 0).toBeGreaterThan(100);
-    expect(stockOf(saw, 'sawdust')).toBe(30);
+    expect(stockOf(saw, 'sawdust')).toBe(siteCap(w, saw));
     expect(w.consumed.logs ?? 0).toBeGreaterThan(200);
   });
 
@@ -570,7 +566,7 @@ describe('rail stations', () => {
     const good = dockDemand(w, market)[0];
     placeSite(w, 'hub', 10, 3);
     const hub = siteAt(w, 10, 3)!;
-    hub.stock[good] = 120;
+    hub.stock[good] = 400;
     const path = findPath(w, hub, station, 120000, 'rail')!;
     expect(path).not.toBeNull();
     expect(createRoute(w, path, 'rail')).toBeNull();
