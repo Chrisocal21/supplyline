@@ -215,6 +215,7 @@ export class HudScene extends Phaser.Scene {
     kb.on('keydown-B', () => this.toggleSheet('bank'));
     kb.on('keydown-G', () => this.toggleSheet('quests'));
     kb.on('keydown-H', () => this.toggleSheet('guide'));
+    kb.on('keydown-N', () => this.nextProblem());
     for (let i = 1; i <= 9; i++) kb.on(`keydown-${['ONE', 'TWO', 'THREE', 'FOUR', 'FIVE', 'SIX', 'SEVEN', 'EIGHT', 'NINE'][i - 1]}`, () => this.pickByNumber(i - 1));
 
     // Any other key, or a click on the picture, skips the opening film.
@@ -1671,6 +1672,25 @@ export class HudScene extends Phaser.Scene {
   }
   private planBudget = 1;
 
+  private problemAt = -1;
+
+  /** Jump to the next building that is stuck, and say why. Press N again for the one after. */
+  private nextProblem(): void {
+    const g = this.game3d;
+    const w = g.world;
+    const list = w.sites.filter((s) => !SITE_DEFS[s.kind].dock && !SITE_DEFS[s.kind].station && diagnoseAll(w, s).level !== 'ok');
+    if (list.length === 0) {
+      this.toasts.push({ text: 'Nothing is stuck. All running.', until: this.time.now + 2600 });
+      return;
+    }
+    this.problemAt = (this.problemAt + 1) % list.length;
+    const s = list[this.problemAt];
+    this.sheet = null;
+    g.select({ kind: 'site', id: s.id });
+    g.lookAt(s.x, s.y, 45, g.cam.heading, g.cam.pitchManual);
+    this.toasts.push({ text: `${s.name}: ${diagnoseAll(w, s).text}  (${this.problemAt + 1} of ${list.length}, N for next)`, until: this.time.now + 5200 });
+  }
+
   /** After a town has grown: one button back to the view the player had before, in the same camera angle. */
   private backButton(W: number, H: number): void {
     const im = this.im;
@@ -1994,7 +2014,7 @@ export class HudScene extends Phaser.Scene {
       const h = open ? 190 : 64;
       im.rect(2, x, cy, w, h, 0x131a24, 1, 10, COLORS.line, 1);
       im.text(`tv${v.id}n`, `${vehicleLabel(v.kind, v.body)} ${n + 1}`, x + 10, cy + 8, { size: 12, bold: true, layer: 3 });
-      im.text(`tv${v.id}c`, `carries ${vd.capacity}`, x + 10, cy + 26, { size: 10, color: COLORS.muted, layer: 3 });
+      im.text(`tv${v.id}c`, `carries ${vd.capacity} t`, x + 10, cy + 26, { size: 10, color: COLORS.muted, layer: 3 });
       im.text(`tv${v.id}s`, st.text, x + 10, cy + 42, { size: 11, color: st.color, wrap: w - 20, layer: 3 });
       const upErr = upgradeVehicleError(world, v.id);
       const next = vd.next ? VEHICLE_DEFS[vd.next] : null;

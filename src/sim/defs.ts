@@ -119,7 +119,8 @@ const raw = (label: string, blurb: string, cost: number, tier: number, node: Nod
   cap: 60,
   node,
   color,
-  produce: { good, every, also: also.map((g) => ({ good: g, every: Math.round(every * 2.5) })) },
+  // From tier 1 on, raw sites run a third slower than before, so trucks and roads, not the ground, decide how much you can sell. The first tier stays quick to learn on. By-products come at 2.5 times the gap.
+  produce: { good, every: Math.round(every * (tier >= 1 ? 1.5 : 1)), also: also.map((g) => ({ good: g, every: Math.round(every * (tier >= 1 ? 1.5 : 1) * 2.5) })) },
 });
 
 const proc = (
@@ -359,7 +360,7 @@ export const VEHICLE_UPKEEP = 0.04;
 export const SITE_UPKEEP = 0.01;
 export const DISTRICT_UPKEEP = 0.015;
 /** Towns pay this share of the list price. Keeps the early game from running away. */
-export const SALE_MULT = 0.55;
+export const SALE_MULT = 0.65;
 /** Trading in a vehicle for the next class returns this share of its price. */
 export const TRADE_IN = 0.5;
 

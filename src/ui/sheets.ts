@@ -225,7 +225,7 @@ const GUIDE: GuideSection[] = [
         title: 'Shortcuts',
         sum: 'Faster ways to do things.',
         body: {
-          mouse: 'Tab: next category.\n1 to 9: pick a card.\nP: production. T: towns. G: quests. H: this guide.\nSpace: pause. Esc: close.\nIt saves by itself every 20 seconds.',
+          mouse: 'Tab: next category.\n1 to 9: pick a card.\nP: production. T: towns. G: quests. H: this guide. N: jump to the next stuck building.\nSpace: pause. Esc: close.\nIt saves by itself every 20 seconds.',
           touch: 'Everything is a button.\nIt saves by itself every 20 seconds.',
         },
       },
