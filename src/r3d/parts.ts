@@ -122,6 +122,18 @@ export class Parts {
     return this.add(new THREE.IcosahedronGeometry(r, detail), color, o);
   }
 
+  /**
+   * A flat-topped solid of any outline: the polygon `points` (x, z), with optional holes, stood up from y to y + h. Used for
+   * the true shapes of things: a rounded stadium bowl, a baseball outfield, a rink.
+   */
+  prism(points: [number, number][], h: number, color: number, o: Place = {}, holes: [number, number][][] = []): this {
+    const shape = new THREE.Shape(points.map(([x, z]) => new THREE.Vector2(x, -z)));
+    for (const hole of holes) shape.holes.push(new THREE.Path(hole.map(([x, z]) => new THREE.Vector2(x, -z))));
+    const g = new THREE.ExtrudeGeometry(shape, { depth: h, bevelEnabled: false, curveSegments: 1 });
+    g.rotateX(-Math.PI / 2);
+    return this.add(g, color, o);
+  }
+
   /** Gable roof: width w across x, length d along z, ridge h high. Base at y. */
   gable(w: number, h: number, d: number, color: number, o: Place = {}): this {
     const a = w / 2;

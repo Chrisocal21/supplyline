@@ -1,5 +1,5 @@
 // Builds a small working base near the first town. Used by the #demo link and for screenshots; never saved.
-import type { DistrictId, SiteKind } from '../sim/defs';
+import { SITE_DEFS, type DistrictId, type SiteKind } from '../sim/defs';
 import { buildDistrict } from '../sim/town';
 import { findPath } from '../sim/path';
 import { runChores } from '../sim/bot';
@@ -12,6 +12,7 @@ import {
   setSendTo,
   upgradeVehicle,
   placeSite,
+  portSpot,
   siteAt,
   terrainAt,
   yardSpot,
@@ -35,7 +36,21 @@ function connect(w: World, a: Site, b: Site, mode: 'road' | 'rail' = 'road', gra
 }
 
 /** Where the showpieces of the last demo base stand, for the opening flythrough. */
-export const demoSpots: { airport?: Tile; airport2?: Tile; yard?: Tile; stadium?: Tile; amphitheatre?: Tile; farm?: Tile; stadiumTown?: Tile } = {};
+export const demoSpots: {
+  airport?: Tile;
+  airport2?: Tile;
+  yard?: Tile;
+  stadium?: Tile;
+  amphitheatre?: Tile;
+  farm?: Tile;
+  stadiumTown?: Tile;
+  ballpark?: Tile;
+  arena?: Tile;
+  bigAmphitheatre?: Tile;
+  port?: Tile;
+  sawmill?: Tile;
+  forestry?: Tile;
+} = {};
 
 /** Two airports a good way apart on open ground near the town, joined by an air route with a plane flying cargo between them. */
 function addAirfield(w: World, town: Tile): void {
@@ -50,6 +65,7 @@ function addAirfield(w: World, town: Tile): void {
       let open = 0;
       for (let dy = -3; dy <= 3; dy++) for (let dx = -3; dx <= 3; dx++) if (terrainAt(w, wrapX(w, x + dx), y + dy) === 'grass') open += 1;
       if (open < 44) continue;
+      if (w.nodes.some((n) => dist(w, n, { x, y }) < 5)) continue;
       if (found.every((f) => dist(w, f, { x, y }) >= 16)) found.push({ x, y });
     }
   }
@@ -67,6 +83,8 @@ function addAirfield(w: World, town: Tile): void {
   b.stock.flour = 400;
   setSendTo(w, a.id, b.id, true);
   setSendTo(w, b.id, a.id, true);
+  a.level = 3;
+  b.level = 2;
   buyVehicle(w, a.id, 'plane');
   buyVehicle(w, b.id, 'plane');
 }
@@ -146,6 +164,21 @@ export function buildDemo(world: World): Tile | null {
   civic(big, 'community');
   const am = civic(town, 'amphitheatre');
   if (am) demoSpots.amphitheatre = am;
+  const bp = civic(big, 'ballpark');
+  if (bp) demoSpots.ballpark = bp;
+  const ar = civic(big, 'arena');
+  if (ar) demoSpots.arena = ar;
+  const ba = civic(big, 'amphitheatre');
+  if (ba) demoSpots.bigAmphitheatre = ba;
+  civic(big, 'resort');
+  civic(big, 'cafe');
+  civic(town, 'cafe');
+  if (sawmill) demoSpots.sawmill = { x: sawmill.x, y: sawmill.y };
+  if (forestry) demoSpots.forestry = { x: forestry.x, y: forestry.y };
+  // A port on the coast near the big city.
+  const bigDock = world.sites.find((q) => q.placeId === big.id && SITE_DEFS[q.kind].dock === 'freight');
+  const pp = portSpot(world, bigDock ?? big, 24);
+  if (pp && placeSite(world, 'port', pp.x, pp.y) === null) demoSpots.port = pp;
 
   // The base runs: factories on, sales on, trucks bought, as a player would have set it up.
   runChores(world);

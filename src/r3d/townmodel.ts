@@ -3,7 +3,7 @@
 import * as THREE from 'three';
 import { type DistrictId, type TownStyle } from '../sim/defs';
 import { R as GLOBE_R } from './geo';
-import { districtLandmark } from './districts';
+import { districtLandmark, type Setting } from './districts';
 import { Parts } from './parts';
 
 const TILE = 3.27;
@@ -66,7 +66,7 @@ export interface TownModelOptions {
   /** The tiles beside the streets where homes stand (as far as the town has grown), and whether each can be built on. */
   homes: { x: number; y: number; ok: boolean }[];
   /** Districts the town has built, each a building on its own lot beside a street: the lot, and the street tile its door meets. */
-  districts?: { id: DistrictId; level: number; x: number; y: number; ex: number; ey: number }[];
+  districts?: { id: DistrictId; level: number; x: number; y: number; ex: number; ey: number; setting?: Setting }[];
 }
 
 export function townGeometry(o: TownModelOptions): THREE.BufferGeometry {
@@ -251,7 +251,7 @@ export function townGeometry(o: TownModelOptions): THREE.BufferGeometry {
     const cz = Z(d.y);
     marks.push({ id: d.id, level: d.level, tx: d.x, ty: d.y, x: cx, z: cz });
     p.anchor = [cx, cz];
-    districtLandmark(p, d.id, d.level, cx, cz, yawToward(fx, fz));
+    districtLandmark(p, d.id, d.level, cx, cz, yawToward(fx, fz), d.setting);
     p.tex = 6;
     p.box(fx === 0 ? 0.6 : 0.5, 0.012, fz === 0 ? 0.6 : 0.5, 0xa39e92, { x: cx + fx * 1.2 * sq, y: 0.03, z: cz + fz * 1.2 });
     p.tex = 0;

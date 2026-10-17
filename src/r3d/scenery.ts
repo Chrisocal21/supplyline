@@ -5,6 +5,7 @@ import { tileLonLat } from '../sim/mapgen';
 import { plotTiles, townTiles, type World } from '../sim/world';
 import { HeightField, LAT_SPAN, R, basisMatrix, lonLatToVec } from './geo';
 import { Parts } from './parts';
+import { specialtyNodeProps } from './specialty';
 
 function rng(seed: number): () => number {
   let a = seed >>> 0;
@@ -120,6 +121,11 @@ function nodeProps(kind: NodeKind): THREE.BufferGeometry {
       for (const [x, z] of [[0.02, 0.6], [0.28, 0.6], [0.02, 0.8], [0.28, 0.8]]) p.cyl(0.06, 0.06, 0.04, 0x1f2124, { x, y: 0.04, z, rz: Math.PI / 2 }, 8);
       break;
     }
+    case 'coffee':
+    case 'mango':
+    case 'oil':
+      specialtyNodeProps(p, kind);
+      break;
     case 'coal':
       p.cone(0.6, 0.55, 0x2b2d31, { x: -0.1, y: 0.02, z: -0.3 }, 9);
       p.cone(0.36, 0.34, 0x33353a, { x: 0.55, y: 0.02, z: 0.1 }, 8);

@@ -4,6 +4,8 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { GOODS, SITE_DEFS, type Good, type SiteKind, type VehicleKind } from '../sim/defs';
 import { industryGeometry } from './industry';
+import { cargoShipGeometry, coasterGeometry, containerShipGeometry } from './opening';
+import { portGeometry } from './specialty';
 import { Parts } from './parts';
 
 const C = {
@@ -393,24 +395,201 @@ function station(): THREE.BufferGeometry {
   return p.build();
 }
 
-function airport(): THREE.BufferGeometry {
-  const p = new Parts();
-  p.slab(2.7, 2.6, 0x8d8f91);
+/**
+ * A parked or flying airliner built from simple shapes, nose toward +z when yaw is 0: a white fuselage with a tapered tail,
+ * dark cockpit and a row of windows, swept wings with engines under them, a tail fin and tail planes, and a colour stripe.
+ * `size` scales it (1 is the cargo plane's length); `engines` is two or four; `gear` adds wheels for one on the ground.
+ */
+function airliner(p: Parts, x: number, z: number, yaw: number, size: number, livery: number, engines = 2, gear = true): void {
+  const c = Math.cos(yaw);
+  const sn = Math.sin(yaw);
+  const at = (lx: number, lz: number): { x: number; z: number } => ({ x: x + lx * c + lz * sn, z: z - lx * sn + lz * c });
+  const s = size;
+  const r = 0.15 * s;
+  const y = 0.2 * s + (gear ? 0.06 * s : 0);
+  const white = 0xf0f1f2;
+  const prevTex = p.tex;
+  p.tex = 0;
+  // Fuselage, nose and tapering tail.
+  const body = at(0, -0.62 * s);
+  p.cyl(r, r, 1.3 * s, white, { x: body.x, y, z: body.z, rx: Math.PI / 2, ry: yaw }, 14);
+  const nose = at(0, 0.68 * s);
+  p.cone(r, 0.36 * s, white, { x: nose.x, y, z: nose.z, rx: Math.PI / 2, ry: yaw }, 14);
+  const tail = at(0, -0.62 * s);
+  p.cyl(r * 0.28, r, 0.62 * s, white, { x: tail.x, y: y + 0.01 * s, z: tail.z, rx: -Math.PI / 2, ry: yaw }, 14);
+  // Belly, the colour stripe and a row of windows along each side.
+  const belly = at(0, -0.5 * s);
+  p.box(r * 1.5, 0.05 * s, 1.0 * s, 0xc9cdd0, { x: belly.x, y: y - r - 0.01 * s, z: belly.z, ry: yaw });
+  for (const side of [-1, 1]) {
+    const st = at(side * (r + 0.002 * s), -0.45 * s);
+    p.box(0.012 * s, 0.035 * s, 1.1 * s, livery, { x: st.x, y: y - 0.03 * s, z: st.z, ry: yaw });
+    for (let i = 0; i < 9; i++) {
+      const w = at(side * (r + 0.003 * s), 0.38 * s - i * 0.095 * s);
+      p.box(0.012 * s, 0.03 * s, 0.045 * s, 0x2a3946, { x: w.x, y: y + 0.03 * s, z: w.z, ry: yaw });
+    }
+  }
+  const cock = at(0, 0.52 * s);
+  p.box(r * 1.5, 0.05 * s, 0.1 * s, 0x1f2e3a, { x: cock.x, y: y + r * 0.45, z: cock.z, ry: yaw, rx: -0.5 });
+  // Swept wings with engines slung under them, and the tail plane.
+  for (const side of [-1, 1]) {
+    const w = at(side * 0.42 * s, -0.02 * s);
+    p.box(0.8 * s, 0.025 * s, 0.3 * s, 0xd5d9dc, { x: w.x, y: y - 0.07 * s, z: w.z, ry: yaw + side * 0.5 });
+    const tip = at(side * 0.8 * s, -0.22 * s);
+    p.box(0.02 * s, 0.07 * s, 0.1 * s, livery, { x: tip.x, y: y - 0.06 * s, z: tip.z, ry: yaw });
+    for (const px of engines === 4 ? [0.28, 0.55] : [0.3]) {
+      const e = at(side * px * s, 0.1 * s);
+      p.cyl(0.055 * s, 0.05 * s, 0.22 * s, 0xaab1b6, { x: e.x, y: y - 0.16 * s, z: e.z, rx: Math.PI / 2, ry: yaw }, 10);
+      const f = at(side * px * s, 0.32 * s);
+      p.cyl(0.04 * s, 0.04 * s, 0.01 * s, 0x2a2e33, { x: f.x, y: y - 0.16 * s, z: f.z, rx: Math.PI / 2, ry: yaw }, 10);
+    }
+    const t = at(side * 0.14 * s, -1.12 * s);
+    p.box(0.3 * s, 0.02 * s, 0.14 * s, 0xd5d9dc, { x: t.x, y, z: t.z, ry: yaw + side * 0.45 });
+  }
+  const fin = at(0, -1.08 * s);
+  p.box(0.02 * s, 0.28 * s, 0.22 * s, livery, { x: fin.x, y: y + 0.04 * s, z: fin.z, ry: yaw });
+  if (gear) {
+    for (const [gx, gz] of [[0, 0.5], [-0.12, -0.1], [0.12, -0.1]]) {
+      const g = at(gx * s, gz * s);
+      p.box(0.015 * s, 0.1 * s, 0.015 * s, 0x6b7279, { x: g.x, y: 0.03 * s, z: g.z });
+      p.cyl(0.032 * s, 0.032 * s, 0.03 * s, 0x1d1f22, { x: g.x, y: 0.0, z: g.z, rz: Math.PI / 2 }, 8);
+    }
+  }
+  p.tex = prevTex;
+}
+
+const LIVERY = [0x2f5f8a, 0xb23a30, 0x2f7a55, 0xd7a21f, 0x7a4a9a];
+
+/** A short block of parked cars, for scale. */
+function carPark(p: Parts, x: number, z: number, cols: number, rows: number): void {
+  p.tex = 0;
+  p.box(cols * 0.17 + 0.1, 0.02, rows * 0.3 + 0.1, 0x55575b, { x, y: 0.035, z });
+  const colors = [0xb23a30, 0x2f5f8a, 0xe6e6e1, 0x2a2d31, 0xd7a21f, 0x3f7a55];
+  for (let r = 0; r < rows; r++) {
+    for (let k = 0; k < cols; k++) {
+      if ((r * 7 + k * 3) % 5 === 0) continue;
+      const cx = x - (cols * 0.17) / 2 + 0.085 + k * 0.17;
+      const cz = z - (rows * 0.3) / 2 + 0.15 + r * 0.3;
+      p.box(0.1, 0.045, 0.2, colors[(r + k * 2) % colors.length], { x: cx, y: 0.055, z: cz });
+      p.box(0.08, 0.025, 0.1, 0x25333f, { x: cx, y: 0.1, z: cz });
+    }
+  }
+}
+
+/** A runway along z: surface, edge lines, threshold bars at both ends and dashes down the centre. */
+function runway(p: Parts, x: number, z0: number, z1: number, w: number): void {
+  const len = z1 - z0;
+  const mid = (z0 + z1) / 2;
+  p.tex = 0;
+  p.box(w, 0.03, len, 0x35373b, { x, y: 0.04, z: mid });
+  p.box(0.015, 0.012, len, 0xdcdcd6, { x: x - w / 2 + 0.03, y: 0.07, z: mid });
+  p.box(0.015, 0.012, len, 0xdcdcd6, { x: x + w / 2 - 0.03, y: 0.07, z: mid });
+  for (const end of [z0 + 0.16, z1 - 0.16]) {
+    for (let i = 0; i < 5; i++) p.box(0.04, 0.012, 0.16, 0xe6e6e1, { x: x - w / 2 + 0.07 + (i * (w - 0.14)) / 4, y: 0.07, z: end });
+  }
+  const n = Math.max(3, Math.floor(len / 0.34));
+  for (let i = 0; i < n; i++) p.box(0.04, 0.012, 0.15, 0xe6e6e1, { x, y: 0.07, z: z0 + 0.5 + (i * (len - 1)) / Math.max(1, n - 1) });
+}
+
+function hangar(p: Parts, x: number, z: number, w: number, d: number, h: number): void {
   p.tex = 5;
-  // Runway with centre dashes
-  p.box(0.55, 0.03, 2.5, 0x3b3d41, { x: 0.7, y: 0.04, z: 0 });
-  for (let i = 0; i < 6; i++) p.box(0.06, 0.01, 0.24, C.white, { x: 0.7, y: 0.07, z: -1.0 + i * 0.4 });
-  // Terminal and tower
-  p.box(0.85, 0.3, 0.5, C.white, { x: -0.7, y: 0.04, z: 0.55 });
-  p.box(0.93, 0.05, 0.58, C.roofDark, { x: -0.7, y: 0.34, z: 0.55 });
-  for (let i = 0; i < 4; i++) p.box(0.14, 0.12, 0.02, C.glass, { x: -0.98 + i * 0.19, y: 0.14, z: 0.81 });
-  p.cyl(0.09, 0.12, 0.9, C.concrete, { x: -0.7, y: 0.04, z: -0.55 }, 10);
-  p.box(0.32, 0.16, 0.32, C.glass, { x: -0.7, y: 0.94, z: -0.55 });
-  p.box(0.38, 0.04, 0.38, C.roofDark, { x: -0.7, y: 1.1, z: -0.55 });
-  // A small plane waiting by the terminal
-  p.cyl(0.07, 0.07, 0.5, 0xe9ebec, { x: -0.2, y: 0.14, z: 0.1, rx: Math.PI / 2 }, 10);
-  p.box(0.55, 0.02, 0.12, 0xcfd3d6, { x: -0.2, y: 0.13, z: 0.1 });
-  p.box(0.02, 0.12, 0.1, C.blue, { x: -0.2, y: 0.2, z: -0.13 });
+  p.box(w, h, d, 0xaab2b9, { x, y: 0.04, z });
+  p.gable(w * 1.04, h * 0.35, d * 1.04, 0x58606a, { x, y: 0.04 + h, z, ry: Math.PI / 2 });
+  p.tex = 0;
+  p.box(w * 0.7, h * 0.8, 0.02, 0x2a2e33, { x, y: 0.04, z: z + d / 2 + 0.01 });
+}
+
+function controlTower(p: Parts, x: number, z: number, h: number, big: boolean): void {
+  p.tex = 6;
+  p.cyl(big ? 0.1 : 0.08, big ? 0.14 : 0.11, h, C.concrete, { x, y: 0.04, z }, 12);
+  p.tex = 0;
+  const cab = big ? 0.42 : 0.3;
+  p.cyl(cab * 0.62, cab * 0.5, 0.06, C.concreteDark, { x, y: 0.04 + h, z }, 12);
+  p.cyl(cab * 0.7, cab * 0.62, cab * 0.4, 0x5f8aa3, { x, y: 0.1 + h, z }, 12);
+  p.cyl(cab * 0.75, cab * 0.75, 0.03, C.roofDark, { x, y: 0.1 + h + cab * 0.4, z }, 12);
+  p.cyl(0.012, 0.012, 0.22, 0x555a60, { x, y: 0.13 + h + cab * 0.4, z }, 6);
+  p.sphere(0.025, 0xd64a3a, { x, y: 0.36 + h + cab * 0.4, z }, 1);
+}
+
+/** An airport as it grows: an airstrip with one small plane, a regional field with a taxiway and jets, an international hub. */
+function airportAt(level: number): THREE.BufferGeometry {
+  const p = new Parts();
+  const L = Math.max(1, Math.min(3, level));
+  const half = [0, 1.5, 1.9, 2.4][L];
+  p.slab(half * 2, half * 2, 0x8d8f91);
+  p.tex = 0;
+  if (L === 1) {
+    runway(p, 0.85, -1.4, 1.4, 0.5);
+    p.box(1.0, 0.02, 1.2, 0x7d8084, { x: -0.35, y: 0.04, z: 0.15 });
+    p.box(0.7, 0.015, 0.16, 0x7d8084, { x: 0.35, y: 0.04, z: 0.15 });
+    p.tex = 3;
+    p.box(0.85, 0.3, 0.42, C.white, { x: -0.85, y: 0.04, z: 0.95 });
+    p.tex = 0;
+    p.box(0.95, 0.05, 0.52, C.roofDark, { x: -0.85, y: 0.34, z: 0.95 });
+    for (let i = 0; i < 4; i++) p.box(0.14, 0.12, 0.02, C.glass, { x: -1.13 + i * 0.19, y: 0.12, z: 0.75 });
+    p.box(0.85, 0.03, 0.14, C.blue, { x: -0.85, y: 0.22, z: 0.7 });
+    controlTower(p, -1.2, -0.1, 0.62, false);
+    hangar(p, -0.65, -1.0, 0.8, 0.6, 0.34);
+    p.cyl(0.01, 0.01, 0.4, 0xdcdcd6, { x: 1.28, y: 0.04, z: -1.1 }, 6);
+    p.cone(0.06, 0.2, 0xe0722a, { x: 1.28, y: 0.3, z: -1.0, rx: Math.PI / 2 }, 8);
+    airliner(p, -0.3, 0.2, 0, 0.5, LIVERY[0], 2);
+    p.cyl(0.1, 0.1, 0.18, 0xc9cdcf, { x: -1.3, y: 0.04, z: -0.9 }, 10);
+  } else if (L === 2) {
+    runway(p, 1.2, -1.8, 1.8, 0.55);
+    p.box(0.22, 0.03, 3.1, 0x3d3f43, { x: 0.62, y: 0.04, z: 0.0 });
+    for (const z of [-1.4, 0.0, 1.4]) p.box(0.4, 0.03, 0.2, 0x3d3f43, { x: 0.9, y: 0.04, z });
+    p.box(1.3, 0.02, 2.2, 0x7d8084, { x: -0.25, y: 0.04, z: 0.3 });
+    p.tex = 3;
+    p.box(1.7, 0.36, 0.6, C.white, { x: -0.75, y: 0.04, z: 1.4 });
+    p.tex = 0;
+    p.box(1.8, 0.05, 0.7, C.roofDark, { x: -0.75, y: 0.4, z: 1.4 });
+    for (let i = 0; i < 7; i++) p.box(0.15, 0.17, 0.02, C.glass, { x: -1.4 + i * 0.22, y: 0.1, z: 1.09 });
+    p.box(0.26, 0.2, 0.9, C.white, { x: -0.55, y: 0.04, z: 0.7 });
+    p.box(0.3, 0.02, 0.94, C.roofDark, { x: -0.55, y: 0.24, z: 0.7 });
+    controlTower(p, -1.6, 0.2, 1.05, false);
+    hangar(p, -1.1, -1.5, 1.0, 0.7, 0.4);
+    hangar(p, -0.05, -1.55, 0.9, 0.7, 0.4);
+    airliner(p, -0.05, 0.1, Math.PI, 0.8, LIVERY[1], 2);
+    airliner(p, -0.95, 0.35, Math.PI, 0.8, LIVERY[2], 2);
+    p.cyl(0.12, 0.12, 0.24, 0xc9cdcf, { x: -1.7, y: 0.04, z: -0.7 }, 10);
+    p.cyl(0.12, 0.12, 0.24, 0xc9cdcf, { x: -1.7, y: 0.04, z: -1.05 }, 10);
+    carPark(p, -1.4, 1.5, 3, 2);
+    for (const z of [-1.7, -0.6, 0.5, 1.6]) {
+      p.cyl(0.012, 0.012, 0.16, 0x555a60, { x: 1.56, y: 0.04, z }, 6);
+      p.sphere(0.022, 0xf6efc8, { x: 1.56, y: 0.2, z }, 1);
+    }
+  } else {
+    runway(p, 1.6, -2.3, 2.3, 0.6);
+    p.box(2.6, 0.03, 0.5, 0x35373b, { x: 0.3, y: 0.04, z: -1.75 });
+    p.box(0.26, 0.03, 4.0, 0x3d3f43, { x: 0.95, y: 0.04, z: 0 });
+    for (const z of [-1.1, 0.2, 1.4]) p.box(0.4, 0.03, 0.22, 0x3d3f43, { x: 1.3, y: 0.04, z });
+    p.box(2.3, 0.02, 2.4, 0x7d8084, { x: -0.5, y: 0.04, z: 0.0 });
+    // The terminal: a long hall of glass with three piers reaching out to the planes.
+    p.tex = 7;
+    p.box(2.7, 0.42, 0.72, 0xbdc9d3, { x: -0.9, y: 0.04, z: 1.7 });
+    p.tex = 0;
+    p.box(2.9, 0.06, 0.92, C.white, { x: -0.9, y: 0.46, z: 1.7 });
+    p.box(2.9, 0.04, 0.2, C.blue, { x: -0.9, y: 0.52, z: 2.02 });
+    for (const px of [-1.9, -0.9, 0.1]) {
+      p.box(0.3, 0.24, 1.15, 0xdfe4e8, { x: px, y: 0.04, z: 0.95 });
+      p.box(0.34, 0.03, 1.2, C.roofDark, { x: px, y: 0.28, z: 0.95 });
+      for (let k = 0; k < 4; k++) p.box(0.32, 0.1, 0.02, C.glass, { x: px, y: 0.1, z: 0.5 + k * 0.28 });
+    }
+    controlTower(p, -2.0, 0.0, 1.55, true);
+    hangar(p, -1.4, -1.9, 1.3, 0.8, 0.5);
+    hangar(p, -0.05, -2.0, 1.2, 0.8, 0.5);
+    [-1.9, -0.9, 0.1].forEach((px, i) => airliner(p, px, -0.15, Math.PI, 1.0, LIVERY[i % LIVERY.length], 2));
+    airliner(p, -1.2, -1.0, Math.PI / 2, 1.2, LIVERY[3], 4);
+    for (let i = 0; i < 3; i++) {
+      p.box(0.22, 0.1, 0.1, [C.yellow, C.orange, C.white][i], { x: -0.4 + i * 0.35, y: 0.04, z: 0.85 });
+      p.box(0.1, 0.05, 0.08, 0x2a2e33, { x: -0.2 + i * 0.3, y: 0.04, z: 1.15 });
+    }
+    carPark(p, -0.9, 2.3, 8, 1);
+    carPark(p, -1.9, 1.0, 3, 2);
+    for (const z of [-2.1, -1.1, 0.0, 1.1, 2.0]) {
+      p.cyl(0.012, 0.012, 0.16, 0x555a60, { x: 2.0, y: 0.04, z }, 6);
+      p.sphere(0.022, 0xf6efc8, { x: 2.0, y: 0.2, z }, 1);
+    }
+  }
   return p.build();
 }
 
@@ -449,7 +628,9 @@ export function siteGeometry(kind: SiteKind): THREE.BufferGeometry {
     case 'station':
       return station();
     case 'airport':
-      return airport();
+      return airportAt(1);
+    case 'port':
+      return portGeometry(1);
     case 'railyard':
       return depot();
     default:
@@ -585,14 +766,15 @@ function levelParts(kind: SiteKind, level: number): THREE.BufferGeometry {
  * says what sort of place it is (a disc for a camp, farm or pit, a square for a factory, a diamond for logistics) and its colour
  * is the good it makes, or blue for freight, with a white mark in the middle.
  */
-function signGeometry(kind: SiteKind): THREE.BufferGeometry {
+function signGeometry(kind: SiteKind, level = 1): THREE.BufferGeometry {
   const def = SITE_DEFS[kind];
   const p = new Parts();
   const good = def.produce?.good ?? (Object.keys(def.recipe?.outputs ?? {})[0] as Good | undefined);
-  const x = -1.5;
-  const z = -1.5;
+  const edge = def.airport ? [0, 1.55, 1.95, 2.45][Math.max(1, Math.min(3, level))] : def.port ? [0, 1.55, 1.85, 2.2][Math.max(1, Math.min(3, level))] : 1.5;
+  const x = -edge;
+  const z = -edge;
   const top = 2.05;
-  const raw = good ? GOODS[good].color : def.airport ? 0x4aa3d8 : def.railyard ? 0xd0702f : 0x2f6fb0;
+  const raw = good ? GOODS[good].color : def.airport ? 0x4aa3d8 : def.port ? 0x3a86c8 : def.railyard ? 0xd0702f : 0x2f6fb0;
   // Good colours are earthy; a sign has to read from afar, so pull them toward bright and saturated.
   const hsl = { h: 0, s: 0, l: 0 };
   new THREE.Color(raw).getHSL(hsl);
@@ -620,7 +802,26 @@ export function siteGeometryAt(kind: SiteKind, level: number, withDepot = false)
   const def = SITE_DEFS[kind];
   const grow = LEVEL_GROW[level];
   if (def.dock || def.station) return base;
-  const sign = signGeometry(kind);
+  const sign = signGeometry(kind, level);
+  if (def.port) {
+    base.dispose();
+    const quay = portGeometry(level);
+    const whole = mergeGeometries([quay, sign], false)!;
+    quay.dispose();
+    sign.dispose();
+    whole.computeBoundingSphere();
+    return whole;
+  }
+  if (def.airport) {
+    // An airport is rebuilt, not scaled, at each level: airstrip, regional field, international hub.
+    base.dispose();
+    const field = airportAt(level);
+    const whole = mergeGeometries([field, sign], false)!;
+    field.dispose();
+    sign.dispose();
+    whole.computeBoundingSphere();
+    return whole;
+  }
   if (!grow) {
     const plain = mergeGeometries([base, sign], false)!;
     base.dispose();
@@ -793,21 +994,17 @@ export function vehicleGeometry(kind: VehicleKind): THREE.BufferGeometry {
     case 'heavytrain':
     case 'train':
       return mergeUnits(trainUnits(kind));
+    case 'boat':
+      return coasterGeometry();
+    case 'freighter':
+      return cargoShipGeometry();
+    case 'containership':
+      return containerShipGeometry();
     case 'jet':
-      p.cyl(0.24, 0.24, 2.3, 0xeceeef, { y: 0.26, z: -1.1, rx: Math.PI / 2 }, 16);
-      p.cone(0.24, 0.5, 0xeceeef, { y: 0.26, z: 1.2, rx: Math.PI / 2 }, 16);
-      p.box(2.7, 0.04, 0.5, 0xcfd3d6, { y: 0.22, z: 0.1 });
-      for (const x of [-0.7, 0.7]) p.cyl(0.07, 0.07, 0.36, 0x9aa3a9, { x, y: 0.12, z: 0.25, rx: Math.PI / 2 }, 10);
-      for (const x of [-1.1, 1.1]) p.cyl(0.06, 0.06, 0.3, 0x9aa3a9, { x, y: 0.14, z: 0.3, rx: Math.PI / 2 }, 10);
-      p.box(0.8, 0.04, 0.3, 0xcfd3d6, { y: 0.28, z: -1.2 });
-      p.box(0.04, 0.42, 0.34, 0x2f5f8a, { y: 0.34, z: -1.22 });
+      airliner(p, 0, 0, 0, 1.45, 0xb23a30, 4, false);
       break;
     case 'plane':
-      p.cyl(0.17, 0.17, 1.5, 0xe9ebec, { y: 0.22, z: -0.75, rx: Math.PI / 2 }, 14);
-      p.cone(0.17, 0.35, 0xe9ebec, { y: 0.22, z: 0.75, rx: Math.PI / 2 }, 14);
-      p.box(1.7, 0.04, 0.34, 0xcfd3d6, { y: 0.2, z: 0.05 });
-      p.box(0.6, 0.04, 0.22, 0xcfd3d6, { y: 0.24, z: -0.7 });
-      p.box(0.04, 0.3, 0.24, 0x2f5f8a, { y: 0.3, z: -0.72 });
+      airliner(p, 0, 0, 0, 1.0, 0x2f5f8a, 2, false);
       break;
   }
   return p.build();

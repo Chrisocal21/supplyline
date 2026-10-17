@@ -8,7 +8,7 @@ import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import {
   GOODS,
   SITE_DEFS,
-  DISTRICT_ORDER,
+  LEVEL_SPEED,
   TICKS_PER_SECOND,
   VEHICLE_DEFS,
   VEHICLE_ORDER,
@@ -19,6 +19,7 @@ import {
   type VehicleKind,
 } from '../sim/defs';
 import { townGeometry, type TownLandmark } from './townmodel';
+import type { Setting } from './districts';
 import { GROW_MS, growMaterial } from './grow';
 import { tileLonLat } from '../sim/mapgen';
 import { findPath } from '../sim/path';
@@ -38,6 +39,7 @@ import {
   roadEndError,
   routeRefund,
   createAirRoute,
+  createSeaRoute,
   createRoute,
   createWorld,
   createWorldFromMap,
@@ -48,6 +50,7 @@ import {
   layoutOf,
   plotTiles,
   terrainAt,
+  elevAt,
   placeAt,
   plotAt,
   isHomePlot,
@@ -91,6 +94,9 @@ import { Smoke } from './smoke';
 import { RoadNet, makeHighwayTexture, makeRailTexture, makeRoadTexture } from './roads';
 import { Scenery } from './scenery';
 import { buildDemo, demoSpots } from './demo';
+import { cropCircleGeometry, placeEggs } from './eggs';
+import { siteAnimParts, type AnimPart } from './anims';
+import { OpeningProps, balloonGeometry, cargoShipGeometry, cowGeometry, duckGeometry, monsterGeometry, sailboatGeometry, tankerGeometry, tugGeometry, ufoGeometry, turntableGeometry } from './opening';
 import type { Good } from '../sim/defs';
 
 export const SAVE_KEY = 'supplyline.save.v10';
@@ -118,9 +124,12 @@ const CARGO_AT: Record<VehicleKind, [number, number]> = {
   heavytrain: [0.58, 0.2],
   plane: [0.58, -0.14],
   jet: [0.58, -0.14],
+  boat: [0.3, 0],
+  freighter: [0.3, 0],
+  containership: [0.3, 0],
 };
 
-export type Tool = 'select' | 'route' | 'highway' | 'rail' | 'air' | 'demolish' | SiteKind;
+export type Tool = 'select' | 'route' | 'highway' | 'rail' | 'air' | 'sea' | 'demolish' | SiteKind;
 export type Selection = { kind: 'site'; id: number } | { kind: 'place'; id: number } | null;
 
 export interface HoverInfo {
@@ -214,6 +223,28 @@ float vn(vec2 p) {
 }`,
     );
 };
+
+/** What the caption says for a stretch of the opening, and whether a camera flash marks its start. */
+interface Cue {
+  at: number;
+  end: number;
+  head: string;
+  sub: string;
+  flash?: boolean;
+}
+
+/** A panel drawn over the opening: the menu being shown, and when. */
+interface Ui {
+  at: number;
+  end: number;
+  kind: 'sell' | 'bank' | 'town';
+}
+
+/** One film shot of the opening: how long it runs and where the camera is at each moment (u runs 0 to 1). */
+interface Shot {
+  dur: number;
+  view: (u: number, t: number, dt: number) => { x: number; y: number; dist: number; h: number; p: number };
+}
 
 export class Game3D {
   readonly renderer: THREE.WebGLRenderer;
@@ -567,6 +598,7 @@ export class Game3D {
     this.updateGrowth();
     const dust = this.updateConstruction();
     this.updateVehicles();
+    this.updateSiteAnims(now / 1000);
     this.updateLeaving();
     this.updateSmoke(dt, dust);
     this.updateLighting();
@@ -825,7 +857,7 @@ export class Game3D {
   }
 
   private activeNodeKind(): NodeKind | null {
-    if (this.isRouteTool() || this.tool === 'select' || this.tool === 'air' || this.tool === 'demolish') return null;
+    if (this.isRouteTool() || this.tool === 'select' || this.tool === 'air' || this.tool === 'sea' || this.tool === 'demolish') return null;
     return SITE_DEFS[this.tool as SiteKind].node ?? null;
   }
 
@@ -837,6 +869,33 @@ export class Game3D {
     const streets = townStreets(w, town);
     const side = ([[0, 1, 0], [0, -1, Math.PI], [1, 0, Math.PI / 2], [-1, 0, -Math.PI / 2]] as const).find(([dx, dy]) => streets.has((s.y + dy) * w.width + wrapX(w, s.x + dx)));
     return side ? side[2] : null;
+  }
+
+  /** Moving parts riding on buildings: a nodding pumpjack, a turning radar, a crane trolley, a windmill. */
+  private readonly siteAnims = new Map<number, { key: string; parts: { mesh: THREE.Mesh; part: AnimPart }[] }>();
+
+  private syncSiteAnims(id: number, kind: SiteKind, level: number, m: THREE.Mesh): void {
+    const key = kind + level;
+    const have = this.siteAnims.get(id);
+    if (have && have.key === key) return;
+    if (have) for (const p of have.parts) m.remove(p.mesh);
+    const parts = siteAnimParts(kind, level).map((part) => {
+      const mesh = new THREE.Mesh(part.geo, siteMaterial);
+      mesh.matrixAutoUpdate = false;
+      mesh.castShadow = true;
+      m.add(mesh);
+      return { mesh, part };
+    });
+    this.siteAnims.set(id, { key, parts });
+  }
+
+  private updateSiteAnims(seconds: number): void {
+    for (const a of this.siteAnims.values()) {
+      for (const p of a.parts) {
+        p.part.tick(seconds, p.mesh.matrix, p.part.base);
+        p.mesh.matrixWorldNeedsUpdate = true;
+      }
+    }
   }
 
   private syncSites(): void {
@@ -875,18 +934,23 @@ export class Game3D {
       // An upgraded building gets its bigger model.
       const geo = this.siteGeometryFor(s.kind, s.level, !!s.depot);
       if (m.geometry !== geo) m.geometry = geo;
+      this.syncSiteAnims(s.id, s.kind, s.level, m);
       // Buildings in a town face the street they front.
       let yaw = 0;
       const plot = plotAt(this.world, s.x, s.y);
       if (plot) {
         const face = plotFacing(this.world, plot.place, plot.index);
         yaw = face === 'N' ? Math.PI : face === 'W' ? -Math.PI / 2 : face === 'E' ? Math.PI / 2 : 0;
+      } else if (SITE_DEFS[s.kind].port) {
+        // A port turns its quay to the water beside it.
+        const wet = ([[0, 1, 0], [0, -1, Math.PI], [1, 0, Math.PI / 2], [-1, 0, -Math.PI / 2]] as const).find(([dx, dy]) => terrainAt(this.world, wrapX(this.world, s.x + dx), s.y + dy) === 'water');
+        if (wet) yaw = wet[2];
       } else if (SITE_DEFS[s.kind].station && this.stationStreetSide(s) !== null) {
         // A rail station fronts the town street beside it, not the track that comes in behind.
         yaw = this.stationStreetSide(s)!;
       } else {
         // Outside a town, turn the front to face the road that serves the site (roads win over rail).
-        const rt = this.world.routes.filter((r) => r.fromSiteId === s.id || r.toSiteId === s.id).filter((r) => r.mode !== 'air').sort((p, q) => (p.mode === 'road' ? 0 : 1) - (q.mode === 'road' ? 0 : 1))[0];
+        const rt = this.world.routes.filter((r) => r.fromSiteId === s.id || r.toSiteId === s.id).filter((r) => r.mode !== 'air' && r.mode !== 'sea').sort((p, q) => (p.mode === 'road' ? 0 : 1) - (q.mode === 'road' ? 0 : 1))[0];
         if (rt) {
           const nb = rt.fromSiteId === s.id ? rt.path[1] : rt.path[rt.path.length - 2];
           if (nb) {
@@ -906,6 +970,7 @@ export class Game3D {
       m.matrixWorldNeedsUpdate = true;
     }
     for (const id of [...this.siteLevels.keys()]) if (!live.has(id)) this.siteLevels.delete(id);
+    for (const id of [...this.siteAnims.keys()]) if (!live.has(id)) this.siteAnims.delete(id);
     this.sitesShown = true;
   }
 
@@ -941,7 +1006,23 @@ export class Game3D {
         .filter(([id, lv]) => (lv ?? 0) > 0 && p.districtLots?.[id as DistrictId] !== undefined)
         .map(([id, level]) => {
           const lot = layout.civic[p.districtLots![id as DistrictId]!];
-          return { id: id as DistrictId, level: level as number, x: lot.x, y: lot.y, ex: lot.entry.x, ey: lot.entry.y };
+          // What the lot sits among: hills, shore, woods or open ground.
+          let rock = 0;
+          let wet = 0;
+          let wood = 0;
+          const e0 = elevAt(w, wrapX(w, p.x + lot.x), p.y + lot.y);
+          for (let dy = -3; dy <= 3; dy++) {
+            for (let dx = -3; dx <= 3; dx++) {
+              const tx = wrapX(w, p.x + lot.x + dx);
+              const ty = p.y + lot.y + dy;
+              const ter = terrainAt(w, tx, ty);
+              if (ter === 'water') wet += 1;
+              else if (ter === 'forest') wood += 1;
+              if (ter === 'mountain' || (ter && elevAt(w, tx, ty) - e0 > 22)) rock += 1;
+            }
+          }
+          const setting: Setting = rock >= 7 ? 'rock' : wet >= 6 ? 'water' : wood >= 10 ? 'forest' : 'plain';
+          return { id: id as DistrictId, level: level as number, x: lot.x, y: lot.y, ex: lot.entry.x, ey: lot.entry.y, setting };
         });
       const bits = (list: boolean[]): string => list.map((o) => (o ? 1 : 0)).join('');
       const sig = `${streets.length}.${p.level}.${p.path ?? ''}.${bits(plots.map((t) => t.occupied))}.${bits(plots.map((t) => t.home))}.${bits(homes.map((h) => h.ok))}.${districts.map((d) => `${d.id}${d.level}`).join(',')}`;
@@ -1236,7 +1317,21 @@ export class Game3D {
       (c as THREE.Line).geometry.dispose();
     }
     const mat = new THREE.LineBasicMaterial({ color: 0xf2ecc8, transparent: true, opacity: 0.55 });
+    const seaMat = new THREE.LineBasicMaterial({ color: 0xbfe6ff, transparent: true, opacity: 0.6 });
     for (const r of this.world.routes) {
+      if (r.mode === 'sea') {
+        const lane: THREE.Vector3[] = [];
+        for (let f = 0; f <= r.path.length - 1 + 1e-6; f += 0.5) {
+          const pt = this.roads.pointOnPath(r.path, Math.min(r.path.length - 1, f), 1, 0);
+          lane.push(pt.pos.clone().addScaledVector(pt.up, 0.18));
+        }
+        for (let pass = 0; pass < 3; pass++) {
+          const prev = lane.map((q) => q.clone());
+          for (let i = 1; i < lane.length - 1; i++) lane[i].copy(prev[i - 1]).add(prev[i]).add(prev[i + 1]).divideScalar(3);
+        }
+        this.airGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(lane), seaMat));
+        continue;
+      }
       if (r.mode !== 'air') continue;
       const last = r.path.length - 1;
       const pts: THREE.Vector3[] = [];
@@ -1277,14 +1372,17 @@ export class Game3D {
       f = Math.max(dir === 1 ? tail : stop, Math.min(last - (dir === -1 ? tail : stop), f));
       const pt = (route.mode === 'rail' ? this.rails : this.roads).pointOnPath(route.path, f, dir, route.mode === 'road' ? undefined : 0);
       const air = route.mode === 'air';
+      const sea = route.mode === 'sea';
       if (air) pt.pos.addScaledVector(pt.up, this.airAlt(f, last));
+      // Ships ride the swell a little.
+      if (sea) pt.pos.addScaledVector(pt.up, 0.05 * Math.sin(this.nowMs / 650 + v.id));
       m.visible = !pt.hidden;
       // Just upgraded: it swells, overshoots and settles, in a puff of dust.
       const pop = m.userData.pop as number | undefined;
       const k = pop === undefined ? 1 : (this.nowMs - pop) / 1200;
       const bounce = k < 1 ? 1 + 0.6 * Math.sin(k * Math.PI * 2.5) * (1 - k) : 1;
       if (k < 0.7) this.popDust.set(-2e6 - v.id, { pos: pt.pos.clone().addScaledVector(pt.up, 0.3), up: pt.up.clone(), every: 0.06 });
-      const sc = (air ? 2.1 : 1.35) * bounce;
+      const sc = (air ? 2.1 : sea ? 1.7 : 1.35) * bounce;
       const units = m.userData.units as { z: number; len: number }[] | null;
       if (units && route.mode === 'rail') {
         // Each unit sits where its own centre falls along the track and points along the chord between its ends, so
@@ -1308,12 +1406,26 @@ export class Game3D {
           unit.visible = !(a.hidden && b.hidden);
         });
       } else {
-        m.matrix.copy(basisMatrix(pt.pos, pt.up, pt.forward)).multiply(new THREE.Matrix4().makeScale(sc, sc, sc));
+        const body = basisMatrix(pt.pos, pt.up, pt.forward);
+        if (air) {
+          // A plane noses up as it climbs and down as it lands, and leans into its turns.
+          const f1 = Math.max(0, Math.min(last, f + 0.35 * dir));
+          const pitch = Math.atan2(this.airAlt(f1, last) - this.airAlt(f, last), 0.35 * 3.27);
+          const next = this.roads.pointOnPath(route.path, Math.max(0, Math.min(last, f + 0.7 * dir)), dir, 0);
+          const turn = new THREE.Vector3().crossVectors(pt.forward, next.forward).dot(pt.up);
+          body.multiply(new THREE.Matrix4().makeRotationX(-Math.max(-0.5, Math.min(0.5, pitch * 1.6)))).multiply(new THREE.Matrix4().makeRotationZ(-Math.max(-0.45, Math.min(0.45, turn * 5))));
+        } else if (sea) {
+          // A ship pitches and rolls a little on the swell.
+          body.multiply(new THREE.Matrix4().makeRotationX(0.025 * Math.sin(this.nowMs / 900 + v.id))).multiply(new THREE.Matrix4().makeRotationZ(0.04 * Math.sin(this.nowMs / 700 + v.id * 2)));
+        }
+        m.matrix.copy(body).multiply(new THREE.Matrix4().makeScale(sc, sc, sc));
         m.matrixWorldNeedsUpdate = true;
       }
+      // A train under way trails smoke from its engine.
+      if (route.mode === 'rail' && v.state === 'moving') this.popDust.set(-3e6 - v.id, { pos: pt.pos.clone().addScaledVector(pt.up, 1.1), up: pt.up.clone(), every: 0.28 });
       const cargo = this.cargoMeshes.get(v.id);
       if (cargo) {
-        cargo.visible = v.cargo > 0 && vd.mode !== 'air';
+        cargo.visible = v.cargo > 0 && vd.mode !== 'air' && vd.mode !== 'sea';
         if (v.good) cargo.material = this.cargoMat(v.good);
       }
     }
@@ -1411,7 +1523,7 @@ export class Game3D {
   }
 
   setTool(tool: Tool): void {
-    if (tool !== 'air') this.airFrom = null;
+    if (tool !== 'air' && tool !== 'sea') this.airFrom = null;
     this.tool = tool;
     this.pending = null;
     this.draft = null;
@@ -1444,7 +1556,7 @@ export class Game3D {
   }
 
   private isBuildTool(): boolean {
-    return this.tool !== 'select' && !this.isRouteTool() && this.tool !== 'air' && this.tool !== 'demolish';
+    return this.tool !== 'select' && !this.isRouteTool() && this.tool !== 'air' && this.tool !== 'sea' && this.tool !== 'demolish';
   }
 
   /** The stretch of road or track the demolish tool is pointing at, shown in red. */
@@ -1637,6 +1749,22 @@ export class Game3D {
       const site = siteAt(w, tile.x, tile.y);
       const place = placeAt(w, tile.x, tile.y);
       this.select(site ? { kind: 'site', id: site.id } : place ? { kind: 'place', id: place.id } : null);
+      return;
+    }
+    if (this.tool === 'sea') {
+      const site = siteAt(w, tile.x, tile.y);
+      if (!site || !SITE_DEFS[site.kind].port) {
+        this.onToast('Click a port');
+        return;
+      }
+      if (this.airFrom === null || this.airFrom === site.id) {
+        this.airFrom = this.airFrom === site.id ? null : site.id;
+        if (this.airFrom !== null) this.onToast('Now click the port to sail to');
+        return;
+      }
+      const err = createSeaRoute(w, this.airFrom, site.id);
+      this.onToast(err ?? 'Sea route opened. Buy a cargo boat at either port');
+      if (!err) this.airFrom = null;
       return;
     }
     if (this.tool === 'air') {
@@ -2035,7 +2163,7 @@ export class Game3D {
 
   /** True while the opening screen is up: the world is a demo, never saved, and the camera flies itself. */
   showcase = false;
-  private cine: { keys: { at: number; x: number; y: number; dist: number; h: number; p: number }[]; t: number; events: { at: number; run: () => void; done: boolean }[]; later: number } | null = null;
+  private cine: { shots: Shot[]; starts: number[]; film: number; total: number; t: number; events: { at: number; run: () => void; done: boolean }[]; later: number; cues: Cue[]; uis: Ui[]; cutAt: number[] } | null = null;
 
   /** Whether there is an autosave to continue from. */
   hasSave(): boolean {
@@ -2047,110 +2175,468 @@ export class Game3D {
     }
   }
 
-  /** Fly over the demo base, and have things happen in it: upgrades, a district, towns growing. */
+  /** Ships, boats, the vehicle showroom and the conspiracies, for the opening only. */
+  private props: OpeningProps | null = null;
+  /** The middle of the nearest open water to the harbour, where the ships sail. */
+  private seaMid: Tile | null = null;
+
+  /** Straight stretches of open water near a spot, nearest first, each in its own row. */
+  private waterRuns(c: Tile, reach: number, want: number): Tile[][] {
+    const w = this.world;
+    const wet = (x: number, y: number): boolean => terrainAt(w, wrapX(w, x), y) === 'water';
+    const found: { tiles: Tile[]; d: number }[] = [];
+    for (let dy = -reach; dy <= reach; dy++) {
+      const y = c.y + dy;
+      if (y < 2 || y >= w.height - 2) continue;
+      let x = -reach * 2;
+      while (x <= reach * 2) {
+        if (wet(c.x + x, y) && wet(c.x + x, y - 1) && wet(c.x + x, y + 1)) {
+          let len = 0;
+          while (x + len <= reach * 2 && wet(c.x + x + len, y) && wet(c.x + x + len, y - 1) && wet(c.x + x + len, y + 1)) len++;
+          if (len >= 12) {
+            const mid = x + len / 2;
+            const half = Math.min(len, 26) / 2;
+            const tiles: Tile[] = [];
+            for (let k = 0; k < half * 2; k++) tiles.push({ x: wrapX(w, Math.round(c.x + mid - half + k)), y });
+            found.push({ tiles, d: Math.hypot(mid, dy) });
+          }
+          x += len;
+        } else x++;
+      }
+    }
+    found.sort((a, b) => a.d - b.d);
+    const out: Tile[][] = [];
+    for (const f of found) {
+      if (out.every((o) => Math.abs(o[0].y - f.tiles[0].y) >= 3)) out.push(f.tiles);
+      if (out.length >= want) break;
+    }
+    return out;
+  }
+
+  /** An open patch of grass near a tile: no building, road, town, resource or shore within a tile, and clear of anything already placed. */
+  private freeSpot(near: Tile, rmin: number, rmax: number, taken: Tile[], clear = 1): Tile | null {
+    const w = this.world;
+    for (let r = rmin; r <= rmax; r++) {
+      for (let k = 0; k < 20; k++) {
+        const a = (k / 20) * Math.PI * 2 + r * 1.3;
+        const x = wrapX(w, Math.round(near.x + Math.cos(a) * r));
+        const y = Math.round(near.y + Math.sin(a) * r * 0.8);
+        let ok = true;
+        for (let dy = -clear; dy <= clear && ok; dy++) {
+          for (let dx = -clear; dx <= clear && ok; dx++) {
+            const tx = wrapX(w, x + dx);
+            const ty = y + dy;
+            if (terrainAt(w, tx, ty) !== 'grass' || siteAt(w, tx, ty) || routeAt(w, tx, ty) || placeAt(w, tx, ty) || nodeAt(w, tx, ty)) ok = false;
+          }
+        }
+        if (!ok || taken.some((t) => Math.hypot(wrapDx(w, t.x, x), t.y - y) < 3)) continue;
+        taken.push({ x, y });
+        return { x, y };
+      }
+    }
+    return null;
+  }
+
+  /** The vehicles shown on the showroom turntable, in the order of the ladder. */
+  private static readonly SHOWROOM: VehicleKind[] = ['boxtruck', 'bigtruck', 'rig', 'convoy', 'train', 'heavytrain', 'plane', 'jet', 'boat', 'freighter', 'containership'];
+
+  /**
+   * Set out the ships, the showroom and the conspiracies. `film` is where the vehicle showroom shot starts, in seconds, so the
+   * turntable can show each vehicle in turn; `monsterAt` is when the lake monster should be up.
+   */
+  private buildOpeningProps(F: Tile, harbour: Tile, farm: Tile, showroom: { tile: Tile | null; start: number; each: number }, monsterAt: number, reserved: Tile[]): void {
+    this.props?.dispose();
+    const w = this.world;
+    const props = new OpeningProps(this.scene, siteMaterial, (path, f) => {
+      const p = this.roads.pointOnPath(path, f, 1, 0);
+      return { pos: p.pos, up: p.up, forward: p.forward };
+    });
+    this.props = props;
+    const taken: Tile[] = [...reserved];
+    const runs = this.waterRuns(harbour, 26, 5);
+    this.seaMid = runs[0] ? runs[0][Math.floor(runs[0].length / 2)] : null;
+    const geos = [cargoShipGeometry(), tankerGeometry(), tugGeometry(), sailboatGeometry()];
+    const specs: { g: number; scale: number; speed: number; phase: number }[] = [
+      { g: 0, scale: 2.7, speed: 0.4, phase: 3 },
+      { g: 1, scale: 2.5, speed: 0.32, phase: 9 },
+      { g: 2, scale: 2.2, speed: 0.55, phase: 1 },
+      { g: 3, scale: 2.1, speed: 0.45, phase: 6 },
+    ];
+    specs.forEach((s, i) => {
+      const run = runs[i % Math.max(1, runs.length)];
+      if (run) props.addMover(geos[s.g], run, s.speed, s.scale, { phase: s.phase, bob: 0.05 });
+    });
+    if (runs[0]) {
+      // The monster in a quiet corner of the same water, up for a look at the time the film wants it, and a duck as big as a house.
+      const run = runs[Math.min(runs.length - 1, 4)] ?? runs[0];
+      props.addMover(monsterGeometry(), run.slice(0, 14), 0.08, 2.4, { dive: 26, bob: 0.03, divePhase: 6.5 - monsterAt });
+      const wide = runs[1] ?? runs[0];
+      props.addMover(duckGeometry(), wide.slice(Math.max(0, wide.length - 6)), 0.05, 2.0, { bob: 0.06, phase: 2 });
+    }
+    // A hot air balloon drifting over the first town.
+    const drift: Tile[] = [];
+    for (let k = 0; k <= 30; k++) drift.push({ x: wrapX(w, Math.round(F.x - 16 + k)), y: Math.round(F.y - 12 + k * 0.5) });
+    props.addMover(balloonGeometry(), drift, 0.12, 2.6, { alt: 9, bob: 0.2, phase: 4 });
+    // A flying saucer over a crop circle at the farm, with a cow on its beam.
+    const cropAt = this.freeSpot(farm, 4, 8, taken) ?? { x: farm.x + 4, y: farm.y + 3 };
+    props.addStatic(cropCircleGeometry(), cropAt, 0.3, 1.0);
+    const spot = { x: cropAt.x, y: cropAt.y };
+    const hover: Tile[] = [spot, { x: spot.x, y: spot.y + 1 }];
+    const beamMat = new THREE.MeshBasicMaterial({ color: 0xbff7ff, transparent: true, opacity: 0.22, depthWrite: false, side: THREE.DoubleSide });
+    const beam = new THREE.ConeGeometry(1.5, 9, 20, 1, true);
+    beam.translate(0, -4.5, 0);
+    const ufo = props.addCustom(ufoGeometry(), null, () => {});
+    const beamMesh = props.addCustom(beam, beamMat, () => {});
+    const cow = props.addCustom(cowGeometry(), null, () => {});
+    props.addCustom(null, null, (t) => {
+      const p = this.roads.pointOnPath(hover, 0, 1, 0);
+      const alt = 11 + 0.5 * Math.sin(t * 0.8);
+      const pos = p.pos.clone().addScaledVector(p.up, alt);
+      const base = basisMatrix(pos, p.up, p.forward);
+      ufo.matrix.copy(base).multiply(new THREE.Matrix4().makeRotationY(t * 0.6)).multiply(new THREE.Matrix4().makeScale(2.6, 2.6, 2.6));
+      beamMesh.matrix.copy(base).multiply(new THREE.Matrix4().makeScale(1.3, alt / 9, 1.3));
+      // The cow rides up the beam, slowly turning, and is let down again now and then.
+      const rise = (t % 30) / 30;
+      const h = alt * (rise < 0.8 ? rise / 0.8 : 1 - (rise - 0.8) / 0.2);
+      const cp = p.pos.clone().addScaledVector(p.up, 0.2 + h * 0.92);
+      cow.matrix.copy(basisMatrix(cp, p.up, p.forward)).multiply(new THREE.Matrix4().makeRotationY(t * 1.1)).multiply(new THREE.Matrix4().makeScale(2.6, 2.6, 2.6));
+      for (const m of [ufo, beamMesh, cow]) m.matrixWorldNeedsUpdate = true;
+    });
+    // The vehicle showroom: a turntable, and each vehicle in turn.
+    if (showroom.tile) {
+      const tile = showroom.tile;
+      props.addStatic(turntableGeometry(), tile, 0, 1.0);
+      const shown = Game3D.SHOWROOM.map((k) => {
+        const g = vehicleGeometry(k);
+        g.computeBoundingSphere();
+        return { g, k, scale: 2.1 / Math.max(0.4, g.boundingSphere!.radius) };
+      });
+      const stage = props.addCustom(null, null, (t, m) => {
+        const i = Math.floor((t - showroom.start) / showroom.each);
+        m.visible = i >= 0 && i < shown.length;
+        if (!m.visible) return;
+        const s = shown[i];
+        if (m.geometry !== s.g) m.geometry = s.g;
+        m.matrix.copy(props.placeMatrix(tile, (t - showroom.start) * 0.9 + i, s.scale, 0.2));
+        m.matrixWorldNeedsUpdate = true;
+      });
+      stage.castShadow = true;
+      stage.material = siteMaterial;
+    }
+    // The conspiracies, each where it makes the most sense.
+    let hill: Tile | null = null;
+    let hd = 99;
+    for (let dy = -40; dy <= 40; dy++) {
+      for (let dx = -60; dx <= 60; dx++) {
+        const x = wrapX(w, F.x + dx);
+        const y = F.y + dy;
+        const d = Math.hypot(dx, dy);
+        if (d > 12 && d < hd && terrainAt(w, x, y) === 'mountain') {
+          hd = d;
+          hill = { x, y };
+        }
+      }
+    }
+    const sp = demoSpots;
+    placeEggs(props, {
+      spot: (near, rmin, rmax) => this.freeSpot(near, rmin, rmax, taken),
+      at: { town: F, airport: sp.airport, farm, forest: sp.forestry, hill: hill ?? undefined, dock: harbour },
+    });
+  }
+
+  /** The opening: a long film of shots over the demo base, with a cue line for each stretch, cuts through black, and a finale. */
   startShowcase(): void {
     const w = this.world;
-    const town = w.places[0];
-    const next = w.places[1] ?? town;
-    const at = (s: { x: number; y: number } | undefined, fallback: { x: number; y: number }): { x: number; y: number } => ({ x: (s ?? fallback).x, y: (s ?? fallback).y });
-    const F = at(town, { x: 0, y: 0 });
-    const farm = at(w.sites.find((q) => q.kind === 'farm'), F);
-    const hub = at(w.sites.find((q) => q.kind === 'railyard' || q.depot) ?? w.sites.find((q) => q.kind === 'hub'), F);
     const sp = demoSpots;
+    const town = w.places[0];
+    const big = w.places[1] ?? town;
+    const city = w.places[3] ?? w.places[2] ?? town;
+    const at = (s: { x: number; y: number } | undefined, fallback: { x: number; y: number }): Tile => ({ x: (s ?? fallback).x, y: (s ?? fallback).y });
+    const F = at(town, { x: 0, y: 0 });
+    const C = at(city, F);
+    const farm = at(sp.farm, F);
+    const yard = at(sp.yard, F);
     const ap = at(sp.airport, F);
-    const ap2 = at(sp.airport2, F);
-    const mid = { x: (ap.x + ap2.x) / 2, y: (ap.y + ap2.y) / 2 };
-    const span = Math.hypot(ap.x - ap2.x, ap.y - ap2.y);
-    const stad = at(sp.stadium, next);
-    const amph = at(sp.amphitheatre, F);
-    const keys = [
-      { at: 0, x: F.x - 50, y: F.y - 22, dist: 290, h: -0.5, p: 0 },
-      { at: 6, x: F.x - 8, y: F.y - 4, dist: 60, h: 0.1, p: 0.3 },
-      { at: 10.5, x: farm.x, y: farm.y, dist: 14, h: 0.8, p: 0.45 },
-      { at: 15.5, x: hub.x, y: hub.y, dist: 13, h: 2.0, p: 0.4 },
-      { at: 20, x: ap.x, y: ap.y, dist: 22, h: 0.9, p: 0.55 },
-      { at: 25, x: mid.x, y: mid.y, dist: Math.max(50, span * 2.6), h: 1.6, p: 0.5 },
-      { at: 30, x: stad.x, y: stad.y, dist: 15, h: 2.7, p: 0.85 },
-      { at: 35, x: amph.x, y: amph.y, dist: 14, h: 4.4, p: 0.4 },
-      { at: 40, x: F.x + 3, y: F.y + 2, dist: 16, h: 5.2, p: 0.5 },
-      { at: 46, x: next.x, y: next.y, dist: 40, h: 6.0, p: 0.35 },
+    const stad = at(sp.stadium, big);
+    const park = at(sp.ballpark, big);
+    const arena = at(sp.arena, big);
+    const amph = at(sp.bigAmphitheatre ?? sp.amphitheatre, F);
+    const saw = at(sp.sawmill, F);
+    const portT = at(sp.port, big);
+    const dock = at(w.sites.find((q) => SITE_DEFS[q.kind].dock === 'freight' && q.placeId === big.id), big);
+
+    const ease = (u: number): number => u * u * (3 - 2 * u);
+    const lerp = (a: number, b: number, u: number): number => a + (b - a) * u;
+    type V = { x: number; y: number; dist: number; h: number; p: number };
+    const move = (a: V, b: V) => (u: number): V => {
+      const e = ease(u);
+      return { x: lerp(a.x, b.x, e), y: lerp(a.y, b.y, e), dist: Math.exp(lerp(Math.log(a.dist), Math.log(b.dist), e)), h: lerp(a.h, b.h, e), p: lerp(a.p, b.p, e) };
+    };
+    const orbit = (c: Tile, d0: number, d1: number, p0: number, p1: number, h0: number, h1: number) => (u: number): V => {
+      const e = ease(u);
+      return { x: c.x, y: c.y, dist: lerp(d0, d1, e), h: lerp(h0, h1, u), p: lerp(p0, p1, e) };
+    };
+    /** Keep on something that moves, easing toward it so the camera never jerks. */
+    const follow = (get: () => Tile | null, fallback: Tile, d0: number, d1: number, p0: number, p1: number, h0: number, h1: number) => {
+      let s: Tile | null = null;
+      return (u: number, _t: number, dt: number): V => {
+        const g = get() ?? fallback;
+        if (!s) s = { x: g.x, y: g.y };
+        else {
+          const k = 1 - Math.exp(-dt * 2.2);
+          s = { x: wrapX(w, s.x + wrapDx(w, s.x, g.x) * k), y: s.y + (g.y - s.y) * k };
+        }
+        return { x: s.x, y: s.y, dist: lerp(d0, d1, ease(u)), h: lerp(h0, h1, u), p: lerp(p0, p1, ease(u)) };
+      };
+    };
+    /** A vehicle of one of these kinds, kept once picked, as a tile. */
+    const tracker = (kinds: string[]): (() => Tile | null) => {
+      let id = -1;
+      return () => {
+        let v = w.vehicles.find((q) => q.id === id);
+        if (!v || !vehicleRoute(w, v)) {
+          v = w.vehicles.find((q) => kinds.includes(q.kind) && vehicleRoute(w, q) !== undefined && q.state === 'moving');
+          if (!v) return null;
+          id = v.id;
+        }
+        const route = vehicleRoute(w, v);
+        if (!route) return null;
+        const i = Math.max(0, Math.min(route.path.length - 1, v.idx));
+        const j = Math.max(0, Math.min(route.path.length - 1, v.idx + v.dir));
+        const k = v.state === 'moving' ? Math.min(1, v.moveTimer / Math.max(1, routeTicks(route, VEHICLE_DEFS[v.kind].ticksPerTile))) : 0;
+        const a = route.path[i];
+        const b = route.path[j];
+        return { x: wrapX(w, a.x + wrapDx(w, a.x, b.x) * k), y: lerp(a.y, b.y, k) };
+      };
+    };
+
+    // The showroom stands on open ground near the first town.
+    const probe: Tile[] = [];
+    const roomTile = this.freeSpot(F, 8, 22, probe, 2) ?? this.freeSpot(F, 6, 34, probe, 1) ?? this.freeSpot(farm, 3, 16, probe, 1);
+
+    // The shot list. Each has a length and a camera move; the cues, panels and events below are placed against it.
+    const EACH = 2.4;
+    const plan: { name: string; dur: number; view: Shot['view'] }[] = [
+      { name: 'open', dur: 14, view: move({ x: F.x - 70, y: F.y - 30, dist: 330, h: -0.6, p: 0 }, { x: F.x - 20, y: F.y - 8, dist: 110, h: 0.1, p: 0.25 }) },
+      { name: 'city', dur: 48, view: orbit(C, 15, 50, 0.3, -0.05, 0.3, 2.9) },
+      { name: 'bldg', dur: 16, view: orbit(saw, 9, 7, 0.1, -0.1, 0.6, 2.0) },
+      { name: 'farm', dur: 10, view: orbit(farm, 17, 12, 0.35, 0.5, 0.4, 1.7) },
+      { name: 'room', dur: Game3D.SHOWROOM.length * EACH, view: roomTile ? orbit(roomTile, 9, 7, 0.1, 0.0, 0.4, 1.0) : orbit(F, 20, 20, 0.3, 0.3, 0, 1) },
+      { name: 'trucks', dur: 12, view: follow(tracker(['rig', 'convoy', 'bigtruck']), F, 12, 9, 0.2, 0.3, 0.6, 1.3) },
+      { name: 'rail', dur: 12, view: follow(tracker(['train', 'heavytrain']), yard, 16, 12, 0.25, 0.3, 2.2, 3.0) },
+      { name: 'monster', dur: 8, view: follow(() => this.props?.tileOf(4) ?? null, dock, 20, 16, 0.2, 0.25, 0.5, 1.1) },
+      { name: 'ship', dur: 10, view: follow(() => this.props?.tileOf(0) ?? null, dock, 24, 17, 0.2, 0.25, 1.2, 2.3) },
+      { name: 'port', dur: 14, view: orbit(portT, 13, 9, 0.2, 0.1, 3.4, 4.8) },
+      { name: 'air', dur: 16, view: orbit(ap, 24, 17, 0.3, 0.2, 0.2, 1.9) },
+      { name: 'plane', dur: 12, view: follow(tracker(['plane', 'jet']), ap, 22, 28, 0.2, 0.3, 0.8, 1.6) },
+      { name: 'football', dur: 7, view: orbit(stad, 12, 8, -0.1, -0.2, 2.4, 3.1) },
+      { name: 'baseball', dur: 7, view: orbit(park, 10, 8, -0.1, -0.25, 0.4, 1.2) },
+      { name: 'hockey', dur: 7, view: orbit(arena, 10, 8, -0.1, -0.2, 0.2, 0.9) },
+      { name: 'amph', dur: 7, view: orbit(amph, 10, 8, 0.0, -0.1, 0.4, 1.4) },
+      { name: 'finale', dur: 14, view: move({ x: C.x, y: C.y, dist: 24, h: 5.2, p: 0.35 }, { x: C.x - 10, y: C.y - 6, dist: 190, h: 6.6, p: 0.1 }) },
     ];
+    const starts: number[] = [];
+    let film = 0;
+    for (const s of plan) {
+      starts.push(film);
+      film += s.dur;
+    }
+    const T = (name: string, off = 0): number => starts[plan.findIndex((q) => q.name === name)] + off;
+    const D = (name: string): number => plan.find((q) => q.name === name)!.dur;
+
+    this.buildOpeningProps(F, dock, farm, { tile: roomTile, start: T('room'), each: EACH }, T('monster', 3.5), probe);
+    const sea = this.seaMid ?? dock;
+    void sea;
+
+    // Cues: what the lower-left caption says, and when.
+    const cues: Cue[] = [];
+    const cue = (at0: number, end: number, head: string, sub: string, flash = false): void => void cues.push({ at: at0, end, head, sub, flash });
+    cue(2.5, 13.5, 'ONE WORLD', 'A hand-made globe of continents, islands and open sea.');
+    const town5 = ['HAMLET', 'VILLAGE', 'TOWN', 'CITY', 'METROPOLIS'];
+    const townSub = [
+      'Every town starts small: a street and a few homes.',
+      'Sell it goods and it grows. Each level wants more kinds of goods.',
+      'Level 3 can choose a path: Breadbasket, The Forge, Trade Hub or The Boulevard.',
+      'Level 4: hotels, resorts, ballparks and stadiums.',
+      'Level 5: skyscrapers and the capstone districts.',
+    ];
+    const cityAt = [0.8, 8.8, 16.8, 32.6, 40.4];
+    cityAt.forEach((o, i) => cue(T('city', o), T('city', i < 4 ? cityAt[i + 1] - 0.4 : 47.6), town5[i], townSub[i]));
+    cue(T('city', 24.6), T('city', 32.2), 'DISTRICTS', 'Coffee houses, community centres, restaurants and more: each is a place to sell what you make.');
+    cue(T('bldg', 0.8), T('bldg', 5.6), 'LEVEL 1', `A camp, mill or factory starts small: x${LEVEL_SPEED[0]} speed.`);
+    cue(T('bldg', 5.8), T('bldg', 10.6), 'LEVEL 2', `Faster, and it holds more: x${LEVEL_SPEED[1]} speed.`);
+    cue(T('bldg', 10.8), T('bldg', 15.6), 'LEVEL 3', `The most it can be: x${LEVEL_SPEED[2]} speed and four times the storage.`);
+    cue(T('farm', 0.8), T('farm', 9.4), 'HARVEST', 'Camps, farms and quarries feed the chain. Something is going on in the wheat.');
+    const road = ['boxtruck', 'bigtruck', 'rig', 'convoy'];
+    Game3D.SHOWROOM.forEach((k, i) => {
+      const d = VEHICLE_DEFS[k];
+      const mode = d.mode === 'road' ? 'Road' : d.mode === 'rail' ? 'Rail' : d.mode === 'air' ? 'Air' : 'Sea';
+      const next = d.next ? `  ·  trades up to ${VEHICLE_DEFS[d.next].label}` : `  ·  the top of the ${mode.toLowerCase()} ladder`;
+      cue(T('room', i * EACH), T('room', (i + 1) * EACH - 0.05), d.label.toUpperCase(), `${mode}  ·  tier ${d.tier}  ·  carries ${d.capacity}${next}`, true);
+    });
+    void road;
+    cue(T('trucks', 0.8), T('trucks', 11.4), 'CHOOSE WHO BUYS', 'Pick where each building sells. Roads join up on their own.');
+    cue(T('rail', 0.8), T('rail', 11.4), 'RAIL', 'Freight trains run from yard to yard.');
+    cue(T('monster', 0.8), T('monster', 7.6), 'THE DEEP', 'Something lives out there. Probably.');
+    cue(T('ship', 0.8), T('ship', 9.4), 'SEA ROUTES', 'Islands grow coffee, mangoes and oil that grow nowhere else. Ships bring them home.');
+    cue(T('port', 0.8), T('port', 4.6), 'PORT: LEVEL 1', 'A quay and a crane.');
+    cue(T('port', 4.8), T('port', 9.0), 'PORT: LEVEL 2', 'More cranes, more sheds, more stacks.');
+    cue(T('port', 9.2), T('port', 13.6), 'PORT: LEVEL 3', 'A container terminal.');
+    cue(T('air', 0.8), T('air', 5.0), 'AIRSTRIP', 'An airport grows with the town it serves: first a strip and a small plane.');
+    cue(T('air', 5.2), T('air', 10.0), 'REGIONAL FIELD', 'A town can have a regional field, with jets.');
+    cue(T('air', 10.2), T('air', 15.6), 'INTERNATIONAL HUB', 'A city gets the lot: two runways, piers and a tower.');
+    cue(T('plane', 0.8), T('plane', 11.4), 'TAKE OFF', 'Planes cross any terrain, ocean or mountain.');
+    cue(T('football', 0.4), T('football', 6.8), 'FOOTBALL', 'A bowl round a field, with end zones and floodlights.');
+    cue(T('baseball', 0.4), T('baseball', 6.8), 'BASEBALL', 'A true diamond, a curved wall and a grandstand.');
+    cue(T('hockey', 0.4), T('hockey', 6.8), 'HOCKEY', 'An arena with the rink painted on the roof.');
+    cue(T('amph', 0.4), T('amph', 6.8), 'AMPHITHEATRE', 'Built into the hills, on the water or in the woods, wherever the town stands.');
+    cue(T('finale', 1.0), T('finale', 7.0), 'BUILD', 'Upgrade, specialise, and watch it all rise.');
+
+    // Panels drawn over the film: the menus where you choose who buys, take a loan, and see what a town needs.
+    const uis: Ui[] = [
+      { at: T('trucks', 1.0), end: T('trucks', 11.6), kind: 'sell' },
+      { at: T('ship', 0.8), end: T('ship', 9.8), kind: 'bank' },
+      { at: T('city', 26.0), end: T('city', 38.0), kind: 'town' },
+    ];
+
     const upgradeAny = (kind: string): void => {
       const site = w.sites.find((q) => q.kind === kind);
       if (site) upgradeSite(w, site.id);
     };
+    const setLevel = (kind: string, n: number): void => {
+      const site = w.sites.find((q) => q.kind === kind && (kind !== 'airport' || (q.x === ap.x && q.y === ap.y)));
+      if (site) site.level = n;
+    };
     const growAny = (): void => {
-      const p = w.places.find((q) => q.level < 5 && q !== town) ?? w.places.find((q) => q.level < 5);
+      const p = w.places.find((q) => q.level < 5 && q !== city) ?? w.places.find((q) => q.level < 5);
       if (p) p.level += 1;
     };
+    const build = (p: (typeof w.places)[number] | undefined, id: DistrictId): void => {
+      if (p) buildDistrict(w, p, id);
+    };
+    const events: { at: number; run: () => void; done: boolean }[] = [
+      // A town from nothing: back to a hamlet at the cut, then a level and a few districts at a time.
+      { at: T('city', -0.3), run: () => { city.level = 1; w.money = Math.max(w.money, 400000); }, done: false },
+      { at: T('city', 8), run: () => { city.level = 2; }, done: false },
+      { at: T('city', 16), run: () => { city.level = 3; }, done: false },
+      { at: T('city', 18), run: () => build(city, 'cafe'), done: false },
+      { at: T('city', 20), run: () => build(city, 'community'), done: false },
+      { at: T('city', 22), run: () => build(city, 'restaurants'), done: false },
+      { at: T('city', 24), run: () => build(city, 'amphitheatre'), done: false },
+      { at: T('city', 26), run: () => build(city, 'resort'), done: false },
+      { at: T('city', 32), run: () => { city.level = 4; }, done: false },
+      { at: T('city', 34), run: () => build(city, 'hotels'), done: false },
+      { at: T('city', 36), run: () => build(city, 'ballpark'), done: false },
+      { at: T('city', 40), run: () => { city.level = 5; }, done: false },
+      { at: T('city', 42), run: () => build(city, 'stadium'), done: false },
+      { at: T('city', 44), run: () => build(city, 'arena'), done: false },
+      // Buildings grow level by level.
+      { at: T('bldg', -0.3), run: () => setLevel('sawmill', 1), done: false },
+      { at: T('bldg', 5.6), run: () => setLevel('sawmill', 2), done: false },
+      { at: T('bldg', 10.6), run: () => setLevel('sawmill', 3), done: false },
+      { at: T('farm', 3), run: () => upgradeAny('farm'), done: false },
+      { at: T('rail', 3), run: () => upgradeAny('railyard'), done: false },
+      { at: T('port', -0.3), run: () => setLevel('port', 1), done: false },
+      { at: T('port', 4.6), run: () => setLevel('port', 2), done: false },
+      { at: T('port', 9.0), run: () => setLevel('port', 3), done: false },
+      { at: T('air', -0.3), run: () => setLevel('airport', 1), done: false },
+      { at: T('air', 5.0), run: () => setLevel('airport', 2), done: false },
+      { at: T('air', 10.0), run: () => setLevel('airport', 3), done: false },
+      { at: T('finale', 4), run: growAny, done: false },
+    ];
+
     this.cine = {
-      keys,
+      shots: plan.map((s) => ({ dur: s.dur, view: s.view })),
+      starts,
+      film,
+      total: film + 7,
       t: 0,
       later: 0,
-      events: [
-        { at: 11, run: () => upgradeAny('farm'), done: false },
-        { at: 17, run: () => upgradeAny('railyard'), done: false },
-        { at: 38, run: () => { if (town && town.level < 5) town.level += 1; }, done: false },
-        { at: 41, run: () => { if (town) buildDistrict(w, town, DISTRICT_ORDER[0]); }, done: false },
-        { at: 47, run: growAny, done: false },
-      ],
+      events,
+      cues,
+      uis,
+      cutAt: starts.slice(1),
     };
     this.showcase = true;
     this.speed = 1;
+    void D;
+    void amph;
+    void growAny;
+  }
+
+  /** What the title layer needs to know: the film's clock, the caption and panel that belong to now, and how dark a cut is. */
+  showcaseInfo(): { t: number; film: number; total: number; cue: { head: string; sub: string; at: number; end: number } | null; ui: { kind: Ui['kind']; u: number } | null; dip: number; flash: number } | null {
+    const c = this.cine;
+    if (!c) return null;
+    const cue = c.cues.find((q) => c.t >= q.at && c.t < q.end) ?? null;
+    const ui = c.uis.find((q) => c.t >= q.at && c.t < q.end);
+    let dip = 0;
+    for (const b of c.cutAt) dip = Math.max(dip, 1 - Math.abs(c.t - b) / 0.4);
+    let flash = 0;
+    for (const q of c.cues) if (q.flash && c.t >= q.at) flash = Math.max(flash, 1 - (c.t - q.at) / 0.22);
+    return {
+      t: c.t,
+      film: c.film,
+      total: c.total,
+      cue: cue ? { head: cue.head, sub: cue.sub, at: cue.at, end: cue.end } : null,
+      ui: ui ? { kind: ui.kind, u: (c.t - ui.at) / (ui.end - ui.at) } : null,
+      dip: Math.max(0, dip),
+      flash: Math.max(0, flash),
+    };
+  }
+
+  /** Jump to the end of the film: the logo and the buttons. Everything that was due to happen on the way happens now. */
+  skipShowcase(): void {
+    const c = this.cine;
+    if (c) c.t = Math.max(c.t, c.film - 0.5);
   }
 
   /** Hand the world back: the opening is over. */
   endShowcase(): void {
     this.showcase = false;
     this.cine = null;
+    this.props?.dispose();
+    this.props = null;
   }
 
   private updateShowcase(dt: number): void {
     const c = this.cine;
     if (!c) return;
-    c.t += Math.min(dt, 0.1);
+    const step = Math.min(dt, 0.1);
+    c.t += step;
+    this.props?.update(c.t);
     for (const e of c.events) {
       if (!e.done && c.t >= e.at) {
         e.done = true;
         e.run();
       }
     }
-    const k = c.keys;
-    const last = k[k.length - 1];
-    let x: number, y: number, dist: number, h: number, p: number;
-    if (c.t >= last.at) {
-      // Past the last shot: drift slowly round it, with something new happening now and then.
-      const over = c.t - last.at;
-      [x, y, dist, p] = [last.x, last.y, last.dist, last.p];
-      h = last.h + over * 0.05;
-      if (over > c.later + 13) {
+    let i = 0;
+    while (i < c.shots.length - 1 && c.t >= c.starts[i + 1]) i++;
+    const over = c.t - c.film;
+    const shot = c.shots[i];
+    let u = Math.min(1, (c.t - c.starts[i]) / shot.dur);
+    if (over > 0) {
+      // Past the last shot: the camera keeps drifting out over the world while things go on happening.
+      u = 1;
+      if (over > c.later + 14) {
         c.later = over;
-        const w = this.world;
-        const site = w.sites.find((q) => !SITE_DEFS[q.kind].dock && !SITE_DEFS[q.kind].station && upgradeError(w, q.id) === null);
-        if (site) upgradeSite(w, site.id);
+        const wl = this.world;
+        const site = wl.sites.find((q) => !SITE_DEFS[q.kind].dock && !SITE_DEFS[q.kind].station && upgradeError(wl, q.id) === null);
+        if (site) upgradeSite(wl, site.id);
         else {
-          const town = w.places.find((q) => q.level < 5);
+          const town = this.world.places.find((q) => q.level < 5);
           if (town) town.level += 1;
         }
       }
-    } else {
-      let i = 0;
-      while (i < k.length - 2 && c.t >= k[i + 1].at) i++;
-      const u = (c.t - k[i].at) / (k[i + 1].at - k[i].at);
-      const a = k[Math.max(0, i - 1)];
-      const b = k[i];
-      const cc = k[i + 1];
-      const d = k[Math.min(k.length - 1, i + 2)];
-      const cr = (p0: number, p1: number, p2: number, p3: number): number =>
-        0.5 * (2 * p1 + (-p0 + p2) * u + (2 * p0 - 5 * p1 + 4 * p2 - p3) * u * u + (-p0 + 3 * p1 - 3 * p2 + p3) * u * u * u);
-      x = cr(a.x, b.x, cc.x, d.x);
-      y = cr(a.y, b.y, cc.y, d.y);
-      dist = Math.exp(cr(Math.log(a.dist), Math.log(b.dist), Math.log(cc.dist), Math.log(d.dist)));
-      h = cr(a.h, b.h, cc.h, d.h);
-      p = cr(a.p, b.p, cc.p, d.p);
     }
-    const { lon, lat } = tileLonLat(this.world.width, this.world.height, x, y);
-    this.cam.set(lon, lat, dist, h, p);
+    const v = shot.view(u, c.t, step);
+    // Handheld: a slow breath of movement, never enough to notice as shake.
+    const sway = 1 + Math.min(1, v.dist / 40) * 0.5;
+    const h = v.h + (over > 0 ? over * 0.04 : 0) + (0.012 * Math.sin(c.t * 0.7) + 0.006 * Math.sin(c.t * 1.9 + 1)) * sway;
+    const p = v.p + (0.01 * Math.sin(c.t * 0.9 + 2) + 0.005 * Math.sin(c.t * 2.3)) * sway;
+    const { lon, lat } = tileLonLat(this.world.width, this.world.height, v.x, v.y);
+    this.cam.set(lon, lat, v.dist, h, p);
   }
 
   /** Debug and screenshot helper: put the camera on a tile. */

@@ -1,6 +1,7 @@
 // Procedural models for the newer buildings. Most processing plants share one parametric factory; the production
 // sites each get a small hand-built scene. Units: one tile is about 3.3 world units, a building about 2.5 across.
 import * as THREE from 'three';
+import { coffeeFarmGeometry, mangoGroveGeometry, oilWellGeometry } from './specialty';
 import type { SiteKind } from '../sim/defs';
 import { Parts } from './parts';
 
@@ -244,6 +245,12 @@ export function industryGeometry(kind: SiteKind): THREE.BufferGeometry {
       return orchard();
     case 'cottonfarm':
       return cottonFarm();
+    case 'coffeefarm':
+      return coffeeFarmGeometry();
+    case 'mangogrove':
+      return mangoGroveGeometry();
+    case 'oilwell':
+      return oilWellGeometry();
     default:
       return factory({ wall: 0xb8b8b8, roof: 0x666666, accent: 0xcccccc });
   }

@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import map1 from '../maps/map1.json';
 import { findPath } from './path';
+import { runChores } from './bot';
 import { HIGHWAY_TIER } from './defs';
-import { buyVehicle, createBlankWorld, createRoute, createWorldFromMap, layoutOf, placeError, placeSite, plotTiles, siteAt, yardSpot, siteById, step, streetAt, terrainAt, type MapData, type World } from './world';
+import { buyVehicle, createBlankWorld, createRoute, createSeaRoute, portSpot, portWater, seaPath, setSendTo, createWorldFromMap, layoutOf, placeError, placeSite, plotTiles, siteAt, yardSpot, siteById, step, streetAt, terrainAt, type MapData, type World } from './world';
 
 /** A farm on the nearest farmland to the first town, and a free spot on that town's main street to join. */
 function setup(): { w: World; farm: NonNullable<ReturnType<typeof siteAt>>; mill: NonNullable<ReturnType<typeof siteAt>>; street: { x: number; y: number } } {
@@ -149,4 +150,49 @@ describe('places for airports and rail yards', () => {
     expect(w.sites.some((o) => o.id !== yard.id)).toBe(true);
   });
 
+});
+
+describe('islands and the sea', () => {
+  it('has islands with specialties, and the specialties are only there', () => {
+    const w = createWorldFromMap(map1 as MapData);
+    for (const kind of ['coffee', 'mango', 'oil'] as const) expect(w.nodes.filter((n) => n.kind === kind).length).toBeGreaterThanOrEqual(3);
+    // Nothing of them on the mainland: every one is on an island town's own island, a long way from the home town.
+    const home = w.places[0];
+    for (const n of w.nodes.filter((q) => q.kind === 'coffee' || q.kind === 'mango' || q.kind === 'oil')) expect(Math.hypot(n.x - home.x, n.y - home.y)).toBeGreaterThan(20);
+    expect(w.places.map((p) => p.name)).toContain('Ventura');
+  });
+
+  it('puts a port on the coast only, and sails goods from an island to the mainland', () => {
+    const w = createWorldFromMap(map1 as MapData);
+    w.tier = 4;
+    w.money = 1e7;
+    const isle = w.places.find((p) => p.name === 'Ventura')!;
+    const main = w.places.find((p) => p.name === 'Rio Palma')!;
+    // Not inland.
+    expect(placeError(w, 'port', main.x + 12, main.y)).toMatch(/coast|town|Too close|Cannot|steep/);
+    const a = portSpot(w, isle)!;
+    const b = portSpot(w, main)!;
+    expect(a).not.toBeNull();
+    expect(b).not.toBeNull();
+    expect(portWater(w, a.x, a.y)).not.toBeNull();
+    expect(placeSite(w, 'port', a.x, a.y)).toBeNull();
+    expect(placeSite(w, 'port', b.x, b.y)).toBeNull();
+    const pa = siteAt(w, a.x, a.y)!;
+    const pb = siteAt(w, b.x, b.y)!;
+    expect(seaPath(w, pa, pb)).not.toBeNull();
+    expect(createSeaRoute(w, pa.id, pb.id)).toBeNull();
+    expect(createSeaRoute(w, pa.id, pb.id)).toMatch(/already linked/);
+    const route = w.routes.find((r) => r.mode === 'sea')!;
+    // Every tile of the lane between the ports is water.
+    for (const t of route.path.slice(1, -1)) expect(terrainAt(w, t.x, t.y)).toBe('water');
+    expect(buyVehicle(w, pa.id, 'boat')).toBeNull();
+    pa.stock.coffee = 100;
+    pb.pull = ['coffee'];
+    setSendTo(w, pa.id, pb.id, true);
+    for (let i = 0; i < 6000; i++) {
+      step(w);
+      if (i % 200 === 0) runChores(w);
+    }
+    expect(pb.stock.coffee ?? 0).toBeGreaterThan(10);
+  });
 });

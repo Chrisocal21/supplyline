@@ -20,7 +20,7 @@
 | Phase 3 | The world, polished (graphics, sound) | 33% |
 | Phase 4 | Depth: districts, paths, vehicle ladder | 90% |
 | Phase 5 | Living towns, bank, rail yard, joined roads | 100% |
-| Phase 6 | Later: sea transport, real-money cash, events | 0% |
+| Phase 6 | Later: sea transport, real-money cash, events | 30% |
 
 Overall: about 72%.
 
@@ -170,7 +170,7 @@ Money
 
 **Phase progress:** 0%
 
-- [ ] Sea transport: ports, ships, water lanes
+- [x] Sea transport: ports, ships, water lanes, island specialties
 - [ ] Buying cash with real money (needs a payment service and a server)
 - [x] Market events (demand surges and slumps, already in the game)
 - [ ] Contracts

@@ -21,6 +21,8 @@ import {
   type RoadGrade,
   RAIL_COST_FACTOR,
   AIR_COST_PER_TILE,
+  SEA_COST_PER_TILE,
+  SEA_TIER,
   AIR_TIER,
   RAIL_TIER,
   ROAD_COST,
@@ -298,6 +300,10 @@ export interface MapData {
   elev: string[];
   places: FixedPlace[];
   nodes: { kind: NodeKind; x: number; y: number; quality: number }[];
+  /** Island specialties (coffee, mangoes, oil): resource nodes the map places by hand. */
+  specials?: { kind: string; x: number; y: number; quality: number }[];
+  /** [x, y, radius] of the specialty islands, where the usual resources are held back to a few. */
+  islands?: number[][];
 }
 
 const MAP_TERRAIN: Record<string, Terrain> = { '~': 'water', '.': 'grass', f: 'forest', '^': 'mountain', '*': 'ice' };
@@ -319,6 +325,24 @@ export function createWorldFromMap(map: MapData): World {
   world.places = f.places;
   // Resources follow the placement rules unless the map lists its own; either way the same map always has the same ones.
   world.nodes = !map.nodes.length ? f.nodes : map.nodes.map((n, i) => ({ id: i + 1, kind: n.kind, x: n.x, y: n.y, quality: n.quality, regionId: f.regionMap[n.y * width + n.x] }));
+  // The specialty islands keep only a field, a wood and a meadow of the usual resources: what they are for is what grows
+  // nowhere else, which has to come home by ship.
+  if (map.islands?.length) {
+    const near = (n: { x: number; y: number }, [ix, iy, ir]: number[]): boolean => Math.hypot(wrapDx(world, n.x, ix), n.y - iy) < ir;
+    let nodes = world.nodes;
+    for (const isl of map.islands) {
+      const inside = nodes.filter((n) => near(n, isl)).sort((a, b) => Math.hypot(wrapDx(world, a.x, isl[0]), a.y - isl[1]) - Math.hypot(wrapDx(world, b.x, isl[0]), b.y - isl[1]));
+      const keep = new Set<number>();
+      for (const kind of ['farmland', 'forest', 'pasture'] as const) {
+        const one = inside.find((n) => n.kind === kind);
+        if (one) keep.add(one.id);
+      }
+      nodes = nodes.filter((n) => !near(n, isl) || keep.has(n.id));
+    }
+    for (const sp of map.specials ?? []) nodes.push({ id: 0, kind: sp.kind as NodeKind, x: sp.x, y: sp.y, quality: sp.quality, regionId: f.regionMap[sp.y * width + sp.x] });
+    nodes.forEach((n, i) => (n.id = i + 1));
+    world.nodes = nodes;
+  }
   world.layout = NODE_LAYOUT;
   world.mapId = map.id;
   for (const p of world.places) {
@@ -739,7 +763,7 @@ export function entryTile(world: World, x: number, y: number): Tile | null {
 /** First route whose path passes through the tile. */
 export function routeAt(world: World, x: number, y: number, mode?: RouteMode, opts: { newest?: boolean; vehicles?: boolean } = {}): Route | undefined {
   const wx = wrapX(world, x);
-  const hit = (r: Route): boolean => (mode ? r.mode === mode : r.mode !== 'air') && !(opts.vehicles && r.free) && (opts.vehicles || !r.over) && r.path.some((p) => p.x === wx && p.y === y);
+  const hit = (r: Route): boolean => (mode ? r.mode === mode : r.mode !== 'air' && r.mode !== 'sea') && !(opts.vehicles && r.free) && (opts.vehicles || !r.over) && r.path.some((p) => p.x === wx && p.y === y);
   if (!opts.newest) return world.routes.find(hit);
   for (let i = world.routes.length - 1; i >= 0; i--) if (hit(world.routes[i])) return world.routes[i];
   return undefined;
@@ -1479,6 +1503,7 @@ export function placeError(world: World, kind: SiteKind, x: number, y: number): 
     // Inside a town: any building that does not need a resource node, on the plots beside the streets.
     if (def.node) return `${def.label} must be built on a ${def.node} node`;
     if (def.airport) return 'Airports need open ground outside a town';
+    if (def.port) return 'A Port goes on the coast, outside the town streets';
     if (def.railyard) return 'A Rail Yard goes at the edge of town, outside its streets';
     if (plot.index < 2) return `Reserved for ${plot.place.name}'s ${plot.index === 0 ? 'Market' : 'Freight Yard'}`;
     if (isHomePlot(plot.place, plot.index)) return 'Homes line this stretch of street: not for sale';
@@ -1491,9 +1516,9 @@ export function placeError(world: World, kind: SiteKind, x: number, y: number): 
       const node = nodeAt(world, x, y);
       if (!node || node.kind !== def.node) return `${def.label} must be built on a ${def.node} node`;
       if (world.sites.some((s) => s.nodeId === node.id)) return 'Node already in use';
-    } else if (t !== 'grass') {
+    } else if (t !== 'grass' && !(def.port && t === 'forest')) {
       return t === 'forest' ? 'Forests are reserved for forestry nodes' : `Cannot build on ${t}`;
-    } else if (slopeAt(world, x, y) > BUILD_SLOPE) {
+    } else if (!def.port && slopeAt(world, x, y) > BUILD_SLOPE) {
       return 'Too steep to build on';
     }
     if (def.airport) {
@@ -1502,6 +1527,10 @@ export function placeError(world: World, kind: SiteKind, x: number, y: number): 
     }
     if (def.railyard) {
       const e = railyardError(world, x, y);
+      if (e) return e;
+    }
+    if (def.port) {
+      const e = portError(world, x, y);
       if (e) return e;
     }
   }
@@ -1554,6 +1583,126 @@ export function yardSpot(world: World, place: Place): Tile | null {
   }
   best.sort((a, b) => a.d - b.d);
   return best[0] ? { x: best[0].x, y: best[0].y } : null;
+}
+
+// ---- ports and sea routes ----
+
+const ORTHO: [number, number][] = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+const SEA_STEPS: [number, number][] = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]];
+
+/** Whether a water tile belongs to open sea, not a pond: it opens out to at least 150 water tiles. */
+function openSea(world: World, x: number, y: number): boolean {
+  const seen = new Set<number>([y * world.width + x]);
+  const queue: Tile[] = [{ x, y }];
+  for (let q = 0; q < queue.length && queue.length < 150; q++) {
+    const c = queue[q];
+    for (const [dx, dy] of ORTHO) {
+      const nx = wrapX(world, c.x + dx);
+      const ny = c.y + dy;
+      const k = ny * world.width + nx;
+      if (seen.has(k) || terrainAt(world, nx, ny) !== 'water') continue;
+      seen.add(k);
+      queue.push({ x: nx, y: ny });
+    }
+  }
+  return queue.length >= 150;
+}
+
+/** The water tile a port's ships use: open sea right beside it, or null when the port is not on the coast. */
+export function portWater(world: World, x: number, y: number): Tile | null {
+  for (const [dx, dy] of ORTHO) {
+    const nx = wrapX(world, x + dx);
+    const ny = y + dy;
+    if (terrainAt(world, nx, ny) === 'water' && openSea(world, nx, ny)) return { x: nx, y: ny };
+  }
+  return null;
+}
+
+/** A Port stands on flat dry ground at the water's edge, away from any town street. */
+function portError(world: World, x: number, y: number): string | null {
+  if (!portWater(world, x, y)) return 'A Port goes on the coast, right at the edge of open sea';
+  // The quay is level: only the land beside it counts, not the drop into the water.
+  const e = elevAt(world, x, y);
+  for (const [dx, dy] of ORTHO) {
+    const t = terrainAt(world, wrapX(world, x + dx), y + dy);
+    if (t && t !== 'water' && t !== 'ice' && Math.abs(elevAt(world, wrapX(world, x + dx), y + dy) - e) > BUILD_SLOPE) return 'Too steep to build on';
+  }
+  return null;
+}
+
+/** Where a town's Port could go: the nearest coastal tile that takes one. Used by the demo and the bot. */
+export function portSpot(world: World, near: Tile, reach = 30): Tile | null {
+  let best: { x: number; y: number; d: number } | null = null;
+  for (let dy = -reach; dy <= reach; dy++) {
+    for (let dx = -reach; dx <= reach; dx++) {
+      const x = wrapX(world, near.x + dx);
+      const y = near.y + dy;
+      const d = Math.hypot(dx, dy);
+      if (best && d >= best.d) continue;
+      const err = placeError(world, 'port', x, y);
+      if (err === null || err.startsWith('Need $')) best = { x, y, d };
+    }
+  }
+  return best ? { x: best.x, y: best.y } : null;
+}
+
+/** The tiles a ship sails: out of one port, across open water the short way, and in to the other. Null when the seas do not join. */
+export function seaPath(world: World, a: Tile, b: Tile): Tile[] | null {
+  const start = portWater(world, a.x, a.y);
+  const goal = portWater(world, b.x, b.y);
+  if (!start || !goal) return null;
+  const key = (x: number, y: number): number => y * world.width + x;
+  const from = new Map<number, number>([[key(start.x, start.y), -1]]);
+  const queue: number[] = [key(start.x, start.y)];
+  const target = key(goal.x, goal.y);
+  for (let q = 0; q < queue.length; q++) {
+    const k = queue[q];
+    if (k === target) break;
+    const cx = k % world.width;
+    const cy = (k - cx) / world.width;
+    for (const [dx, dy] of SEA_STEPS) {
+      const nx = wrapX(world, cx + dx);
+      const ny = cy + dy;
+      if (terrainAt(world, nx, ny) !== 'water') continue;
+      // Cutting a corner of land is not allowed: both tiles beside a diagonal step must be water.
+      if (dx && dy && (terrainAt(world, wrapX(world, cx + dx), cy) !== 'water' || terrainAt(world, cx, ny) !== 'water')) continue;
+      const nk = key(nx, ny);
+      if (from.has(nk)) continue;
+      from.set(nk, k);
+      queue.push(nk);
+    }
+  }
+  if (!from.has(target)) return null;
+  const water: Tile[] = [];
+  for (let k = target; k !== -1; k = from.get(k)!) water.push({ x: k % world.width, y: Math.floor(k / world.width) });
+  water.reverse();
+  return [{ x: a.x, y: a.y }, ...water, { x: b.x, y: b.y }];
+}
+
+/** Why two ports cannot be linked, or null. */
+export function seaError(world: World, aId: number, bId: number): string | null {
+  const a = siteById(world, aId);
+  const b = siteById(world, bId);
+  if (world.tier < SEA_TIER) return `Sea routes unlock at Tier ${SEA_TIER}`;
+  if (!a || !b || !SITE_DEFS[a.kind].port || !SITE_DEFS[b.kind].port) return 'Sea routes join two ports';
+  if (a.id === b.id) return 'Pick a different port to sail to';
+  if (world.routes.some((r) => r.mode === 'sea' && ((r.fromSiteId === a.id && r.toSiteId === b.id) || (r.fromSiteId === b.id && r.toSiteId === a.id)))) return 'Those ports are already linked';
+  const path = seaPath(world, a, b);
+  if (!path) return 'No open sea joins those two ports';
+  const cost = path.length * SEA_COST_PER_TILE;
+  return world.money < cost ? `Need $${cost}` : null;
+}
+
+/** Sail a route between two ports. Ships are bought at the ports. */
+export function createSeaRoute(world: World, aId: number, bId: number): string | null {
+  const err = seaError(world, aId, bId);
+  if (err) return err;
+  const a = siteById(world, aId)!;
+  const b = siteById(world, bId)!;
+  const path = seaPath(world, a, b)!;
+  world.money -= path.length * SEA_COST_PER_TILE;
+  world.routes.push({ id: world.nextId++, mode: 'sea', fromSiteId: a.id, toSiteId: b.id, path });
+  return null;
 }
 
 /** Name a new site after its surroundings: the woods it sits in, or the nearest town. */
@@ -1614,6 +1763,20 @@ export function upgradeCost(site: Site): number {
   return Math.round(SITE_DEFS[site.kind].cost * UPGRADE_COST_FACTOR * site.level);
 }
 
+/** The closest town to a building, within reach of its customers (about 60 tiles), or null. */
+export function nearestPlace(world: World, at: Tile): Place | null {
+  let best: Place | null = null;
+  let bd = 60;
+  for (const p of world.places) {
+    const d = Math.hypot(wrapDx(world, at.x, p.x), at.y - p.y);
+    if (d < bd) {
+      bd = d;
+      best = p;
+    }
+  }
+  return best;
+}
+
 export function upgradeError(world: World, siteId: number): string | null {
   const site = siteById(world, siteId);
   if (!site) return 'Nothing selected';
@@ -1623,6 +1786,12 @@ export function upgradeError(world: World, siteId: number): string | null {
   if (site.level >= MAX_LEVEL) return 'Already at max level';
   const needTier = site.level; // level 2 needs tier 1, level 3 needs tier 2
   if (world.tier < needTier) return `Level ${site.level + 1} needs Tier ${needTier}`;
+  if (def.airport) {
+    // An airport grows with the town it serves: a Town (level 3) for a regional field, a City (level 4) for an international one.
+    const town = nearestPlace(world, site);
+    const need = site.level + 2;
+    if (!town || town.level < need) return `A bigger airport needs a bigger town: ${town ? town.name : 'a town nearby'} must reach level ${need}`;
+  }
   const cost = upgradeCost(site);
   if (world.money < cost) return `Need $${cost}`;
   return null;
@@ -1792,7 +1961,7 @@ export function vehicleRoute(world: World, v: Vehicle): Route | undefined {
 /** A route went from under a vehicle: if it is out on the road it turns round and drives home, otherwise it just waits. */
 function strand(route: Route, v: Vehicle): void {
   const last = route.path.length - 1;
-  if (route.mode === 'air' || v.state !== 'moving' || v.idx <= 0 || v.idx >= last) {
+  if (route.mode === 'air' || route.mode === 'sea' || v.state !== 'moving' || v.idx <= 0 || v.idx >= last) {
     parkVehicle(v);
     return;
   }
@@ -1905,7 +2074,7 @@ export function createRoute(world: World, rawPath: Tile[], mode: RouteMode = 'ro
  * network that could trade a lane to run along, so "joined" means what it looks like. Safe to call again.
  */
 export function linkNetwork(world: World, mode: RouteMode): void {
-  if (mode === 'air') return;
+  if (mode === 'air' || mode === 'sea') return;
   const key = (x: number, y: number): number => y * world.width + wrapX(world, x);
   const ground = new Set<number>();
   for (const r of world.routes) if (r.mode === mode && !r.over) for (const t of r.path) ground.add(key(t.x, t.y));
@@ -2025,6 +2194,7 @@ export function buyOptions(world: World, siteId: number): VehicleKind[] {
   if (def.airport) return ['plane'];
   const out: VehicleKind[] = [];
   if (!def.station) out.push('boxtruck');
+  if (def.port) out.push('boat');
   if (def.station || hasRail(world, siteId)) out.push('train');
   return out;
 }
@@ -2207,6 +2377,7 @@ export function routeRefund(world: World, route: Route): number {
   const factor = (route.mode === 'rail' ? RAIL_COST_FACTOR : 1) * (route.mode === 'road' && route.grade === 'highway' ? HIGHWAY_COST_FACTOR : 1);
   let refund = 0;
   if (route.mode === 'air') refund += route.path.length * AIR_COST_PER_TILE * 0.5;
+  else if (route.mode === 'sea') refund += route.path.length * SEA_COST_PER_TILE * 0.5;
   else {
     for (const p of route.path) {
       const t = terrainAt(world, p.x, p.y);

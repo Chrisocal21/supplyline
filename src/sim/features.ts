@@ -300,8 +300,15 @@ export function generateFeatures(terrain: Terrain[], width: number, height: numb
       : (roll < 0.55 ? 'tropical' : roll < 0.85 ? 'arid' : 'mediterranean'));
     void TOWN_STYLES;
     const taste: Stock = {};
+    // The island goods take their taste from the spot, not from the random stream, so adding them left every other town as it was.
+    const EXTRA = ['coffee', 'mango', 'oil'];
     for (const g of new Set([...MARKET_DEMAND[MARKET_DEMAND.length - 1], ...FREIGHT_DEMAND[FREIGHT_DEMAND.length - 1]])) {
+      if (EXTRA.includes(g)) continue;
       taste[g] = Math.round((0.75 + namer.rand() * 0.7) * (STYLE_TASTE[style][g] ?? 1) * 100) / 100;
+    }
+    for (const g of EXTRA) {
+      const h = (Math.imul(x * 73856093 + y * 19349663, 2654435761) + g.length * 40503) >>> 0;
+      taste[g as keyof typeof taste] = Math.round((0.75 + ((h % 1000) / 1000) * 0.7) * 100) / 100;
     }
     // Many plots along the street start as homes, so the street has houses on it and not only empty lots. As the town
     // grows, the homes nearest the centre make way for building lots (see homesNow in world.ts). The plots themselves

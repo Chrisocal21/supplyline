@@ -3,6 +3,8 @@
 const GOOD_IDS = [
   // raw
   'logs', 'grain', 'cotton', 'stone', 'ore', 'coal', 'clay', 'sand', 'milk', 'fruit',
+  // island specialties: only grown on distant islands
+  'coffee', 'mango', 'oil',
   // materials
   'lumber', 'flour', 'paper', 'bricks', 'blocks', 'ingots', 'steel', 'cement', 'concrete', 'glass', 'yarn', 'cloth',
   // products
@@ -13,8 +15,8 @@ const GOOD_IDS = [
 export type Good = (typeof GOOD_IDS)[number];
 export type Stock = Partial<Record<Good, number>>;
 export type Terrain = 'water' | 'grass' | 'forest' | 'mountain' | 'ice';
-export type NodeKind = 'forest' | 'farmland' | 'quarry' | 'mine' | 'coal' | 'clay' | 'pasture' | 'orchard';
-export type VehicleKind = 'boxtruck' | 'bigtruck' | 'rig' | 'convoy' | 'train' | 'heavytrain' | 'plane' | 'jet';
+export type NodeKind = 'forest' | 'farmland' | 'quarry' | 'mine' | 'coal' | 'clay' | 'pasture' | 'orchard' | 'coffee' | 'mango' | 'oil';
+export type VehicleKind = 'boxtruck' | 'bigtruck' | 'rig' | 'convoy' | 'train' | 'heavytrain' | 'plane' | 'jet' | 'boat' | 'freighter' | 'containership';
 export type Category = 'production' | 'processing' | 'manufacturing' | 'heavy' | 'logistics' | 'vehicles';
 
 export const GOOD_LIST: Good[] = [...GOOD_IDS];
@@ -40,6 +42,9 @@ export const GOODS: Record<Good, { label: string; price: number; color: number; 
   sand: { label: 'Sand', price: 2, color: 0xe0cd96, kind: 'raw' },
   milk: { label: 'Milk', price: 4, color: 0xf4f6f8, kind: 'raw' },
   fruit: { label: 'Fruit', price: 5, color: 0xc8453b, kind: 'raw' },
+  coffee: { label: 'Coffee', price: 16, color: 0x6b4426, kind: 'raw' },
+  mango: { label: 'Mango', price: 12, color: 0xf0a630, kind: 'raw' },
+  oil: { label: 'Crude Oil', price: 11, color: 0x1f2023, kind: 'raw' },
   lumber: { label: 'Lumber', price: 11, color: 0xc9a06a, kind: 'material' },
   flour: { label: 'Flour', price: 9, color: 0xece4d0, kind: 'material' },
   paper: { label: 'Paper', price: 26, color: 0xf2efe6, kind: 'material' },
@@ -97,6 +102,8 @@ export interface SiteDef {
   airport?: boolean;
   /** Rail Yard: a hub at the edge of a town where trains load and unload. */
   railyard?: boolean;
+  /** Port: a hub on the coast that ships sail between. */
+  port?: boolean;
 }
 
 const raw = (label: string, blurb: string, cost: number, tier: number, node: NodeKind, good: Good, every: number, color: number): SiteDef => ({
@@ -134,6 +141,9 @@ const DEFS = {
   cottonfarm: raw('Cotton Farm', 'Grows cotton on farmland. Output: cotton.', 150, 1, 'farmland', 'cotton', 22, 0xe6e2d2),
   coalmine: raw('Coal Mine', 'Mines coal on a coal seam in the hills. Output: coal.', 200, 1, 'coal', 'coal', 24, 0x2b2d31),
   oremine: raw('Iron Mine', 'Mines iron ore on an ore deposit in the hills. Output: iron ore.', 220, 1, 'mine', 'ore', 26, 0x8a5a4a),
+  coffeefarm: raw('Coffee Plantation', 'Terraced coffee on an island highland. Output: coffee. Islands only, so it has to come by ship.', 420, 2, 'coffee', 'coffee', 26, 0x6b4426),
+  mangogrove: raw('Mango Grove', 'Mango trees in the island sun. Output: mangoes. Islands only, so they have to come by ship.', 320, 2, 'mango', 'mango', 22, 0xf0a630),
+  oilwell: raw('Oil Well', 'Pumps crude oil from a field. Output: oil. Found on a few islands, so it has to come by ship.', 900, 2, 'oil', 'oil', 30, 0x2a2a2e),
   sandpit: raw('Sand Pit', 'Digs sand on a clay node. Output: sand.', 140, 1, 'clay', 'sand', 16, 0xe0cd96),
 
   // Processing
@@ -186,6 +196,17 @@ const DEFS = {
     color: 0x5c7ea8,
     hub: true,
     railyard: true,
+  } as SiteDef,
+  port: {
+    label: 'Port',
+    blurb: 'A harbour on the coast. Trucks bring goods in, and ships carry them to other ports across the sea.',
+    category: 'logistics',
+    cost: 4000,
+    tier: 2,
+    cap: 240,
+    color: 0x3f78a8,
+    hub: true,
+    port: true,
   } as SiteDef,
   market: {
     label: 'Market',
@@ -271,7 +292,7 @@ export const STYLE_TASTE: Record<TownStyle, Stock> = {
 export interface VehicleDef {
   label: string;
   blurb: string;
-  mode: 'road' | 'rail' | 'air';
+  mode: 'road' | 'rail' | 'air' | 'sea';
   cost: number;
   tier: number;
   capacity: number;
@@ -290,10 +311,13 @@ export const VEHICLE_DEFS: Record<VehicleKind, VehicleDef> = {
   train: { label: 'Freight Train', blurb: 'Huge capacity on its own track. Rails cross roads at level crossings.', mode: 'rail', cost: 1800, tier: 2, capacity: 140, ticksPerTile: 2, implemented: true, next: 'heavytrain' },
   heavytrain: { label: 'Heavy Haul Train', blurb: 'A long unit train for the busiest lines.', mode: 'rail', cost: 5200, tier: 3, capacity: 360, ticksPerTile: 2, implemented: true },
   plane: { label: 'Cargo Plane', blurb: 'Fast, crosses any terrain. Flies between airports.', mode: 'air', cost: 7000, tier: 3, capacity: 60, ticksPerTile: 2, implemented: true, next: 'jet' },
+  boat: { label: 'Cargo Boat', blurb: 'A small coastal freighter. Sails between ports.', mode: 'sea', cost: 2500, tier: 2, capacity: 50, ticksPerTile: 3, implemented: true, next: 'freighter' },
+  freighter: { label: 'Freighter', blurb: 'A proper cargo ship with a crane and a hold.', mode: 'sea', cost: 9000, tier: 3, capacity: 160, ticksPerTile: 2.5, implemented: true, next: 'containership' },
+  containership: { label: 'Container Ship', blurb: 'Boxes stacked high. Carries more than any other vehicle.', mode: 'sea', cost: 28000, tier: 4, capacity: 520, ticksPerTile: 2, implemented: true },
   jet: { label: 'Cargo Jet', blurb: 'A wide-body freighter for the longest hauls.', mode: 'air', cost: 22000, tier: 4, capacity: 220, ticksPerTile: 1.5, implemented: true },
 };
 
-export const VEHICLE_ORDER: VehicleKind[] = ['boxtruck', 'bigtruck', 'rig', 'convoy', 'train', 'heavytrain', 'plane', 'jet'];
+export const VEHICLE_ORDER: VehicleKind[] = ['boxtruck', 'bigtruck', 'rig', 'convoy', 'train', 'heavytrain', 'plane', 'jet', 'boat', 'freighter', 'containership'];
 
 /** Running costs. Vehicles cost this share of their price every minute; buildings and districts a share of theirs per level. */
 export const VEHICLE_UPKEEP = 0.03;
@@ -322,7 +346,7 @@ export const ROAD_COST: Record<Terrain, number> = { grass: 2, forest: 4, water: 
 export const SPAN_LIMIT = [2, 4, 8, 16];
 
 /** Rails are a separate network from roads. Track costs more per tile, and unlocks at Tier 2. */
-export type RouteMode = 'road' | 'rail' | 'air';
+export type RouteMode = 'road' | 'rail' | 'air' | 'sea';
 export const RAIL_COST_FACTOR = 1.8;
 export const RAIL_TIER = 2;
 /** A Distribution Hub can be given a rail yard, which is how trains reach a town. */
@@ -330,6 +354,9 @@ export const DEPOT_COST = 3000;
 /** Air routes link two airports in a straight line. */
 export const AIR_TIER = 3;
 export const AIR_COST_PER_TILE = 4;
+/** Sea routes link two ports over open water. */
+export const SEA_TIER = 2;
+export const SEA_COST_PER_TILE = 3;
 /** Extra cost where a road and a rail cross at a level crossing. */
 export const CROSSING_COST = 8;
 
@@ -358,12 +385,12 @@ export const TOWN_LEVELS: TownLevel[] = [
 /** Goods the Market wants at each town level. */
 export const MARKET_DEMAND: Good[][] = [
   ['flour', 'bread', 'lumber', 'cheese'],
-  ['flour', 'bread', 'lumber', 'cheese', 'paper', 'pellets', 'jam'],
-  ['flour', 'bread', 'lumber', 'cheese', 'paper', 'pellets', 'jam', 'furniture', 'clothes', 'tools', 'glass'],
-  ['flour', 'bread', 'lumber', 'cheese', 'paper', 'pellets', 'jam', 'furniture', 'clothes', 'tools', 'glass', 'books', 'bricks', 'concrete', 'blocks'],
-  ['flour', 'bread', 'lumber', 'cheese', 'paper', 'pellets', 'jam', 'furniture', 'clothes', 'tools', 'glass', 'books', 'bricks', 'concrete', 'blocks', 'machinery'],
+  ['flour', 'bread', 'lumber', 'cheese', 'paper', 'pellets', 'jam', 'coffee', 'mango'],
+  ['flour', 'bread', 'lumber', 'cheese', 'paper', 'pellets', 'jam', 'coffee', 'mango', 'furniture', 'clothes', 'tools', 'glass'],
+  ['flour', 'bread', 'lumber', 'cheese', 'paper', 'pellets', 'jam', 'coffee', 'mango', 'furniture', 'clothes', 'tools', 'glass', 'books', 'bricks', 'concrete', 'blocks'],
+  ['flour', 'bread', 'lumber', 'cheese', 'paper', 'pellets', 'jam', 'coffee', 'mango', 'furniture', 'clothes', 'tools', 'glass', 'books', 'bricks', 'concrete', 'blocks', 'machinery'],
 ];
-const FREIGHT_BASE: Good[] = ['logs', 'grain', 'cotton', 'stone', 'ore', 'coal', 'clay', 'sand', 'milk', 'fruit', 'sawdust', 'bran', 'whey', 'gravel', 'slag', 'feed'];
+const FREIGHT_BASE: Good[] = ['logs', 'grain', 'cotton', 'stone', 'ore', 'coal', 'clay', 'sand', 'milk', 'fruit', 'sawdust', 'bran', 'whey', 'gravel', 'slag', 'feed', 'oil'];
 /** Goods the Freight Yard wants by town level (it appears at level 2). Raw materials and by-products find a buyer here. */
 export const FREIGHT_DEMAND: Good[][] = [
   [],
@@ -470,6 +497,10 @@ export type DistrictId =
   | 'community'
   | 'amphitheatre'
   | 'stadium'
+  | 'ballpark'
+  | 'arena'
+  | 'cafe'
+  | 'resort'
   | 'terminal'
   | 'university'
   | 'foundry'
@@ -510,7 +541,8 @@ export const AFFINITY_BONUS = 1.5;
 export const DISTRICTS: Record<DistrictId, DistrictDef> = {
   farmersmarket: { label: 'Farmers Market', blurb: 'Stalls of fresh produce. Buys fruit and milk that the Market ignores.', minLevel: 1, cost: 450, goods: ['fruit', 'milk', 'bread', 'cheese', 'jam', 'flour'], price: 0.08, revenue: 10, demand: { market: ['fruit', 'milk'] }, affinity: 'breadbasket' },
   restaurants: { label: 'Restaurant Row', blurb: 'Kitchens that burn through bread, cheese and jam.', minLevel: 2, cost: 1000, goods: ['bread', 'cheese', 'jam', 'flour'], price: 0.1, revenue: 24, affinity: 'breadbasket' },
-  heating: { label: 'Heating Depot', blurb: 'Warms the town in winter. Wants pellets and coal.', minLevel: 2, cost: 800, goods: ['pellets', 'coal'], price: 0.1, revenue: 20, demand: { market: ['coal'] } },
+  heating: { label: 'Heating Depot', blurb: 'Warms the town in winter. Wants pellets, coal and oil from the islands.', minLevel: 2, cost: 800, goods: ['pellets', 'coal', 'oil'], price: 0.1, revenue: 20, demand: { market: ['coal'] } },
+  cafe: { label: 'Coffee House', blurb: 'The corner cafe. Pays well for island coffee, with bread, jam and milk to go with it.', minLevel: 2, cost: 700, goods: ['coffee', 'bread', 'jam', 'milk'], price: 0.12, revenue: 24, affinity: 'boulevard' },
   hardware: { label: 'Hardware Store', blurb: 'Tools, timber and bricks for every home.', minLevel: 2, cost: 1000, goods: ['tools', 'lumber', 'bricks', 'cement'], price: 0.1, revenue: 26, demand: { market: ['cement'] }, affinity: 'forge' },
   warehouse: { label: 'Warehouse District', blurb: 'Deep storage. Docks hold more, so prices hold up under heavy deliveries.', minLevel: 2, cost: 1300, goods: [], price: 0, revenue: 0, effect: 'storage', affinity: 'tradehub' },
   builders: { label: "Builders' Yard", blurb: 'Brick, block and glass for a growing skyline.', minLevel: 3, cost: 2000, goods: ['bricks', 'blocks', 'concrete', 'glass', 'cement'], price: 0.1, revenue: 42, demand: { market: ['blocks', 'concrete'] }, affinity: 'forge' },
@@ -520,7 +552,10 @@ export const DISTRICTS: Record<DistrictId, DistrictDef> = {
   terminal: { label: 'Freight Terminal', blurb: 'Raw goods and bulk freight find a better buyer.', minLevel: 3, cost: 2400, goods: ['logs', 'stone', 'ore', 'coal', 'sand', 'clay', 'gravel'], price: 0.1, revenue: 32, demand: { freight: ['ingots', 'steel'] }, affinity: 'tradehub' },
   community: { label: 'Community Centre', blurb: 'A hall for classes, clubs and markets. Wants books, furniture, bread and milk.', minLevel: 2, cost: 900, goods: ['books', 'furniture', 'bread', 'milk'], price: 0.06, revenue: 22, demand: { market: ['books'] } },
   amphitheatre: { label: 'Amphitheatre', blurb: 'Open-air stage and tiered seating. Timber, cloth and paper for the shows.', minLevel: 3, cost: 2600, goods: ['lumber', 'cloth', 'clothes', 'paper'], price: 0.08, revenue: 50, affinity: 'boulevard' },
-  stadium: { label: 'Stadium', blurb: 'Match days fill the town. Wants bread, cheese, milk and clothes for the crowd.', minLevel: 4, cost: 6500, goods: ['bread', 'cheese', 'milk', 'clothes', 'fruit'], price: 0.08, revenue: 120 },
+  stadium: { label: 'Football Stadium', blurb: 'Game day fills the town. Wants bread, cheese, milk, clothes and coffee for the crowd.', minLevel: 4, cost: 6500, goods: ['bread', 'cheese', 'milk', 'clothes', 'coffee'], price: 0.08, revenue: 120 },
+  ballpark: { label: 'Baseball Park', blurb: 'Summer evenings and a full house. Wants bread, fruit, paper, clothes and coffee.', minLevel: 4, cost: 6000, goods: ['bread', 'fruit', 'paper', 'clothes', 'coffee'], price: 0.08, revenue: 110 },
+  arena: { label: 'Hockey Arena', blurb: 'An indoor arena on ice. Wants milk, cheese, clothes, steel and coffee.', minLevel: 4, cost: 5500, goods: ['milk', 'cheese', 'clothes', 'steel', 'coffee'], price: 0.08, revenue: 100 },
+  resort: { label: 'Beach Resort', blurb: 'Pool, palms and a long list of guests. Pays well for mangoes and coffee. Income grows with the variety the town offers.', minLevel: 3, cost: 3600, goods: ['mango', 'coffee', 'fruit', 'furniture', 'cloth'], price: 0.1, revenue: 58, effect: 'visitors', affinity: 'boulevard' },
   university: { label: 'University', blurb: 'Educated townsfolk. Everything the town buys makes it grow faster.', minLevel: 4, cost: 4500, goods: ['books', 'paper', 'machinery'], price: 0.06, revenue: 0, effect: 'growth' },
   foundry: { label: 'Foundry Row', blurb: 'Casting yards that buy iron and steel in bulk. The Forge only.', minLevel: 3, cost: 3200, goods: ['ingots', 'steel', 'tools', 'slag'], price: 0.15, revenue: 60, demand: { freight: ['ingots', 'steel'] }, path: 'forge' },
   hotels: { label: 'Hotels and Promenade', blurb: 'Visitors pay by how much variety the town offers.', minLevel: 4, cost: 4000, goods: [], price: 0, revenue: 80, effect: 'visitors', affinity: 'boulevard' },
@@ -657,6 +692,7 @@ export const TIERS: TierDef[] = [
     blurb: 'Rail, metal and cloth. Bigger loads and longer chains.',
     quests: [
       { id: 't2-depot', label: 'Build a Rail Yard', hint: 'Logistics tab, Rail Yard. Place it at the edge of a town, then bring the town its goods by truck. Trains run from yard to yard.', goal: { kind: 'depot', count: 1 }, reward: 1000 },
+      { id: 't2-port', label: 'Build a Port', hint: 'Logistics tab, Port. Put it on the coast, then bring goods to it by truck. Ships sail from port to port.', goal: { kind: 'build', site: 'port', count: 1 }, reward: 1500 },
       { id: 't2-rail', label: 'Lay a rail line', hint: 'Logistics tab, Rail. Run track to a Rail Yard, or between buildings out in the country, then buy a train. A freight train carries far more than a truck.', goal: { kind: 'route', mode: 'rail', count: 1 }, reward: 2000 },
       { id: 't2-ingots', label: 'Make 60 iron ingots', hint: 'Iron ore and coal from the hills go into a Smelter.', goal: { kind: 'make', good: 'ingots', amount: 60 }, reward: 2000 },
       { id: 't2-tools', label: 'Sell 60 tools', hint: 'A Toolworks turns ingots and lumber into tools.', goal: { kind: 'deliver', good: 'tools', amount: 60 }, reward: 2500 },
@@ -677,6 +713,7 @@ export const TIERS: TierDef[] = [
       { id: 't3-metropolis', label: 'Grow a town to level 5', hint: 'A Metropolis needs four kinds of goods and a lot of them.', goal: { kind: 'town', level: 5, count: 1 }, reward: 10000 },
       { id: 't3-air', label: 'Open an air route', hint: 'Logistics tab: build an Airport at each end, pick Air Route, then click one airport and the other. Buy a cargo plane at an airport.', goal: { kind: 'route', mode: 'air', count: 1 }, reward: 8000 },
       { id: 't3-capstone', label: 'Build a capstone district', hint: 'A Metropolis on a path can build its capstone: Grand Food Hall, Heavy Industry Exchange, International Terminal or Grand Plaza.', goal: { kind: 'capstone', count: 1 }, reward: 15000 },
+      { id: 't3-sea', label: 'Open a sea route', hint: 'Build a Port on each coast, pick Sea Route in Logistics, then click one port and the other. Buy a cargo boat at a port. Islands grow coffee, mangoes and oil you cannot get anywhere else.', goal: { kind: 'route', mode: 'sea', count: 1 }, reward: 8000 },
       { id: 't3-fleet', label: 'Run a Truck Fleet', hint: 'Select a building and upgrade a Big Rig to a Truck Fleet.', goal: { kind: 'vehicle', vehicle: 'convoy', count: 1 }, reward: 8000 },
       { id: 't3-earn', label: 'Earn $250,000 in total', hint: 'High-value goods on fast, full vehicles.', goal: { kind: 'earn', amount: 250000 }, reward: 10000 },
     ],

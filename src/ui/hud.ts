@@ -14,6 +14,8 @@ import {
   PATHS,
   AIR_COST_PER_TILE,
   AIR_TIER,
+  SEA_COST_PER_TILE,
+  SEA_TIER,
   type Good,
   BUILD_ORDER,
   type SiteKind,
@@ -87,7 +89,7 @@ const TABS: Tab[] = [
   { id: 'processing', label: 'Processing', icon: 'thumb-sawmill', blurb: 'Food and materials. Build these on a free plot in a town.', tools: sitesIn('processing') },
   { id: 'manufacturing', label: 'Manufacturing', icon: 'thumb-workshop', blurb: 'Paper, textiles, furniture. Build these on a free plot in a town.', tools: sitesIn('manufacturing') },
   { id: 'heavy', label: 'Heavy Industry', icon: 'thumb-smelter', blurb: 'Stone, metal, glass and machinery. Build these on a free plot in a town.', tools: sitesIn('heavy') },
-  { id: 'logistics', label: 'Logistics', icon: 'thumb-route', blurb: 'Roads, highways, rails, hubs, rail yards and clearing the way', tools: ['route', 'highway', 'rail', 'air', 'hub', 'railyard', 'airport', 'demolish'] },
+  { id: 'logistics', label: 'Logistics', icon: 'thumb-route', blurb: 'Roads, highways, rails, air and sea routes, hubs, yards, airports, ports and clearing the way', tools: ['route', 'highway', 'rail', 'air', 'sea', 'hub', 'railyard', 'airport', 'port', 'demolish'] },
 ];
 
 const REGION_COLOR: Record<string, number> = {
@@ -177,6 +179,7 @@ export class HudScene extends Phaser.Scene {
     this.textures.addCanvas('thumb-route', this.roadIcon());
     this.textures.addCanvas('thumb-rail', this.railIcon());
     this.textures.addCanvas('thumb-air', this.airIcon());
+    this.textures.addCanvas('thumb-sea', this.seaIcon());
     this.textures.addCanvas('thumb-highway', this.highwayIcon());
     this.textures.addCanvas('thumb-select', this.cursorIcon());
     this.textures.addCanvas('thumb-demolish', this.demolishIcon());
@@ -202,8 +205,16 @@ export class HudScene extends Phaser.Scene {
     kb.on('keydown-H', () => this.toggleSheet('guide'));
     for (let i = 1; i <= 9; i++) kb.on(`keydown-${['ONE', 'TWO', 'THREE', 'FOUR', 'FIVE', 'SIX', 'SEVEN', 'EIGHT', 'NINE'][i - 1]}`, () => this.pickByNumber(i - 1));
 
+    // Any other key, or a click on the picture, skips the opening film.
+    kb.on('keydown', (e: KeyboardEvent) => {
+      if (this.title && e.key !== 'Enter') this.title.skip();
+    });
     this.input.on('pointerdown', (p: Phaser.Input.Pointer) => {
-      if (this.title || this.im.blocked(p.x, p.y)) return;
+      if (this.title) {
+        this.title.skip();
+        return;
+      }
+      if (this.im.blocked(p.x, p.y)) return;
       this.menuOpen = false;
       this.dragging = true;
       this.game3d.pointerDown(p.x, p.y, (p.event as MouseEvent).button ?? 0);
@@ -243,7 +254,7 @@ export class HudScene extends Phaser.Scene {
 
     // The opening screen: the showcase world flies by behind it until the player starts.
     if (this.game3d.showcase) {
-      this.title = new Title(this.game3d.hasSave(), (c) => this.startGame(c));
+      this.title = new Title(this.game3d.hasSave(), (c) => this.startGame(c), () => this.game3d.showcaseInfo(), () => this.game3d.skipShowcase());
       return;
     }
     // A first-time player gets the guide straight away. Screenshot and demo links skip it.
@@ -828,6 +839,16 @@ export class HudScene extends Phaser.Scene {
         detail: ['Planes fly in a straight line over water and mountains.', 'Airports store goods like hubs: tick what they should pull, and connect them to factories by road or rail.', 'Buy planes in the airport panel.'],
       };
     }
+    if (tool === 'sea') {
+      return {
+        name: 'Sea Route',
+        cost: `$${SEA_COST_PER_TILE}/tile`,
+        locked: w.tier < SEA_TIER ? `Tier ${SEA_TIER}` : null,
+        thumb: 'thumb-sea',
+        blurb: 'Click one port, then another. Buy cargo boats at a port.',
+        detail: ['Ships sail across open water. Islands grow coffee, mangoes and oil that grow nowhere else, and this is the only way to bring them home.', 'Ports store goods like hubs: bring goods to them by road, and tick what they should pull.', 'Buy ships in the port panel, and trade up to a freighter and a container ship.'],
+      };
+    }
     if (tool === 'demolish') {
       return {
         name: 'Demolish',
@@ -940,6 +961,7 @@ export class HudScene extends Phaser.Scene {
     else if (g.tool === 'highway') text = `Drag to lay a highway from anywhere. Finish on a building or on another road, or ${byInput('press Enter', 'tap Finish')}`;
     else if (g.tool === 'rail') text = `Drag to lay track from anywhere. Finish on a building or on other track, or ${byInput('press Enter', 'tap Finish')}`;
     else if (g.tool === 'air') text = g.airFrom === null ? `${byInput('Click', 'Tap')} an airport, then ${byInput('click', 'tap')} the airport to fly to` : `Now ${byInput('click', 'tap')} the airport to fly to (${byInput('click', 'tap')} the same one to cancel)`;
+    else if (g.tool === 'sea') text = g.airFrom === null ? `${byInput('Click', 'Tap')} a port, then ${byInput('click', 'tap')} the port to sail to` : `Now ${byInput('click', 'tap')} the port to sail to (${byInput('click', 'tap')} the same one to cancel)`;
     else if (g.tool === 'demolish') text = h?.site ? `${byInput('Click', 'Tap')} to demolish ${h.site.name}` : h?.route ? (h.error ? h.error : `${byInput('Click', 'Tap')} to remove this stretch of ${h.route.mode === 'rail' ? 'track' : h.route.grade === 'highway' ? 'highway' : 'road'} for $${fmt(routeRefund(w, h.route))} back`) : `${byInput('Click', 'Tap')} a building or a road to remove it`;
     else if (g.tool !== 'select') {
       const d = SITE_DEFS[g.tool as SiteKind];
@@ -1761,7 +1783,7 @@ export class HudScene extends Phaser.Scene {
     const def = SITE_DEFS[s.kind];
     if (def.dock) return 0;
     const fleet = fleetOf(world, s.id);
-    let cy = this.sectionHead('trH', `YOUR ${def.airport ? 'PLANES' : 'TRUCKS'} (${fleet.length})`, x, y, w);
+    let cy = this.sectionHead('trH', `YOUR ${def.airport ? 'PLANES' : 'TRUCKS'}${def.port ? ' AND SHIPS' : ''} (${fleet.length})`, x, y, w);
     const options = buyOptions(world, s.id);
     const gap = 6;
     options.forEach((k, i) => {
@@ -2025,6 +2047,48 @@ export class HudScene extends Phaser.Scene {
       ctx.translate(-off * 0.7, 0);
     }
     ctx.restore();
+    return c;
+  }
+
+  private seaIcon(): HTMLCanvasElement {
+    const c = document.createElement('canvas');
+    c.width = c.height = 160;
+    const ctx = c.getContext('2d')!;
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = '#bfe6ff';
+    ctx.lineWidth = 6;
+    ctx.setLineDash([2, 14]);
+    ctx.beginPath();
+    ctx.moveTo(26, 118);
+    ctx.bezierCurveTo(60, 138, 100, 100, 134, 120);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    for (const [x, y, col] of [[26, 118, '#4cc38a'], [134, 120, '#e8a23a']] as [number, number, string][]) {
+      ctx.fillStyle = col;
+      ctx.beginPath();
+      ctx.arc(x, y, 12, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    // A ship: hull, containers, bridge and funnel.
+    ctx.fillStyle = '#26323e';
+    ctx.beginPath();
+    ctx.moveTo(40, 72);
+    ctx.lineTo(124, 72);
+    ctx.lineTo(112, 94);
+    ctx.lineTo(54, 94);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = '#9a2f28';
+    ctx.fillRect(54, 88, 58, 6);
+    const cols = ['#b23a30', '#2f5f8a', '#d7a21f', '#3f7a55'];
+    for (let i = 0; i < 4; i++) {
+      ctx.fillStyle = cols[i];
+      ctx.fillRect(52 + i * 14, 56, 12, 16);
+    }
+    ctx.fillStyle = '#e9eaeb';
+    ctx.fillRect(108, 44, 14, 28);
+    ctx.fillStyle = '#9a2f28';
+    ctx.fillRect(112, 32, 7, 12);
     return c;
   }
 

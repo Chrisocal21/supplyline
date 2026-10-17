@@ -55,12 +55,30 @@ const LAND = [
   [[95, 8], [108, 6], [111, 13], [101, 18], [94, 14]],
   [[101, 16], [111, 15], [113, 26], [103, 28]],
   [[263, 14], [276, 12], [279, 24], [274, 36], [265, 34], [266, 24]],
+  // Specialty islands: coffee highlands in the south-west, a mango isle in the south, an oil island in the south-east sea,
+  // twin isles far east and a small oil rock in the western gap.
+  [[15, 62], [25, 56], [38, 58], [43, 66], [39, 76], [29, 80], [18, 75], [13, 68]],
+  [[95, 66], [106, 60], [118, 62], [123, 71], [118, 81], [106, 84], [97, 78]],
+  [[181, 70], [194, 65], [207, 68], [209, 78], [201, 86], [188, 85], [180, 78]],
+  [[265, 43], [275, 40], [284, 45], [285, 54], [278, 61], [268, 58], [263, 50]],
+  [[93, 33], [103, 30], [110, 35], [109, 45], [98, 48], [92, 41]],
+];
+// The specialty islands: [x, y, radius around them where the usual resources are held back].
+const SPECIAL_ISLANDS = [
+  { name: 'coffee', x: 28, y: 68, r: 14 },
+  { name: 'mango', x: 108, y: 72, r: 14 },
+  { name: 'oil', x: 194, y: 77, r: 14 },
+  { name: 'twin', x: 274, y: 50, r: 13 },
+  { name: 'rock', x: 101, y: 39, r: 10 },
 ];
 const ISLANDS = [
   // [x, y, rx, ry]
   [176, 64, 2.6, 6], [232, 50, 5, 2], [242, 52, 4, 2], [250, 54, 4, 2.2], [260, 50, 3, 2], [236, 56, 3, 1.6],
   [78, 40, 3, 1.5], [86, 42, 2, 1.5], [272, 76, 2.2, 5], [276, 84, 2.2, 4], [8, 50, 2, 2], [20, 60, 1.6, 1.6], [284, 56, 1.6, 1.6],
   [44, 92 - 6, 3, 1.5],
+  [50, 58, 2, 1.4], [10, 80, 2.4, 1.6], [40, 88, 2, 1.4], [64, 92, 2.2, 1.2], [120, 58, 1.6, 1.4], [126, 88, 2.2, 1.4],
+  [94, 90, 2, 1.2], [166, 80, 2, 1.6], [216, 60, 2, 1.4], [212, 90, 2.4, 1.4], [268, 90, 2, 1.4], [250, 90, 2, 1.2],
+  [284, 34, 1.6, 1.4], [204, 56, 2, 1.2], [4, 70, 1.6, 1.4], [134, 94, 2, 1.0], [150, 90, 1.8, 1.2], [232, 88, 2, 1.2],
 ];
 const LAKES = [[40, 20, 2, 1.5], [66, 28, 3, 1.2], [70, 25, 2, 1], [150, 52, 2, 3], [210, 12, 2.5, 1.5], [172, 22, 3.5, 5.5]];
 const BAYS = [[[58, 12], [68, 13], [70, 20], [62, 22], [56, 18]]];
@@ -78,6 +96,8 @@ const RANGES = [
   [[[121, 37], [132, 36]], 1.4, 200],
   [[[252, 66], [250, 76]], 1.5, 200],
   [[[276, 27], [274, 33]], 1.0, 200],
+  [[[24, 67], [34, 69]], 1.8, 214],
+  [[[103, 70], [112, 74]], 1.2, 196],
 ];
 // Towns and cities, placed by hand; each is moved to the nearest spot where it fits on flat, dry land. The first is home.
 const PLACES = [
@@ -109,6 +129,11 @@ const PLACES = [
   ['Marlow', 42, 25, 3],
   ['Rio Palma', 75, 61, 5],
   ['Varga', 79, 73, 3],
+  ['Ventura', 26, 68, 3],
+  ['Port Mango', 106, 72, 3],
+  ['Oilport', 191, 76, 3],
+  ['Kona', 273, 50, 3],
+  ['Northholm', 100, 39, 3],
 ];
 
 // ---- rasterise ----
@@ -209,7 +234,7 @@ for (let y = 0; y < H; y++) {
 }
 
 // Forests by climate: dark northern pine belts, temperate woods, and rainforest near the equator; deserts stay open.
-const DESERTS = [[[116, 34], [168, 34], [168, 46], [116, 46]], [[166, 31], [188, 31], [188, 47], [166, 47]], [[224, 64], [252, 64], [252, 78], [224, 78]], [[184, 18], [214, 18], [214, 30], [184, 30]]];
+const DESERTS = [[[116, 34], [168, 34], [168, 46], [116, 46]], [[166, 31], [188, 31], [188, 47], [166, 47]], [[224, 64], [252, 64], [252, 78], [224, 78]], [[184, 18], [214, 18], [214, 30], [184, 30]], [[181, 67], [209, 67], [209, 87], [181, 87]]];
 for (let y = ICE_ROWS; y < H - ICE_ROWS; y++) {
   for (let x = 0; x < W; x++) {
     const i = at(x, y);
@@ -276,6 +301,42 @@ for (const [name, x0, y0, R] of PLACES) {
   }
 }
 
+// ---- island specialties ----
+// Coffee on the highest ground that is not rock, mangoes on low flat land, oil on open flat ground; each at least three tiles
+// from the sea and clear of the towns and of each other.
+const specials = [];
+const WANT = [
+  { island: 'coffee', kind: 'coffee', count: 4, high: true },
+  { island: 'mango', kind: 'mango', count: 4, high: false },
+  { island: 'oil', kind: 'oil', count: 3, high: false },
+  { island: 'twin', kind: 'coffee', count: 2, high: true },
+  { island: 'twin', kind: 'mango', count: 2, high: false },
+];
+for (const w of WANT) {
+  const isl = SPECIAL_ISLANDS.find((q) => q.name === w.island);
+  const cands = [];
+  for (let dy = -isl.r; dy <= isl.r; dy++) {
+    for (let dx = -isl.r; dx <= isl.r; dx++) {
+      const x = isl.x + dx;
+      const y = isl.y + dy;
+      const i = at(x, y);
+      if (terrain[i] !== 'grass' && terrain[i] !== 'forest') continue;
+      if (coast[i] < 3) continue;
+      if (placed.some((q) => Math.hypot(((q.x - x + W * 1.5) % W) - W / 2, q.y - y) < q.radius + 4)) continue;
+      cands.push({ x: ((x % W) + W) % W, y, e: elev[i], d: Math.hypot(dx, dy) });
+    }
+  }
+  cands.sort((a, b) => (w.high ? b.e - a.e : a.d - b.d) || a.d - b.d);
+  let got = 0;
+  for (const c of cands) {
+    if (got >= w.count) break;
+    if (specials.some((q) => Math.hypot(((q.x - c.x + W * 1.5) % W) - W / 2, q.y - c.y) < 5)) continue;
+    specials.push({ kind: w.kind, x: c.x, y: c.y, quality: got % 3 === 1 ? 2 : 1 });
+    got++;
+  }
+  if (got < w.count) report.push('only ' + got + ' of ' + w.count + ' ' + w.kind + ' on ' + w.island);
+}
+
 // ---- write ----
 const CH = { water: '~', grass: '.', forest: 'f', mountain: '^', ice: '*' };
 // The land is drawn on a 96-row grid; open sea is added beyond both ends so the playable map reaches nearer the poles and
@@ -308,7 +369,7 @@ for (let k = 0; k < PAD; k++) {
   rows.push(ice ? iceRow : seaRow);
   erows.push(ice ? iceElev : seaElev);
 }
-const map = { id: 'map1', name: 'The Known World', seed: 1101, width: W, height: H + 2 * PAD, terrain: rows, elev: erows, places: placed.map((q) => ({ ...q, y: q.y + PAD })), nodes: [] };
+const map = { id: 'map1', name: 'The Known World', seed: 1101, width: W, height: H + 2 * PAD, terrain: rows, elev: erows, places: placed.map((q) => ({ ...q, y: q.y + PAD })), nodes: [], specials: specials.map((q) => ({ ...q, y: q.y + PAD })), islands: SPECIAL_ISLANDS.map((q) => [q.x, q.y + PAD, q.r]) };
 const out = path.join(__dirname, '../../src/maps/map1.json');
 fs.mkdirSync(path.dirname(out), { recursive: true });
 fs.writeFileSync(out, JSON.stringify(map));
@@ -339,6 +400,10 @@ if (png) {
       set(X, Y, c.map((v) => Math.min(255, Math.round(v * shade))));
     }
   }
+  const SPEC = { coffee: [120, 70, 40], mango: [250, 160, 40], oil: [20, 20, 24] };
+  specials.forEach((q) => {
+    for (let a = 0; a < S * 2; a++) for (let b = 0; b < S * 2; b++) set(q.x * S + a, q.y * S + b, SPEC[q.kind]);
+  });
   placed.forEach((p, k) => {
     const c = k === 0 ? [230, 60, 50] : p.radius === 5 ? [250, 200, 60] : [255, 255, 255];
     const x0 = (p.x - p.radius) * S;
