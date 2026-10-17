@@ -1,7 +1,7 @@
 // Seeded terrain generation on a sphere. Pure functions, no graphics.
 import { MOUNTAIN_ELEV, SEA_LEVEL, type Terrain } from './defs';
 
-/** The playable grid covers this latitude on each side of the equator; beyond it are the polar caps. */
+/** A map a third as tall as it is wide covers this latitude on each side of the equator; beyond it are the polar caps. Taller maps cover more. */
 export const LAT_SPAN_DEG = 60;
 export const LAND_FRACTION = 0.36;
 /** Share of land that is mountain range and forest. Thresholds come from percentiles of the noise, so these hold for any seed. */
@@ -57,7 +57,8 @@ export function fbm3(seed: number, x: number, y: number, z: number, octaves = 4)
 export function tileLonLat(width: number, height: number, x: number, y: number): { lon: number; lat: number } {
   return {
     lon: ((x + 0.5) / width) * Math.PI * 2 - Math.PI,
-    lat: (0.5 - (y + 0.5) / height) * 2 * ((LAT_SPAN_DEG * Math.PI) / 180),
+    // A tile spans the same angle north-south as east-west.
+    lat: (0.5 - (y + 0.5) / height) * ((2 * Math.PI * height) / width),
   };
 }
 

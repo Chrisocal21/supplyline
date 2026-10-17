@@ -1,7 +1,8 @@
 import { it, expect } from 'vitest';
 import { createWorldFromMap, createRoute, townStreets, type MapData } from './world';
 import { findPath } from './path';
-import { questProgress } from './quests';
+import { checkQuests, pathMastered, questProgress } from './quests';
+import { PATH_QUESTS } from './defs';
 import map1 from '../maps/map1.json';
 it('a highway laid from road to road counts for the highway quest', () => {
   const w = createWorldFromMap(map1 as MapData);
@@ -15,4 +16,25 @@ it('a highway laid from road to road counts for the highway quest', () => {
   expect(createRoute(w, path, 'road', 'highway')).toBeNull();
   expect(w.routes[w.routes.length - 1].free).toBe(true);
   expect(questProgress(w, goal).have).toBe(1);
+});
+
+it('pays out path quests once, and masters the path when all four are done', () => {
+  const w = createWorldFromMap(map1 as MapData);
+  const town = w.places[0];
+  const log = (): void => {};
+  checkQuests(w, log);
+  expect(w.pathDone ?? []).toHaveLength(0);
+  town.path = 'forge';
+  town.level = 4;
+  const before = w.money;
+  checkQuests(w, log);
+  expect(w.pathDone).toContain('p-forge-town');
+  expect(w.money).toBe(before + PATH_QUESTS.forge[0].reward);
+  checkQuests(w, log);
+  expect(w.money).toBe(before + PATH_QUESTS.forge[0].reward);
+  expect(pathMastered(w, 'forge')).toBe(false);
+  for (const q of PATH_QUESTS.forge) if (!w.pathDone!.includes(q.id)) w.pathDone!.push(q.id);
+  checkQuests(w, log);
+  expect(pathMastered(w, 'forge')).toBe(true);
+  expect(town.mastered).toBe(true);
 });

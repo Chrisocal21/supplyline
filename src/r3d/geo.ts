@@ -1,7 +1,7 @@
 // Mapping between the sim's tile grid and the 3D globe, and the terrain height field.
 import * as THREE from 'three';
 import { SEA_LEVEL } from '../sim/defs';
-import { LAT_SPAN_DEG, fbm3, tileLonLat } from '../sim/mapgen';
+import { fbm3, tileLonLat } from '../sim/mapgen';
 import { townTiles, type Tile, type World } from '../sim/world';
 
 /** Globe radius in world units. One tile is about 3.3 units wide at the equator. */
@@ -14,11 +14,15 @@ export let CAP_ROWS = 16;
 /** Size the globe for a world: tiles stay the same size on the ground, so a wider world is a bigger planet. */
 export function setGlobeSize(world: World): void {
   R = (100 * world.width) / 192;
-  CAP_ROWS = Math.round(world.height / 4);
+  // A tile spans the same angle north-south as east-west, so the grid covers as much latitude as it has rows, and the
+  // polar caps are only what is left to the pole: a map with more rows has smaller caps.
+  LAT_SPAN = (Math.PI * world.height) / world.width;
+  CAP_ROWS = Math.max(2, Math.round(world.width / 4 - world.height / 2));
 }
 /** Terrain mesh vertices per tile, in each direction. */
 export const MESH_SUB = 3;
-export const LAT_SPAN = (LAT_SPAN_DEG * Math.PI) / 180;
+/** Half the latitude the playable grid covers, in radians (60 degrees for a map a third as tall as it is wide). */
+export let LAT_SPAN = Math.PI / 3;
 
 /** Texture rows: the playable grid plus polar caps, covering pole to pole. */
 export const textureRows = (world: World): number => world.height + 2 * CAP_ROWS;

@@ -90,11 +90,13 @@ export interface SiteDef {
   /** Logistics hub: stores goods and passes them on. */
   hub?: boolean;
   /** Town selling point. Created by towns, never placed by the player. */
-  dock?: 'market' | 'freight';
+  dock?: 'market' | 'freight' | 'civic';
   /** Town rail station: trains unload here and the goods are sold on to the town's docks. */
   station?: boolean;
   /** Airport: a hub that planes fly between. */
   airport?: boolean;
+  /** Rail Yard: a hub at the edge of a town where trains load and unload. */
+  railyard?: boolean;
 }
 
 const raw = (label: string, blurb: string, cost: number, tier: number, node: NodeKind, good: Good, every: number, color: number): SiteDef => ({
@@ -174,6 +176,17 @@ const DEFS = {
     color: 0xd68a2e,
     hub: true,
   } as SiteDef,
+  railyard: {
+    label: 'Rail Yard',
+    blurb: 'A freight yard at the edge of a town. Trucks bring goods in from the town and trains carry them on to other yards.',
+    category: 'logistics',
+    cost: 3000,
+    tier: 2,
+    cap: 200,
+    color: 0x5c7ea8,
+    hub: true,
+    railyard: true,
+  } as SiteDef,
   market: {
     label: 'Market',
     blurb: 'A town selling point for everyday goods.',
@@ -193,6 +206,16 @@ const DEFS = {
     cap: 30,
     color: 0x6d8fa8,
     dock: 'freight',
+  } as SiteDef,
+  district: {
+    label: 'District',
+    blurb: 'A town district: a building on a lot beside the streets, supplied by your trucks.',
+    category: null,
+    cost: 0,
+    tier: 0,
+    cap: 30,
+    color: 0x9a8a6a,
+    dock: 'civic',
   } as SiteDef,
   station: {
     label: 'Rail Station',
@@ -273,7 +296,7 @@ export const VEHICLE_DEFS: Record<VehicleKind, VehicleDef> = {
 export const VEHICLE_ORDER: VehicleKind[] = ['boxtruck', 'bigtruck', 'rig', 'convoy', 'train', 'heavytrain', 'plane', 'jet'];
 
 /** Running costs. Vehicles cost this share of their price every minute; buildings and districts a share of theirs per level. */
-export const VEHICLE_UPKEEP = 0.05;
+export const VEHICLE_UPKEEP = 0.03;
 export const SITE_UPKEEP = 0.01;
 export const DISTRICT_UPKEEP = 0.015;
 /** Towns pay this share of the list price. Keeps the early game from running away. */
@@ -327,9 +350,9 @@ export interface TownLevel {
 export const TOWN_LEVELS: TownLevel[] = [
   { name: 'Hamlet', pop: 60, growth: 0 },
   { name: 'Village', pop: 400, growth: 2000 },
-  { name: 'Town', pop: 2200, growth: 10000 },
-  { name: 'City', pop: 11000, growth: 45000 },
-  { name: 'Metropolis', pop: 60000, growth: 150000 },
+  { name: 'Town', pop: 2200, growth: 8000 },
+  { name: 'City', pop: 11000, growth: 20000 },
+  { name: 'Metropolis', pop: 60000, growth: 80000 },
 ];
 
 /** Goods the Market wants at each town level. */
@@ -444,6 +467,9 @@ export type DistrictId =
   | 'furniture'
   | 'fashion'
   | 'bookshops'
+  | 'community'
+  | 'amphitheatre'
+  | 'stadium'
   | 'terminal'
   | 'university'
   | 'foundry'
@@ -492,6 +518,9 @@ export const DISTRICTS: Record<DistrictId, DistrictDef> = {
   fashion: { label: 'Fashion Quarter', blurb: 'Boutiques that pay well for cloth and clothes.', minLevel: 3, cost: 2200, goods: ['clothes', 'cloth', 'yarn'], price: 0.12, revenue: 46, demand: { freight: ['yarn'] }, affinity: 'boulevard' },
   bookshops: { label: 'Library and Bookshops', blurb: 'Paper and books, read in quiet rooms.', minLevel: 3, cost: 2000, goods: ['books', 'paper'], price: 0.12, revenue: 40, affinity: 'boulevard' },
   terminal: { label: 'Freight Terminal', blurb: 'Raw goods and bulk freight find a better buyer.', minLevel: 3, cost: 2400, goods: ['logs', 'stone', 'ore', 'coal', 'sand', 'clay', 'gravel'], price: 0.1, revenue: 32, demand: { freight: ['ingots', 'steel'] }, affinity: 'tradehub' },
+  community: { label: 'Community Centre', blurb: 'A hall for classes, clubs and markets. Wants books, furniture, bread and milk.', minLevel: 2, cost: 900, goods: ['books', 'furniture', 'bread', 'milk'], price: 0.06, revenue: 22, demand: { market: ['books'] } },
+  amphitheatre: { label: 'Amphitheatre', blurb: 'Open-air stage and tiered seating. Timber, cloth and paper for the shows.', minLevel: 3, cost: 2600, goods: ['lumber', 'cloth', 'clothes', 'paper'], price: 0.08, revenue: 50, affinity: 'boulevard' },
+  stadium: { label: 'Stadium', blurb: 'Match days fill the town. Wants bread, cheese, milk and clothes for the crowd.', minLevel: 4, cost: 6500, goods: ['bread', 'cheese', 'milk', 'clothes', 'fruit'], price: 0.08, revenue: 120 },
   university: { label: 'University', blurb: 'Educated townsfolk. Everything the town buys makes it grow faster.', minLevel: 4, cost: 4500, goods: ['books', 'paper', 'machinery'], price: 0.06, revenue: 0, effect: 'growth' },
   foundry: { label: 'Foundry Row', blurb: 'Casting yards that buy iron and steel in bulk. The Forge only.', minLevel: 3, cost: 3200, goods: ['ingots', 'steel', 'tools', 'slag'], price: 0.15, revenue: 60, demand: { freight: ['ingots', 'steel'] }, path: 'forge' },
   hotels: { label: 'Hotels and Promenade', blurb: 'Visitors pay by how much variety the town offers.', minLevel: 4, cost: 4000, goods: [], price: 0, revenue: 80, effect: 'visitors', affinity: 'boulevard' },
@@ -507,7 +536,7 @@ export const DISTRICT_ORDER: DistrictId[] = Object.keys(DISTRICTS) as DistrictId
 export type QuestGoal =
   | { kind: 'build'; site: SiteKind; count: number }
   | { kind: 'route'; mode: RouteMode; grade?: RoadGrade; count: number }
-  /** Distribution Hubs with a Rail Depot. */
+  /** Rail Yards built (and old hubs that were given a rail depot). */
   | { kind: 'depot'; count: number }
   | { kind: 'vehicle'; vehicle: VehicleKind; count: number }
   /** Vehicles owned, of any class. */
@@ -535,7 +564,15 @@ export type QuestGoal =
   /** Different paths in use across your towns. */
   | { kind: 'paths'; count: number }
   /** Capstone districts built. */
-  | { kind: 'capstone'; count: number };
+  | { kind: 'capstone'; count: number }
+  /** A town on this path at or above a level. */
+  | { kind: 'pathtown'; path: PathId; level: number }
+  /** Units of the path's own goods sold to towns on that path. */
+  | { kind: 'pathgoods'; path: PathId; amount: number }
+  /** Districts built in towns on this path. */
+  | { kind: 'pathdistricts'; path: PathId; count: number }
+  /** The path's capstone district built. */
+  | { kind: 'pathcapstone'; path: PathId };
 
 export interface Quest {
   id: string;
@@ -546,6 +583,35 @@ export interface Quest {
   /** Cash paid when it is done. */
   reward: number;
 }
+
+/** Each path has its own short ladder. Finish it for cash, and the path is mastered: its towns pay 10% more for its goods. */
+export const PATH_MASTERY_BONUS = 0.1;
+export const PATH_QUESTS: Record<PathId, Quest[]> = {
+  breadbasket: [
+    { id: 'p-bread-town', label: 'Grow a Breadbasket town to level 4', hint: 'Feed it grain, flour, bread and cheese.', goal: { kind: 'pathtown', path: 'breadbasket', level: 4 }, reward: 4000 },
+    { id: 'p-bread-goods', label: 'Sell 600 food to Breadbasket towns', hint: 'Grain, milk, flour, bread, cheese and jam all count.', goal: { kind: 'pathgoods', path: 'breadbasket', amount: 600 }, reward: 5000 },
+    { id: 'p-bread-districts', label: 'Build 3 districts in Breadbasket towns', hint: 'Open Manage town. Food districts are 50% stronger here.', goal: { kind: 'pathdistricts', path: 'breadbasket', count: 3 }, reward: 6000 },
+    { id: 'p-bread-cap', label: 'Build the Grand Food Hall', hint: 'A level 5 Breadbasket town can build it.', goal: { kind: 'pathcapstone', path: 'breadbasket' }, reward: 20000 },
+  ],
+  forge: [
+    { id: 'p-forge-town', label: 'Grow a Forge town to level 4', hint: 'Metal and building goods keep it growing.', goal: { kind: 'pathtown', path: 'forge', level: 4 }, reward: 4000 },
+    { id: 'p-forge-goods', label: 'Sell 400 metal and building goods to Forge towns', hint: 'Ore, coal, ingots, steel, tools, bricks and cement all count.', goal: { kind: 'pathgoods', path: 'forge', amount: 400 }, reward: 5000 },
+    { id: 'p-forge-districts', label: 'Build 3 districts in Forge towns', hint: 'Open Manage town. Construction districts are 50% stronger here.', goal: { kind: 'pathdistricts', path: 'forge', count: 3 }, reward: 6000 },
+    { id: 'p-forge-cap', label: 'Build the Heavy Industry Exchange', hint: 'A level 5 Forge town can build it.', goal: { kind: 'pathcapstone', path: 'forge' }, reward: 20000 },
+  ],
+  tradehub: [
+    { id: 'p-trade-town', label: 'Grow a Trade Hub town to level 4', hint: 'Any goods help; the more kinds the better.', goal: { kind: 'pathtown', path: 'tradehub', level: 4 }, reward: 4000 },
+    { id: 'p-trade-goods', label: 'Sell 800 goods to Trade Hub towns', hint: 'Every kind of good counts here.', goal: { kind: 'pathgoods', path: 'tradehub', amount: 800 }, reward: 5000 },
+    { id: 'p-trade-districts', label: 'Build 3 districts in Trade Hub towns', hint: 'Open Manage town. Storage districts are stronger here.', goal: { kind: 'pathdistricts', path: 'tradehub', count: 3 }, reward: 6000 },
+    { id: 'p-trade-cap', label: 'Build the International Terminal', hint: 'A level 5 Trade Hub town can build it.', goal: { kind: 'pathcapstone', path: 'tradehub' }, reward: 20000 },
+  ],
+  boulevard: [
+    { id: 'p-boul-town', label: 'Grow a Boulevard town to level 4', hint: 'Furniture, clothes, books and glass keep it growing.', goal: { kind: 'pathtown', path: 'boulevard', level: 4 }, reward: 4000 },
+    { id: 'p-boul-goods', label: 'Sell 300 fine goods to Boulevard towns', hint: 'Cloth, clothes, furniture, books and glass all count.', goal: { kind: 'pathgoods', path: 'boulevard', amount: 300 }, reward: 5000 },
+    { id: 'p-boul-districts', label: 'Build 3 districts in Boulevard towns', hint: 'Open Manage town. Culture districts are stronger here.', goal: { kind: 'pathdistricts', path: 'boulevard', count: 3 }, reward: 6000 },
+    { id: 'p-boul-cap', label: 'Build the Grand Plaza', hint: 'A level 5 Boulevard town can build it.', goal: { kind: 'pathcapstone', path: 'boulevard' }, reward: 20000 },
+  ],
+};
 
 export interface TierDef {
   tier: number;
@@ -590,8 +656,8 @@ export const TIERS: TierDef[] = [
     name: 'Industrial Group',
     blurb: 'Rail, metal and cloth. Bigger loads and longer chains.',
     quests: [
-      { id: 't2-depot', label: 'Build a Rail Depot', hint: 'Select a Distribution Hub and build a Rail Depot on it. Trains reach a town through its depot, and trucks and trains work side by side there.', goal: { kind: 'depot', count: 1 }, reward: 1000 },
-      { id: 't2-rail', label: 'Lay a rail line', hint: 'Logistics tab, Rail. Run track to a Rail Depot, or between buildings out in the country, then buy a train. A freight train carries far more than a truck.', goal: { kind: 'route', mode: 'rail', count: 1 }, reward: 2000 },
+      { id: 't2-depot', label: 'Build a Rail Yard', hint: 'Logistics tab, Rail Yard. Place it at the edge of a town, then bring the town its goods by truck. Trains run from yard to yard.', goal: { kind: 'depot', count: 1 }, reward: 1000 },
+      { id: 't2-rail', label: 'Lay a rail line', hint: 'Logistics tab, Rail. Run track to a Rail Yard, or between buildings out in the country, then buy a train. A freight train carries far more than a truck.', goal: { kind: 'route', mode: 'rail', count: 1 }, reward: 2000 },
       { id: 't2-ingots', label: 'Make 60 iron ingots', hint: 'Iron ore and coal from the hills go into a Smelter.', goal: { kind: 'make', good: 'ingots', amount: 60 }, reward: 2000 },
       { id: 't2-tools', label: 'Sell 60 tools', hint: 'A Toolworks turns ingots and lumber into tools.', goal: { kind: 'deliver', good: 'tools', amount: 60 }, reward: 2500 },
       { id: 't2-upgrade', label: 'Upgrade 2 buildings to level 3', hint: 'Level 3 more than triples what a building makes.', goal: { kind: 'upgrade', level: 3, count: 2 }, reward: 1500 },

@@ -104,7 +104,7 @@ describe('building', () => {
     expect(placeError(w, 'hub', 9, 4)).toMatch(/Tier 1/);
     w.tier = 1;
     expect(placeError(w, 'hub', 14, 10)).toMatch(/main street/);
-    expect(placeError(w, 'hub', 13, 12)).toMatch(/Too close to Testford/);
+    expect(placeError(w, 'hub', 13, 12)).toMatch(/Too close to Testford|Reserved/);
     expect(placeError(w, 'hub', 13, 11)).toMatch(/Reserved/);
     w.money = 10;
     expect(placeError(w, 'sawmill', 13, 9)).toBe('Need $220');

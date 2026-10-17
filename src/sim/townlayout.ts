@@ -28,9 +28,16 @@ export interface LayoutPlot extends Tile {
 export interface LayoutHome extends Tile {
   level: number;
 }
+/** A lot held for a district building (see DISTRICTS): a tile beside a street, entered from its door like a plot. */
+export interface LayoutCivic extends LayoutPlot {
+  /** Town level at which its street is built. */
+  level: number;
+}
 export interface TownLayout {
   streets: LayoutStreet[];
   plots: LayoutPlot[];
+  /** Lots for district buildings. Until a district takes one, it is homes like the rest. */
+  civic: LayoutCivic[];
   homes: LayoutHome[];
   /** The main street runs mostly east-west ('h') or north-south ('v'). */
   axis: 'h' | 'v';
@@ -38,6 +45,9 @@ export interface TownLayout {
 
 export const TOWN_PLOTS = 12;
 export const CITY_PLOTS = 28;
+/** District lots a town sets aside beside its streets, nearest the centre first. */
+export const CIVIC_LOTS = 22;
+export const CITY_CIVIC_LOTS = 26;
 const MAX_TOWN_LEVEL = 5;
 /** The main street may wander this far off its axis: about one tile sideways every three along. */
 const MAX_SLOPE = 0.34;
@@ -213,8 +223,16 @@ function build(env: LayoutEnv, place: Place): TownLayout {
     plots.push({ x: c.x, y: c.y, entry: { x: c.entry.x, y: c.entry.y } });
   }
   const plotKeys = new Set(plots.map(key));
-  const homes: LayoutHome[] = ordered.filter((c) => !plotKeys.has(key(c))).map((c) => ({ x: c.x, y: c.y, level: c.entry.level }));
-  return { streets: list, plots, homes, axis };
+  // The next lots in the same order are for districts, so they keep their place as the town grows.
+  const civic: LayoutCivic[] = [];
+  for (const c of ordered) {
+    if (civic.length >= (city ? CITY_CIVIC_LOTS : CIVIC_LOTS)) break;
+    if (plotKeys.has(key(c))) continue;
+    civic.push({ x: c.x, y: c.y, entry: { x: c.entry.x, y: c.entry.y }, level: c.entry.level });
+  }
+  const civicKeys = new Set(civic.map(key));
+  const homes: LayoutHome[] = ordered.filter((c) => !plotKeys.has(key(c)) && !civicKeys.has(key(c))).map((c) => ({ x: c.x, y: c.y, level: c.entry.level }));
+  return { streets: list, plots, civic, homes, axis };
 }
 
 /** Every tile the town covers at a level: its streets and homes so far, and all its lots. Offsets from the centre. */
@@ -222,6 +240,7 @@ export function footprint(layout: TownLayout, level: number): Tile[] {
   return [
     ...layout.streets.filter((s) => s.level <= level),
     ...layout.plots,
+    ...layout.civic.filter((c) => c.level <= level),
     ...layout.homes.filter((h) => h.level <= level),
   ];
 }

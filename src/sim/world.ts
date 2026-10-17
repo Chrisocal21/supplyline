@@ -2,6 +2,7 @@
 import {
   DISTRICTS,
   DISTRICT_ORDER,
+  type DistrictId,
   FREIGHT_DEMAND,
   PATH_TOWN_LEVEL,
   GOODS,
@@ -18,7 +19,6 @@ import {
   HIGHWAY_TIER,
   HIGHWAY_TIME,
   type RoadGrade,
-  DEPOT_COST,
   RAIL_COST_FACTOR,
   AIR_COST_PER_TILE,
   AIR_TIER,
@@ -44,6 +44,7 @@ import { generateFeatures, type FixedPlace, type Place, type Region, type Resour
 import { footprint, plotCount, streetReach, townLayout, type TownLayout } from './townlayout';
 import { generateLand } from './mapgen';
 import { checkQuests } from './quests';
+import { stepBank, type BankState } from './bank';
 import { districtDemand, stepEconomy, townGrowthMult, townLoadMult, townPriceMult, townSpeedMult, townStorageMult } from './town';
 
 export type { Place, Region, ResourceNode, Tile };
@@ -85,6 +86,8 @@ export interface Site {
   nodeId: number | null;
   /** Set on town docks. */
   placeId: number | null;
+  /** District buildings (kind 'district'): which district this is. */
+  districtId?: DistrictId;
   /** The town whose district plot this building stands on (null for none). Worked out on first use. */
   townId?: number | null;
   /** Hubs: the goods this hub asks suppliers for. */
@@ -137,6 +140,11 @@ export interface Vehicle {
   /** The building the current load came from. */
   fromId?: number;
   kind: VehicleKind;
+  /**
+   * Set when the road it was on is taken out from under it: the old line, kept here (not in world.routes) so it can
+   * drive on to its home along it instead of vanishing. Cleared when it gets there.
+   */
+  back?: Route;
   /** Index into route.path. */
   idx: number;
   /** +1 heading to the last tile, -1 heading back. */
@@ -183,6 +191,8 @@ export interface World {
   tier: number;
   /** Ids of the quests already finished and paid out. */
   questsDone: string[];
+  /** Path quests finished, by id (see PATH_QUESTS). */
+  pathDone?: string[];
   tick: number;
   /** Units made and used up by buildings since the start, by good. The production sheet turns these into rates. */
   produced: Stock;
@@ -201,6 +211,8 @@ export interface World {
   layout?: number;
   /** The made map this world was started from, if it was not generated. */
   mapId?: string;
+  /** Loans, savings and the market fund. Opened the first time the bank sheet is used. */
+  bank?: BankState;
 }
 
 /** A truck leaves the start of its route once this share of its capacity is ready, or after MAX_LOAD_WAIT ticks. */
@@ -375,7 +387,7 @@ function stationTile(world: World, place: Place): Tile | null {
   const layout = layoutOf(world, place);
   const key = (x: number, y: number): string => x + ',' + y;
   const built = new Map(layout.streets.filter((q) => q.level <= place.level).map((q) => [key(q.x, q.y), q]));
-  const covered = new Set([...layout.plots, ...layout.streets, ...layout.homes].map((t) => key(t.x, t.y)));
+  const covered = new Set([...layout.plots, ...layout.civic, ...layout.streets, ...layout.homes].map((t) => key(t.x, t.y)));
   const ok = (dx: number, dy: number): boolean => {
     const x = wrapX(world, place.x + dx);
     const y = place.y + dy;
@@ -384,7 +396,9 @@ function stationTile(world: World, place: Place): Tile | null {
   };
   const nb = [[1, 0], [-1, 0], [0, 1], [0, -1]];
   const cands: { dx: number; dy: number; score: number }[] = [];
-  for (const h of layout.homes) {
+  // Houses, or a district lot no district has taken.
+  const taken = new Set(Object.values(place.districtLots ?? {}));
+  for (const h of [...layout.homes, ...layout.civic.filter((_, i) => !taken.has(i))]) {
     if (h.level > place.level || !ok(h.x, h.y)) continue;
     const fronts = nb.map(([ox, oy]) => built.get(key(h.x + ox, h.y + oy))).filter((q) => !!q);
     if (fronts.length === 0) continue;
@@ -554,12 +568,105 @@ export function plotAt(world: World, x: number, y: number): { place: Place; inde
   return null;
 }
 
+/** The tiles of a town's district lots, wrapped. */
+export function civicTiles(world: World, place: Place): Tile[] {
+  return layoutOf(world, place).civic.map((c) => ({ x: wrapX(world, place.x + c.x), y: place.y + c.y }));
+}
+
+/** The district lot on this tile, if it is one. */
+export function civicAt(world: World, x: number, y: number): { place: Place; index: number } | null {
+  const wx = wrapX(world, x);
+  for (const place of world.places) {
+    const lots = civicTiles(world, place);
+    for (let i = 0; i < lots.length; i++) if (lots[i].x === wx && lots[i].y === y) return { place, index: i };
+  }
+  return null;
+}
+
+/** The building a district stands in, if it has been built. */
+export function districtSite(world: World, place: Place, id: DistrictId): Site | undefined {
+  return world.sites.find((s) => s.placeId === place.id && s.districtId === id);
+}
+
+/** The next free district lot: one beside a street the town has built, nearest the centre. Null when there is none. */
+export function freeCivicLot(world: World, place: Place): number | null {
+  const layout = layoutOf(world, place);
+  const used = new Set(Object.values(place.districtLots ?? {}));
+  for (let i = 0; i < layout.civic.length; i++) {
+    const c = layout.civic[i];
+    if (used.has(i) || c.level > place.level) continue;
+    const x = wrapX(world, place.x + c.x);
+    const y = place.y + c.y;
+    if (siteAt(world, x, y) || routeAt(world, x, y)) continue;
+    return i;
+  }
+  return null;
+}
+
+/**
+ * Put a district's building on a free lot beside the streets, or bring its level up to date. The building is a town point
+ * like the Market: trucks bring it the goods the district lives on, and it uses them up.
+ */
+export function syncDistrictSite(world: World, place: Place, id: DistrictId): string | null {
+  const level = place.districts?.[id] ?? 0;
+  if (level <= 0) return null;
+  const have = districtSite(world, place, id);
+  if (have) {
+    have.level = level;
+    return null;
+  }
+  const lot = place.districtLots?.[id] ?? freeCivicLot(world, place);
+  if (lot === null || lot === undefined) return 'No free lot for it beside the streets';
+  const c = layoutOf(world, place).civic[lot];
+  place.districtLots ??= {};
+  place.districtLots[id] = lot;
+  world.sites.push({
+    id: world.nextId++,
+    kind: 'district',
+    districtId: id,
+    name: `${place.name} ${DISTRICTS[id].label}`,
+    x: wrapX(world, place.x + c.x),
+    y: place.y + c.y,
+    stock: {},
+    timer: 0,
+    level,
+    nodeId: null,
+    placeId: place.id,
+    pull: [],
+  });
+  linkTown(world, place);
+  linkNetwork(world, 'road');
+  sendToDistricts(world);
+  return null;
+}
+
+/** Districts are fed by whoever is joined to them: switch the sale on from every factory and hub that has a lane to one. */
+export function sendToDistricts(world: World): void {
+  for (const r of world.routes) {
+    if (r.free) continue;
+    for (const [a, b] of [[r.fromSiteId, r.toSiteId], [r.toSiteId, r.fromSiteId]]) {
+      const src = siteById(world, a);
+      const dst = siteById(world, b);
+      if (!src || !dst || SITE_DEFS[dst.kind].dock !== 'civic') continue;
+      const def = SITE_DEFS[src.kind];
+      if (def.dock || def.station || def.produce) continue;
+      const list = (src.sendTo ??= []);
+      if (!list.includes(dst.id)) list.push(dst.id);
+    }
+  }
+}
+
+/** Old saves have districts but no buildings for them: give each one its lot. */
+export function ensureDistrictSites(world: World): void {
+  for (const place of world.places) for (const id of DISTRICT_ORDER) if ((place.districts?.[id] ?? 0) > 0 && !districtSite(world, place, id)) syncDistrictSite(world, place, id);
+}
+
 /**
  * Link every pair of buildings in a town that could trade, over the town's own streets. These district links cost
  * nothing; buy a truck at either building to run goods along them. Safe to call again whenever something changes.
  */
 export function linkTown(world: World, place: Place): void {
-  const plots = plotTiles(world, place).map((t) => ({ x: wrapX(world, t.x), y: t.y }));
+  const plots = [...plotTiles(world, place), ...civicTiles(world, place)].map((t) => ({ x: wrapX(world, t.x), y: t.y }));
   const members = world.sites.filter((s) => plots.some((p) => p.x === s.x && p.y === s.y));
   for (let i = 0; i < members.length; i++) {
     for (let j = i + 1; j < members.length; j++) {
@@ -577,6 +684,7 @@ export function linkTown(world: World, place: Place): void {
       world.routes.push(route);
     }
   }
+  sendToDistricts(world);
 }
 
 /** Tiles carried by a highway route. */
@@ -608,7 +716,7 @@ function townBlocks(world: World, x: number, y: number, mode: RouteMode): boolea
   if (!placeAt(world, x, y)) return false;
   if (streetAt(world, x, y)) return mode !== 'road';
   if (mode === 'rail') {
-    if (plotAt(world, x, y) === null) return false;
+    if (plotAt(world, x, y) === null && civicAt(world, x, y) === null) return false;
     // The last step into a rail depot may cross the lot beside it, so track can reach a hub on the street.
     return ![[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => siteAt(world, x + dx, y + dy)?.depot);
   }
@@ -618,9 +726,14 @@ function townBlocks(world: World, x: number, y: number, mode: RouteMode): boolea
 /** The street tile a building on a plot must be reached from, or null when the tile is not a plot. */
 export function entryTile(world: World, x: number, y: number): Tile | null {
   const pl = plotAt(world, x, y);
-  if (!pl) return null;
-  const e = layoutOf(world, pl.place).plots[pl.index].entry;
-  return { x: wrapX(world, pl.place.x + e.x), y: pl.place.y + e.y };
+  if (pl) {
+    const e = layoutOf(world, pl.place).plots[pl.index].entry;
+    return { x: wrapX(world, pl.place.x + e.x), y: pl.place.y + e.y };
+  }
+  const lot = civicAt(world, x, y);
+  if (!lot) return null;
+  const e = layoutOf(world, lot.place).civic[lot.index].entry;
+  return { x: wrapX(world, lot.place.x + e.x), y: lot.place.y + e.y };
 }
 
 /** First route whose path passes through the tile. */
@@ -737,6 +850,7 @@ export function dockDemand(world: World, site: Site): Good[] {
   const place = placeOf(world, site);
   if (!place) return [];
   const def = SITE_DEFS[site.kind];
+  if (def.dock === 'civic') return site.districtId ? [...DISTRICTS[site.districtId].goods] : [];
   if (def.dock === 'market') return withExtra(MARKET_DEMAND[place.level - 1], districtDemand(place, 'market'));
   return withExtra(FREIGHT_DEMAND[Math.min(FREIGHT_DEMAND.length, place.level) - 1], districtDemand(place, 'freight'));
 }
@@ -894,6 +1008,8 @@ export interface Buyer {
   connected: boolean;
   /** Selling to it is switched on. */
   on: boolean;
+  /** Rough takings per minute for one box truck on the run, so the best buyer can be picked out. Only worked out for buyers not yet joined. */
+  perMinute?: number;
 }
 
 /** Everyone who could buy what this building makes: those already joined to it first, then the nearest few that are not. */
@@ -910,10 +1026,26 @@ export function buyersFor(world: World, site: Site, extra = 3): Buyer[] {
     .filter((o) => o.id !== site.id && !seen.has(o.id) && !SITE_DEFS[o.kind].station && !SITE_DEFS[o.kind].hub && !SITE_DEFS[o.kind].produce)
     .map((o) => ({ o, goods: mine.filter((g) => wantsEver(world, o).includes(g)) }))
     .filter((x) => x.goods.length > 0 && d2(x.o) < 40 * 40)
-    .sort((a, b) => d2(a.o) - d2(b.o))
+    .map((x) => ({ ...x, perMinute: runValue(world, site, x.o, x.goods, Math.sqrt(d2(x.o))) }))
+    .sort((a, b) => b.perMinute - a.perMinute)
     .slice(0, extra);
-  for (const x of far) out.push({ site: x.o, goods: x.goods, connected: false, on: false });
+  for (const x of far) out.push({ site: x.o, goods: x.goods, connected: false, on: false, perMinute: x.perMinute });
   return out;
+}
+
+/**
+ * What a box truck would take on a run from one building to a buyer, per minute: the load times what the buyer pays, over the
+ * round trip. A factory buyer pays nothing itself but turns the goods into dearer ones, so it counts for a little less than a
+ * market. Buyers that are already full count for less, and far ones lose to near ones through the longer trip.
+ */
+function runValue(world: World, from: Site, to: Site, goods: Good[], dist: number): number {
+  const truck = VEHICLE_DEFS.boxtruck;
+  const dock = SITE_DEFS[to.kind].dock;
+  const price = Math.max(...goods.map((g) => (dock ? unitPrice(world, to, g) : GOODS[g].price * 0.6)));
+  const room = Math.max(0.15, 1 - Math.max(...goods.map((g) => stockOf(to, g))) / Math.max(1, siteCap(world, to)));
+  const trip = 2 * dist * truck.ticksPerTile + 50;
+  void from;
+  return (truck.capacity * price * room * 600) / trip;
 }
 
 /** The road a "Build road" button would lay from one building to another, priced, or null if none can be found. */
@@ -1024,6 +1156,11 @@ function stepSite(world: World, site: Site): void {
       addStock(site, g, -n);
       sell(world, dock, g, n);
     }
+    return;
+  }
+  if (def.dock === 'civic') {
+    // A district uses up what it is sent: faster as it grows.
+    for (const g of dockDemand(world, site)) if (stockOf(site, g) > 0) site.stock[g] = Math.max(0, stockOf(site, g) - 0.006 * site.level);
     return;
   }
   if (def.dock) {
@@ -1194,6 +1331,10 @@ export function assignVehicle(world: World, v: Vehicle): boolean {
 }
 
 function stepVehicle(world: World, v: Vehicle): void {
+  if (v.back) {
+    stepRetreat(world, v);
+    return;
+  }
   const route = v.routeId === 0 ? undefined : world.routes.find((r) => r.id === v.routeId);
   if (!route) {
     // Waiting at home: look for a route a few times a second.
@@ -1308,7 +1449,17 @@ export function step(world: World): void {
   stepEvents(world);
   for (const s of world.sites) stepSite(world, s);
   for (const v of world.vehicles) stepVehicle(world, v);
-  if (world.tick % 10 === 0) stepEconomy(world);
+  if (world.tick % 10 === 0) {
+    stepEconomy(world);
+    stepBank(world);
+  }
+  // Streets grow with the towns and old saves come in unjoined: keep everything on one network joined.
+  if (world.tick % 100 === 0) {
+    ensureDistrictSites(world);
+    linkNetwork(world, 'road');
+    linkNetwork(world, 'rail');
+    sendToDistricts(world);
+  }
   checkQuests(world, (text) => addLog(world, text));
 }
 
@@ -1322,11 +1473,13 @@ export function placeError(world: World, kind: SiteKind, x: number, y: number): 
   if (t === null) return 'Out of bounds';
   if (def.tier > world.tier) return `${def.label} unlocks at Tier ${def.tier}`;
   if (siteAt(world, x, y)) return 'Tile already occupied';
+  if (civicAt(world, x, y)) return 'Reserved for a town district';
   const plot = plotAt(world, x, y);
   if (plot) {
     // Inside a town: any building that does not need a resource node, on the plots beside the streets.
     if (def.node) return `${def.label} must be built on a ${def.node} node`;
     if (def.airport) return 'Airports need open ground outside a town';
+    if (def.railyard) return 'A Rail Yard goes at the edge of town, outside its streets';
     if (plot.index < 2) return `Reserved for ${plot.place.name}'s ${plot.index === 0 ? 'Market' : 'Freight Yard'}`;
     if (isHomePlot(plot.place, plot.index)) return 'Homes line this stretch of street: not for sale';
     if (t === 'water' || t === 'mountain' || t === 'ice') return `Cannot build on ${t}`;
@@ -1343,9 +1496,64 @@ export function placeError(world: World, kind: SiteKind, x: number, y: number): 
     } else if (slopeAt(world, x, y) > BUILD_SLOPE) {
       return 'Too steep to build on';
     }
+    if (def.airport) {
+      const e = airfieldError(world, x, y);
+      if (e) return e;
+    }
+    if (def.railyard) {
+      const e = railyardError(world, x, y);
+      if (e) return e;
+    }
   }
   if (world.money < def.cost) return `Need $${def.cost}`;
   return null;
+}
+
+/**
+ * An airport needs room for its runway and a way in: nearly all the ground around it flat, dry and unbuilt, clear of any
+ * town, with at least one side open for the road or track that serves it.
+ */
+function airfieldError(world: World, x: number, y: number): string | null {
+  for (const p of world.places) {
+    if (Math.abs(wrapDx(world, p.x, x)) <= (p.radius ?? 3) + 1 && Math.abs(p.y - y) <= (p.radius ?? 3) + 1) return `Too close to ${p.name} for an airport`;
+  }
+  return openGround(world, x, y, 7) ? null : 'Airports need flat, open ground with room beside them for a road';
+}
+
+/** Nearly all the ground around a tile is flat, dry and unbuilt (at least `minFlat` of its 8 neighbours), with a free side for a road. */
+function openGround(world: World, x: number, y: number, minFlat: number): boolean {
+  const land = (tx: number, ty: number): boolean => {
+    const t = terrainAt(world, tx, ty);
+    return (t === 'grass' || t === 'forest') && !siteAt(world, tx, ty) && !placeAt(world, tx, ty) && !routeAt(world, tx, ty);
+  };
+  let flat = 0;
+  for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) if ((dx || dy) && land(wrapX(world, x + dx), y + dy)) flat += 1;
+  const door = [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => land(wrapX(world, x + dx), y + dy) && slopeAt(world, wrapX(world, x + dx), y + dy) <= BUILD_SLOPE);
+  return flat >= minFlat && door;
+}
+
+/** A Rail Yard stands just outside a town (within a few tiles of its last street) on open ground with room for a road and track. */
+function railyardError(world: World, x: number, y: number): string | null {
+  let near = false;
+  for (let dy = -5; dy <= 5 && !near; dy++) for (let dx = -5; dx <= 5; dx++) if (placeAt(world, wrapX(world, x + dx), y + dy)) near = true;
+  if (!near) return 'A Rail Yard goes at the edge of a town: within a few tiles of its last street';
+  return openGround(world, x, y, 6) ? null : 'A Rail Yard needs flat, open ground with room beside it for a road and track';
+}
+
+/** Where a town's Rail Yard could go: the closest open ground just outside its edge, or null. Used by the bot and the demo. */
+export function yardSpot(world: World, place: Place): Tile | null {
+  const best: { x: number; y: number; d: number }[] = [];
+  const R = (place.radius ?? 3) + 8;
+  for (let dy = -R; dy <= R; dy++) {
+    for (let dx = -R; dx <= R; dx++) {
+      const x = wrapX(world, place.x + dx);
+      const y = place.y + dy;
+      const err = placeError(world, 'railyard', x, y);
+      if (err === null || err.startsWith('Need $')) best.push({ x, y, d: Math.hypot(dx, dy) });
+    }
+  }
+  best.sort((a, b) => a.d - b.d);
+  return best[0] ? { x: best[0].x, y: best[0].y } : null;
 }
 
 /** Name a new site after its surroundings: the woods it sits in, or the nearest town. */
@@ -1395,7 +1603,9 @@ export function placeSite(world: World, kind: SiteKind, x: number, y: number): s
   });
   const home = plotAt(world, wx, y);
   if (home) linkTown(world, home.place);
-  // A building put down on a road that already reaches others is joined to them.
+  // A building put down on a road, or a town street, that already reaches others is joined to them.
+  linkNetwork(world, 'road');
+  linkNetwork(world, 'rail');
   connectSites(world, [world.sites[world.sites.length - 1].id]);
   return null;
 }
@@ -1427,25 +1637,9 @@ export function upgradeSite(world: World, siteId: number): string | null {
   return null;
 }
 
-/** Why a hub cannot be given a rail depot, or null. */
-export function depotError(world: World, siteId: number): string | null {
-  const site = siteById(world, siteId);
-  if (!site) return 'Nothing selected';
-  const def = SITE_DEFS[site.kind];
-  if (!def.hub || def.airport) return 'Only a Distribution Hub can have a Rail Depot';
-  if (site.depot) return 'This hub already has a Rail Depot';
-  if (world.tier < RAIL_TIER) return `Rail Depots unlock at Tier ${RAIL_TIER}`;
-  if (world.money < DEPOT_COST) return `Need $${DEPOT_COST.toLocaleString('en-US')}`;
-  return null;
-}
-
-/** Build a rail yard on a hub: trains can now serve it, alongside its trucks. */
-export function buildDepot(world: World, siteId: number): string | null {
-  const err = depotError(world, siteId);
-  if (err) return err;
-  world.money -= DEPOT_COST;
-  siteById(world, siteId)!.depot = true;
-  return null;
+/** A hub where trains can call: a Rail Yard, or an old hub that was given a rail depot. */
+export function isRailHub(site: Site): boolean {
+  return !!SITE_DEFS[site.kind].railyard || !!site.depot;
 }
 
 export function setHubPull(world: World, siteId: number, good: Good, on: boolean): void {
@@ -1527,11 +1721,11 @@ export function planRoute(world: World, rawPath: Tile[], mode: RouteMode = 'road
     if (e) return fail(e);
   }
   if (mode === 'road' && ((from && SITE_DEFS[from.kind].station) || (to && SITE_DEFS[to.kind].station))) return fail('Only trains call at a Rail Station');
-  // Trains reach a town only through a Rail Depot on a Distribution Hub (or an old Rail Station).
+  // Trains reach a town only through a Rail Yard at its edge (or an old Rail Station).
   if (mode === 'rail') {
     for (const site of [from, to]) {
       if (!site || SITE_DEFS[site.kind].station) continue;
-      if (placeAt(world, site.x, site.y) && !(SITE_DEFS[site.kind].hub && site.depot)) return fail('Trains reach a town through a Rail Depot: build one on a Distribution Hub');
+      if (placeAt(world, site.x, site.y) && !isRailHub(site)) return fail('Trains reach a town through its Rail Yard, built at the edge of town');
     }
   }
 
@@ -1589,7 +1783,47 @@ export function planRoute(world: World, rawPath: Tile[], mode: RouteMode = 'road
   return plan;
 }
 
+/** The route a vehicle is on, or the old line it is driving home along. */
+export function vehicleRoute(world: World, v: Vehicle): Route | undefined {
+  if (v.back) return v.back;
+  return v.routeId === 0 ? undefined : world.routes.find((r) => r.id === v.routeId);
+}
+
+/** A route went from under a vehicle: if it is out on the road it turns round and drives home, otherwise it just waits. */
+function strand(route: Route, v: Vehicle): void {
+  const last = route.path.length - 1;
+  if (route.mode === 'air' || v.state !== 'moving' || v.idx <= 0 || v.idx >= last) {
+    parkVehicle(v);
+    return;
+  }
+  v.back = { ...route, path: route.path.slice() };
+  v.routeId = 0;
+  v.dir = route.fromSiteId === v.homeId ? -1 : 1;
+  v.moveTimer = 0;
+}
+
+/** One tick of a vehicle driving home along a road that has gone. */
+function stepRetreat(world: World, v: Vehicle): void {
+  const route = v.back!;
+  const home = siteById(world, v.homeId);
+  if (!home) {
+    parkVehicle(v);
+    return;
+  }
+  v.moveTimer += 1;
+  if (v.moveTimer < routeTicks(route, VEHICLE_DEFS[v.kind].ticksPerTile)) return;
+  v.moveTimer = 0;
+  v.idx += v.dir;
+  const last = route.path.length - 1;
+  if ((v.dir === -1 && v.idx <= 0) || (v.dir === 1 && v.idx >= last)) {
+    // Home: the load goes back in the store, and the vehicle waits for a road like any other.
+    if (v.good && v.cargo > 0 && !SITE_DEFS[home.kind].station) addStock(home, v.good, v.cargo);
+    parkVehicle(v);
+  }
+}
+
 function parkVehicle(v: Vehicle): void {
+  v.back = undefined;
   v.routeId = 0;
   v.idx = 0;
   v.dir = 1;
@@ -1654,11 +1888,92 @@ export function createRoute(world: World, rawPath: Tile[], mode: RouteMode = 'ro
     for (const part of splitStretches(run)) world.routes.push({ id: world.nextId++, mode, grade: g, fromSiteId: 0, toSiteId: 0, free: true, seg: true, path: part });
     i = j;
   }
-  if (plan.free) return null;
+  if (plan.free) {
+    linkNetwork(world, mode);
+    return null;
+  }
   const from = siteAt(world, path[0].x, path[0].y)!;
   const to = siteAt(world, path[path.length - 1].x, path[path.length - 1].y)!;
   world.routes.push({ id: world.nextId++, mode, grade: g, fromSiteId: from.id, toSiteId: to.id, over: true, path });
+  linkNetwork(world, mode);
   return null;
+}
+
+/**
+ * Buildings are joined by road or track being connected, not only by a line drawn between them: a road that runs onto
+ * another road, a highway, or a town street joins everything on that network. Give every pair of buildings on one
+ * network that could trade a lane to run along, so "joined" means what it looks like. Safe to call again.
+ */
+export function linkNetwork(world: World, mode: RouteMode): void {
+  if (mode === 'air') return;
+  const key = (x: number, y: number): number => y * world.width + wrapX(world, x);
+  const ground = new Set<number>();
+  for (const r of world.routes) if (r.mode === mode && !r.over) for (const t of r.path) ground.add(key(t.x, t.y));
+  const open = (x: number, y: number): boolean => ground.has(key(x, y)) || (mode === 'road' && streetAt(world, wrapX(world, x), y) !== undefined);
+  const bySpot = new Map<number, Site>();
+  for (const st of world.sites) bySpot.set(key(st.x, st.y), st);
+  // A building is on the network when road arrives at its door: its own tile is laid, or it is a lot on a town street.
+  const onNet = (st: Site): boolean => ground.has(key(st.x, st.y)) || (mode === 'road' && entryTile(world, st.x, st.y) !== null);
+  const members = world.sites.filter(onNet);
+  if (members.length < 2) return;
+  // A lot in a town is entered from its own door, whichever other street it touches.
+  const door = new Map<number, number>();
+  if (mode === 'road') {
+    for (const st of members) {
+      const e = entryTile(world, st.x, st.y);
+      if (e) door.set(key(st.x, st.y), key(e.x, e.y));
+    }
+  }
+  const hw = highwayTiles(world);
+  const joined = (a: Site, b: Site): boolean =>
+    world.routes.some((r) => !r.free && r.mode === mode && ((r.fromSiteId === a.id && r.toSiteId === b.id) || (r.fromSiteId === b.id && r.toSiteId === a.id)));
+  const MAX_DEPTH = 260;
+  for (const a of members) {
+    const want = new Map<number, Site>();
+    for (const b of members) if (b.id > a.id && canHaul(world, a, b) && !joined(a, b)) want.set(key(b.x, b.y), b);
+    if (want.size === 0) continue;
+    // Breadth-first over the laid ground from this building.
+    const from = key(a.x, a.y);
+    const prev = new Map<number, number>([[from, -1]]);
+    let frontier = [from];
+    let found = 0;
+    for (let depth = 0; depth < MAX_DEPTH && frontier.length > 0 && found < want.size; depth++) {
+      const nextFrontier: number[] = [];
+      for (const k of frontier) {
+        const x = k % world.width;
+        const y = Math.floor(k / world.width);
+        for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+          const ny = y + dy;
+          if (ny < 0 || ny >= world.height) continue;
+          const nx = wrapX(world, x + dx);
+          const nk = ny * world.width + nx;
+          if (prev.has(nk)) continue;
+          if (k === from && door.has(from) && nk !== door.get(from)) continue;
+          if (want.has(nk)) {
+            if (door.has(nk) && door.get(nk) !== k) continue;
+            prev.set(nk, k);
+            found += 1;
+          } else if (!bySpot.has(nk) && open(nx, ny)) {
+            prev.set(nk, k);
+            nextFrontier.push(nk);
+          }
+        }
+      }
+      frontier = nextFrontier;
+    }
+    for (const [bk, b] of want) {
+      if (!prev.has(bk)) continue;
+      const tiles: Tile[] = [];
+      for (let k = bk; k !== -1; k = prev.get(k)!) tiles.push({ x: k % world.width, y: Math.floor(k / world.width) });
+      tiles.reverse();
+      // Run the lane from the supplier to its customer, like the links inside a town.
+      const [src, dst] = supplies(world, a, b) || !supplies(world, b, a) ? [a, b] : [b, a];
+      const path = src === a ? tiles : tiles.reverse();
+      const grade: RoadGrade = path.every((t) => hw.has(key(t.x, t.y))) ? 'highway' : 'street';
+      if (planRoute(world, path, mode, grade).error) continue;
+      world.routes.push({ id: world.nextId++, mode, grade: mode === 'road' ? grade : undefined, fromSiteId: src.id, toSiteId: dst.id, over: true, path });
+    }
+  }
 }
 
 /** The tiles a plane flies over, in a straight line that takes the short way round the world. */
@@ -1917,8 +2232,9 @@ export function removeRoute(world: World, routeId: number): string | null {
   const route = world.routes.find((r) => r.id === routeId)!;
   world.money += routeRefund(world, route);
   world.routes = world.routes.filter((r) => r.id !== routeId);
-  for (const v of world.vehicles) if (v.routeId === routeId) parkVehicle(v);
+  for (const v of world.vehicles) if (v.routeId === routeId) strand(route, v);
   dropBrokenLanes(world, route.mode);
+  linkNetwork(world, route.mode);
   return null;
 }
 
@@ -1934,13 +2250,19 @@ function dropBrokenLanes(world: World, mode: RouteMode): void {
     if (r.path.some((t) => !ground.has(key(t)) && !siteAt(world, t.x, t.y) && !(mode === 'road' && streetAt(world, t.x, t.y)))) dead.add(r.id);
   }
   if (dead.size === 0) return;
+  const gone = world.routes.filter((r) => dead.has(r.id));
   world.routes = world.routes.filter((r) => !dead.has(r.id));
-  for (const v of world.vehicles) if (dead.has(v.routeId)) parkVehicle(v);
+  for (const v of world.vehicles) {
+    const r = dead.has(v.routeId) ? gone.find((x) => x.id === v.routeId) : undefined;
+    if (r) strand(r, v);
+  }
 }
 
 // ---- path finding ----
 
 const TURN_COST = 0.4;
+/** Extra cost for a road to cross a resource spot: more than any sensible detour, so it only does so when it must. */
+const NODE_COST = 60;
 
 /** Extra road cost for hugging steep ground or the foot of a mountain, so routes swing around peaks instead of scraping them. */
 function terrainHazard(world: World, x: number, y: number): number {
@@ -2013,10 +2335,16 @@ export function findPath(world: World, from: Tile, to: Tile, maxVisits = 120000,
   const own = axisMap(world, mode);
   const other = axisMap(world, mode === 'road' ? 'rail' : 'road');
   const factor = mode === 'rail' ? RAIL_COST_FACTOR : 1;
+  // Resource spots are for buildings: a road keeps off them unless it has nowhere else to go. A town's streets are road
+  // already, so joining one is as cheap as joining any other road.
+  const spots = new Set<number>(world.nodes.map((n) => n.y * W + wrapX(world, n.x)));
+  const streets = new Set<number>();
+  if (mode === 'road') for (const p of world.places) for (const k of townStreets(world, p)) streets.add(k);
   const D = 5; // four headings, plus 4 for 'none yet'
   const tileOf = (st: number) => Math.floor(st / (R * D));
   const start = (from.y * W + wrapX(world, from.x)) * R * D + 4;
   const goalTile = to.y * W + wrapX(world, to.x);
+  const startTile = from.y * W + wrapX(world, from.x);
   const dist = new Map<number, number>([[start, 0]]);
   const prev = new Map<number, number>();
   const heap = new Heap();
@@ -2066,8 +2394,11 @@ export function findPath(world: World, from: Tile, to: Tile, maxVisits = 120000,
         if (nrun > limit) return;
       }
       let cost = ROAD_COST[t] * factor;
-      if (own.has(nt)) cost = 0.4;
-      else if (t !== 'water' && t !== 'mountain') cost += terrainHazard(world, nx, ny);
+      if (own.has(nt) || streets.has(nt)) cost = 0.4;
+      else {
+        if (t !== 'water' && t !== 'mountain') cost += terrainHazard(world, nx, ny);
+        if (spots.has(nt) && nt !== goalTile && nt !== startTile) cost += NODE_COST;
+      }
       if (cross !== undefined) cost += CROSSING_COST;
       // Turning costs a little, so roads run straight and tidy instead of staircasing.
       const nd = key + cost + 0.01 + (dir !== 4 && dir !== h ? TURN_COST : 0);

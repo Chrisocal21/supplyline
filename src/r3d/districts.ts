@@ -197,6 +197,55 @@ export function districtLandmark(p: Parts, id: DistrictId, level: number, cx: nu
       box(0, 0.4, 1.5, 0.08, 0.08, 0xd7a21f, 0.9);
       break;
     }
+    case 'community': {
+      box(0, -0.25, 1.3 + 0.1 * L, 0.5, 0.8, 0xd9c9a3, 0.04, 3);
+      gable(0, -0.25, 1.42 + 0.1 * L, 0.3, 0.92, 0x7a4a3c, 0.54);
+      box(0, front - 0.42, 0.3, 0.3, 0.06, 0x5a3b2a, 0.04);
+      win(-0.45, 0.14, 0.3, 0.22);
+      win(0.45, 0.14, 0.3, 0.22);
+      if (L >= 2) {
+        box(-0.66, 0.3, 0.4, 0.32, 0.5, 0xd9c9a3, 0.04, 3);
+        gable(-0.66, 0.3, 0.5, 0.2, 0.6, 0x7a4a3c, 0.36);
+      }
+      if (L >= 3) box(0.5, 0.45, 0.6, 0.04, 0.4, 0x8fae6a, 0.04);
+      cyl(0.72, 0.62, 0.02, 1.0, 0xcfd2d6, 0.04, 0, 6);
+      box(0.82, 0.62, 0.22, 0.14, 0.02, 0xb94a40, 0.84);
+      break;
+    }
+    case 'amphitheatre': {
+      // Tiered seating in a half ring behind a stage that opens toward the street.
+      const tiers = 2 + L;
+      for (let t = 0; t < tiers; t++) {
+        const r = 0.38 + t * 0.15;
+        const n = 6 + t * 2;
+        for (let i = 0; i < n; i++) {
+          const a = 0.25 + (i / (n - 1)) * (Math.PI - 0.5);
+          const lx = Math.cos(a) * r * 1.3;
+          const lz = 0.15 - Math.sin(a) * r;
+          const [x, z] = at(lx, lz);
+          p.tex = 6;
+          p.box(0.2, 0.1 + t * 0.08, 0.14, t % 2 ? 0xcfc6b0 : 0xb9b09a, { x, y: 0.04, z, ry: yaw + a - Math.PI / 2 });
+        }
+      }
+      box(0, 0.55, 1.0, 0.1, 0.4, 0x8a5e3f, 0.04, 1);
+      box(0, 0.42, 0.9, 0.5, 0.04, 0xb94a40, 0.14);
+      for (const lx of [-0.55, 0.55]) cyl(lx, 0.55, 0.03, 0.6, 0x555a60, 0.04, 0, 6);
+      break;
+    }
+    case 'stadium': {
+      const rim = 0.5 + 0.12 * L;
+      cyl(0, 0, 0.8, rim, 0xc9c6bc, 0.04, 6, 20);
+      cyl(0, 0, 0.72, 0.03, 0x8b8f93, 0.04 + rim, 6, 20);
+      cyl(0, 0, 0.55, 0.03, 0x4f9a48, 0.07 + rim, 0, 20);
+      box(0, 0, 0.7, 0.02, 0.02, 0xf4f4ec, 0.1 + rim);
+      box(0, 0, 0.02, 0.02, 0.9, 0xf4f4ec, 0.1 + rim);
+      box(0, front - 0.02, 0.6, 0.3, 0.1, 0xb94a40, 0.04);
+      for (const lx of [-0.72, 0.72]) for (const lz of [-0.72, 0.72]) {
+        cyl(lx, lz, 0.03, rim + 0.5, 0x6a6e73, 0.04, 0, 6);
+        box(lx, lz, 0.16, 0.08, 0.16, 0xf6efc8, 0.04 + rim + 0.5);
+      }
+      break;
+    }
   }
   p.tex = 0;
 }

@@ -293,7 +293,7 @@ function hub(): THREE.BufferGeometry {
   return p.build();
 }
 
-/** A hub with its rail depot: the warehouse and truck bays on one side, a rail yard with a platform and a gantry on the other. */
+/** A Rail Yard: a warehouse and truck bays on one side, a rail yard with a platform and a gantry on the other. */
 function depot(): THREE.BufferGeometry {
   const p = new Parts();
   p.slab(3.1, 3.0, C.concreteDark);
@@ -450,6 +450,8 @@ export function siteGeometry(kind: SiteKind): THREE.BufferGeometry {
       return station();
     case 'airport':
       return airport();
+    case 'railyard':
+      return depot();
     default:
       return industryGeometry(kind);
   }
@@ -578,16 +580,59 @@ function levelParts(kind: SiteKind, level: number): THREE.BufferGeometry {
   return p.build();
 }
 
+/**
+ * A signboard on a pole at the back corner of the lot, so a building can be told apart at a glance in a busy town. Its shape
+ * says what sort of place it is (a disc for a camp, farm or pit, a square for a factory, a diamond for logistics) and its colour
+ * is the good it makes, or blue for freight, with a white mark in the middle.
+ */
+function signGeometry(kind: SiteKind): THREE.BufferGeometry {
+  const def = SITE_DEFS[kind];
+  const p = new Parts();
+  const good = def.produce?.good ?? (Object.keys(def.recipe?.outputs ?? {})[0] as Good | undefined);
+  const x = -1.5;
+  const z = -1.5;
+  const top = 2.05;
+  const raw = good ? GOODS[good].color : def.airport ? 0x4aa3d8 : def.railyard ? 0xd0702f : 0x2f6fb0;
+  // Good colours are earthy; a sign has to read from afar, so pull them toward bright and saturated.
+  const hsl = { h: 0, s: 0, l: 0 };
+  new THREE.Color(raw).getHSL(hsl);
+  const color = new THREE.Color().setHSL(hsl.h, Math.max(0.85, hsl.s), 0.6).getHex();
+  p.cyl(0.03, 0.04, top, C.metal, { x, y: 0, z }, 6);
+  if (def.produce) {
+    p.cyl(0.36, 0.36, 0.07, C.white, { x, y: top - 0.05, z, rx: Math.PI / 2 }, 20);
+    p.cyl(0.3, 0.3, 0.09, color, { x, y: top - 0.05, z, rx: Math.PI / 2 }, 20);
+    p.cyl(0.1, 0.1, 0.1, C.white, { x, y: top - 0.05, z, rx: Math.PI / 2 }, 12);
+  } else if (def.recipe) {
+    p.box(0.74, 0.74, 0.07, C.white, { x, y: top - 0.37, z });
+    p.box(0.64, 0.64, 0.09, color, { x, y: top - 0.32, z });
+    p.box(0.26, 0.26, 0.1, C.white, { x, y: top - 0.13, z });
+  } else {
+    p.box(0.62, 0.62, 0.07, C.white, { x, y: top - 0.1, z, rz: Math.PI / 4 });
+    p.box(0.5, 0.5, 0.09, color, { x, y: top - 0.1, z, rz: Math.PI / 4 });
+    p.box(0.34, 0.07, 0.1, C.white, { x, y: top - 0.1, z });
+  }
+  return p.build();
+}
+
 /** A building as it looks at a level: the main building grown, with that level's extras around it. */
 export function siteGeometryAt(kind: SiteKind, level: number, withDepot = false): THREE.BufferGeometry {
   const base = withDepot && kind === 'hub' ? depot() : siteGeometry(kind);
   const def = SITE_DEFS[kind];
   const grow = LEVEL_GROW[level];
-  if (!grow || def.dock || def.station) return base;
+  if (def.dock || def.station) return base;
+  const sign = signGeometry(kind);
+  if (!grow) {
+    const plain = mergeGeometries([base, sign], false)!;
+    base.dispose();
+    sign.dispose();
+    plain.computeBoundingSphere();
+    return plain;
+  }
   const [across, up] = def.produce ? grow.raw : grow.other;
   base.scale(across, up, across);
   const extra = levelParts(kind, level);
-  const out = mergeGeometries([base, extra], false)!;
+  const out = mergeGeometries([base, extra, sign], false)!;
+  sign.dispose();
   base.dispose();
   extra.dispose();
   out.computeBoundingSphere();

@@ -1,6 +1,10 @@
 // The 3D game: owns the Three.js scene, runs the simulation, and turns pointer input into player actions.
 // The Phaser HUD sits on top and calls into this class.
 import * as THREE from 'three';
+import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
+import { GTAOPass } from 'three/examples/jsm/postprocessing/GTAOPass.js';
+import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import {
   GOODS,
   SITE_DEFS,
@@ -24,13 +28,11 @@ import {
   relayoutNodes,
   homesNow,
   upgradeVehicle,
-  buildDepot,
   sellVehicle,
   setVehicleDest,
   setSendTo,
   setMaking,
   onNetwork,
-  connectSites,
   removeRoute,
   removeRouteError,
   roadEndError,
@@ -55,6 +57,10 @@ import {
   planRoute,
   routeAt,
   routeTicks,
+  vehicleRoute,
+  ensureDistrictSites,
+  linkNetwork,
+  sendToDistricts,
   setHubPull,
   siteAt,
   siteById,
@@ -84,7 +90,7 @@ import { paintGlobe, paintRoughness } from './paint';
 import { Smoke } from './smoke';
 import { RoadNet, makeHighwayTexture, makeRailTexture, makeRoadTexture } from './roads';
 import { Scenery } from './scenery';
-import { buildDemo } from './demo';
+import { buildDemo, demoSpots } from './demo';
 import type { Good } from '../sim/defs';
 
 export const SAVE_KEY = 'supplyline.save.v10';
@@ -201,6 +207,9 @@ float vn(vec2 p) {
     diffuseColor.rgb = mix(diffuseColor.rgb * 0.82, glass, win);
     shade = 1.0;
   }
+  // Dirt and damp collect where a wall meets the ground, and the sun bleaches the top of it.
+  if (!top) shade *= mix(0.74, 1.0, smoothstep(0.0, 0.32, vOP.y)) * (0.96 + 0.08 * vn(vec2(along * 5.0, vOP.y * 2.0)));
+  else shade *= 0.97 + 0.05 * vn(uvw * 7.0);
   diffuseColor.rgb *= shade;
 }`,
     );
@@ -252,8 +261,8 @@ export class Game3D {
   private readonly roadTexture = makeRoadTexture();
   private readonly railTexture = makeRailTexture();
   private readonly highwayTexture = makeHighwayTexture();
-  private readonly hemi = new THREE.HemisphereLight(0xd6e4f7, 0x6a6a5c, 1.25);
-  private readonly sun = new THREE.DirectionalLight(0xfff1dc, 2.3);
+  private readonly hemi = new THREE.HemisphereLight(0xcfe0f7, 0x66714c, 1.2);
+  private readonly sun = new THREE.DirectionalLight(0xffe8c2, 2.6);
   private readonly siteMeshes = new Map<number, THREE.Mesh>();
   private readonly townMeshes = new Map<number, { mesh: THREE.Mesh; sig: string; level: number; districts: Record<string, number>; path: string }>();
   /** Stand-ins for the building work on a district's landmark, so the scaffolding and lorries have something to stand at. */
@@ -280,9 +289,11 @@ export class Game3D {
     c.height = 256;
     const ctx = c.getContext('2d')!;
     const g = ctx.createLinearGradient(0, 0, 0, 256);
-    g.addColorStop(0, '#4f7bb3');
-    g.addColorStop(0.55, '#8fb2d8');
-    g.addColorStop(1, '#cfdeee');
+    g.addColorStop(0, '#3a6aaa');
+    g.addColorStop(0.35, '#6f9fd2');
+    g.addColorStop(0.6, '#a9c6e2');
+    g.addColorStop(0.78, '#e6e3d6');
+    g.addColorStop(1, '#d6e0e8');
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, 2, 256);
     const t = new THREE.CanvasTexture(c);
@@ -319,7 +330,7 @@ export class Game3D {
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.2;
+    this.renderer.toneMappingExposure = 1.12;
     const el = this.renderer.domElement;
     el.style.position = 'absolute';
     el.style.left = '0';
@@ -360,6 +371,11 @@ export class Game3D {
     const t0 = performance.now();
     this.disposeWorld();
     this.world = world;
+    // Districts from before they were buildings get their lots, and everything joined by road gets its routes.
+    ensureDistrictSites(world);
+    linkNetwork(world, 'road');
+    linkNetwork(world, 'rail');
+    sendToDistricts(world);
     setGlobeSize(world);
     this.hf = new HeightField(world);
     this.logSeen = world.logSeq;
@@ -425,6 +441,8 @@ export class Game3D {
     for (const id of [...this.districtWork.keys()]) this.endDistrictWork(id);
     this.townsShown = false;
     for (const m of this.vehicleMeshes.values()) this.dropVehicle(m);
+    for (const l of this.leaving) for (const { mesh } of l.meshes) this.scene.remove(mesh);
+    this.leaving.length = 0;
     this.siteMeshes.clear();
     this.townMeshes.clear();
     this.vehicleMeshes.clear();
@@ -535,6 +553,12 @@ export class Game3D {
 
     if (this.showcase) this.updateShowcase(dt);
     else if (now < this.orbitUntil) this.updateShots(dt);
+    else if (this.restoreView) {
+      // The show is over: cut back to where the player was looking.
+      const v = this.restoreView;
+      this.restoreView = null;
+      this.cam.set(v.lon, v.lat, v.dist, v.heading, v.pitch);
+    }
     this.cam.panKeys(this.keys.right, this.keys.forward, dt);
     if (this.keys.turn) this.cam.rotate(this.keys.turn * dt * 1.4, 0);
     this.cam.update(dt);
@@ -543,12 +567,13 @@ export class Game3D {
     this.updateGrowth();
     const dust = this.updateConstruction();
     this.updateVehicles();
+    this.updateLeaving();
     this.updateSmoke(dt, dust);
     this.updateLighting();
     this.scenery.update(now / 1000);
     this.updateRings();
     this.drainLog();
-    this.renderer.render(this.scene, this.camera);
+    this.draw();
 
     if (!this.demo && !this.showcase && now - this.lastSave > 20000) this.save();
 
@@ -582,9 +607,13 @@ export class Game3D {
    * Watch something happen on a tile: a low view from one side, then a cut to a higher view from another, each picked
    * so no trees, homes or buildings stand between the camera and the work. The camera drifts slowly in on each.
    */
-  private watch(x: number, y: number, dist: number, ms: number): void {
+  /** Where the view was before a town's growth was shown, to glide back to when it ends. */
+  private restoreView: { lon: number; lat: number; dist: number; heading: number; pitch: number } | null = null;
+
+  private watch(x: number, y: number, dist: number, ms: number, back = false): void {
     if (this.showcase) return;
     const keep = { lon: this.cam.lon, lat: this.cam.lat, dist: this.cam.dist, heading: this.cam.heading, pitch: this.cam.pitchManual };
+    this.restoreView = back ? keep : null;
     const tries = (pitch: number) =>
       Array.from({ length: 8 }, (_, k) => {
         const heading = keep.heading + (k * Math.PI) / 4;
@@ -681,10 +710,43 @@ export class Game3D {
     }
   }
 
+  // ---- post-processing: ambient occlusion up close, so buildings sit on the ground and crevices darken ----
+
+  private composer: EffectComposer | null = null;
+  private ao: GTAOPass | null = null;
+
+  /** Draw the frame: with ambient occlusion when close to the ground, straight to the screen from space. */
+  private draw(): void {
+    if (this.cam.dist > 150) {
+      this.renderer.render(this.scene, this.camera);
+      return;
+    }
+    if (!this.composer) {
+      const target = new THREE.WebGLRenderTarget(this.w, this.h, { type: THREE.HalfFloatType, samples: 4 });
+      const c = new EffectComposer(this.renderer, target);
+      c.setPixelRatio(this.renderer.getPixelRatio());
+      c.setSize(this.w, this.h);
+      c.addPass(new RenderPass(this.scene, this.camera));
+      const ao = new GTAOPass(this.scene, this.camera, this.w, this.h);
+      ao.output = GTAOPass.OUTPUT.Default;
+      ao.blendIntensity = 1;
+      ao.updateGtaoMaterial({ radius: 1.1, distanceExponent: 1.4, thickness: 1.5, scale: 1.3, samples: 12, distanceFallOff: 1, screenSpaceRadius: false });
+      ao.updatePdMaterial({ lumaPhi: 10, depthPhi: 2, normalPhi: 3, radius: 5, radiusExponent: 1, rings: 2, samples: 12 });
+      c.addPass(ao);
+      c.addPass(new OutputPass());
+      this.composer = c;
+      this.ao = ao;
+    }
+    // Reach and strength follow the view height, so a wide view is not smeared dark.
+    this.ao!.updateGtaoMaterial({ radius: THREE.MathUtils.clamp(this.cam.dist * 0.05, 0.7, 3) });
+    this.composer.render();
+  }
+
   resize(): void {
     this.w = window.innerWidth;
     this.h = window.innerHeight;
     this.renderer.setSize(this.w, this.h);
+    this.composer?.setSize(this.w, this.h);
     this.camera.aspect = this.w / this.h;
     this.camera.updateProjectionMatrix();
   }
@@ -781,11 +843,14 @@ export class Game3D {
     const live = new Set(this.world.sites.map((s) => s.id));
     for (const [id, m] of this.siteMeshes) {
       if (!live.has(id)) {
-        this.scene.remove(m);
+        if (this.sitesShown) this.leave(id, 1700, [m]);
+        else this.scene.remove(m);
         this.siteMeshes.delete(id);
       }
     }
     for (const s of this.world.sites) {
+      // A district is drawn with its town (a landmark on its lot), not as a building of its own.
+      if (SITE_DEFS[s.kind].dock === 'civic') continue;
       let m = this.siteMeshes.get(s.id);
       const before = this.siteLevels.get(s.id);
       this.siteLevels.set(s.id, s.level);
@@ -867,10 +932,17 @@ export class Game3D {
         occupied: !!siteAt(w, p.x + t.x, p.y + t.y),
         home: homePlots.includes(i),
       }));
-      const homes = layout.homes
+      // A district lot no district has taken yet is homes like the rest.
+      const taken = new Set(Object.values(p.districtLots ?? {}));
+      const homes = [...layout.homes, ...layout.civic.filter((_, i) => !taken.has(i))]
         .filter((h) => h.level <= p.level)
         .map((h) => ({ x: h.x, y: h.y, ok: landOk(p.x + h.x, p.y + h.y) && !routeAt(w, p.x + h.x, p.y + h.y) && !siteAt(w, p.x + h.x, p.y + h.y) }));
-      const districts = Object.entries(p.districts ?? {}).filter(([, lv]) => (lv ?? 0) > 0).map(([id, level]) => ({ id: id as DistrictId, level: level as number }));
+      const districts = Object.entries(p.districts ?? {})
+        .filter(([id, lv]) => (lv ?? 0) > 0 && p.districtLots?.[id as DistrictId] !== undefined)
+        .map(([id, level]) => {
+          const lot = layout.civic[p.districtLots![id as DistrictId]!];
+          return { id: id as DistrictId, level: level as number, x: lot.x, y: lot.y, ex: lot.entry.x, ey: lot.entry.y };
+        });
       const bits = (list: boolean[]): string => list.map((o) => (o ? 1 : 0)).join('');
       const sig = `${streets.length}.${p.level}.${p.path ?? ''}.${bits(plots.map((t) => t.occupied))}.${bits(plots.map((t) => t.home))}.${bits(homes.map((h) => h.ok))}.${districts.map((d) => `${d.id}${d.level}`).join(',')}`;
       if (have && have.sig === sig) continue;
@@ -930,7 +1002,7 @@ export class Game3D {
       this.dummies.set(id, dummy);
       this.construction?.start(id, this.nowMs, '', null, dummy.geometry);
     }
-    this.watch(wrapX(this.world, p.x + first.tx), p.y + first.ty, 15, BUILD_MS);
+    this.watch(wrapX(this.world, p.x + first.tx), p.y + first.ty, 15, BUILD_MS, true);
   }
 
   private endDistrictWork(placeId: number): void {
@@ -975,7 +1047,7 @@ export class Game3D {
       chains.push(from ? [from, s] : [s]);
     }
     for (const c of chains) this.construction?.startRoad(c.map((t) => ({ x: wrapX(w, p.x + t.x), y: p.y + t.y })), 'road', this.nowMs + 600);
-    this.watch(p.x, p.y, radiusOf(p) > 3 ? 46 : 34, GROW_MS);
+    this.watch(p.x, p.y, radiusOf(p) > 3 ? 46 : 34, GROW_MS, true);
   }
 
   /** Move town growth on, with dust along the wave. */
@@ -1021,6 +1093,43 @@ export class Game3D {
   private vehicleGeo = new Map<VehicleKind, THREE.BufferGeometry>();
   private trainGeo = new Map<VehicleKind, ReturnType<typeof trainUnits>>();
 
+  /** Buildings and vehicles on their way out: the model stays a moment, shrinking away in a cloud of dust. */
+  private readonly leaving: { id: number; start: number; ms: number; meshes: { mesh: THREE.Mesh; base: THREE.Matrix4 }[]; pos: THREE.Vector3; up: THREE.Vector3 }[] = [];
+
+  private leave(id: number, ms: number, meshes: THREE.Mesh[]): void {
+    const pos = new THREE.Vector3().setFromMatrixPosition(meshes[0].matrix);
+    this.leaving.push({ id, start: this.nowMs, ms, meshes: meshes.map((mesh) => ({ mesh, base: mesh.matrix.clone() })), pos, up: pos.clone().normalize() });
+  }
+
+  private updateLeaving(): void {
+    for (let i = this.leaving.length - 1; i >= 0; i--) {
+      const l = this.leaving[i];
+      const k = (this.nowMs - l.start) / l.ms;
+      if (k >= 1) {
+        for (const { mesh } of l.meshes) this.scene.remove(mesh);
+        this.leaving.splice(i, 1);
+        continue;
+      }
+      const building = l.ms > 1000;
+      let sx = 1;
+      let sy = 1;
+      if (building) {
+        // It shudders, then folds down into the ground.
+        const e = THREE.MathUtils.smoothstep(k, 0.12, 1);
+        sy = Math.max(0.02, 1 - e);
+        sx = 1 + 0.04 * Math.sin(k * 60) * (1 - Math.min(1, k * 2.5)) + 0.08 * e;
+      } else {
+        sx = sy = Math.max(0.02, 1 - k * k);
+      }
+      const scale = new THREE.Matrix4().makeScale(sx, sy, sx);
+      for (const { mesh, base } of l.meshes) {
+        mesh.matrix.copy(base).multiply(scale);
+        mesh.matrixWorldNeedsUpdate = true;
+      }
+      if (k < 0.85) this.popDust.set(-4e6 - l.id, { pos: l.pos.clone().addScaledVector(l.up, (building ? 0.7 : 0.3) * sy), up: l.up, every: building ? 0.035 : 0.05 });
+    }
+  }
+
   /** Take a vehicle, and any wagons it pulls, out of the scene. */
   private dropVehicle(m: THREE.Mesh): void {
     for (const c of (m.userData.cars ?? []) as THREE.Mesh[]) this.scene.remove(c);
@@ -1062,7 +1171,8 @@ export class Game3D {
     const live = new Set(this.world.vehicles.map((v) => v.id));
     for (const [id, m] of this.vehicleMeshes) {
       if (!live.has(id)) {
-        this.dropVehicle(m);
+        if (m.visible) this.leave(id, 550, [m, ...((m.userData.cars ?? []) as THREE.Mesh[])]);
+        else this.dropVehicle(m);
         this.vehicleMeshes.delete(id);
         this.cargoMeshes.delete(id);
       }
@@ -1147,7 +1257,7 @@ export class Game3D {
     const alpha = Math.min(this.acc / TICK_MS, 1);
     for (const v of this.world.vehicles) {
       const m = this.vehicleMeshes.get(v.id);
-      const route = this.world.routes.find((r) => r.id === v.routeId);
+      const route = vehicleRoute(this.world, v);
       if (!m) continue;
       // Waiting at home with nowhere to go: out of sight until a route opens.
       if (!route) {
@@ -1246,7 +1356,7 @@ export class Game3D {
     }
     if (dist < 230) {
       const fog = this.scene.fog as THREE.Fog | null;
-      const color = new THREE.Color(0xa9c0da);
+      const color = new THREE.Color(0xc4d3e0);
       if (!fog) this.scene.fog = new THREE.Fog(color, 10, 400);
       const f = this.scene.fog as THREE.Fog;
       f.color.copy(color);
@@ -1395,6 +1505,7 @@ export class Game3D {
 
   pointerDown(x: number, y: number, button: number): void {
     this.orbitUntil = 0;
+    this.restoreView = null;
     const d = this.drag;
     d.x = d.startX = x;
     d.y = d.startY = y;
@@ -1618,15 +1729,19 @@ export class Game3D {
       this.onToast('That is already built');
       return false;
     }
+    const idBefore = this.world.nextId;
     const err = createRoute(this.world, path, this.routeMode, grade);
     if (!err) this.construction?.startRoad(path, this.routeMode, this.nowMs);
     const what = rail ? 'Track' : this.tool === 'highway' ? 'Highway' : 'Road';
     this.onToast(err ?? `${what} ${plan.free ? 'laid' : 'built'}`);
     if (err) return false;
-    // Buildings the new road joins to the network get their routes started.
-    const ends = [path[0], path[path.length - 1]].map((t) => siteAt(this.world, t.x, t.y)).filter((s): s is NonNullable<typeof s> => !!s);
-    const made = connectSites(this.world, ends.map((s) => s.id));
-    if (made.length) this.onToast(`Route open: ${made.join(', ')}. Trucks waiting there start running`);
+    // Every pair of buildings the new road joins to the network now has a route; say which.
+    const lanes = this.world.routes.filter((r) => r.over && r.id >= idBefore).slice(plan.free ? 0 : 1);
+    if (lanes.length) {
+      const name = (id: number): string => siteById(this.world, id)?.name ?? 'a building';
+      const shown = lanes.slice(0, 3).map((r) => `${name(r.fromSiteId)} to ${name(r.toSiteId)}`);
+      this.onToast(`Route open: ${shown.join(', ')}${lanes.length > 3 ? ` and ${lanes.length - 3} more` : ''}. Trucks waiting there start running`);
+    }
     this.cancelDraft();
     return true;
   }
@@ -1744,12 +1859,6 @@ export class Game3D {
     this.signature += '#';
   }
 
-  buildDepot(siteId: number): void {
-    const err = buildDepot(this.world, siteId);
-    this.onToast(err ?? 'Construction started');
-    const s = siteById(this.world, siteId);
-    if (!err && s) this.watch(s.x, s.y, 17, BUILD_MS);
-  }
 
   upgrade(siteId: number): void {
     const err = upgradeSite(this.world, siteId);
@@ -1772,7 +1881,7 @@ export class Game3D {
     const v = this.world.vehicles.find((x) => x.id === id);
     this.onToast(err ?? (v ? `Upgraded to a ${VEHICLE_DEFS[v.kind].label}` : 'Vehicle upgraded'));
     if (err || !v) return;
-    const route = this.world.routes.find((r) => r.id === v.routeId);
+    const route = vehicleRoute(this.world, v);
     const at = route?.path[Math.max(0, Math.min(route.path.length - 1, v.idx))] ?? siteById(this.world, v.homeId);
     if (at) this.watch(at.x, at.y, 12, 1800);
   }
@@ -1946,15 +2055,25 @@ export class Game3D {
     const at = (s: { x: number; y: number } | undefined, fallback: { x: number; y: number }): { x: number; y: number } => ({ x: (s ?? fallback).x, y: (s ?? fallback).y });
     const F = at(town, { x: 0, y: 0 });
     const farm = at(w.sites.find((q) => q.kind === 'farm'), F);
-    const hub = at(w.sites.find((q) => q.depot) ?? w.sites.find((q) => q.kind === 'hub'), F);
+    const hub = at(w.sites.find((q) => q.kind === 'railyard' || q.depot) ?? w.sites.find((q) => q.kind === 'hub'), F);
+    const sp = demoSpots;
+    const ap = at(sp.airport, F);
+    const ap2 = at(sp.airport2, F);
+    const mid = { x: (ap.x + ap2.x) / 2, y: (ap.y + ap2.y) / 2 };
+    const span = Math.hypot(ap.x - ap2.x, ap.y - ap2.y);
+    const stad = at(sp.stadium, next);
+    const amph = at(sp.amphitheatre, F);
     const keys = [
       { at: 0, x: F.x - 50, y: F.y - 22, dist: 290, h: -0.5, p: 0 },
-      { at: 6.5, x: F.x - 8, y: F.y - 4, dist: 60, h: 0.1, p: 0.3 },
-      { at: 11.5, x: farm.x, y: farm.y, dist: 14, h: 0.8, p: 0.45 },
-      { at: 17, x: hub.x, y: hub.y, dist: 13, h: 2.0, p: 0.4 },
-      { at: 22.5, x: F.x, y: F.y, dist: 24, h: 3.2, p: 0.55 },
-      { at: 29, x: F.x + 3, y: F.y + 2, dist: 16, h: 4.2, p: 0.5 },
-      { at: 36, x: next.x, y: next.y, dist: 40, h: 5.0, p: 0.35 },
+      { at: 6, x: F.x - 8, y: F.y - 4, dist: 60, h: 0.1, p: 0.3 },
+      { at: 10.5, x: farm.x, y: farm.y, dist: 14, h: 0.8, p: 0.45 },
+      { at: 15.5, x: hub.x, y: hub.y, dist: 13, h: 2.0, p: 0.4 },
+      { at: 20, x: ap.x, y: ap.y, dist: 22, h: 0.9, p: 0.55 },
+      { at: 25, x: mid.x, y: mid.y, dist: Math.max(50, span * 2.6), h: 1.6, p: 0.5 },
+      { at: 30, x: stad.x, y: stad.y, dist: 15, h: 2.7, p: 0.85 },
+      { at: 35, x: amph.x, y: amph.y, dist: 14, h: 4.4, p: 0.4 },
+      { at: 40, x: F.x + 3, y: F.y + 2, dist: 16, h: 5.2, p: 0.5 },
+      { at: 46, x: next.x, y: next.y, dist: 40, h: 6.0, p: 0.35 },
     ];
     const upgradeAny = (kind: string): void => {
       const site = w.sites.find((q) => q.kind === kind);
@@ -1970,10 +2089,10 @@ export class Game3D {
       later: 0,
       events: [
         { at: 11, run: () => upgradeAny('farm'), done: false },
-        { at: 17.5, run: () => upgradeAny('hub'), done: false },
-        { at: 23, run: () => { if (town && town.level < 5) town.level += 1; }, done: false },
-        { at: 30, run: () => { if (town) buildDistrict(w, town, DISTRICT_ORDER[0]); }, done: false },
-        { at: 37, run: growAny, done: false },
+        { at: 17, run: () => upgradeAny('railyard'), done: false },
+        { at: 38, run: () => { if (town && town.level < 5) town.level += 1; }, done: false },
+        { at: 41, run: () => { if (town) buildDistrict(w, town, DISTRICT_ORDER[0]); }, done: false },
+        { at: 47, run: growAny, done: false },
       ],
     };
     this.showcase = true;

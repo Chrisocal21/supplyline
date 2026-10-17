@@ -9,6 +9,7 @@ import {
   DISTRICT_ORDER,
   MAX_DISTRICT_LEVEL,
   PATHS,
+  PATH_QUESTS,
   PATH_COST,
   PATH_ORDER,
   PATH_TOWN_LEVEL,
@@ -17,13 +18,14 @@ import {
   TOWN_LEVELS,
   type Good,
 } from '../sim/defs';
-import { questState, tierUnlocks } from '../sim/quests';
+import { BANK_TIER, FUND_FEE, LOAN_RATE, REAL_MONEY_ENABLED, SAVINGS_RATE, bankOf, borrow, creditLimit, deposit, divest, fundValue, invest, netWorth, repay, withdraw } from '../sim/bank';
+import { pathMastered, pathQuestState, questState, tierUnlocks } from '../sim/quests';
 import { buildDistrict, choosePath, districtBoost, districtCost, districtError, districtLevel, districtRevenue, districtSatisfaction, pathError, townUpkeep } from '../sim/town';
 import { dockDemand, isHomePlot, plotTiles, radiusOf, produces, siteCap, stockOf, unitPrice, wants, type Place, type Site, type World } from '../sim/world';
 import { COLORS, Im } from './imui';
 import { isTouch } from './inputmode';
 
-export type SheetId = 'production' | 'towns' | 'quests' | 'guide';
+export type SheetId = 'production' | 'towns' | 'bank' | 'quests' | 'guide';
 
 interface View {
   x0: number;
@@ -185,16 +187,16 @@ export class Sheets {
     im.block({ x, y, w, h });
 
     // Header: tabs and a close button.
-    const tabs: [SheetId, string][] = [['production', 'Production'], ['towns', 'Towns'], ['quests', 'Quests'], ['guide', 'How to play']];
+    const tabs: [SheetId, string][] = [['production', 'Production'], ['towns', 'Towns'], ['bank', 'Bank'], ['quests', 'Quests'], ['guide', 'How to play']];
     tabs.forEach(([tid, label], i) => {
-      const tx = x + 18 + i * 142;
+      const tx = x + 18 + i * 128;
       const on = tid === id;
-      const hov = im.hit(`sheetTab${tid}`, tx, y + 14, 134, 40, () => {
+      const hov = im.hit(`sheetTab${tid}`, tx, y + 14, 120, 40, () => {
         this.hooks.select(tid);
         this.scroll = 0;
       }, 3);
-      im.rect(3, tx, y + 14, 134, 40, on ? 0x1f2c3a : hov ? 0x1a2431 : 0x131b25, 1, 12, on ? COLORS.accent : COLORS.line, 1, on ? 2 : 1);
-      im.text(`sheetTabT${tid}`, label, tx + 67, y + 24, { size: 15, bold: true, color: on ? COLORS.accent : COLORS.text, align: 'center', layer: 3 });
+      im.rect(3, tx, y + 14, 120, 40, on ? 0x1f2c3a : hov ? 0x1a2431 : 0x131b25, 1, 12, on ? COLORS.accent : COLORS.line, 1, on ? 2 : 1);
+      im.text(`sheetTabT${tid}`, label, tx + 60, y + 24, { size: 15, bold: true, color: on ? COLORS.accent : COLORS.text, align: 'center', layer: 3 });
     });
     const cx = x + w - 58;
     const chov = im.hit('sheetClose', cx, y + 14, 40, 40, close, 3);
@@ -208,7 +210,7 @@ export class Sheets {
     const view = { x0: x + 18, x1: x + w - 18, y0: top, y1: bottom };
     this.hooks.clip(x, top, w, bottom - top);
     this.cim.clipBox = { x, y: top, w, h: bottom - top };
-    const contentH = id === 'production' ? this.production(world, view) : id === 'towns' ? (this.manage !== null && world.places.some((p) => p.id === this.manage) ? this.townDetail(world, world.places.find((p) => p.id === this.manage)!, view) : this.towns(world, view)) : id === 'quests' ? this.quests(world, view) : this.guide(view);
+    const contentH = id === 'production' ? this.production(world, view) : id === 'towns' ? (this.manage !== null && world.places.some((p) => p.id === this.manage) ? this.townDetail(world, world.places.find((p) => p.id === this.manage)!, view) : this.towns(world, view)) : id === 'bank' ? this.bank(world, view) : id === 'quests' ? this.quests(world, view) : this.guide(view);
     this.maxScroll = Math.max(0, contentH - (bottom - top));
     this.scroll = Math.max(0, Math.min(this.maxScroll, this.scroll));
     if (this.maxScroll > 0) {
@@ -338,13 +340,7 @@ export class Sheets {
     const chipW = 116;
     const chipH = 30;
     const perRow = Math.max(1, Math.floor((cw - 28 + 6) / (chipW + 6)));
-    const heights = places.map((p) => {
-      const market = world.sites.find((s) => s.placeId === p.id && SITE_DEFS[s.kind].dock === 'market');
-      const freight = world.sites.find((s) => s.placeId === p.id && SITE_DEFS[s.kind].dock === 'freight');
-      const mrows = market ? Math.ceil(dockDemand(world, market).length / perRow) : 0;
-      const frows = freight ? Math.ceil(dockDemand(world, freight).length / perRow) : 0;
-      return 108 + (mrows ? 20 + mrows * (chipH + 6) : 0) + (frows ? 20 + frows * (chipH + 6) : 0) + 12;
-    });
+    const heights = places.map((p) => this.townCardHeight(world, p, cw, perRow, chipH));
     const colY = new Array<number>(cols).fill(0);
     places.forEach((p, i) => {
       // Shortest column first keeps the two sides balanced.
@@ -381,8 +377,7 @@ export class Sheets {
     if (next) {
       im.bar(3, x + 16, y + 64, w - 160, 8, p.growth / next.growth, COLORS.good);
       im.text(`tw-g-${p.id}`, `${fmt(p.growth)} / ${fmt(next.growth)}`, x + w - 16, y + 59, { size: 12, color: COLORS.muted, align: 'right', layer: 3 });
-      const ok = kinds >= p.level;
-      im.text(`tw-v-${p.id}`, `Variety ${kinds}/${p.level} different goods delivered`, x + 16, y + 78, { size: 11, color: ok ? COLORS.good : COLORS.warn, layer: 3 });
+      im.text(`tw-v-${p.id}`, `${kinds} kind${kinds === 1 ? '' : 's'} of goods sold so far`, x + 16, y + 78, { size: 11, color: COLORS.muted, layer: 3 });
     } else {
       im.text(`tw-g-${p.id}`, 'Fully grown', x + 16, y + 59, { size: 12, color: COLORS.good, layer: 3 });
     }
@@ -391,28 +386,87 @@ export class Sheets {
     const used = forSale.filter(({ t }) => world.sites.some((s) => s.x === wrapped(world, t.x) && s.y === t.y)).length;
     im.text(`tw-p-${p.id}`, `Plots built ${used}/${forSale.length}`, x + w - 16, y + 78, { size: 11, color: COLORS.muted, align: 'right', layer: 3 });
 
-    let cy = y + 100;
-    for (const [dock, label] of [['market', 'MARKET WANTS'], ['freight', 'FREIGHT YARD WANTS']] as const) {
-      const site = world.sites.find((s) => s.placeId === p.id && SITE_DEFS[s.kind].dock === dock);
-      if (!site) continue;
-      im.text(`tw-${dock}-h-${p.id}`, label, x + 16, cy, { size: 10, bold: true, color: COLORS.muted, layer: 3 });
-      cy += 18;
-      const goods = dockDemand(world, site);
-      const cap = siteCap(world, site);
-      goods.forEach((g, i) => {
-        const col = i % perRow;
-        const row = Math.floor(i / perRow);
-        const gx = x + 16 + col * (chipW + 6);
-        const gy = cy + row * (chipH + 6);
-        const have = stockOf(site, g) / cap;
-        const color = have > 0.4 ? COLORS.good : have > 0.05 ? COLORS.warn : COLORS.bad;
-        im.rect(3, gx, gy, chipW, chipH, 0x10161e, 1, 8, color, 0.7);
-        im.text(`tw-c-${p.id}-${dock}-${g}`, GOODS[g].label, gx + 8, gy + 3, { size: 11, bold: true, layer: 3 });
-        im.text(`tw-cp-${p.id}-${dock}-${g}`, `$${unitPrice(world, site, g).toFixed(1)}`, gx + chipW - 8, gy + 3, { size: 11, color: COLORS.warn, align: 'right', layer: 3 });
-        im.bar(3, gx + 8, gy + 21, chipW - 16, 4, have, color);
-      });
-      cy += Math.ceil(goods.length / perRow) * (chipH + 6) + 2;
+    // What it needs to level up, in words.
+    const n = this.townNeeds(world, p);
+    const ny = y + 100;
+    if (next) {
+      const lines: string[] = [];
+      if (n.moreKinds > 0) lines.push(`Needs ${n.moreKinds} more kind${n.moreKinds > 1 ? 's' : ''} of good${n.fresh.length ? `: try ${n.fresh.slice(0, 3).map((g) => GOODS[g].label).join(', ')}` : ''}`);
+      if (p.growth < next.growth) lines.push(`${fmt(next.growth - p.growth)} more in sales`);
+      im.text(`tw-next-${p.id}`, lines.length ? `To level up: ${lines.join('  ·  ')}` : 'Ready to level up: the next delivery does it', x + 16, ny, { size: 12, color: lines.length ? COLORS.text : COLORS.good, wrap: w - 32, layer: 3 });
     }
+    let cy = ny + (next ? 24 : 0);
+    if (n.market) {
+      im.text(`tw-mh-${p.id}`, n.bring.length ? 'BRING NEXT' : 'MARKET', x + 16, cy, { size: 10, bold: true, color: COLORS.muted, layer: 3 });
+      cy += 18;
+      if (n.bring.length === 0) {
+        im.text(`tw-mok-${p.id}`, 'Well stocked on everything it asks for.', x + 16, cy, { size: 12, color: COLORS.good, layer: 3 });
+        cy += 22;
+      } else {
+        const cap = siteCap(world, n.market);
+        n.bring.slice(0, 6).forEach((g, i) => {
+          const gx = x + 16 + (i % perRow) * (chipW + 6);
+          const gy = cy + Math.floor(i / perRow) * (chipH + 6);
+          const have = stockOf(n.market!, g) / cap;
+          const color = have > 0.05 ? COLORS.warn : COLORS.bad;
+          im.rect(3, gx, gy, chipW, chipH, 0x10161e, 1, 8, color, 0.7);
+          im.text(`tw-c-${p.id}-${g}`, GOODS[g].label, gx + 8, gy + 3, { size: 11, bold: true, layer: 3 });
+          im.text(`tw-cp-${p.id}-${g}`, (p.delivered[g] ?? 0) > 0 ? `$${unitPrice(world, n.market!, g).toFixed(1)}` : 'NEW', gx + chipW - 8, gy + 3, { size: 11, bold: (p.delivered[g] ?? 0) === 0, color: (p.delivered[g] ?? 0) > 0 ? COLORS.warn : COLORS.good, align: 'right', layer: 3 });
+          im.bar(3, gx + 8, gy + 21, chipW - 16, 4, have, color);
+        });
+        cy += Math.ceil(Math.min(6, n.bring.length) / perRow) * (chipH + 6);
+        if (n.bring.length > 6) {
+          im.text(`tw-more-${p.id}`, `+${n.bring.length - 6} more asked for`, x + 16, cy - 2, { size: 11, color: COLORS.muted, layer: 3 });
+          cy += 16;
+        }
+      }
+      if (n.stocked.length) {
+        im.text(`tw-st-${p.id}`, `Stocked: ${n.stocked.map((g) => GOODS[g].label).join(', ')}`, x + 16, cy, { size: 11, color: COLORS.muted, wrap: w - 32, layer: 3 });
+        cy += this.wrapLines(`Stocked: ${n.stocked.map((g) => GOODS[g].label).join(', ')}`, w - 32) * 14 + 6;
+      }
+    }
+    if (n.freight.length) {
+      const text = `Freight yard buys raw goods (${n.freight.length}): ${n.freight.map((g) => GOODS[g].label).join(', ')}`;
+      im.text(`tw-fr-${p.id}`, text, x + 16, cy + 2, { size: 11, color: COLORS.muted, wrap: w - 32, layer: 3 });
+    }
+  }
+
+  private wrapLines(text: string, width: number): number {
+    return Math.max(1, Math.ceil((text.length * 6.2) / width));
+  }
+
+  /** What a town is asking for, sorted so the useful things come first. */
+  private townNeeds(world: World, p: Place): { market: Site | undefined; bring: Good[]; stocked: Good[]; freight: Good[]; moreKinds: number; fresh: Good[] } {
+    const market = world.sites.find((s) => s.placeId === p.id && SITE_DEFS[s.kind].dock === 'market');
+    const freightSite = world.sites.find((s) => s.placeId === p.id && SITE_DEFS[s.kind].dock === 'freight');
+    const wanted = market ? dockDemand(world, market) : [];
+    const cap = market ? siteCap(world, market) : 1;
+    const low = (g: Good): boolean => !market || stockOf(market, g) / cap <= 0.4;
+    const price = (g: Good): number => (market ? unitPrice(world, market, g) : 0);
+    const newKind = (g: Good): number => ((p.delivered[g] ?? 0) === 0 ? 1 : 0);
+    const bring = wanted.filter(low).sort((a, b) => newKind(b) - newKind(a) || price(b) - price(a));
+    const kinds = GOOD_LIST.filter((g) => (p.delivered[g] ?? 0) > 0).length;
+    return {
+      market,
+      bring,
+      stocked: wanted.filter((g) => !low(g)),
+      freight: freightSite ? dockDemand(world, freightSite) : [],
+      moreKinds: Math.max(0, p.level - kinds),
+      fresh: wanted.filter((g) => newKind(g) === 1),
+    };
+  }
+
+  private townCardHeight(world: World, p: Place, cw: number, perRow: number, chipH: number): number {
+    const n = this.townNeeds(world, p);
+    const hasNext = !!TOWN_LEVELS[p.level];
+    let h = 100 + (hasNext ? 24 : 0);
+    if (n.market) {
+      h += 18;
+      h += n.bring.length === 0 ? 22 : Math.ceil(Math.min(6, n.bring.length) / perRow) * (chipH + 6) + (n.bring.length > 6 ? 16 : 0);
+      if (n.stocked.length) h += this.wrapLines(`Stocked: ${n.stocked.map((g) => GOODS[g].label).join(', ')}`, cw - 32) * 14 + 6;
+    }
+    if (n.freight.length) h += 2 + this.wrapLines(`Freight yard buys raw goods (${n.freight.length}): ${n.freight.map((g) => GOODS[g].label).join(', ')}`, cw - 32) * 14;
+    return h + 14;
   }
 
   // ---- manage a town: its path and its districts ----
@@ -474,7 +528,36 @@ export class Sheets {
         im.text('td-pb', path.blurb, x + 22, y + 40, { size: 12, color: COLORS.muted, wrap: w - 44, layer: 3 });
         im.text('td-pp', path.perks.map((s2) => `•  ${s2}`).join('\n'), x + 22, y + 62, { size: 12, layer: 3 });
       }
-      y += h + 18;
+      y += h + 14;
+      // The path's own quests: cash for each, and a standing bonus once all are done.
+      const pid = p.path!;
+      const list = PATH_QUESTS[pid];
+      const mastered = pathMastered(world, pid);
+      if (vis(y, 22)) {
+        im.text('td-qh', `${path.label.toUpperCase()} QUESTS`, x, y + 3, { size: 10, bold: true, color: COLORS.muted, layer: 3 });
+        im.text('td-qm', mastered ? `Mastered: ${path.label} towns pay 10% more for their goods` : 'Finish all four and the path is mastered: its towns pay 10% more for its goods', x + 150, y + 2, { size: 11, color: mastered ? COLORS.good : COLORS.muted, layer: 3 });
+      }
+      y += 24;
+      const rowH = 44;
+      const qh = list.length * rowH + 8;
+      if (vis(y, qh)) {
+        im.rect(3, x, y, w, qh, COLORS.panelAlt, 1, 14, COLORS.line, 1);
+        list.forEach((q, i) => {
+          const ry = y + 4 + i * rowH;
+          const st = pathQuestState(world, q);
+          if (i > 0) im.line(3, x + 16, ry, x + w - 16, ry, 0xffffff, 0.06, 1);
+          im.circle(3, x + 30, ry + 22, 10, st.done ? COLORS.good : 0x3a4656);
+          if (!st.done) im.circle(3, x + 30, ry + 22, 7.5, COLORS.panelAlt);
+          im.text(`td-q-${q.id}`, q.label, x + 52, ry + 6, { size: 13, bold: true, color: st.done ? COLORS.good : COLORS.text, layer: 3 });
+          im.text(`td-qt-${q.id}`, q.hint, x + 52, ry + 24, { size: 11, color: COLORS.muted, layer: 3 });
+          im.text(`td-qr-${q.id}`, st.done ? 'Paid' : `+$${fmt(q.reward)}`, x + w - 16, ry + 6, { size: 13, bold: true, color: st.done ? COLORS.muted : COLORS.warn, align: 'right', layer: 3 });
+          if (!st.done) {
+            im.bar(3, x + w - 176, ry + 29, 100, 6, st.have / st.need, path.color);
+            im.text(`td-qp-${q.id}`, `${fmt(st.have)} / ${fmt(st.need)}`, x + w - 16, ry + 24, { size: 11, color: COLORS.muted, align: 'right', layer: 3 });
+          }
+        });
+      }
+      y += qh + 18;
     } else {
       const locked = p.level < PATH_TOWN_LEVEL;
       const intro = locked
@@ -546,8 +629,9 @@ export class Sheets {
     if (def.path && !def.capstone) im.text(`dc-p-${p.id}-${id}`, `${PATHS[def.path].label} only`, x + 16 + def.label.length * 8.6 + 10, y + 16, { size: 10, bold: true, color: PATHS[def.path].color, layer: 3 });
     im.text(`dc-b-${p.id}-${id}`, def.blurb, x + 16, y + 36, { size: 11, color: COLORS.muted, wrap: w - 32, layer: 3 });
 
-    // What it lives on: a square per good, bright when the town's docks have it in stock.
-    const docks = world.sites.filter((s) => s.placeId === p.id && SITE_DEFS[s.kind].dock);
+    // What it lives on: a square per good, bright when its building has that good in stock (the town's docks, until it has one).
+    const home = world.sites.find((s) => s.placeId === p.id && s.districtId === id);
+    const docks = home ? [home] : world.sites.filter((s) => s.placeId === p.id && SITE_DEFS[s.kind].dock);
     def.goods.slice(0, 9).forEach((g, k) => {
       const have = docks.some((d) => stockOf(d, g) >= 1);
       im.rect(3, x + 16 + k * 20, y + 70, 15, 15, GOODS[g].color, have ? 1 : 0.22, 3);
@@ -557,12 +641,18 @@ export class Sheets {
     if (def.revenue > 0) {
       bits.push(`$${fmt(def.revenue * shown * boost)}/min at full supply${lvl > 0 ? ` (now ${Math.round(districtSatisfaction(world, p, id) * 100)}%)` : ''}`);
     }
+    if (lvl > 0 && def.goods.length > 0) bits.push(home ? 'trucks deliver to its door' : 'finding a lot for it');
     if (def.effect === 'storage') bits.push(`docks hold +${Math.round((def.capstone ? 30 : 25) * shown * boost)}%`);
     if (def.effect === 'growth') bits.push(`growth +${20 * shown}%`);
     if (def.effect === 'visitors') bits.push('income grows with the variety delivered');
     const ask = [...(def.demand?.market ?? []), ...(def.demand?.freight ?? [])];
     if (ask.length) bits.push(`asks for ${ask.map((g) => GOODS[g].label.toLowerCase()).join(', ')}`);
     im.text(`dc-s-${p.id}-${id}`, bits.join('  ·  '), x + 16, y + 92, { size: 11, color: COLORS.text, wrap: w - 32 - 160, layer: 3 });
+
+    if (home) {
+      const showHov = im.hit(`dc-show-${p.id}-${id}`, x + 16, y + h - 34, 110, 22, () => this.hooks.focusSite(home), 4);
+      im.text(`dc-showt-${p.id}-${id}`, 'Show on map', x + 16, y + h - 32, { size: 12, bold: true, color: showHov ? 0xf0b250 : COLORS.accent, layer: 4 });
+    }
 
     // Build or upgrade.
     const bw = 148;
@@ -659,6 +749,113 @@ export class Sheets {
   }
 
   // ---- how to play ----
+
+  // ---- bank sheet ----
+
+  private bank(world: World, v: View): number {
+    const im = this.cim;
+    const W = v.x1 - v.x0;
+    let y0 = v.y0 - this.scroll;
+    if (world.tier < BANK_TIER) {
+      im.text('bk-lock', `The bank opens at Tier ${BANK_TIER}. Finish the Startup quests to open an account.`, v.x0 + 8, y0 + 12, { size: 16, color: COLORS.muted, wrap: W - 16, layer: 3 });
+      return 80;
+    }
+    const b = bankOf(world);
+    const stats: [string, number, number][] = [
+      ['Cash', world.money, COLORS.text],
+      ['Savings', b.savings, COLORS.text],
+      ['Fund', fundValue(world), COLORS.text],
+      ['Owed', b.loan, b.loan > 0 ? COLORS.bad : COLORS.text],
+      ['Net worth', netWorth(world), COLORS.accent],
+    ];
+    im.rect(3, v.x0, y0, W, 76, COLORS.panelAlt, 1, 14, COLORS.line, 1);
+    const sw = W / stats.length;
+    stats.forEach(([label, val, col], i) => {
+      const sx = v.x0 + i * sw + sw / 2;
+      im.text(`bk-sl${i}`, label, sx, y0 + 14, { size: 12, color: COLORS.muted, align: 'center', layer: 3 });
+      im.text(`bk-sv${i}`, `${val < 0 ? '-' : ''}$${fmt(Math.abs(val))}`, sx, y0 + 34, { size: W < 700 ? 16 : 22, bold: true, color: col, align: 'center', layer: 3 });
+    });
+    y0 += 90;
+
+    const gap = 14;
+    const cols = W > 900 ? 2 : 1;
+    const cw = (W - gap * (cols - 1)) / cols;
+    const ch = 250;
+    const pos = (i: number): { x: number; y: number } => ({ x: v.x0 + (i % cols) * (cw + gap), y: y0 + Math.floor(i / cols) * (ch + gap) });
+    const toast = (err: string | null): void => {
+      if (err) this.hooks.toast(err);
+    };
+    const row = (id: string, x: number, y: number, label: string, fn: (amt: number) => string | null, last: string): void => {
+      const bw = (cw - 32 - 16) / 3;
+      [1000, 5000, Infinity].forEach((amt, k) => {
+        const bx = x + 16 + k * (bw + 8);
+        const hov = im.hit(`${id}${k}`, bx, y, bw, 36, () => toast(fn(amt)), 4);
+        im.rect(3, bx, y, bw, 36, hov ? 0x243142 : 0x172130, 1, 18, COLORS.line, 1);
+        im.text(`${id}t${k}`, amt === Infinity ? `${label} ${last}` : `${label} $${amt / 1000}k`, bx + bw / 2, y + 10, { size: 13, bold: true, align: 'center', layer: 5 });
+      });
+    };
+    const card = (i: number, id: string, title: string, tint: number): { x: number; y: number } => {
+      const p = pos(i);
+      im.rect(3, p.x, p.y, cw, ch, COLORS.panelAlt, 1, 14, tint, 0.8);
+      im.rect(3, p.x + 14, p.y, cw - 28, 4, tint, 1, 2);
+      im.text(`bk-t${id}`, title, p.x + 16, p.y + 14, { size: 18, bold: true, layer: 3 });
+      return p;
+    };
+
+    // Loans
+    const limit = creditLimit(world);
+    let p = card(0, 'loan', 'Loans', COLORS.bad);
+    im.text('bk-l1', `Owed $${fmt(b.loan)}   ·   limit $${fmt(limit)}   ·   interest ${(LOAN_RATE * 100).toFixed(1)}% per minute`, p.x + 16, p.y + 46, { size: 13, color: COLORS.muted, wrap: cw - 32, layer: 3 });
+    im.text('bk-l2', b.loan > 0 ? `Interest runs up about $${fmt(b.loan * LOAN_RATE)} a minute. Interest so far: $${fmt(b.interest)}.` : 'Nothing owed. The limit grows as you earn and reach new tiers.', p.x + 16, p.y + 72, { size: 13, color: COLORS.text, wrap: cw - 32, layer: 3 });
+    row('bk-borrow', p.x, p.y + 152, 'Borrow', (a) => borrow(world, a), 'max');
+    row('bk-repay', p.x, p.y + 196, 'Repay', (a) => repay(world, a), 'all');
+
+    // Savings
+    p = card(1, 'sav', 'Savings account', COLORS.good);
+    im.text('bk-s1', `Balance $${fmt(b.savings)}   ·   interest ${(SAVINGS_RATE * 100).toFixed(1)}% per minute`, p.x + 16, p.y + 46, { size: 13, color: COLORS.muted, wrap: cw - 32, layer: 3 });
+    im.text('bk-s2', 'Safe: it only goes up, and you can take it out any time. Slow, but better than idle cash.', p.x + 16, p.y + 72, { size: 13, color: COLORS.text, wrap: cw - 32, layer: 3 });
+    row('bk-dep', p.x, p.y + 152, 'Deposit', (a) => deposit(world, a), 'all');
+    row('bk-wd', p.x, p.y + 196, 'Withdraw', (a) => withdraw(world, a), 'all');
+
+    // Market fund
+    p = card(2, 'fund', 'Market fund', COLORS.accent);
+    const hist = b.history;
+    const first = hist[0] ?? b.price;
+    const chg = (b.price / first - 1) * 100;
+    const held = fundValue(world);
+    const profit = held - b.invested;
+    im.text('bk-f1', `Price $${b.price.toFixed(2)}  ${chg >= 0 ? '+' : ''}${chg.toFixed(1)}% on the chart   ·   ${FUND_FEE * 100}% fee when you sell`, p.x + 16, p.y + 40, { size: 13, color: COLORS.muted, wrap: cw - 32, layer: 3 });
+    im.text('bk-f2', held > 0 ? `Holding $${fmt(held)}   ·   ${profit >= 0 ? 'up' : 'down'} $${fmt(Math.abs(profit))}` : 'Nothing held. Prices rise and fall: you can lose money.', p.x + 16, p.y + 60, { size: 13, color: held > 0 ? (profit >= 0 ? COLORS.good : COLORS.bad) : COLORS.text, wrap: cw - 32, layer: 3 });
+    const gx = p.x + 16;
+    const gy = p.y + 84;
+    const gw = cw - 32;
+    const gh = 56;
+    im.rect(3, gx, gy, gw, gh, 0x10161e, 1, 8);
+    if (hist.length > 1) {
+      const lo = Math.min(...hist);
+      const hi = Math.max(...hist);
+      const span = Math.max(1e-6, hi - lo);
+      const col = hist[hist.length - 1] >= first ? COLORS.good : COLORS.bad;
+      for (let k = 1; k < hist.length; k++) {
+        const ax = gx + 4 + ((k - 1) / (hist.length - 1)) * (gw - 8);
+        const bx = gx + 4 + (k / (hist.length - 1)) * (gw - 8);
+        const ay = gy + gh - 5 - ((hist[k - 1] - lo) / span) * (gh - 10);
+        const by = gy + gh - 5 - ((hist[k] - lo) / span) * (gh - 10);
+        im.line(3, ax, ay, bx, by, col, 1, 2);
+      }
+    }
+    row('bk-buy', p.x, p.y + 152, 'Buy', (a) => invest(world, a), 'all');
+    row('bk-sell', p.x, p.y + 196, 'Sell', (a) => divest(world, a), 'all');
+
+    // Real money: closed until a payment service stands behind it.
+    p = card(3, 'real', 'Buy cash', COLORS.muted);
+    im.text('bk-r1', REAL_MONEY_ENABLED ? 'Cash packs' : 'Cash packs with real money are not open yet.', p.x + 16, p.y + 46, { size: 14, bold: true, color: COLORS.muted, wrap: cw - 32, layer: 3 });
+    im.text('bk-r2', 'They need a payment service that confirms each purchase before cash is added, so this stays closed until that is set up. Everything else here is earned in the game.', p.x + 16, p.y + 72, { size: 13, color: COLORS.muted, wrap: cw - 32, layer: 3 });
+    im.rect(3, p.x + 16, p.y + ch - 52, cw - 32, 36, 0x121820, 1, 18, COLORS.line, 1);
+    im.text('bk-r3', 'Coming later', p.x + cw / 2, p.y + ch - 42, { size: 13, bold: true, color: COLORS.muted, align: 'center', layer: 5 });
+
+    return 90 + Math.ceil(4 / cols) * (ch + gap) + 4;
+  }
 
   private guide(v: View): number {
     const im = this.cim;

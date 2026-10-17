@@ -278,19 +278,37 @@ for (const [name, x0, y0, R] of PLACES) {
 
 // ---- write ----
 const CH = { water: '~', grass: '.', forest: 'f', mountain: '^', ice: '*' };
+// The land is drawn on a 96-row grid; open sea is added beyond both ends so the playable map reaches nearer the poles and
+// the polar caps beyond it shrink. The pole itself is a thin band of sea ice, and the old ice rows become sea.
+const PAD = 14;
+const seaRow = '~'.repeat(W);
+const iceRow = '*'.repeat(W);
+const seaElev = '28'.repeat(W);
+const iceElev = '64'.repeat(W);
 const rows = [];
 const erows = [];
+for (let k = 0; k < PAD; k++) {
+  const ice = k < ICE_ROWS;
+  rows.push(ice ? iceRow : seaRow);
+  erows.push(ice ? iceElev : seaElev);
+}
 for (let y = 0; y < H; y++) {
   let r = '';
   let e = '';
   for (let x = 0; x < W; x++) {
-    r += CH[terrain[at(x, y)]];
-    e += elev[at(x, y)].toString(16).padStart(2, '0');
+    const ice = terrain[at(x, y)] === 'ice';
+    r += ice ? '~' : CH[terrain[at(x, y)]];
+    e += (ice ? 0x2e : elev[at(x, y)]).toString(16).padStart(2, '0');
   }
   rows.push(r);
   erows.push(e);
 }
-const map = { id: 'map1', name: 'The Known World', seed: 1101, width: W, height: H, terrain: rows, elev: erows, places: placed, nodes: [] };
+for (let k = 0; k < PAD; k++) {
+  const ice = k >= PAD - ICE_ROWS;
+  rows.push(ice ? iceRow : seaRow);
+  erows.push(ice ? iceElev : seaElev);
+}
+const map = { id: 'map1', name: 'The Known World', seed: 1101, width: W, height: H + 2 * PAD, terrain: rows, elev: erows, places: placed.map((q) => ({ ...q, y: q.y + PAD })), nodes: [] };
 const out = path.join(__dirname, '../../src/maps/map1.json');
 fs.mkdirSync(path.dirname(out), { recursive: true });
 fs.writeFileSync(out, JSON.stringify(map));

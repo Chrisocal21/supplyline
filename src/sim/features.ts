@@ -27,6 +27,8 @@ export interface Place {
   x: number;
   y: number;
   level: number;
+  /** Its path is mastered (every path quest done): it pays a little more for the path's goods. */
+  mastered?: boolean;
   /** Growth points earned by deliveries. */
   growth: number;
   /** Units delivered to this town, by good. Level ups need variety. */
@@ -45,6 +47,8 @@ export interface Place {
   path?: PathId | null;
   /** Districts built in the town, by id, with their level. */
   districts?: Partial<Record<DistrictId, number>>;
+  /** Which of the town's district lots (see TownLayout.civic) each district stands on. */
+  districtLots?: Partial<Record<DistrictId, number>>;
   /** The level at which "ready to grow" was last announced, so it is said once. */
   readyAt?: number;
 }

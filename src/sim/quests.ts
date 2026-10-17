@@ -5,6 +5,9 @@ import {
   GOOD_LIST,
   HIGHWAY_TIER,
   MAX_LEVEL,
+  PATHS,
+  PATH_ORDER,
+  PATH_QUESTS,
   RAIL_TIER,
   SITE_DEFS,
   SPAN_LIMIT,
@@ -13,6 +16,7 @@ import {
   VEHICLE_ORDER,
   type Quest,
   type QuestGoal,
+  type PathId,
   type TierDef,
 } from './defs';
 import { builtDistricts, pathsInUse } from './town';
@@ -38,7 +42,7 @@ export function questProgress(world: World, goal: QuestGoal): Progress {
       need = goal.count;
       break;
     case 'depot':
-      have = world.sites.filter((q) => q.depot).length;
+      have = world.sites.filter((q) => q.depot || SITE_DEFS[q.kind].railyard).length;
       need = goal.count;
       break;
     case 'vehicle':
@@ -97,8 +101,55 @@ export function questProgress(world: World, goal: QuestGoal): Progress {
       have = world.places.reduce((n, p) => n + builtDistricts(p).filter((d) => d.def.capstone).length, 0);
       need = goal.count;
       break;
+    case 'pathtown':
+      have = world.places.some((p) => p.path === goal.path && p.level >= goal.level) ? 1 : 0;
+      break;
+    case 'pathgoods': {
+      const own = PATHS[goal.path].goods;
+      const list = own.length ? own : GOOD_LIST;
+      have = world.places.filter((p) => p.path === goal.path).reduce((n, p) => n + list.reduce((m, g) => m + (p.delivered[g] ?? 0), 0), 0);
+      need = goal.amount;
+      break;
+    }
+    case 'pathdistricts':
+      have = world.places.filter((p) => p.path === goal.path).reduce((n, p) => n + builtDistricts(p).length, 0);
+      need = goal.count;
+      break;
+    case 'pathcapstone':
+      have = world.places.some((p) => p.path === goal.path && builtDistricts(p).some((d) => d.def.capstone)) ? 1 : 0;
+      break;
   }
   return { have: Math.min(Math.floor(have), need), need, done: have >= need };
+}
+
+/** Whether every quest on a path is done: the path is mastered. */
+export function pathMastered(world: World, path: PathId): boolean {
+  return PATH_QUESTS[path].every((q) => (world.pathDone ?? []).includes(q.id));
+}
+
+/** A path quest's state: finished ones stay finished. */
+export function pathQuestState(world: World, q: Quest): Progress {
+  if ((world.pathDone ?? []).includes(q.id)) {
+    const need = questProgress(world, q.goal).need;
+    return { have: need, need, done: true };
+  }
+  return questProgress(world, q.goal);
+}
+
+/** Pay out path quests for paths a town has taken, and mark a mastered path's towns. */
+function checkPathQuests(world: World, log: (text: string) => void): void {
+  world.pathDone ??= [];
+  for (const path of PATH_ORDER) {
+    if (!world.places.some((p) => p.path === path)) continue;
+    for (const q of PATH_QUESTS[path]) {
+      if (world.pathDone.includes(q.id) || !questProgress(world, q.goal).done) continue;
+      world.pathDone.push(q.id);
+      world.money += q.reward;
+      log(`${PATHS[path].label} quest complete: ${q.label}  +$${q.reward.toLocaleString('en-US')}`);
+      if (pathMastered(world, path)) log(`${PATHS[path].label} mastered: its towns pay 10% more for its goods`);
+    }
+    if (pathMastered(world, path)) for (const p of world.places) if (p.path === path) p.mastered = true;
+  }
 }
 
 /** Where a quest stands: finished ones stay finished, even if what earned them is later torn down. */
@@ -124,6 +175,7 @@ export function nextQuest(world: World): { quest: Quest; progress: Progress } | 
 /** Pay out finished quests, and move up a tier once the current tier's list is complete. */
 export function checkQuests(world: World, log: (text: string) => void): void {
   world.questsDone ??= [];
+  checkPathQuests(world, log);
   for (;;) {
     const tier = TIERS[world.tier];
     if (!tier) return;

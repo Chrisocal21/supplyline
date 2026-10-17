@@ -10,6 +10,7 @@ import {
   GOOD_LIST,
   MAX_DISTRICT_LEVEL,
   PATHS,
+  PATH_MASTERY_BONUS,
   PATH_COST,
   PATH_TOWN_LEVEL,
   SITE_DEFS,
@@ -25,7 +26,7 @@ import {
   type SiteKind,
 } from './defs';
 import type { Place } from './features';
-import type { World } from './world';
+import { freeCivicLot, syncDistrictSite, type World } from './world';
 
 const TICKS_PER_MINUTE = 600;
 
@@ -78,6 +79,7 @@ export function districtError(world: World, place: Place, id: DistrictId): strin
   if (level >= districtCap(place, id)) return `Needs a ${TOWN_LEVELS[Math.min(TOWN_LEVELS.length, def.minLevel + level) - 1].name}`;
   const cost = districtCost(place, id);
   if (world.money < cost) return `Need $${cost.toLocaleString('en-US')}`;
+  if (level === 0 && freeCivicLot(world, place) === null) return `${place.name} has no free lot left for it`;
   return null;
 }
 
@@ -88,6 +90,7 @@ export function buildDistrict(world: World, place: Place, id: DistrictId): strin
   world.money -= districtCost(place, id);
   place.districts ??= {};
   place.districts[id] = districtLevel(place, id) + 1;
+  syncDistrictSite(world, place, id);
   return null;
 }
 
@@ -116,7 +119,8 @@ export function townPriceMult(place: Place, good: Good): number {
   const path = pathOf(place);
   if (path) {
     m *= path.basePrice;
-    if (path.goods.includes(good)) m *= path.priceMult;
+    if (path.goods.includes(good)) m *= path.priceMult * (place.mastered ? 1 + PATH_MASTERY_BONUS : 1);
+    else if (place.mastered && !path.goods.length) m *= 1 + PATH_MASTERY_BONUS;
   }
   if (!place.districts) return m;
   for (const { def, level } of builtDistricts(place)) {
@@ -165,7 +169,10 @@ export function districtSatisfaction(world: World, place: Place, id: DistrictId)
   const def = DISTRICTS[id];
   if (def.effect === 'visitors') return Math.min(1, GOOD_LIST.filter((g) => (place.delivered[g] ?? 0) > 0).length / 10);
   if (def.goods.length === 0) return 1;
-  const docks = world.sites.filter((s) => s.placeId === place.id && SITE_DEFS[s.kind].dock);
+  // What the district's own building has in store (its trucks drop the goods there). A district with no building yet
+  // (an old save, before it is given a lot) is judged by the town's docks, as before.
+  const home = world.sites.find((s) => s.placeId === place.id && s.districtId === id);
+  const docks = home ? [home] : world.sites.filter((s) => s.placeId === place.id && SITE_DEFS[s.kind].dock);
   let have = 0;
   for (const g of def.goods) if (docks.some((d) => (d.stock[g] ?? 0) >= 1)) have += 1;
   return have / def.goods.length;

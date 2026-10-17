@@ -25,10 +25,11 @@ import {
   createAirRoute,
   createRoute,
   createWorld,
-  buildDepot,
   findPath,
   placeError,
   placeSite,
+  isRailHub,
+  yardSpot,
   plotTiles,
   produces,
   setMaking,
@@ -303,8 +304,9 @@ export function playBot(seed: number, ticks: number, onNote?: (n: BotNote) => vo
         break;
       }
       case 'depot': {
-        const hub = w.sites.find((s) => SITE_DEFS[s.kind].hub && !SITE_DEFS[s.kind].airport && !s.depot);
-        if (hub && buildDepot(w, hub.id) === null) note('built a Rail Depot');
+        const town = w.places[0];
+        const spot = town ? yardSpot(w, town) : null;
+        if (spot && placeSite(w, 'railyard', spot.x, spot.y) === null) note('built a Rail Yard');
         break;
       }
       case 'route': {
@@ -316,7 +318,7 @@ export function playBot(seed: number, ticks: number, onNote?: (n: BotNote) => vo
             if (path && createRoute(w, path, 'road', goal.grade ?? 'street') === null) note(`built a ${goal.grade ?? 'street'} route`);
           }
         } else if (goal.mode === 'rail') {
-          const depot = w.sites.find((s) => s.depot);
+          const depot = w.sites.find((s) => isRailHub(s));
           const src = w.sites.find((s) => s.kind === 'farm');
           if (depot && src && !routeBetween(src, depot, 'rail')) {
             const path = w.money > 4000 ? findPath(w, src, depot, 120000, 'rail') : null;
@@ -410,7 +412,8 @@ export function playBot(seed: number, ticks: number, onNote?: (n: BotNote) => vo
     if (idle() && w.money > 3000) vehicleSomething();
     if (idle() && w.money > 800) {
       for (const r of w.routes) {
-        const from = w.sites.find((s) => s.id === r.fromSiteId)!;
+        const from = w.sites.find((s) => s.id === r.fromSiteId);
+        if (!from) continue;
         const full = Object.values(from.stock).some((n) => (n ?? 0) > SITE_DEFS[from.kind].cap * 0.8);
         const kind = r.mode === 'road' ? 'boxtruck' : r.mode === 'rail' ? 'train' : 'plane';
         if (full && !r.free && w.vehicles.filter((v) => v.routeId === r.id).length < 4 && buyVehicle(w, from.id, kind) === null) {

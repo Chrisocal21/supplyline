@@ -75,7 +75,8 @@ describe('districts', () => {
     p.level = 2;
     buildDistrict(w, p, 'restaurants');
     expect(districtRevenue(w, p)).toBe(0);
-    const market = w.sites.find((s) => s.placeId === p.id && s.kind === 'market')!;
+    // The district's own building is what has to be stocked: its trucks drop the goods there.
+    const market = w.sites.find((s) => s.placeId === p.id && s.districtId === 'restaurants')!;
     market.stock.bread = 5;
     market.stock.cheese = 5;
     expect(districtRevenue(w, p)).toBeGreaterThan(0);
@@ -275,19 +276,15 @@ describe('routes along a network of free roads', () => {
     // Two stretches of plain road that meet in the middle: neither ends at both buildings.
     expect(createRoute(w, row(3, 11))).toBeNull();
     expect(createRoute(w, row(11, 20))).toBeNull();
-    expect(w.routes.every((r) => r.free)).toBe(true);
+    // Joining the two stretches joins the buildings at their far ends, with nothing to buy or click.
     expect(w.vehicles.length).toBe(0);
     const camp = w.sites[0];
     const mill = w.sites[1];
-    const links = linkableSites(w, camp.id);
-    expect(links.map((l) => l.site.id)).toEqual([mill.id]);
-    const before = w.money;
-    expect(startRoute(w, camp.id, mill.id)).toBeNull();
-    expect(w.vehicles.length).toBe(0);
-    expect(w.routes.some((r) => !r.free)).toBe(true);
-    expect(w.money).toBe(before);
-    // It is joined now, so it is not offered again.
+    const lane = w.routes.find((r) => !r.free && r.over);
+    expect(lane).toBeDefined();
+    expect([lane!.fromSiteId, lane!.toSiteId].sort()).toEqual([camp.id, mill.id].sort());
     expect(linkableSites(w, camp.id)).toHaveLength(0);
+    expect(startRoute(w, camp.id, mill.id)).toMatch(/not joined/);
   });
 
   it('opens routes by itself for the buildings at the ends of a new road', () => {
@@ -299,7 +296,8 @@ describe('routes along a network of free roads', () => {
     const row = (a: number, b: number) => Array.from({ length: b - a + 1 }, (_, i) => ({ x: a + i, y: 8 }));
     createRoute(w, row(3, 11));
     createRoute(w, row(11, 20));
-    expect(connectSites(w, [w.sites[0].id])).toHaveLength(1);
+    expect(w.routes.filter((r) => r.over && !r.free)).toHaveLength(1);
+    expect(connectSites(w, [w.sites[0].id])).toHaveLength(0);
     expect(w.vehicles).toHaveLength(0);
   });
 });

@@ -1,7 +1,7 @@
 // The model of a town or major city: lots for sale and homes beside its streets, driveways, a signalled crossing,
 // street lamps, and homes or towers lining the main street and its lanes. Everything is built once per change and merged into one mesh.
 import * as THREE from 'three';
-import { DISTRICT_ORDER, type DistrictId, type TownStyle } from '../sim/defs';
+import { type DistrictId, type TownStyle } from '../sim/defs';
 import { R as GLOBE_R } from './geo';
 import { districtLandmark } from './districts';
 import { Parts } from './parts';
@@ -65,8 +65,8 @@ export interface TownModelOptions {
   plots: { x: number; y: number; ex: number; ey: number; ok: boolean; occupied: boolean; home: boolean }[];
   /** The tiles beside the streets where homes stand (as far as the town has grown), and whether each can be built on. */
   homes: { x: number; y: number; ok: boolean }[];
-  /** Districts the town has built, each shown as a landmark on one of the tiles beside its streets. */
-  districts?: { id: DistrictId; level: number }[];
+  /** Districts the town has built, each a building on its own lot beside a street: the lot, and the street tile its door meets. */
+  districts?: { id: DistrictId; level: number; x: number; y: number; ex: number; ey: number }[];
 }
 
 export function townGeometry(o: TownModelOptions): THREE.BufferGeometry {
@@ -242,30 +242,26 @@ export function townGeometry(o: TownModelOptions): THREE.BufferGeometry {
   // Just past the finished houses, the next ones are being built: sites in several stages, so the town is plainly in
   // development and fills in as it grows. A fully grown town has none.
   const frontier = fillFrac >= 1 ? 0 : Math.max(2, Math.min(8, Math.round(around.length * 0.14)));
-  // Each district has its own slot, taken from the home tiles nearest the centre, so it stays put as others are added.
-  const slots = o.homes
-    .map((t, i) => ({ t, i, d: Math.hypot(t.x, t.y) + Math.atan2(t.y, t.x) * 0.001 }))
-    .filter((h) => h.t.ok && fronts(h.t.x, h.t.y).length > 0)
-    .sort((a, b) => a.d - b.d);
-  const claimed = new Map<number, { id: DistrictId; level: number }>();
+  // Each district is a building on its own lot, turned to face the street its door opens on, with a drive to it.
   const marks: TownLandmark[] = [];
   for (const d of o.districts ?? []) {
-    const slot = slots[DISTRICT_ORDER.indexOf(d.id)];
-    if (slot) claimed.set(slot.i, d);
+    const fx = Math.sign(d.ex - d.x);
+    const fz = Math.sign(d.ey - d.y);
+    const cx = X(d.x);
+    const cz = Z(d.y);
+    marks.push({ id: d.id, level: d.level, tx: d.x, ty: d.y, x: cx, z: cz });
+    p.anchor = [cx, cz];
+    districtLandmark(p, d.id, d.level, cx, cz, yawToward(fx, fz));
+    p.tex = 6;
+    p.box(fx === 0 ? 0.6 : 0.5, 0.012, fz === 0 ? 0.6 : 0.5, 0xa39e92, { x: cx + fx * 1.2 * sq, y: 0.03, z: cz + fz * 1.2 });
+    p.tex = 0;
+    p.anchor = null;
   }
 
   const built: { x: number; y: number }[] = [];
   around.forEach((h, idx) => {
     const [a, b] = fronts(h.t.x, h.t.y)[0];
     const yaw = yawToward(a, b);
-    const landmark = claimed.get(h.i);
-    if (landmark) {
-      marks.push({ id: landmark.id, level: landmark.level, tx: h.t.x, ty: h.t.y, x: X(h.t.x), z: Z(h.t.y) });
-      p.anchor = [X(h.t.x), Z(h.t.y)];
-      districtLandmark(p, landmark.id, landmark.level, X(h.t.x), Z(h.t.y), yaw);
-      p.anchor = null;
-      return;
-    }
     if (idx >= filled && idx < filled + frontier) {
       const ex = X(h.t.x + a * 0.5);
       const ez = Z(h.t.y + b * 0.5);

@@ -115,11 +115,31 @@ Rules live in `src/sim/town.ts`, data in `src/sim/defs.ts` (`DISTRICTS`, `PATHS`
 
 ---
 
+## The Bank (done, 90%)
+
+Click the money at the top left. Loans (limit grows with tier and earnings, 1% interest a minute added to what you owe), a savings account (0.4% a minute), and a market fund whose price rises and falls (2% fee to sell). Opens at Tier 1; key B. Buying cash with real money is shown as closed (0%): it needs a payment service and a server.
+
+## Districts as buildings (done, 100%)
+
+Each district stands on its own lot beside a street with a door facing it, and trucks deliver the goods it lives on. It uses them up, and its income follows its stock. Factories and hubs joined to it sell to it by default. New: Community Centre, Amphitheatre, Stadium. A town with no free lot says so.
+
+## Towns and Cities as Strips (done, 100%)
+
+Towns run along a main street toward their neighbours with side lanes, lots and homes, and grow longer with each level, with a growth animation and a camera that returns to where you were. Builds and upgrades play a scaffold, crane and lorry animation from two camera angles; demolished buildings fold into the ground and sold trucks shrink away.
+
+## Opening Screen (done, 100%)
+
+A cinematic flythrough of a working base with the logo, captions, Continue and New game.
+
 ## Roads and Rails
 
 Drag from one site to another: the game finds the cheapest buildable route (bridges and tunnels only where they are cheaper and within the tier limit) and draws it with rounded corners. A box truck comes with it.
 
 **Highways** (Tier 1) are four lanes wide and about a third faster. Where a highway runs on as a street it narrows into it.
+
+**Joined networks (done).** Roads are laid in 5-tile stretches so one can be deleted alone. Anything connected by road, highway or street is joined automatically, and automatic roads avoid resource spots and join the nearest road. Trucks on a removed road drive home.
+
+**Rail Yard (done).** A placeable at a town's edge (Tier 2): trucks bring goods in, trains run yard to yard. Airports and yards need flat open ground with a way in.
 
 **Rail** is a separate network with its own track, drawn the same way, and a freight train comes with it. Trains serve sites out of town, hubs, factories on a town's outer lots, and each town's **Rail Station**. From Tier 2 every town has a station on a corner of its built-up square. It stores up to 240 of each good the town wants and sells them on to the Market and Freight Yard as they have room (topping them up to 60% so prices hold). Pointing the rail tool at a Market or Freight Yard snaps to the station. Only trains can use it.
 
@@ -128,6 +148,8 @@ Drag from one site to another: the game finds the cheapest buildable route (brid
 ## Phases
 
 **Done so far:** the 3D globe with terrain, towns, resource nodes, push/pull logistics, hubs, two road vehicle classes, bridges and tunnels, building levels, demolish, save and load, HUD with categories, hover cards and panels.
+
+**World.** Map 1 is 124 rows with small polar caps. Graphics: sky and light, ambient occlusion done (about 40% of the overhaul); ground, trees, buildings, water to come. Sea transport: not started.
 
 **Next:**
 - More train types, and loading goods onto trains at a station

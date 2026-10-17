@@ -461,3 +461,48 @@ Every node is at least `NODE_DRY` + 1 (3) tiles from water (`dry` in features.ts
 - The game now opens on a title screen over a live showcase: Map 1 with the demo base built, flown over by a cinematic camera (`startShowcase` / `updateShowcase` in game3d.ts: a Catmull-Rom path from a view of the whole globe down to a farm, the depot hub, the town and a neighbour, then a slow orbit). While it flies, things happen in the world: a farm and the hub are upgraded, a town grows a level, a Farmers Market goes up, and later upgrades and growth follow every few seconds, so every build animation plays under the title.
 - The title layer is drawn on the HUD canvas (src/ui/title.ts): fade up from black, letterbox bars, SUPPLYLINE appearing letter by letter, a supply line with goods running along it, a tagline, captions that change with each shot, then Continue (when an autosave exists) and New game buttons. Enter starts. Starting fades to black, loads the player's world behind it, and fades up; first-time players then get the guide.
 - The showcase world is never saved (`showcase` flag). Links with demo, map, seed, fresh or shot in the hash skip the title; `#notitle` skips it, `#title-shot` shows it frozen for screenshots.
+
+## Graphics overhaul, segment 1: light and sky
+- Deeper sky gradient with a warm horizon band, fog colour matched to it, warmer sun, green-tinted ground bounce, exposure 1.12.
+- Planned next: 2 water and shore, 3 terrain, 4 trees, 5 buildings.
+
+## Graphics overhaul, segment 2: ambient occlusion
+- Frames closer than 150 units go through an EffectComposer: 4x MSAA render, GTAO ambient occlusion (radius follows view height), then OutputPass for tone mapping. From space it draws straight to the screen.
+
+## The bank
+- New sim/bank.ts: loans (limit from tier and earnings, 1% per minute compounding), savings (0.4% per minute), and a market fund (seeded random walk with slow cycles, 2% sell fee). Opens at Tier 1, key B, top-bar button and a Bank tab. State is the optional world.bank, so old saves load.
+- Real-money purchases are a closed card (REAL_MONEY_ENABLED = false): they need a payment provider and server-side confirmation, not built.
+- Tests in sim/bank.test.ts.
+- The money pill at top left is now the bank button (small bank icon at its right end, accent outline when open); the separate bank button on the right is gone. The Bank tab and B key remain.
+- Trucks caught out on a road that is taken out no longer reset to home: the old line is kept on the vehicle (Vehicle.back), it drives home along it, the load goes back in the store, then it waits for a road. Status reads "The road was removed: heading home".
+- Roads and track now join buildings across the whole connected network (world.linkNetwork): a road that runs onto a town street, another road or a highway gives every pair of buildings on it that could trade a lane. Fixes "not joined" when it was, and highway-to-street links. Toast lists the routes opened.
+- Removal animations: a demolished building shudders and folds into the ground in dust (1.7 s); a sold truck shrinks away with a puff (0.5 s). `leaving` list in game3d.
+- linkNetwork now enters a town lot only from its own door (a lot beside two streets was skipped), and runs every 10 s of game time for road and rail, so old saves and growing towns get their buildings joined too (about 1.4 ms per call on the demo base).
+
+## Districts as buildings
+- Each town sets aside district lots (TownLayout.civic, 22 per town, 26 per city) beside its streets after the for-sale plots; an unclaimed lot is still homes. Building a district gives it a lot (place.districtLots) and a Site of kind district (dock: civic) with a door on the street (entryTile covers civic lots), so roads, lanes, linkNetwork and trucks treat it like the Market.
+- Trucks drop goods at it (deliver adds to stock and pays like a dock sale); it uses them up (0.006 per tick per level); its income and satisfaction now come from its own stock. Hubs and factories joined to one get the sale switched on automatically (sendToDistricts). Old saves get lots via ensureDistrictSites on load.
+- The landmark is drawn on the lot facing its street with a drive, replacing the old home-tile slots. Three new districts: Community Centre (town 2), Amphitheatre (town 3), Stadium (town 4), with models.
+- A town with no free lot says so on the card. District card shows own stock and Show on map; panel shows district level.
+
+- Auto roads (findPath): resource spots cost 60 extra so a road keeps off them unless it has no other way; town streets are as cheap as any road to join. After a town or district show the camera cuts back to where the player was (watch(..., back); a click cancels it).
+
+## Smaller ice caps, placement rules
+- Map 1 is now 124 rows (14 rows of open sea added beyond each end; tools/maps/map1.cjs pads the 96-row drawing), so the playable grid reaches about 77 degrees and the polar caps shrink to a small disc. Latitude per row is now worked out from the map (a tile spans the same angle both ways), so old 96-row saves look exactly as before.
+- Airports need flat, open, unbuilt ground (7 of 8 neighbours), a free side for a road, and distance from towns (airfieldError). A Rail Depot needs a way for track to leave the town from the hub (trackReaches); a boxed-in hub says so. Tests check the promise against the real path finder.
+
+## Rail Yard is its own building
+- New placeable Rail Yard (Logistics, Tier 2, $3,000): a hub (stores goods, pulls, pushes) that trains call at. It goes just outside a town, within a few tiles of its last street, on open ground (railyardError); never in the streets or lots. Trucks bring the town goods in and carry them on, like a dock; track runs yard to yard. Replaces the Rail Depot add-on on hubs (the button, buildDepot and depotError are gone; old saves keep depot hubs working through isRailHub). A plain hub in a town cannot take track.
+- yardSpot(world, place) finds a spot for the bot and the demo; the quest now reads Build a Rail Yard.
+
+## Economy pass, path quests, clearer towns, smarter roads, readable buildings
+- Economy: vehicle running cost 5% to 3% of price per minute; City needs 20,000 growth (was 45,000), Town 8,000 (was 10,000), Metropolis 80,000 (was 150,000). Pacing bot: Tier 2 at 54 to 94 game minutes (was 118+), Tier 3 near 103. The bot also crashed on road-to-road routes (no home site); fixed.
+- Path quests: each path has four quests (reach level 4, sell its goods, build 3 districts, build its capstone) paid in cash, tracked per path (world.pathDone). Finishing all four masters the path: its towns pay 10% more for the path's goods (Place.mastered). Shown under the path card in Manage town.
+- Towns sheet: each card now says what is needed to level up in words, lists only the goods the market is short of ("Bring next", NEW tag for kinds it has never had, price and stock), folds the well-stocked ones into one line and the freight yard's raw goods into one line.
+- Roads: buyersFor ranks buyers not yet joined by estimated takings per minute for one truck (price, room left, round trip), not just distance. The panel marks the best pick and shows the estimate. The next-step prompt uses the best pick.
+- Look: every building (except docks and stations) carries a signboard on a pole at its back corner: a disc for camps, farms and pits, a square for factories, a diamond for logistics, coloured by the good it makes (blue for freight, orange rail yard, sky airport). Walls darken toward the ground and bleach toward the top in the building shader.
+
+## 0.5: opening flythrough shows the whole game
+- The demo base now has two airports on open grass joined by an air route with planes flying cargo, a Rail Yard with a train, box trucks grown into big rigs, a stadium and community centre in the big city and an amphitheatre in the first town.
+- The opening flythrough is 10 shots over about 50 seconds: farm, rail yard, airport, planes between airports, stadium, amphitheatre, town growth. Captions retimed (Haul, Take off, Landmarks). Ships and boats are not in the game yet (sea transport is Phase 6), so they are not shown.
+

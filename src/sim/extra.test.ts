@@ -3,8 +3,8 @@ import type { Terrain } from './defs';
 import { findPath } from './path';
 import { put } from './testutil';
 import { runChores } from './bot';
-import { DEPOT_COST } from './defs';
-import { removeRoute, routeAt, addDock, buildDepot, depotError, buildRoadTo, buyersFor, buyOptions, buyVehicle, roadPlan, setMaking, setSendTo, createBlankWorld, createRoute, demolishSite, airPath, createAirRoute, dockDemand, ensureStations, townSites, onNetwork, placeAt, placeSite, planRoute, siteAt, streetAt, step, stockOf, type World } from './world';
+import { SITE_DEFS } from './defs';
+import { removeRoute, routeAt, addDock, yardSpot, placeError, buildRoadTo, buyersFor, buyOptions, buyVehicle, roadPlan, setMaking, setSendTo, createBlankWorld, createRoute, demolishSite, airPath, createAirRoute, dockDemand, ensureStations, townSites, onNetwork, placeAt, placeSite, planRoute, siteAt, streetAt, step, stockOf, type World } from './world';
 
 function open(): World {
   const w = 30;
@@ -123,6 +123,32 @@ describe('laying road in stretches', () => {
     expect(w.vehicles.every((v) => v.routeId === 0)).toBe(true);
     expect(onNetwork(w, path[path.length - 2].x, path[path.length - 2].y, 'road')).toBe(true);
     expect(onNetwork(w, mid.x, mid.y, 'road')).toBe(false);
+  });
+
+  it('a truck out on the road when it is taken out drives home with its load instead of vanishing', () => {
+    const w = open();
+    placeSite(w, 'farm', 3, 6);
+    put(w, 'mill', 11, 6);
+    const farm = siteAt(w, 3, 6)!;
+    const path = findPath(w, farm, siteAt(w, 11, 6)!)!;
+    expect(createRoute(w, path)).toBeNull();
+    expect(buyVehicle(w, farm.id, 'boxtruck')).toBeNull();
+    const lane = w.routes.find((r) => r.over)!;
+    const v = w.vehicles[0];
+    Object.assign(v, { routeId: lane.id, state: 'moving', idx: 4, dir: 1, moveTimer: 0, cargo: 5, good: 'flour' });
+    const stock = stockOf(farm, 'flour');
+    const mid = path[Math.floor(path.length / 2)];
+    expect(removeRoute(w, routeAt(w, mid.x, mid.y, undefined, { newest: true })!.id)).toBeNull();
+    // It keeps its place and turns for home.
+    expect(v.back).toBeDefined();
+    expect(v.idx).toBe(4);
+    expect(v.dir).toBe(-1);
+    expect(v.cargo).toBe(5);
+    for (let i = 0; i < 2000 && v.back; i++) step(w);
+    expect(v.back).toBeUndefined();
+    expect(v.routeId).toBe(0);
+    expect(v.cargo).toBe(0);
+    expect(stockOf(farm, 'flour')).toBeGreaterThanOrEqual(stock + 5);
   });
 
   it('only lays stretches for ground that is not already road', () => {
@@ -503,32 +529,37 @@ describe('rail stations', () => {
     return w;
   }
 
-  it('no longer builds a station in every town; trains come in through a hub with a Rail Depot', () => {
+  it('no longer builds a station in every town; trains come in through a Rail Yard at the edge', () => {
     const w = stationWorld();
     w.tier = 2;
     w.money = 1e6;
     for (let i = 0; i < 40; i++) step(w);
     expect(w.sites.some((q) => q.kind === 'station')).toBe(false);
-    // A hub without a depot cannot take rail, and the depot needs Tier 2 and a hub.
+    // A plain hub in the streets cannot take track: trains call only at a Rail Yard.
     expect(placeSite(w, 'hub', 19, 5)).toBeNull();
     const hub = siteAt(w, 19, 5)!;
-    expect(depotError(w, 999)).toBeTruthy();
-    w.tier = 1;
-    expect(depotError(w, hub.id)).toMatch(/Tier 2/);
-    w.tier = 2;
     placeSite(w, 'farm', 3, 6);
+    const farm = siteAt(w, 3, 6)!;
+    const toHub = findPath(w, farm, hub, 120000, 'rail');
+    if (toHub) expect(createRoute(w, toHub, 'rail')).toMatch(/Rail Yard/);
+    // The yard is a placeable of its own: Tier 2, outside the streets but beside the town.
+    const town = w.places[0];
+    const spot = yardSpot(w, town)!;
+    expect(spot).not.toBeNull();
+    w.tier = 1;
+    expect(placeError(w, 'railyard', spot.x, spot.y)).toMatch(/Tier 2/);
+    w.tier = 2;
+    expect(placeError(w, 'railyard', town.x, town.y)).toMatch(/edge of town|Reserved|Too close|main street/);
+    expect(placeError(w, 'railyard', 3, 12)).toMatch(/edge of a town/);
     const before = w.money;
-    expect(buildDepot(w, hub.id)).toBeNull();
-    expect(w.money).toBe(before - DEPOT_COST);
-    expect(buildDepot(w, hub.id)).toMatch(/already/);
-    const path = findPath(w, siteAt(w, 3, 6)!, hub, 120000, 'rail');
+    expect(placeSite(w, 'railyard', spot.x, spot.y)).toBeNull();
+    expect(w.money).toBe(before - SITE_DEFS.railyard.cost);
+    const yard = siteAt(w, spot.x, spot.y)!;
+    const path = findPath(w, farm, yard, 120000, 'rail');
     expect(path).not.toBeNull();
-    // Without the depot the town refuses the track; with it the track is laid.
-    hub.depot = false;
-    expect(createRoute(w, path!, 'rail')).toMatch(/Rail Depot/);
-    hub.depot = true;
     expect(createRoute(w, path!, 'rail')).toBeNull();
-    expect(buyOptions(w, hub.id)).toContain('train');
+    expect(buyOptions(w, yard.id)).toContain('train');
+    expect(buyOptions(w, yard.id)).toContain('boxtruck');
   });
 
   it('sells what a train unloads at the station to the town', () => {
@@ -537,8 +568,8 @@ describe('rail stations', () => {
     const station = w.sites.find((s) => s.kind === 'station')!;
     const market = w.sites.find((s) => s.kind === 'market')!;
     const good = dockDemand(w, market)[0];
-    placeSite(w, 'hub', 15, 3);
-    const hub = siteAt(w, 15, 3)!;
+    placeSite(w, 'hub', 10, 3);
+    const hub = siteAt(w, 10, 3)!;
     hub.stock[good] = 120;
     const path = findPath(w, hub, station, 120000, 'rail')!;
     expect(path).not.toBeNull();
@@ -590,8 +621,8 @@ describe('air routes and station freight', () => {
     const station = w.sites.find((s) => s.kind === 'station')!;
     const mill = siteAt(w, 19, 5)!;
     expect(townSites(w, w.places[0])).toContain(mill);
-    placeSite(w, 'hub', 15, 3);
-    const hub = siteAt(w, 15, 3)!;
+    placeSite(w, 'hub', 10, 3);
+    const hub = siteAt(w, 10, 3)!;
     hub.pull = ['lumber'];
     createRoute(w, findPath(w, hub, station, 120000, 'rail')!, 'rail');
     runChores(w);

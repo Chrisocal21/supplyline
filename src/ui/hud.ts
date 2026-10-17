@@ -13,7 +13,6 @@ import {
   VEHICLE_DEFS,
   PATHS,
   AIR_COST_PER_TILE,
-  DEPOT_COST,
   AIR_TIER,
   type Good,
   BUILD_ORDER,
@@ -44,12 +43,12 @@ import {
   growTown,
   readyToGrow,
   upgradeError,
-  depotError,
   wants,
   type Place,
   type Site,
   type Tile,
   type Vehicle,
+  vehicleRoute,
 } from '../sim/world';
 import { nextQuest } from '../sim/quests';
 import { Game3D, type HoverInfo, type OverlayItem, type Tool } from '../r3d/game3d';
@@ -88,7 +87,7 @@ const TABS: Tab[] = [
   { id: 'processing', label: 'Processing', icon: 'thumb-sawmill', blurb: 'Food and materials. Build these on a free plot in a town.', tools: sitesIn('processing') },
   { id: 'manufacturing', label: 'Manufacturing', icon: 'thumb-workshop', blurb: 'Paper, textiles, furniture. Build these on a free plot in a town.', tools: sitesIn('manufacturing') },
   { id: 'heavy', label: 'Heavy Industry', icon: 'thumb-smelter', blurb: 'Stone, metal, glass and machinery. Build these on a free plot in a town.', tools: sitesIn('heavy') },
-  { id: 'logistics', label: 'Logistics', icon: 'thumb-route', blurb: 'Roads, highways, rails, hubs and clearing the way', tools: ['route', 'highway', 'rail', 'air', 'hub', 'airport', 'demolish'] },
+  { id: 'logistics', label: 'Logistics', icon: 'thumb-route', blurb: 'Roads, highways, rails, hubs, rail yards and clearing the way', tools: ['route', 'highway', 'rail', 'air', 'hub', 'railyard', 'airport', 'demolish'] },
 ];
 
 const REGION_COLOR: Record<string, number> = {
@@ -198,6 +197,7 @@ export class HudScene extends Phaser.Scene {
       if (this.game3d.draft) this.game3d.finishDraft();
     });
     kb.on('keydown-T', () => this.toggleSheet('towns'));
+    kb.on('keydown-B', () => this.toggleSheet('bank'));
     kb.on('keydown-G', () => this.toggleSheet('quests'));
     kb.on('keydown-H', () => this.toggleSheet('guide'));
     for (let i = 1; i <= 9; i++) kb.on(`keydown-${['ONE', 'TWO', 'THREE', 'FOUR', 'FIVE', 'SIX', 'SEVEN', 'EIGHT', 'NINE'][i - 1]}`, () => this.pickByNumber(i - 1));
@@ -532,6 +532,10 @@ export class HudScene extends Phaser.Scene {
     // Money, bottom left of the top edge.
     const mw = 214;
     this.pill(12, y, mw, h);
+    const bankOn = this.sheet === 'bank';
+    const bankHov = im.hit('btnBank', 12, y, mw, h, () => this.toggleSheet('bank'), 1);
+    if (bankOn || bankHov) im.rect(1, 12, y, mw, h, bankOn ? COLORS.accent : 0x243142, bankOn ? 0.18 : 0.6, h / 2, bankOn ? COLORS.accent : COLORS.line, 1, bankOn ? 2 : 1);
+    this.bankIcon(12 + mw - 26, mid, bankOn || bankHov ? COLORS.accent : COLORS.muted);
     im.circle(1, 40, mid, 17, 0xe8b23a);
     im.circle(1, 40, mid, 13, 0xc9951f);
     im.text('coin', '$', 40, mid - 9, { size: 16, bold: true, color: 0xf7e3a8, align: 'center', layer: 2 });
@@ -615,6 +619,13 @@ export class HudScene extends Phaser.Scene {
     im.rect(2, cx + 5, cy - 12, 6, 12, c, 1, 1);
     im.rect(2, cx - 12, cy - 7, 8, 6, c, 1, 1);
     im.rect(2, cx - 3, cy - 7, 8, 6, c, 1, 1);
+  }
+
+  private bankIcon(cx: number, cy: number, c: number): void {
+    const im = this.im;
+    im.rect(2, cx - 13, cy - 11, 26, 5, c, 1, 1);
+    for (const dx of [-10, -3, 4]) im.rect(2, cx + dx, cy - 5, 6, 12, c, 1, 1);
+    im.rect(2, cx - 14, cy + 8, 28, 4, c, 1, 1);
   }
 
   private townIcon(cx: number, cy: number, c: number): void {
@@ -804,7 +815,7 @@ export class HudScene extends Phaser.Scene {
         locked: w.tier < 2 ? 'Tier 2' : null,
         thumb: 'thumb-rail',
         blurb: 'Drag from anywhere. Buy a freight train at a building or a station on the line.',
-        detail: ['Rail is its own network, apart from roads.', 'Trains reach a town through a Rail Depot: build one on a Distribution Hub (Tier 2), then run track to it. Out in the country, track can join any two buildings.', 'Where track meets a road it makes a level crossing, at a right angle on a straight stretch.', `Bridges and tunnels: up to ${[2, 4, 8, 16][Math.min(3, w.tier)]} tiles at Tier ${w.tier}.`],
+        detail: ['Rail is its own network, apart from roads.', 'Trains reach a town through a Rail Yard: place one at the edge of town (Logistics, Tier 2), bring goods to it by truck, then run track from yard to yard. Out in the country, track can join any two buildings.', 'Where track meets a road it makes a level crossing, at a right angle on a straight stretch.', `Bridges and tunnels: up to ${[2, 4, 8, 16][Math.min(3, w.tier)]} tiles at Tier ${w.tier}.`],
       };
     }
     if (tool === 'air') {
@@ -1096,7 +1107,7 @@ export class HudScene extends Phaser.Scene {
     if (h.site) {
       const s = h.site;
       const def = SITE_DEFS[s.kind];
-      out.push({ text: s.name, bold: true, size: 14 }, { text: `${def.label}${def.dock || def.station ? '' : ` · Level ${s.level}`}`, color: COLORS.muted });
+      out.push({ text: s.name, bold: true, size: 14 }, { text: `${def.label}${(def.dock && def.dock !== 'civic') || def.station ? '' : ` · Level ${s.level}`}`, color: COLORS.muted });
       const st = this.siteStatus(s);
       out.push({ text: st.text, color: st.color });
       const goods = Array.from(new Set([...produces(s), ...wants(w, s)])).filter((gd) => stockOf(s, gd) > 0 || (def.dock || def.station ? false : true));
@@ -1214,7 +1225,7 @@ export class HudScene extends Phaser.Scene {
     let cy = y;
     im.text('spName', s.name, x, cy, { size: 17, bold: true, wrap: w - 36, layer: 2 });
     cy += 24;
-    im.text('spKind', `${def.label}${def.dock || def.station ? '' : `  ·  Level ${s.level}`}`, x, cy, { size: 12, color: COLORS.muted, layer: 2 });
+    im.text('spKind', `${def.label}${(def.dock && def.dock !== 'civic') || def.station ? '' : `  ·  Level ${s.level}`}`, x, cy, { size: 12, color: COLORS.muted, layer: 2 });
     cy += 24;
     if (def.dock || def.station) {
       const st = this.siteStatus(s);
@@ -1225,7 +1236,7 @@ export class HudScene extends Phaser.Scene {
       const sellers = this.suppliersOf(s).length;
       im.text('spSum', def.dock ? `Buys ${goods.length} kinds of goods  ·  ${sellers} of yours sell here` : `${sellers} of your buildings send goods here`, x, cy, { size: 12, color: COLORS.muted, wrap: w, layer: 2 });
       cy += 26;
-      this.button('spOpen', def.dock ? 'Open market' : 'Open station', x, cy, w, 42, true, () => this.openDash(s.id), 'main');
+      this.button('spOpen', def.dock === 'civic' ? 'See what it buys' : def.dock ? 'Open market' : 'Open station', x, cy, w, 42, true, () => this.openDash(s.id), 'main');
       return cy + 50 - y;
     }
     cy += this.nextStepCard(s, x, cy, w) + 10;
@@ -1297,30 +1308,6 @@ export class HudScene extends Phaser.Scene {
       cy += 34;
     }
 
-    if (def.hub && !def.airport) {
-      cy += 4;
-      const derr = depotError(world, s.id);
-      const built = !!s.depot;
-      const dcan = !derr;
-      const dh = !built && im.hit('depot', x, cy, w, 34, () => {
-        if (!dcan) return;
-        // Close the menus so the work can be watched from start to finish.
-        this.dash = null;
-        g.select(null);
-        g.buildDepot(s.id);
-      });
-      im.rect(2, x, cy, w, 34, built ? 0x15251c : dcan ? (dh ? 0x2a3b50 : 0x1b2735) : 0x151c26, 1, 10, built ? COLORS.good : dcan ? COLORS.accent : COLORS.line, 1);
-      im.text('depT', built ? 'Rail Depot built' : `Build Rail Depot   $${fmt(DEPOT_COST)}`, x + w / 2, cy + 9, { size: 12, bold: true, color: built ? COLORS.good : dcan ? COLORS.accent : COLORS.muted, align: 'center', layer: 3 });
-      cy += 40;
-      const dtext = built
-        ? 'Trains can reach this hub: lay track to it, then buy a train here. Trucks and trains work side by side.'
-        : derr
-          ? `${derr}. A depot lets trains bring goods to this hub and carry them away.`
-          : 'Adds a rail yard so trains can serve this hub, alongside its trucks. Trains reach a town only through a depot.';
-      im.text('depInfo', dtext, x, cy, { size: 11, color: derr && !built ? COLORS.warn : COLORS.muted, wrap: w, layer: 2 });
-      cy += 40;
-    }
-
     if (!def.dock && !def.station) {
       cy += 4;
       const err = upgradeError(world, s.id);
@@ -1389,7 +1376,7 @@ export class HudScene extends Phaser.Scene {
     const subY = y + 20 + Math.max(26, nameH);
     const node = s.nodeId === null ? undefined : world.nodes.find((n) => n.id === s.nodeId);
     const town = siteTown(world, s);
-    const sub = [def.label, def.dock || def.station ? '' : `Level ${s.level}`, node ? `${NODE_QUALITY[node.quality].label} ${node.kind} spot` : '', town ? `in ${town.name}` : ''].filter(Boolean).join('  ·  ');
+    const sub = [def.label, (def.dock && def.dock !== 'civic') || def.station ? '' : `Level ${s.level}`, node ? `${NODE_QUALITY[node.quality].label} ${node.kind} spot` : '', town ? `in ${town.name}` : ''].filter(Boolean).join('  ·  ');
     const subH = im.text('dhSub', sub, x + 22, subY, { size: 13, color: COLORS.muted, wrap: w - 220, layer: 2 }).h;
     const headH = Math.max(72, subY - y + subH + 12);
     const mh = im.hit('dhMap', x + w - 168, y + 16, 108, 40, () => {
@@ -1725,7 +1712,9 @@ export class HudScene extends Phaser.Scene {
       const bx = x + w - 110;
       const by = cy + 30;
       if (!b.connected) {
-        im.text(`${id}s`, 'Not joined by road yet', x + 10, cy + 30, { size: 11, color: COLORS.muted, layer: 3 });
+        const best = buyers.find((o) => !o.connected) === b && (b.perMinute ?? 0) > 0;
+        im.text(`${id}s`, best ? 'Best pick: not joined yet' : 'Not joined by road yet', x + 10, cy + 30, { size: 11, bold: best, color: best ? COLORS.good : COLORS.muted, layer: 3 });
+        if (b.perMinute) im.text(`${id}e`, `about $${fmt(b.perMinute)}/min for each truck`, x + 10, cy + 46, { size: 10, color: COLORS.muted, layer: 3 });
         const cost = this.roadCost(s.id, b.site.id);
         this.button(`${id}b`, cost === null ? 'No way' : `Road  $${cost === undefined ? '...' : fmt(cost)}`, bx, by, 100, 32, !!cost && world.money >= cost, () => g.roadTo(s.id, b.site.id));
       } else {
@@ -1748,8 +1737,9 @@ export class HudScene extends Phaser.Scene {
 
   private truckStatus(v: Vehicle): { text: string; color: number } {
     const world = this.game3d.world;
-    const route = v.routeId ? world.routes.find((r) => r.id === v.routeId) : undefined;
+    const route = vehicleRoute(world, v);
     const home = siteById(world, v.homeId);
+    if (v.back) return { text: 'The road was removed: heading home', color: COLORS.warn };
     if (!route || !home) {
       const joined = world.routes.some((r) => !r.free && (r.fromSiteId === v.homeId || r.toSiteId === v.homeId));
       return { text: joined ? 'Waiting: nobody you sell to wants anything yet' : 'Waiting for a road', color: COLORS.warn };

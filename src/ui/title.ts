@@ -10,12 +10,14 @@ const WHITE = 0xf5f7fa;
 /** Captions follow the flight: each starts when its shot does. */
 const CAPTIONS: { at: number; head: string; sub: string }[] = [
   { at: 3, head: 'ONE WORLD', sub: 'A hand-made globe of towns, farms and mountains.' },
-  { at: 9, head: 'HARVEST', sub: 'Camps, farms and quarries feed the chain.' },
-  { at: 15, head: 'HAUL', sub: 'Trucks, trains and planes carry it across the world.' },
-  { at: 21, head: 'GROW', sub: 'Every sale builds towns into cities.' },
-  { at: 27, head: 'BUILD', sub: 'Upgrade, specialise, and watch it all rise.' },
+  { at: 8, head: 'HARVEST', sub: 'Camps, farms and quarries feed the chain.' },
+  { at: 13.5, head: 'HAUL', sub: 'Box trucks, big rigs and freight trains on roads and rails that join up.' },
+  { at: 18.5, head: 'TAKE OFF', sub: 'Airports and cargo planes carry it over anything.' },
+  { at: 28, head: 'LANDMARKS', sub: 'Stadiums, amphitheatres and community centres, fed by your trucks.' },
+  { at: 36, head: 'GROW', sub: 'Every sale builds towns into cities.' },
+  { at: 42, head: 'BUILD', sub: 'Upgrade, specialise, and watch it all rise.' },
 ];
-const CAPTION_LOOP = 33;
+const CAPTION_LOOP = 50;
 const CAPTION_LEN = 6;
 
 const ease = (t: number): number => 1 - Math.pow(1 - Math.max(0, Math.min(1, t)), 3);

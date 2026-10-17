@@ -1,12 +1,20 @@
 // Builds a small working base near the first town. Used by the #demo link and for screenshots; never saved.
-import type { SiteKind } from '../sim/defs';
+import type { DistrictId, SiteKind } from '../sim/defs';
+import { buildDistrict } from '../sim/town';
 import { findPath } from '../sim/path';
 import { runChores } from '../sim/bot';
 import {
   addDock,
+  buyVehicle,
+  createAirRoute,
   createRoute,
-  buildDepot,
+  placeError,
+  setSendTo,
+  upgradeVehicle,
   placeSite,
+  siteAt,
+  terrainAt,
+  yardSpot,
   isHomePlot,
   plotTiles,
   step,
@@ -24,6 +32,43 @@ function dist(w: World, a: Tile, b: Tile): number {
 function connect(w: World, a: Site, b: Site, mode: 'road' | 'rail' = 'road', grade: 'street' | 'highway' = 'street'): boolean {
   const path = findPath(w, a, b, 120000, mode);
   return path !== null && createRoute(w, path, mode, grade) === null;
+}
+
+/** Where the showpieces of the last demo base stand, for the opening flythrough. */
+export const demoSpots: { airport?: Tile; airport2?: Tile; yard?: Tile; stadium?: Tile; amphitheatre?: Tile; farm?: Tile; stadiumTown?: Tile } = {};
+
+/** Two airports a good way apart on open ground near the town, joined by an air route with a plane flying cargo between them. */
+function addAirfield(w: World, town: Tile): void {
+  const found: Tile[] = [];
+  for (let r = 11; r <= 30 && found.length < 2; r += 1) {
+    for (let a = 0; a < 24 && found.length < 2; a++) {
+      const ang = (a / 24) * Math.PI * 2 + r * 0.7;
+      const x = wrapX(w, Math.round(town.x + Math.cos(ang) * r * 1.6));
+      const y = Math.round(town.y + Math.sin(ang) * r);
+      if (placeError(w, 'airport', x, y) !== null) continue;
+      // Open grass all round, so the runway and planes show instead of hiding in woods.
+      let open = 0;
+      for (let dy = -3; dy <= 3; dy++) for (let dx = -3; dx <= 3; dx++) if (terrainAt(w, wrapX(w, x + dx), y + dy) === 'grass') open += 1;
+      if (open < 44) continue;
+      if (found.every((f) => dist(w, f, { x, y }) >= 16)) found.push({ x, y });
+    }
+  }
+  if (found.length < 2) return;
+  if (placeSite(w, 'airport', found[0].x, found[0].y) !== null || placeSite(w, 'airport', found[1].x, found[1].y) !== null) return;
+  const a = siteAt(w, found[0].x, found[0].y);
+  const b = siteAt(w, found[1].x, found[1].y);
+  if (!a || !b || createAirRoute(w, a.id, b.id) !== null) return;
+  demoSpots.airport = found[0];
+  demoSpots.airport2 = found[1];
+  // Each field holds goods the other wants, so planes keep flying.
+  a.pull = ['flour'];
+  b.pull = ['lumber'];
+  a.stock.lumber = 400;
+  b.stock.flour = 400;
+  setSendTo(w, a.id, b.id, true);
+  setSendTo(w, b.id, a.id, true);
+  buyVehicle(w, a.id, 'plane');
+  buyVehicle(w, b.id, 'plane');
 }
 
 /** Returns the tile the camera should look at. */
@@ -72,13 +117,43 @@ export function buildDemo(world: World): Tile | null {
   if (farm && mill) connect(world, farm, mill, 'road', 'highway');
   if (quarry && bricks) connect(world, quarry, bricks);
 
-  // A freight line into the town's rail depot.
-  if (hub && buildDepot(world, hub.id) === null) {
-    for (const a of [farm, forestry, quarry]) if (a && connect(world, a, hub, 'rail')) break;
+  // A Rail Yard at the edge of the town, and a freight line into it.
+  const spot = yardSpot(world, town);
+  if (spot && placeSite(world, 'railyard', spot.x, spot.y) === null) {
+    const yard = siteAt(world, spot.x, spot.y);
+    if (yard) for (const a of [farm, forestry, quarry]) if (a && connect(world, a, yard, 'rail')) break;
   }
+  void hub;
+  for (const k of Object.keys(demoSpots)) delete (demoSpots as Record<string, unknown>)[k];
+  if (farm) demoSpots.farm = { x: farm.x, y: farm.y };
+  if (spot) demoSpots.yard = spot;
+  addAirfield(world, town);
+
+  // Civic landmarks: a stadium and community centre in the big city, an amphitheatre in the first town.
+  const civic = (p: (typeof world.places)[number] | undefined, id: DistrictId): Tile | null => {
+    if (!p) return null;
+    p.level = Math.max(p.level, 4);
+    if (buildDistrict(world, p, id) !== null) return null;
+    const d = world.sites.find((q) => q.districtId === id && q.placeId === p.id) ?? world.sites.find((q) => q.districtId === id);
+    return d ? { x: d.x, y: d.y } : null;
+  };
+  const big = world.places[1] ?? town;
+  const st = civic(big, 'stadium');
+  if (st) {
+    demoSpots.stadium = st;
+    demoSpots.stadiumTown = { x: big.x, y: big.y };
+  }
+  civic(big, 'community');
+  const am = civic(town, 'amphitheatre');
+  if (am) demoSpots.amphitheatre = am;
 
   // The base runs: factories on, sales on, trucks bought, as a player would have set it up.
   runChores(world);
+  // A few trucks grown into big rigs.
+  for (const v of world.vehicles.filter((q) => q.kind === 'boxtruck').slice(0, 3)) {
+    upgradeVehicle(world, v.id);
+    upgradeVehicle(world, v.id);
+  }
   for (let i = 0; i < 1200; i++) step(world);
   return { x: town.x, y: town.y };
 }
