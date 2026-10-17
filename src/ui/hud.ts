@@ -780,7 +780,7 @@ export class HudScene extends Phaser.Scene {
       const info = g.slotInfo(i);
       im.rect(4, x + pad, cy, inner, rowH, 0x131a24, 1, 12, COLORS.line, 1);
       im.text(`sv${i}n`, info ? `Slot ${i}: ${info.town}` : `Slot ${i}: empty`, x + pad + 14, cy + 12, { size: 14, bold: true, color: info ? COLORS.text : COLORS.muted, layer: 4 });
-      if (info) im.text(`sv${i}d`, `Tier ${info.tier}  ·  $${fmt(info.money)}  ·  ${info.minutes} min played  ·  saved ${when(info.savedAt)}`, x + pad + 14, cy + 36, { size: 11, color: COLORS.muted, wrap: inner - 230, layer: 4 });
+      if (info) im.text(`sv${i}d`, `Tier ${info.tier}  ·  $${fmt(info.money)}  ·  ${info.minutes} min played  ·  saved ${when(info.savedAt)}`, x + pad + 14, cy + 32, { size: 11, color: COLORS.muted, wrap: inner - (mode === 'manage' ? 350 : 230), layer: 4 });
       // Buttons on the right: save here (and start over, when making a new world), load, delete.
       const bh = 34;
       const by = cy + (rowH - bh) / 2;
@@ -809,6 +809,7 @@ export class HudScene extends Phaser.Scene {
           this.toasts.push({ text: ok ? `Loaded slot ${i}` : 'Could not load that save', until: this.time.now + 2500 });
           if (ok) this.saves = null;
         });
+        btn(`svExp${i}`, 'Export', 74, 'plain', () => this.downloadSave(i));
         const delId = `svDel${i}`;
         btn(delId, this.armed(delId) ? 'Delete?' : 'X', this.armed(delId) ? 70 : 34, 'bad', () => {
           if (this.confirmed(delId)) g.deleteSlot(i);
@@ -819,6 +820,21 @@ export class HudScene extends Phaser.Scene {
     cy += 10;
     // Bottom row: start over without saving (new world only), and close.
     const cw = 120;
+    if (mode === 'manage') {
+      // Take a save out of the game as a file, or bring one back in.
+      const fw = (inner - cw - 20) / 2;
+      const fb = (id: string, label: string, fx: number, fn: () => void): void => {
+        const hov = im.hit(id, fx, cy, fw, 42, fn, 4);
+        im.rect(4, fx, cy, fw, 42, hov ? 0x2a3b50 : 0x1b2735, 1, 21, COLORS.accent, 1);
+        im.text(`${id}t`, label, fx + fw / 2, cy + 12, { size: 14, bold: true, color: COLORS.accent, align: 'center', layer: 4 });
+      };
+      fb('svExport', 'Export this game', x + pad, () => this.downloadSave());
+      const impId = 'svImport';
+      fb(impId, this.armed(impId) ? 'Replaces this game: pick file' : 'Import from file', x + pad + fw + 10, () => {
+        if (!this.confirmed(impId)) return;
+        this.pickSaveFile();
+      });
+    }
     const ch = im.hit('svClose', x + w - pad - cw, cy, cw, 42, () => (this.saves = null), 4);
     im.rect(4, x + w - pad - cw, cy, cw, 42, ch ? 0x2a3646 : 0x1b2430, 1, 21, COLORS.line, 1);
     im.text('svCloseT', mode === 'new' ? 'Cancel' : 'Close', x + w - pad - cw / 2, cy + 12, { size: 14, bold: true, align: 'center', layer: 4 });
@@ -829,6 +845,44 @@ export class HudScene extends Phaser.Scene {
       im.rect(4, x + pad, cy, nw, 42, nh || armed ? 0x4a2420 : 0x2a1a1a, 1, 21, COLORS.bad, 0.8);
       im.text('svNoSaveT', armed ? 'Press again: this game will be lost' : 'Start new without saving', x + pad + nw / 2, cy + 12, { size: 14, bold: true, color: COLORS.bad, align: 'center', layer: 4 });
     }
+  }
+
+  /** Save the game (or one slot) as a file the player keeps: it goes to Downloads, or wherever the browser asks. */
+  private downloadSave(slot?: number): void {
+    const file = this.game3d.exportSave(slot);
+    if (!file) {
+      this.toasts.push({ text: 'Nothing to export', until: this.time.now + 2500 });
+      return;
+    }
+    const url = URL.createObjectURL(new Blob([file.text], { type: 'application/json' }));
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = file.name;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 4000);
+    this.toasts.push({ text: `Saved a file: ${file.name}`, until: this.time.now + 4000 });
+  }
+
+  /** Ask for a save file, then play it. */
+  private pickSaveFile(): void {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.json,application/json';
+    input.onchange = () => {
+      const f = input.files?.[0];
+      if (!f) return;
+      f.text().then(
+        (text) => {
+          const err = this.game3d.importSave(text);
+          this.toasts.push({ text: err ?? `Loaded ${f.name}`, until: this.time.now + 4000 });
+          if (!err) this.saves = null;
+        },
+        () => this.toasts.push({ text: 'Could not read that file', until: this.time.now + 3000 }),
+      );
+    };
+    input.click();
   }
 
   // ---- bottom menu ----
@@ -1069,7 +1123,7 @@ export class HudScene extends Phaser.Scene {
     else if (g.tool === 'demolish') text = h?.site ? `${byInput('Click', 'Tap')} to demolish ${h.site.name}` : h?.route ? (h.error ? h.error : `${byInput('Click', 'Tap')} to remove this stretch of ${h.route.mode === 'rail' ? 'track' : h.route.grade === 'highway' ? 'highway' : 'road'} for $${fmt(routeRefund(w, h.route))} back`) : `${byInput('Click', 'Tap')} a building or a road to remove it`;
     else if (g.tool !== 'select') {
       const d = SITE_DEFS[g.tool as SiteKind];
-      text = h ? (h.error ? h.error : `${byInput('Click', 'Tap')} to build ${d.label} for $${fmt(d.cost)}`) : `${d.label} $${fmt(d.cost)}`;
+      text = h ? (h.error ? h.error : `${byInput('Click', 'Tap')} to build ${d.label} for $${fmt(d.cost)}`) : `${d.label} $${fmt(d.cost)}${g.tool === 'railyard' || g.tool === 'airport' || g.tool === 'port' ? '  ·  green tiles show where it can go' : ''}`;
     } else if (h) {
       text = h.site?.name ?? (h.place ? h.place.name : h.node ? `${h.node.kind} node` : (h.region?.name ?? ''));
     }
@@ -1354,6 +1408,12 @@ export class HudScene extends Phaser.Scene {
 
     const site = sel.kind === 'site' ? w.sites.find((s) => s.id === sel.id) : undefined;
     const place = sel.kind === 'place' ? w.places.find((p) => p.id === sel.id) : undefined;
+    // A town opens as a full menu, like the other pop-ups, instead of a panel at the side.
+    if (place) {
+      g.select(null);
+      this.openManage(place.id);
+      return;
+    }
     if (!site && !place) {
       g.select(null);
       return;
@@ -1437,6 +1497,30 @@ export class HudScene extends Phaser.Scene {
     this.button('spOpen', 'Open building', x, cy, w, 42, true, () => this.openDash(s.id), 'main');
     cy += 50;
     return cy - y;
+  }
+
+  /** The upgrade: the biggest button on a building's page, at the top, so going up a level is always the easy thing to find. */
+  private upgradeBanner(s: Site, x: number, y: number, w: number): number {
+    const im = this.pim;
+    const g = this.game3d;
+    const world = g.world;
+    const h = 72;
+    if (s.level >= 3) {
+      im.rect(2, x, y, w, h, 0x12261f, 1, 16, COLORS.good, 1);
+      im.text('ugT', 'Top level', x + 24, y + 16, { size: 20, bold: true, color: COLORS.good, layer: 3 });
+      im.text('ugS', 'This building cannot be upgraded any further.', x + 24, y + 44, { size: 12, color: COLORS.muted, layer: 3 });
+      return h;
+    }
+    const err = upgradeError(world, s.id);
+    const can = !err;
+    const next = s.level + 1;
+    const boost = `Makes ${[1, 1.8, 3.2][s.level]}x as much and stores ${LEVEL_CAP[s.level]}x more.`;
+    const hov = im.hit('upgrade', x, y, w, h, () => can && g.upgrade(s.id), 3);
+    im.rect(2, x, y, w, h, can ? (hov ? 0xf4b84f : COLORS.accent) : 0x161d27, 1, 16, can ? COLORS.accent : COLORS.line, 1);
+    im.text('ugT', `Upgrade to level ${next}`, x + 24, y + 14, { size: 22, bold: true, color: can ? 0x1b1204 : COLORS.muted, layer: 4 });
+    im.text('ugS', can ? boost : `${err}. ${boost}`, x + 24, y + 44, { size: 12, color: can ? 0x3a2a0c : COLORS.warn, wrap: w - 220, layer: 4 });
+    im.text('ugP', `$${fmt(upgradeCost(s))}`, x + w - 24, y + 20, { size: 26, bold: true, color: can ? 0x1b1204 : COLORS.muted, align: 'right', layer: 4 });
+    return h;
   }
 
   /** Everything about a building that is not its buyers or its trucks: the flow or what it holds, and upgrades. */
@@ -1529,10 +1613,8 @@ export class HudScene extends Phaser.Scene {
 
     if (!def.dock && !def.station) {
       cy += 4;
-      const err = upgradeError(world, s.id);
-      const can = !err;
       const pause = !!def.recipe && !!s.making;
-      const n = pause ? 3 : 2;
+      const n = pause ? 2 : 1;
       const gap = 10;
       const bw = (w - gap * (n - 1)) / n;
       let bx = x;
@@ -1540,18 +1622,10 @@ export class HudScene extends Phaser.Scene {
         this.button('flGo', 'Pause production', bx, cy, bw, 36, true, () => g.making(s.id, false));
         bx += bw + gap;
       }
-      const label = s.level >= 3 ? 'Max level' : `Upgrade to level ${s.level + 1}   $${fmt(upgradeCost(s))}`;
-      this.button('upgrade', label, bx, cy, bw, 36, can && s.level < 3, () => g.upgrade(s.id));
-      bx += bw + gap;
       const dh = im.hit('demolish', bx, cy, bw, 36, () => g.demolish(s.id));
       im.rect(2, bx, cy, bw, 36, dh ? 0x4a2420 : 0x2a1a1a, 1, 10, COLORS.bad, 0.6);
       im.text('demT', `Demolish   +$${fmt(demolishRefund(s))}`, bx + bw / 2, cy + 10, { size: 12, bold: true, color: COLORS.bad, align: 'center', layer: 3 });
       cy += 44;
-      if (s.level < 3) {
-        const nextBoost = `Level ${s.level + 1} makes ${[1, 1.8, 3.2][s.level]}x as much and stores ${LEVEL_CAP[s.level]}x more.`;
-        const t = im.text('upgInfo', err && !can ? `${err}. ${nextBoost}` : nextBoost, x, cy, { size: 11, color: err ? COLORS.warn : COLORS.muted, wrap: w, layer: 2 });
-        cy += t.h + 8;
-      }
     }
     return cy - y;
   }
@@ -1563,9 +1637,13 @@ export class HudScene extends Phaser.Scene {
   private dashScroll = 0;
   private dashMax = 0;
 
+  private dashPage = 'overview';
+  private dashPageFor = -1;
+
   private openDash(id: number): void {
     this.dash = id;
     this.dashScroll = 0;
+    this.dashPage = 'overview';
     this.sheet = null;
     this.menuOpen = false;
   }
@@ -1608,45 +1686,97 @@ export class HudScene extends Phaser.Scene {
     im.line(3, x + w - 26, y + 30, x + w - 38, y + 42, COLORS.text, 1, 2.5);
     im.line(2, x + 14, y + headH, x + w - 14, y + headH, COLORS.line, 1);
 
-    // Body, scrolling: the next step across the top, then columns.
-    const top = y + headH + 8;
+    // Pages: one thing at a time, so nothing is crowded. The tab row stays put while the page scrolls.
+    if (this.dashPageFor !== s.id) {
+      this.dashPageFor = s.id;
+      this.dashPage = def.dock && def.dock !== 'civic' ? 'buys' : 'overview';
+      this.dashScroll = 0;
+    }
+    const maker = !def.dock && !def.station;
+    const pages: [string, string][] = maker
+      ? [['overview', 'Overview'], ['sell', `Selling  ·  ${buyersFor(world, s, 0).filter((b) => b.on).length}`], ['trucks', `Trucks  ·  ${fleetOf(world, s.id).length}`]]
+      : def.dock
+        ? [['buys', 'What it buys'], ['sellers', `Who sells here  ·  ${this.suppliersOf(s).length}`], ['town', 'The town']]
+        : [];
+    if (!pages.some(([id]) => id === this.dashPage) && pages.length) this.dashPage = pages[0][0];
+    let tabsH = 0;
+    if (pages.length) {
+      const tw = Math.min(250, (w - 44 - 8 * (pages.length - 1)) / pages.length);
+      pages.forEach(([id, label], i) => {
+        const tx = x + 22 + i * (tw + 8);
+        const on = this.dashPage === id;
+        const hov = im.hit(`dp${id}`, tx, y + headH + 10, tw, 42, () => {
+          this.dashPage = id;
+          this.dashScroll = 0;
+        }, 3);
+        im.rect(3, tx, y + headH + 10, tw, 42, on ? 0x1f2c3a : hov ? 0x1a2431 : 0x131b25, 1, 14, on ? COLORS.accent : COLORS.line, 1, on ? 2 : 1);
+        im.text(`dpT${id}`, label, tx + tw / 2, y + headH + 22, { size: 15, bold: true, color: on ? COLORS.accent : COLORS.text, align: 'center', layer: 4 });
+      });
+      tabsH = 56;
+    }
+
+    // Body, scrolling: one page at a time.
+    const top = y + headH + 8 + tabsH;
     const bottom = y + h - 10;
     this.cim.clipBox = { x, y: top, w, h: bottom - top };
     this.sheetCam.setVisible(true).setViewport(x, top, w, bottom - top).setScroll(x, top);
     const pad = 22;
     const inner = w - pad * 2;
     let cy = top + 6 - this.dashScroll;
-    if (def.dock || def.station) {
-      const st = this.siteStatus(s);
-      this.pim.circle(2, x + pad + 5, cy + 8, 4, st.color);
-      this.pim.text('dsStatus', st.text, x + pad + 16, cy, { size: 14, color: st.color, layer: 2 });
-      cy += 30;
-      if (def.dock) cy += this.dockStrip(s, x + pad, cy, inner) + 14;
-    } else {
-      if (hasByLine(s)) cy += this.lineToggle(s, x + pad, cy, inner);
-      cy += this.nextStepCard(s, x + pad, cy, inner) + 10;
-      cy += this.statStrip(s, x + pad, cy, inner) + 12;
-      cy += this.inventorySection(s, x + pad, cy, inner);
-    }
     type Col = (cx: number, yy: number, ww: number) => number;
     const info: Col = (cx, yy, ww) => {
       const t = def.dock ? 'WHAT IT BUYS' : def.station ? 'THE STATION' : def.produce || def.recipe ? 'PRODUCTION' : 'STORAGE';
       const top2 = this.sectionHead('dcA', t, cx, yy + 6, ww);
       return top2 - yy + this.infoColumn(s, cx, top2, ww);
     };
-    // Every part is a full-width section, stacked, with its own cards laid out across the width.
-    const parts: Col[] = def.dock || def.station
-      ? [info, (cx, yy, ww) => this.suppliersSection(s, cx, yy + 6, ww) + 6, (cx, yy, ww) => this.townSection(s, cx, yy + 6, ww) + 6]
-      : [
-          (cx, yy, ww) => this.buyerSection(s, cx, yy + 6, ww) + 6,
-          (cx, yy, ww) => this.inboundSection(s, cx, yy + 6, ww) + 6,
-          (cx, yy, ww) => this.truckSection(s, cx, yy + 6, ww) + 6,
-          (cx, yy, ww) => this.salesSection(s, cx, yy + 6, ww) + 6,
-          (cx, yy, ww) => this.historySection(s, cx, yy + 6, ww) + 6,
-          info,
-        ];
+    const toggle: Col = (cx, yy, ww) => (hasByLine(s) ? this.lineToggle(s, cx, yy, ww) : 0);
     let used = 0;
-    for (const part of parts) used += part(x + pad, cy + used, inner) + 12;
+    const add = (part: Col): void => {
+      used += part(x + pad, cy + used, inner) + 12;
+    };
+    if (maker) {
+      if (this.dashPage === 'overview') {
+        add((cx, yy, ww) => this.upgradeBanner(s, cx, yy, ww));
+        add((cx, yy, ww) => this.nextStepCard(s, cx, yy, ww));
+        add((cx, yy, ww) => this.statStrip(s, cx, yy, ww));
+        add((cx, yy, ww) => this.inventorySection(s, cx, yy, ww));
+        add(info);
+      } else if (this.dashPage === 'sell') {
+        add(toggle);
+        add((cx, yy, ww) => this.buyerSection(s, cx, yy + 6, ww) + 6);
+        add((cx, yy, ww) => this.salesSection(s, cx, yy + 6, ww) + 6);
+        add((cx, yy, ww) => this.historySection(s, cx, yy + 6, ww) + 6);
+      } else {
+        add(toggle);
+        add((cx, yy, ww) => this.truckSection(s, cx, yy + 6, ww) + 6);
+        add((cx, yy, ww) => this.inboundSection(s, cx, yy + 6, ww) + 6);
+      }
+    } else if (def.dock) {
+      if (this.dashPage === 'buys') {
+        add((cx, yy) => {
+          const st = this.siteStatus(s);
+          this.pim.circle(2, cx + 5, yy + 8, 4, st.color);
+          this.pim.text('dsStatus', st.text, cx + 16, yy, { size: 14, color: st.color, layer: 2 });
+          return 30;
+        });
+        add((cx, yy, ww) => this.dockStrip(s, cx, yy, ww));
+        add(info);
+      } else if (this.dashPage === 'sellers') {
+        add((cx, yy, ww) => this.suppliersSection(s, cx, yy + 6, ww) + 6);
+      } else {
+        add((cx, yy, ww) => this.townSection(s, cx, yy + 6, ww) + 6);
+      }
+    } else {
+      add((cx, yy) => {
+        const st = this.siteStatus(s);
+        this.pim.circle(2, cx + 5, yy + 8, 4, st.color);
+        this.pim.text('dsStatus', st.text, cx + 16, yy, { size: 14, color: st.color, layer: 2 });
+        return 30;
+      });
+      add(info);
+      add((cx, yy, ww) => this.suppliersSection(s, cx, yy + 6, ww) + 6);
+      add((cx, yy, ww) => this.townSection(s, cx, yy + 6, ww) + 6);
+    }
     const hA = used;
     const hB = 0;
     const hC = 0;

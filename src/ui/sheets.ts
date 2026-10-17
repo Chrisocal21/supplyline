@@ -281,6 +281,10 @@ export class Sheets {
   scroll = 0;
   /** The town being managed on the Towns sheet, or null for the list of towns. */
   manage: number | null = null;
+  /** Which page of a town's menu is open. */
+  townPage: 'overview' | 'path' | 'districts' = 'overview';
+  /** Which page of the production sheet is open. */
+  prodPage: 'buildings' | 'goods' = 'buildings';
   private maxScroll = 0;
 
   constructor(
@@ -337,6 +341,24 @@ export class Sheets {
 
   scrollBy(dy: number): void {
     this.scroll = Math.max(0, Math.min(this.maxScroll, this.scroll + dy));
+  }
+
+  /** A row of page tabs. Returns its height. */
+  private pageTabs<T extends string>(idp: string, pages: [T, string][], current: T, x: number, y: number, w: number, pick: (id: T) => void): number {
+    const im = this.cim;
+    const gap = 8;
+    const tw = Math.min(260, (w - gap * (pages.length - 1)) / pages.length);
+    pages.forEach(([id, label], i) => {
+      const tx = x + i * (tw + gap);
+      const on = id === current;
+      const hov = im.hit(`${idp}-${id}`, tx, y, tw, 42, () => {
+        pick(id);
+        this.scroll = 0;
+      }, 3);
+      im.rect(3, tx, y, tw, 42, on ? 0x1f2c3a : hov ? 0x1a2431 : 0x131b25, 1, 14, on ? COLORS.accent : COLORS.line, 1, on ? 2 : 1);
+      im.text(`${idp}T-${id}`, label, tx + tw / 2, y + 12, { size: 15, bold: true, color: on ? COLORS.accent : COLORS.text, align: 'center', layer: 4 });
+    });
+    return 56;
   }
 
   // ---- production sheet ----
@@ -399,7 +421,10 @@ export class Sheets {
       y += Math.ceil(swings.length / Math.max(1, Math.floor((W + gap) / (sw + gap)))) * 40 + 10;
     }
 
+    y += this.pageTabs('pp', [['buildings', `Buildings  ·  ${buildings.length}`], ['goods', 'Goods']] as ['buildings' | 'goods', string][], this.prodPage, v.x0, y, W, (id) => (this.prodPage = id));
+
     // Buildings first, problems on top: a card each, in columns.
+    if (this.prodPage === 'buildings') {
     head('pg-b-h', `YOUR BUILDINGS  ${buildings.length}`);
     if (buildings.length === 0) {
       if (vis(y, 24)) im.text('pg-b-none', 'Nothing built yet. Pick Production from the menu below.', v.x0, y + 2, { size: 13, color: COLORS.muted, wrap: W, layer: 3 });
@@ -426,7 +451,9 @@ export class Sheets {
       im.bar(3, bx + bw - 76, by + 50, 64, 5, ratio, ratio > 0.85 ? COLORS.bad : COLORS.good);
     });
     y += Math.ceil(buildings.length / cols) * 74 + 14;
+    }
 
+    if (this.prodPage === 'goods') {
     // Every good as a card: what is in store, and how fast it is made and used.
     for (const group of KIND_ORDER) {
       const goods = GOOD_LIST.filter((g) => GOODS[g].kind === group.kind);
@@ -448,6 +475,7 @@ export class Sheets {
         im.text(`pg-u-${g}`, used > 0.05 ? `-${used.toFixed(1)}/min` : 'not used', gx + gw - 12, gy + 38, { size: 11, color: used > 0.05 ? COLORS.warn : COLORS.muted, align: 'right', layer: 3 });
       });
       y += Math.ceil(goods.length / gc) * 70 + 8;
+    }
     }
     return y + this.scroll - v.y0 + 8;
   }
@@ -617,6 +645,7 @@ export class Sheets {
       const bhov = im.hit('td-back', x, y, 132, 36, () => {
         this.manage = null;
         this.scroll = 0;
+        this.townPage = 'overview';
       }, 3);
       im.rect(3, x, y, 132, 36, bhov ? 0x243142 : 0x172130, 1, 18, COLORS.line, 1);
       im.text('td-back-t', '‹  All towns', x + 66, y + 9, { size: 14, bold: true, align: 'center', layer: 4 });
@@ -645,9 +674,37 @@ export class Sheets {
       im.text('td-e', `+$${fmt(earn)}/min from districts`, x + w - 16, y + 14, { size: 15, bold: true, color: earn > 0 ? COLORS.good : COLORS.muted, align: 'right', layer: 3 });
       im.text('td-c', `-$${fmt(cost)}/min to run them`, x + w - 16, y + 38, { size: 13, color: cost > 0 ? COLORS.warn : COLORS.muted, align: 'right', layer: 3 });
     }
-    y += 76 + 18;
+    y += 76 + 14;
+    y += this.pageTabs('tp', [['overview', 'Market'], ['path', 'Specialisation'], ['districts', 'Districts']] as ['overview' | 'path' | 'districts', string][], this.townPage, x, y, w, (id) => (this.townPage = id));
+
+    // What the town buys: a card for every good its markets and yards ask for, with how full the stall is and what it pays.
+    if (this.townPage === 'overview') {
+    for (const dock of world.sites.filter((q) => q.placeId === p.id && SITE_DEFS[q.kind].dock && SITE_DEFS[q.kind].dock !== 'civic')) {
+      if (vis(y, 22)) im.text(`td-d${dock.id}h`, `${dock.name.toUpperCase()}: WHAT IT BUYS`, x, y + 3, { size: 10, bold: true, color: COLORS.muted, layer: 3 });
+      y += 24;
+      const goods = dockDemand(world, dock);
+      const dc = Math.max(1, Math.min(4, Math.floor((w + gap) / (250 + gap))));
+      const dw = (w - gap * (dc - 1)) / dc;
+      const cap = siteCap(world, dock);
+      goods.forEach((gd, k) => {
+        const dx = x + (k % dc) * (dw + gap);
+        const dy = y + Math.floor(k / dc) * 50;
+        if (!vis(dy, 46)) return;
+        const n = stockOf(dock, gd);
+        im.rect(3, dx, dy, dw, 42, COLORS.panelAlt, 1, 10, COLORS.line, 1);
+        im.circle(3, dx + 16, dy + 15, 6, GOODS[gd].color);
+        im.text(`td-d${dock.id}n${gd}`, GOODS[gd].label, dx + 30, dy + 7, { size: 13, bold: true, layer: 4 });
+        im.text(`td-d${dock.id}p${gd}`, `$${unitPrice(world, dock, gd).toFixed(1)}`, dx + dw - 12, dy + 7, { size: 13, bold: true, color: COLORS.warn, align: 'right', layer: 4 });
+        im.bar(4, dx + 12, dy + 29, dw - 24, 6, n / cap, COLORS.info);
+      });
+      y += Math.ceil(goods.length / dc) * 50 + 4;
+    }
+    if (vis(y, 20)) im.text('td-dn', 'Towns use up what you deliver. Full stalls pay less, so spread your deliveries around.', x, y, { size: 11, color: COLORS.muted, wrap: w, layer: 3 });
+    y += 34;
+    }
 
     // Specialisation.
+    if (this.townPage === 'path') {
     if (vis(y, 22)) im.text('td-ph', 'SPECIALISATION', x, y + 3, { size: 10, bold: true, color: COLORS.muted, layer: 3 });
     y += 22;
     if (path) {
@@ -722,7 +779,10 @@ export class Sheets {
       y += Math.ceil(PATH_ORDER.length / cols) * (ch + gap) + 6;
     }
 
+    }
+
     // Districts.
+    if (this.townPage === 'districts') {
     if (vis(y, 22)) im.text('td-dh', 'DISTRICTS', x, y + 3, { size: 10, bold: true, color: COLORS.muted, layer: 3 });
     if (vis(y, 22)) im.text('td-dn', 'Each level of a district needs the town one level higher.', x + 96, y + 2, { size: 11, color: COLORS.muted, layer: 3 });
     y += 24;
@@ -737,6 +797,7 @@ export class Sheets {
       this.districtCard(world, p, id, cx, cy, cw, ch);
     });
     y += Math.ceil(ids.length / cols) * (ch + gap);
+    }
     return y + this.scroll - v.y0 + 6;
   }
 

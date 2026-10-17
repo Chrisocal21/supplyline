@@ -521,3 +521,23 @@ Every node is at least `NODE_DRY` + 1 (3) tiles from water (`dry` in features.ts
 - Moving parts: pumpjack nods, radar turns, port crane trolleys lift boxes, windmills turn (anims.ts). Planes nose up and bank, ships pitch and roll, trains trail smoke.
 - Opening film (about 4 minutes): logo card, a town grown from hamlet to metropolis with districts going up, building and port and airport levels 1 to 3, a showroom turntable with every vehicle tier and a shutter flash, follow shots of trucks, rail, ships and planes, and the venues. Mock menu panels act out choosing who buys, the bank and what a town needs. Cuts dip through black; buttons wait for the end; any key skips. Opening-only scenery: ships, lake monster, duck, balloon, saucer and cow, crop circle, Area 52, Bigfoot, the raccoon mayor and a few signs.
 - Airport upgrades need a bigger town nearby (earlier in this release). Pacing and path quests as logged above.
+
+## 0.7: warehouse and terminals, by-products, stuck diagnosis
+- The depot is merged into the Warehouse (hub, stores and passes on goods). Rail Yard, Port and Airport are freight terminals. Raw sites make a by-product on their own line with their own buyers and trucks. diagnose.ts explains why a building is stuck, in words, with the one fix. Vehicles are built for their cargo (flatbed, open-top, tanker, box) and wait for full loads. New sectioned guide and building dashboards.
+
+## 0.8: balance, badges, truck prompts, phone layout
+- Balance: bigger and slower vehicles, sale multiplier 0.65, upkeep and raw rates tuned, storage 4x. Pace on the pacing bot: Tier 1 near 8 minutes, Tier 2 near 32.
+- Stuck badge (real faults only) and a separate waiting-on-supply badge under the money; piling up is a tip, not a fault. N jumps to the next stuck building.
+- Trucks leave home only with a full load. A load the buyer cannot take is carried home and sent to the next best buyer before loading again. Every joined buyer is a destination: trucks choose with Prefers and pinned destinations, there is no Sell here switch.
+- "Ask me about trucks": a building with it on asks (card on screen, game keeps running) before buying a truck. Copy button on each truck.
+- Demolishing a building or removing a road asks first. Esc closes every menu and tool. Only town growth animates (plus scaffolding on a building upgrade, added in 0.9).
+- Building menu: inbound trucks with amounts, last 30 sold jobs with a price chart, full-width sections. First-time tips ring the exact button the quest needs (Tier 0). Phone layout: two-row top bar, compact build tray, 2x2 stat tiles. Version label (src/version.ts) in the menu.
+
+## 0.9: pages, save files, valid spots, upgrade button
+- Menus are dashboards with pages: a building has Overview, Selling and Trucks; a market has What it buys, Who sells here and The town; a town has Market, Specialisation and Districts; the production sheet has Buildings and Goods.
+- Upgrade is the biggest button, at the top of a building's Overview (greyed with the reason when it cannot go up, green at the top level).
+- Clicking a town opens its full menu (with what its markets buy) instead of a side panel. A building going up a level shows its scaffolding without moving the camera.
+- Saves can be exported to a file (current game or a slot) and imported back (src/sim/saveio.ts, tests in saveio.test.ts). Importing replaces the current game after a second press.
+- Placing a rail yard, airport or port lights every valid tile green (game3d updateSpots, a slice of the map per frame).
+- Tabled: bigger, more realistic airport and rail yard models; contracts; larger maps; third-party items; text-size and colour-blind toggles.
+

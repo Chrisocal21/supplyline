@@ -175,8 +175,9 @@ Money
 - [x] Market events (demand surges and slumps, already in the game)
 - [ ] Contracts
 - [ ] Larger maps with more land
-- [ ] Export and import of saves
-- [ ] Highlight valid spots for airports and rail yards while placing
+- [x] Export and import of saves: any slot or the current game to a file, and back in from a file
+- [x] Highlight valid spots for airports, rail yards and ports while placing (green tiles)
+- [ ] Bigger, more realistic airports and rail yards (tabled)
 
 ---
 
@@ -192,6 +193,9 @@ Money
 | Oct 12, 2026 | Tunnels placed from the terrain, roads regrade the ground, tier quests with rewards, how-to-play guide, highway joins, everything seated on the drawn ground | 55% |
 | Oct 12, 2026 | Touch controls, districts and specialisation paths, vehicle ladder, running costs, pacing bot | 60% |
 | Oct 16, 2026 | Strip towns, two-angle build camera and animations, bank, opening screen, districts as buildings, rail yard, auto-joined road networks, smaller ice caps | 72% |
+| Oct 17, 2026 | 0.7: Warehouse and freight terminals, by-product lines, stuck diagnosis, vehicle bodies and full loads, new guide, building dashboards | 74% |
+| Oct 17, 2026 | 0.8: Balance passes, stuck and waiting badges, ask-before-buying trucks, full loads with leftover detours, demolish confirm, first-time tips, inbound trucks and selling history, phone layout | 78% |
+| Oct 17, 2026 | 0.9: Menus split into pages, save export and import, green spots for rail yards, airports and ports, big upgrade button, town menu, scaffolding on upgrades, auto-buy prompts | 80% |
 | Oct 11, 2026 | Direction changed to a 3D globe. Rebuilt the renderer in Three.js, added terrain, towns, nodes, push/pull hubs, vehicle classes, levels, demolish, new HUD | 45% (new, larger scope) |
 
 ---

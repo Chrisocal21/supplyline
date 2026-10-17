@@ -98,6 +98,7 @@ import { HeightField, LAT_SPAN, R, basisMatrix, lonLatToTile, lonLatToVec, setGl
 import { buildGlobe, type Globe } from './globeMesh';
 import { siteGeometry, siteGeometryAt, trainUnits, vehicleGeometry } from './models';
 import { BUILD_MS, Construction } from './construction';
+import { packSave, saveFileName, unpackSave } from '../sim/saveio';
 import { buildDistrict } from '../sim/town';
 import map1 from '../maps/map1.json';
 import { paintGlobe, paintRoughness } from './paint';
@@ -549,6 +550,41 @@ export class Game3D {
     }
   }
 
+  /** Bring an older save up to date and make it the game being played. */
+  private adopt(w: World): void {
+    // Saves from before the quests.
+    w.questsDone ??= [];
+    // Spots from an older layout move to level, spaced-out ground (ones with a building stay put).
+    relayoutNodes(w);
+    this.loadWorld(w);
+  }
+
+  /** The text of a save file for the game being played now, or for one slot. */
+  exportSave(slot?: number): { name: string; text: string } | null {
+    try {
+      if (slot === undefined) return { name: saveFileName(this.world), text: packSave(this.world) };
+      const raw = localStorage.getItem(this.slotKey(slot));
+      if (!raw) return null;
+      const w = JSON.parse(raw) as World;
+      return { name: saveFileName(w), text: packSave(w) };
+    } catch {
+      return null;
+    }
+  }
+
+  /** Play a game from a save file's text. Returns null when it worked, or what was wrong with the file. */
+  importSave(text: string): string | null {
+    const out = unpackSave(text);
+    if ('error' in out) return out.error;
+    try {
+      this.adopt(out.world);
+      this.save();
+      return null;
+    } catch {
+      return 'That save could not be loaded.';
+    }
+  }
+
   /** Load the autosaved game, or a slot by its key. */
   load(key = SAVE_KEY): boolean {
     try {
@@ -556,11 +592,7 @@ export class Game3D {
       if (!raw) return false;
       const w = JSON.parse(raw) as World;
       if (w.version !== 4) return false;
-      // Saves from before the quests.
-      w.questsDone ??= [];
-      // Spots from an older layout move to level, spaced-out ground (ones with a building stay put).
-      relayoutNodes(w);
-      this.loadWorld(w);
+      this.adopt(w);
       return true;
     } catch {
       return false;
@@ -609,6 +641,7 @@ export class Game3D {
     this.updateLighting();
     this.scenery.update(now / 1000);
     this.updateRings();
+    this.updateSpots();
     this.drainLog();
     this.draw();
 
@@ -932,10 +965,11 @@ export class Game3D {
       // A district is drawn with its town (a landmark on its lot), not as a building of its own.
       if (SITE_DEFS[s.kind].dock === 'civic') continue;
       let m = this.siteMeshes.get(s.id);
+      const before = this.siteLevels.get(s.id);
       this.siteLevels.set(s.id, s.level);
-      // Built since the world was first shown, or upgraded: it goes up behind scaffolding.
       const isNew = !m && this.sitesShown;
-      // No build-up animation for a new or upgraded building: only towns growing are shown.
+      // A building going up a level shows its scaffolding, but never moves the camera or interrupts play.
+      if (before !== undefined && s.level > before && m && this.construction) this.construction.start(s.id, this.nowMs, '', null, this.siteGeometryFor(s.kind, s.level));
       if (isNew && !SITE_DEFS[s.kind].dock && !SITE_DEFS[s.kind].station) this.onToast(`${s.name} is open`);
       if (!m) {
         m = new THREE.Mesh(this.siteGeometryFor(s.kind, s.level), siteMaterial);
@@ -1616,6 +1650,69 @@ export class Game3D {
     this.removeMesh = new THREE.Mesh(net.ribbonGeometry(route.path, route.mode === 'rail' ? 0.3 : route.grade === 'highway' ? 0.7 : 0.45, 0.16), mat);
     this.removeMesh.frustumCulled = false;
     this.scene.add(this.removeMesh);
+  }
+
+  // ---- valid spots: while placing a rail yard, airport or port, every tile it can go on is lit green ----
+
+  private spotMesh: THREE.InstancedMesh | null = null;
+  private spotBuilt = '';
+  private spotSig = '';
+  private spotScan: { next: number; found: Tile[] } | null = null;
+
+  private updateSpots(): void {
+    const t = this.tool;
+    const want = t === 'railyard' || t === 'airport' || t === 'port' ? t : null;
+    if (!want) {
+      if (this.spotMesh) this.spotMesh.visible = false;
+      this.spotScan = null;
+      this.spotSig = '';
+      return;
+    }
+    const w = this.world;
+    const sig = `${want}:${w.sites.length}:${w.tier}:${w.places.map((p) => p.level).join('')}`;
+    if (sig !== this.spotSig) {
+      this.spotSig = sig;
+      this.spotScan = { next: 0, found: [] };
+    }
+    const scan = this.spotScan;
+    if (scan) {
+      // A slice of the map each frame, so the game never stalls while it looks.
+      const total = w.width * w.height;
+      const end = Math.min(total, scan.next + 1500);
+      for (let i = scan.next; i < end; i++) {
+        const x = i % w.width;
+        const y = Math.floor(i / w.width);
+        const err = placeError(w, want, x, y);
+        if (err === null || err.startsWith('Need $')) scan.found.push({ x, y });
+      }
+      scan.next = end;
+      if (end >= total) {
+        this.buildSpotMesh(scan.found);
+        this.spotBuilt = sig;
+        this.spotScan = null;
+      }
+    }
+    if (this.spotMesh) this.spotMesh.visible = this.spotBuilt.startsWith(`${want}:`);
+  }
+
+  private buildSpotMesh(tiles: Tile[]): void {
+    if (this.spotMesh) {
+      this.scene.remove(this.spotMesh);
+      this.spotMesh.geometry.dispose();
+      this.spotMesh.dispose();
+      this.spotMesh = null;
+    }
+    if (tiles.length === 0) return;
+    const geo = new THREE.PlaneGeometry(2.9, 2.9);
+    geo.rotateX(-Math.PI / 2);
+    const mat = new THREE.MeshBasicMaterial({ color: 0x5be58c, transparent: true, opacity: 0.38, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 });
+    const mesh = new THREE.InstancedMesh(geo, mat, tiles.length);
+    tiles.forEach((tile, i) => mesh.setMatrixAt(i, this.tileMatrix(tile, 0.1)));
+    mesh.instanceMatrix.needsUpdate = true;
+    mesh.frustumCulled = false;
+    mesh.renderOrder = 6;
+    this.scene.add(mesh);
+    this.spotMesh = mesh;
   }
 
   private setHover(tile: Tile | null): void {
