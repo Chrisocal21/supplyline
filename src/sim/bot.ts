@@ -93,7 +93,8 @@ export function runChores(w: World): string[] {
     if (!supplies(w, a, b) && !supplies(w, b, a)) continue;
     const home = supplies(w, a, b) || !supplies(w, b, a) ? a : b;
     const kind = r.mode === 'rail' ? 'train' : r.mode === 'air' ? 'plane' : 'boxtruck';
-    if (w.vehicles.some((v) => v.homeId === home.id && v.routeId === 0 && VEHICLE_DEFS[v.kind].mode === r.mode)) continue;
+    // One vehicle per building and mode to start with, like a careful player; more come from the full-store rule.
+    if (w.vehicles.some((v) => v.homeId === home.id && VEHICLE_DEFS[v.kind].mode === r.mode)) continue;
     if (buyVehicle(w, home.id, kind) === null) did.push(`bought a ${VEHICLE_DEFS[kind].label} at ${home.name}`);
   }
   return did;
@@ -414,7 +415,9 @@ export function playBot(seed: number, ticks: number, onNote?: (n: BotNote) => vo
       for (const r of w.routes) {
         const from = w.sites.find((s) => s.id === r.fromSiteId);
         if (!from) continue;
-        const full = Object.values(from.stock).some((n) => (n ?? 0) > SITE_DEFS[from.kind].cap * 0.8);
+        // Only the main good: by-products have their own line and trucks, and pile up harmlessly without them.
+        const main = produces(from)[0];
+        const full = !!main && (from.stock[main] ?? 0) > SITE_DEFS[from.kind].cap * 0.8;
         const kind = r.mode === 'road' ? 'boxtruck' : r.mode === 'rail' ? 'train' : 'plane';
         if (full && !r.free && w.vehicles.filter((v) => v.routeId === r.id).length < 4 && buyVehicle(w, from.id, kind) === null) {
           note(`added a ${kind}`);

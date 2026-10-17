@@ -165,8 +165,8 @@ describe('bodies and full loads', () => {
     camp.stock.logs = 3;
     for (let i = 0; i < 100; i++) step(w);
     expect(v.state).toBe('loading');
-    camp.stock.logs = 12;
-    for (let i = 0; i < 40; i++) step(w);
+    camp.stock.logs = 20;
+    for (let i = 0; i < 60; i++) step(w);
     expect(v.state).not.toBe('loading');
   });
 });

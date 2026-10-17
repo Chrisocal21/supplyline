@@ -176,7 +176,7 @@ const DEFS = {
   smelter: proc('heavy', 'Smelter', 'Ore and coal in, iron ingots out. Slag is the by-product.', 800, 2, { ore: 2, coal: 1 }, { ingots: 1, slag: 1 }, 30, 0x6f7a86),
   toolworks: proc('heavy', 'Toolworks', 'Ingots and lumber in, tools out.', 750, 2, { ingots: 1, lumber: 1 }, { tools: 1 }, 30, 0x6a7480),
   steelworks: proc('heavy', 'Steelworks', 'Ingots and coal in, steel out.', 1400, 3, { ingots: 2, coal: 1 }, { steel: 1, slag: 1 }, 40, 0x4e6a86),
-  slagcrusher: proc('heavy', 'Slag Crusher', 'Turns slag into gravel and sand.', 500, 3, { slag: 2 }, { gravel: 1, sand: 1 }, 20, 0x58545a),
+  slagcrusher: proc('heavy', 'Slag Crusher', 'Turns slag into gravel and sand.', 500, 3, { slag: 1 }, { gravel: 1, sand: 1 }, 20, 0x58545a),
   machinery: proc('heavy', 'Machine Works', 'Steel and tools in, machinery out. The top of the chain.', 2200, 3, { steel: 2, tools: 1 }, { machinery: 1 }, 60, 0xd08a2e),
 
   // Logistics and town docks
@@ -313,17 +313,17 @@ export interface VehicleDef {
 }
 
 export const VEHICLE_DEFS: Record<VehicleKind, VehicleDef> = {
-  boxtruck: { label: 'Box Truck', blurb: 'Small, cheap, good for short hauls.', mode: 'road', cost: 120, tier: 0, capacity: 8, ticksPerTile: 4, implemented: true, next: 'bigtruck' },
-  bigtruck: { label: 'Big Box Truck', blurb: 'Twice the load of a box truck.', mode: 'road', cost: 380, tier: 1, capacity: 18, ticksPerTile: 4, implemented: true, next: 'rig' },
-  rig: { label: 'Big Rig', blurb: 'Large trailer, faster on the highway.', mode: 'road', cost: 950, tier: 2, capacity: 40, ticksPerTile: 3, implemented: true, next: 'convoy' },
-  convoy: { label: 'Truck Fleet', blurb: 'A convoy of rigs that moves as one. The top of the road ladder.', mode: 'road', cost: 3200, tier: 3, capacity: 110, ticksPerTile: 3, implemented: true },
-  train: { label: 'Freight Train', blurb: 'Huge capacity on its own track. Rails cross roads at level crossings.', mode: 'rail', cost: 1800, tier: 2, capacity: 140, ticksPerTile: 2, implemented: true, next: 'heavytrain' },
-  heavytrain: { label: 'Heavy Haul Train', blurb: 'A long unit train for the busiest lines.', mode: 'rail', cost: 5200, tier: 3, capacity: 360, ticksPerTile: 2, implemented: true },
-  plane: { label: 'Cargo Plane', blurb: 'Fast, crosses any terrain. Flies between airports.', mode: 'air', cost: 7000, tier: 3, capacity: 60, ticksPerTile: 2, implemented: true, next: 'jet' },
-  boat: { label: 'Cargo Boat', blurb: 'A small coastal freighter. Sails between ports.', mode: 'sea', cost: 2500, tier: 2, capacity: 50, ticksPerTile: 3, implemented: true, next: 'freighter' },
-  freighter: { label: 'Freighter', blurb: 'A proper cargo ship with a crane and a hold.', mode: 'sea', cost: 9000, tier: 3, capacity: 160, ticksPerTile: 2.5, implemented: true, next: 'containership' },
-  containership: { label: 'Container Ship', blurb: 'Boxes stacked high. Carries more than any other vehicle.', mode: 'sea', cost: 28000, tier: 4, capacity: 520, ticksPerTile: 2, implemented: true },
-  jet: { label: 'Cargo Jet', blurb: 'A wide-body freighter for the longest hauls.', mode: 'air', cost: 22000, tier: 4, capacity: 220, ticksPerTile: 1.5, implemented: true },
+  boxtruck: { label: 'Box Truck', blurb: 'Small, cheap, good for short hauls.', mode: 'road', cost: 120, tier: 0, capacity: 12, ticksPerTile: 6, implemented: true, next: 'bigtruck' },
+  bigtruck: { label: 'Big Box Truck', blurb: 'Twice the load of a box truck.', mode: 'road', cost: 380, tier: 1, capacity: 27, ticksPerTile: 6, implemented: true, next: 'rig' },
+  rig: { label: 'Big Rig', blurb: 'Large trailer, faster on the highway.', mode: 'road', cost: 950, tier: 2, capacity: 60, ticksPerTile: 5, implemented: true, next: 'convoy' },
+  convoy: { label: 'Truck Fleet', blurb: 'A convoy of rigs that moves as one. The top of the road ladder.', mode: 'road', cost: 3200, tier: 3, capacity: 165, ticksPerTile: 5, implemented: true },
+  train: { label: 'Freight Train', blurb: 'Huge capacity on its own track. Rails cross roads at level crossings.', mode: 'rail', cost: 1800, tier: 2, capacity: 140, ticksPerTile: 3, implemented: true, next: 'heavytrain' },
+  heavytrain: { label: 'Heavy Haul Train', blurb: 'A long unit train for the busiest lines.', mode: 'rail', cost: 5200, tier: 3, capacity: 360, ticksPerTile: 3, implemented: true },
+  plane: { label: 'Cargo Plane', blurb: 'Fast, crosses any terrain. Flies between airports.', mode: 'air', cost: 7000, tier: 3, capacity: 60, ticksPerTile: 3, implemented: true, next: 'jet' },
+  boat: { label: 'Cargo Boat', blurb: 'A small coastal freighter. Sails between ports.', mode: 'sea', cost: 2500, tier: 2, capacity: 50, ticksPerTile: 4.5, implemented: true, next: 'freighter' },
+  freighter: { label: 'Freighter', blurb: 'A proper cargo ship with a crane and a hold.', mode: 'sea', cost: 9000, tier: 3, capacity: 160, ticksPerTile: 3.75, implemented: true, next: 'containership' },
+  containership: { label: 'Container Ship', blurb: 'Boxes stacked high. Carries more than any other vehicle.', mode: 'sea', cost: 28000, tier: 4, capacity: 520, ticksPerTile: 3, implemented: true },
+  jet: { label: 'Cargo Jet', blurb: 'A wide-body freighter for the longest hauls.', mode: 'air', cost: 22000, tier: 4, capacity: 220, ticksPerTile: 2.25, implemented: true },
 };
 
 export const VEHICLE_ORDER: VehicleKind[] = ['boxtruck', 'bigtruck', 'rig', 'convoy', 'train', 'heavytrain', 'plane', 'jet', 'boat', 'freighter', 'containership'];
@@ -355,11 +355,11 @@ export function vehicleLabel(kind: VehicleKind, body: Body = 'box'): string {
 }
 
 /** Running costs. Vehicles cost this share of their price every minute; buildings and districts a share of theirs per level. */
-export const VEHICLE_UPKEEP = 0.03;
+export const VEHICLE_UPKEEP = 0.04;
 export const SITE_UPKEEP = 0.01;
 export const DISTRICT_UPKEEP = 0.015;
 /** Towns pay this share of the list price. Keeps the early game from running away. */
-export const SALE_MULT = 0.45;
+export const SALE_MULT = 0.55;
 /** Trading in a vehicle for the next class returns this share of its price. */
 export const TRADE_IN = 0.5;
 

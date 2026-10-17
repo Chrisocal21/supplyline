@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { MOUNTAIN_ELEV } from './defs';
+import { MOUNTAIN_ELEV, VEHICLE_DEFS } from './defs';
 import { put } from './testutil';
 import { runChores } from './bot';
 import type { Terrain } from './defs';
@@ -207,7 +207,7 @@ describe('logistics loop', () => {
     const w = buildChain();
     for (let i = 0; i < 3000; i++) {
       step(w);
-      for (const v of w.vehicles) expect(v.cargo).toBeLessThanOrEqual(8);
+      for (const v of w.vehicles) expect(v.cargo).toBeLessThanOrEqual(VEHICLE_DEFS[v.kind].capacity);
     }
   });
 });
