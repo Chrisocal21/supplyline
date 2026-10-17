@@ -15,13 +15,18 @@ if (hash.includes('demo')) {
   game.newWorld();
 } else if (hash.includes('fresh') || seed) {
   game.newWorld(seed ? +seed[1] : undefined);
-} else if (!game.load()) {
+} else if (hash.includes('notitle') || (hash.includes('shot') && !hash.includes('title'))) {
+  if (!game.load()) game.newWorld();
+} else {
+  // The opening: a showcase base that builds and grows under a cinematic camera, behind the title screen.
   game.newWorld();
+  game.buildDemoBase();
+  game.startShowcase();
 }
 game.start();
 // Phones and tablets suspend a tab without warning, so save as the page is hidden.
 const saveOnLeave = (): void => {
-  if (!game.demo) game.save();
+  if (!game.demo && !game.showcase) game.save();
 };
 window.addEventListener('pagehide', saveOnLeave);
 document.addEventListener('visibilitychange', () => {

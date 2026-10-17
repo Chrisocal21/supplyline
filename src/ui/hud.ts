@@ -55,6 +55,7 @@ import { nextQuest } from '../sim/quests';
 import { Game3D, type HoverInfo, type OverlayItem, type Tool } from '../r3d/game3d';
 import { COLORS, Im } from './imui';
 import { Rates, Sheets, type SheetId } from './sheets';
+import { Title, type TitleChoice } from './title';
 import { byInput, inputMode, isTouch, onInputChange } from './inputmode';
 
 const TOP = 72;
@@ -121,6 +122,9 @@ export class HudScene extends Phaser.Scene {
   private income = 0;
   private sheet: SheetId | null = null;
   private menuOpen = false;
+  /** The opening screen, while it is up; and when the game started, for the fade up from black. */
+  private title: Title | null = null;
+  private fadeIn = -1;
   private readonly rates = new Rates();
   private sheets!: Sheets;
   private cim!: Im;
@@ -187,6 +191,10 @@ export class HudScene extends Phaser.Scene {
     kb.on('keydown-P', () => this.toggleSheet('production'));
     kb.on('keydown-BACKSPACE', () => this.game3d.undoDraft());
     kb.on('keydown-ENTER', () => {
+      if (this.title) {
+        this.title.primary();
+        return;
+      }
       if (this.game3d.draft) this.game3d.finishDraft();
     });
     kb.on('keydown-T', () => this.toggleSheet('towns'));
@@ -195,12 +203,13 @@ export class HudScene extends Phaser.Scene {
     for (let i = 1; i <= 9; i++) kb.on(`keydown-${['ONE', 'TWO', 'THREE', 'FOUR', 'FIVE', 'SIX', 'SEVEN', 'EIGHT', 'NINE'][i - 1]}`, () => this.pickByNumber(i - 1));
 
     this.input.on('pointerdown', (p: Phaser.Input.Pointer) => {
-      if (this.im.blocked(p.x, p.y)) return;
+      if (this.title || this.im.blocked(p.x, p.y)) return;
       this.menuOpen = false;
       this.dragging = true;
       this.game3d.pointerDown(p.x, p.y, (p.event as MouseEvent).button ?? 0);
     });
     this.input.on('pointermove', (p: Phaser.Input.Pointer) => {
+      if (this.title) return;
       if (p.wasTouch && this.sheet) {
         // Drag a sheet to scroll it.
         if (p.isDown) this.sheets.scrollBy(p.prevPosition.y - p.y);
@@ -222,6 +231,7 @@ export class HudScene extends Phaser.Scene {
       this.game3d.pointerUp(p.x, p.y);
     });
     this.input.on('wheel', (p: Phaser.Input.Pointer, _o: unknown, _dx: number, dy: number) => {
+      if (this.title) return;
       if (this.sheet) this.sheets.scrollBy(dy);
       else if (this.dash !== null) this.dashScroll += dy;
       else if (this.panelRect && p.x >= this.panelRect.x && p.x <= this.panelRect.x + this.panelRect.w && p.y >= this.panelRect.y && p.y <= this.panelRect.y + this.panelRect.h) this.panelScroll += dy;
@@ -231,6 +241,11 @@ export class HudScene extends Phaser.Scene {
     this.game3d.onToast = (text) => this.toasts.push({ text, until: this.time.now + 3200 });
     onInputChange((m) => this.toasts.push({ text: m === 'touch' ? 'Touch controls' : 'Mouse and keyboard controls', until: this.time.now + 2200 }));
 
+    // The opening screen: the showcase world flies by behind it until the player starts.
+    if (this.game3d.showcase) {
+      this.title = new Title(this.game3d.hasSave(), (c) => this.startGame(c));
+      return;
+    }
     // A first-time player gets the guide straight away. Screenshot and demo links skip it.
     try {
       if (!this.game3d.demo && !location.hash.includes('shot') && !localStorage.getItem(GUIDE_KEY)) {
@@ -239,6 +254,27 @@ export class HudScene extends Phaser.Scene {
       }
     } catch {
       // No storage (private window): the guide is still in the menu.
+    }
+  }
+
+  /** The opening is over: load the player's game (or a new one) behind the black, and fade up into it. */
+  private startGame(choice: TitleChoice): void {
+    const g = this.game3d;
+    g.endShowcase();
+    if (!(choice === 'continue' && g.load())) g.newWorld();
+    g.speed = 1;
+    this.title = null;
+    this.fadeIn = this.time.now;
+    this.sheet = null;
+    this.incomeSamples = [];
+    this.toasts = [];
+    try {
+      if (!localStorage.getItem(GUIDE_KEY)) {
+        this.sheet = 'guide';
+        localStorage.setItem(GUIDE_KEY, '1');
+      }
+    } catch {
+      // No storage: the guide is still in the menu.
     }
   }
 
@@ -319,6 +355,20 @@ export class HudScene extends Phaser.Scene {
     const H = this.scale.height;
     const now = this.time.now;
 
+    if (this.title) {
+      g.setKeys(0, 0, 0);
+      im.begin();
+      this.cim.begin();
+      this.cim.clipBox = null;
+      this.title.draw(im, W, H, now);
+      im.block({ x: 0, y: 0, w: W, h: H });
+      im.end();
+      this.cim.end();
+      this.sheetCam.setVisible(false);
+      g.setHoverBlocked(true);
+      return;
+    }
+
     g.touch = isTouch();
     this.twoFingers();
 
@@ -357,6 +407,11 @@ export class HudScene extends Phaser.Scene {
     }
     this.toastsLayer(W, now);
     this.tooltip(W, H);
+    if (this.fadeIn >= 0) {
+      const k = 1 - Math.min(1, (now - this.fadeIn) / 1000);
+      if (k <= 0) this.fadeIn = -1;
+      else im.rect(3, 0, 0, W, H, 0x000000, k * k);
+    }
     im.end();
     this.cim.end();
     const p = this.input.activePointer;

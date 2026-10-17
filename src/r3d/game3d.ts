@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import {
   GOODS,
   SITE_DEFS,
+  DISTRICT_ORDER,
   TICKS_PER_SECOND,
   VEHICLE_DEFS,
   VEHICLE_ORDER,
@@ -62,6 +63,7 @@ import {
   wrapX,
   townStreets,
   upgradeSite,
+  upgradeError,
   type Place,
   type Region,
   type ResourceNode,
@@ -76,6 +78,7 @@ import { HeightField, LAT_SPAN, R, basisMatrix, lonLatToTile, lonLatToVec, setGl
 import { buildGlobe, type Globe } from './globeMesh';
 import { siteGeometry, siteGeometryAt, trainUnits, vehicleGeometry } from './models';
 import { BUILD_MS, Construction } from './construction';
+import { buildDistrict } from '../sim/town';
 import map1 from '../maps/map1.json';
 import { paintGlobe, paintRoughness } from './paint';
 import { Smoke } from './smoke';
@@ -530,7 +533,8 @@ export class Game3D {
     }
     if (this.speed === 0) this.acc = 0;
 
-    if (now < this.orbitUntil) this.updateShots(dt);
+    if (this.showcase) this.updateShowcase(dt);
+    else if (now < this.orbitUntil) this.updateShots(dt);
     this.cam.panKeys(this.keys.right, this.keys.forward, dt);
     if (this.keys.turn) this.cam.rotate(this.keys.turn * dt * 1.4, 0);
     this.cam.update(dt);
@@ -546,7 +550,7 @@ export class Game3D {
     this.drainLog();
     this.renderer.render(this.scene, this.camera);
 
-    if (!this.demo && now - this.lastSave > 20000) this.save();
+    if (!this.demo && !this.showcase && now - this.lastSave > 20000) this.save();
 
     if (this.shot && this.frames > 24) {
       (window as unknown as { __frozen?: boolean }).__frozen = true;
@@ -579,6 +583,7 @@ export class Game3D {
    * so no trees, homes or buildings stand between the camera and the work. The camera drifts slowly in on each.
    */
   private watch(x: number, y: number, dist: number, ms: number): void {
+    if (this.showcase) return;
     const keep = { lon: this.cam.lon, lat: this.cam.lat, dist: this.cam.dist, heading: this.cam.heading, pitch: this.cam.pitchManual };
     const tries = (pitch: number) =>
       Array.from({ length: 8 }, (_, k) => {
@@ -1915,6 +1920,118 @@ export class Game3D {
       const dist = hash.includes('far') ? 300 : hash.includes('mid') ? 90 : 38;
       this.cam.set(lon, lat, dist, 0, 0);
     }
+  }
+
+  // ---- the opening showcase: a base that builds and grows while a cinematic camera flies over it ----
+
+  /** True while the opening screen is up: the world is a demo, never saved, and the camera flies itself. */
+  showcase = false;
+  private cine: { keys: { at: number; x: number; y: number; dist: number; h: number; p: number }[]; t: number; events: { at: number; run: () => void; done: boolean }[]; later: number } | null = null;
+
+  /** Whether there is an autosave to continue from. */
+  hasSave(): boolean {
+    try {
+      const raw = localStorage.getItem(SAVE_KEY);
+      return !!raw && (JSON.parse(raw) as World).version === 4;
+    } catch {
+      return false;
+    }
+  }
+
+  /** Fly over the demo base, and have things happen in it: upgrades, a district, towns growing. */
+  startShowcase(): void {
+    const w = this.world;
+    const town = w.places[0];
+    const next = w.places[1] ?? town;
+    const at = (s: { x: number; y: number } | undefined, fallback: { x: number; y: number }): { x: number; y: number } => ({ x: (s ?? fallback).x, y: (s ?? fallback).y });
+    const F = at(town, { x: 0, y: 0 });
+    const farm = at(w.sites.find((q) => q.kind === 'farm'), F);
+    const hub = at(w.sites.find((q) => q.depot) ?? w.sites.find((q) => q.kind === 'hub'), F);
+    const keys = [
+      { at: 0, x: F.x - 50, y: F.y - 22, dist: 290, h: -0.5, p: 0 },
+      { at: 6.5, x: F.x - 8, y: F.y - 4, dist: 60, h: 0.1, p: 0.3 },
+      { at: 11.5, x: farm.x, y: farm.y, dist: 14, h: 0.8, p: 0.45 },
+      { at: 17, x: hub.x, y: hub.y, dist: 13, h: 2.0, p: 0.4 },
+      { at: 22.5, x: F.x, y: F.y, dist: 24, h: 3.2, p: 0.55 },
+      { at: 29, x: F.x + 3, y: F.y + 2, dist: 16, h: 4.2, p: 0.5 },
+      { at: 36, x: next.x, y: next.y, dist: 40, h: 5.0, p: 0.35 },
+    ];
+    const upgradeAny = (kind: string): void => {
+      const site = w.sites.find((q) => q.kind === kind);
+      if (site) upgradeSite(w, site.id);
+    };
+    const growAny = (): void => {
+      const p = w.places.find((q) => q.level < 5 && q !== town) ?? w.places.find((q) => q.level < 5);
+      if (p) p.level += 1;
+    };
+    this.cine = {
+      keys,
+      t: 0,
+      later: 0,
+      events: [
+        { at: 11, run: () => upgradeAny('farm'), done: false },
+        { at: 17.5, run: () => upgradeAny('hub'), done: false },
+        { at: 23, run: () => { if (town && town.level < 5) town.level += 1; }, done: false },
+        { at: 30, run: () => { if (town) buildDistrict(w, town, DISTRICT_ORDER[0]); }, done: false },
+        { at: 37, run: growAny, done: false },
+      ],
+    };
+    this.showcase = true;
+    this.speed = 1;
+  }
+
+  /** Hand the world back: the opening is over. */
+  endShowcase(): void {
+    this.showcase = false;
+    this.cine = null;
+  }
+
+  private updateShowcase(dt: number): void {
+    const c = this.cine;
+    if (!c) return;
+    c.t += Math.min(dt, 0.1);
+    for (const e of c.events) {
+      if (!e.done && c.t >= e.at) {
+        e.done = true;
+        e.run();
+      }
+    }
+    const k = c.keys;
+    const last = k[k.length - 1];
+    let x: number, y: number, dist: number, h: number, p: number;
+    if (c.t >= last.at) {
+      // Past the last shot: drift slowly round it, with something new happening now and then.
+      const over = c.t - last.at;
+      [x, y, dist, p] = [last.x, last.y, last.dist, last.p];
+      h = last.h + over * 0.05;
+      if (over > c.later + 13) {
+        c.later = over;
+        const w = this.world;
+        const site = w.sites.find((q) => !SITE_DEFS[q.kind].dock && !SITE_DEFS[q.kind].station && upgradeError(w, q.id) === null);
+        if (site) upgradeSite(w, site.id);
+        else {
+          const town = w.places.find((q) => q.level < 5);
+          if (town) town.level += 1;
+        }
+      }
+    } else {
+      let i = 0;
+      while (i < k.length - 2 && c.t >= k[i + 1].at) i++;
+      const u = (c.t - k[i].at) / (k[i + 1].at - k[i].at);
+      const a = k[Math.max(0, i - 1)];
+      const b = k[i];
+      const cc = k[i + 1];
+      const d = k[Math.min(k.length - 1, i + 2)];
+      const cr = (p0: number, p1: number, p2: number, p3: number): number =>
+        0.5 * (2 * p1 + (-p0 + p2) * u + (2 * p0 - 5 * p1 + 4 * p2 - p3) * u * u + (-p0 + 3 * p1 - 3 * p2 + p3) * u * u * u);
+      x = cr(a.x, b.x, cc.x, d.x);
+      y = cr(a.y, b.y, cc.y, d.y);
+      dist = Math.exp(cr(Math.log(a.dist), Math.log(b.dist), Math.log(cc.dist), Math.log(d.dist)));
+      h = cr(a.h, b.h, cc.h, d.h);
+      p = cr(a.p, b.p, cc.p, d.p);
+    }
+    const { lon, lat } = tileLonLat(this.world.width, this.world.height, x, y);
+    this.cam.set(lon, lat, dist, h, p);
   }
 
   /** Debug and screenshot helper: put the camera on a tile. */
