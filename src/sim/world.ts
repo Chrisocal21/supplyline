@@ -35,6 +35,8 @@ import {
   TOWN_LEVELS,
   UPGRADE_COST_FACTOR,
   VEHICLE_DEFS,
+  bodyOf,
+  type Body,
   type Good,
   type NodeKind,
   type SiteKind,
@@ -61,7 +63,7 @@ export function townTiles(world: World, place: Place, level = 5): Tile[] {
   return footprint(layoutOf(world, place), level).map((t) => ({ x: wrapX(world, place.x + t.x), y: place.y + t.y }));
 }
 
-/** A town's district plots, in order: the Market, the Freight Yard, then outward along the streets. */
+/** A town's district plots, in order: the Market, the Supply Yard, then outward along the streets. */
 export function plotTiles(world: World, place: Place): Tile[] {
   return layoutOf(world, place).plots.map((p) => ({ x: place.x + p.x, y: place.y + p.y }));
 }
@@ -94,8 +96,16 @@ export interface Site {
   townId?: number | null;
   /** Hubs: the goods this hub asks suppliers for. */
   pull: Good[];
-  /** Distribution Hubs: a rail yard has been built, so trains can serve this hub. */
-  depot?: boolean;
+  /** Raw producers: timers for the by-products, one per entry of `produce.also`. */
+  extra?: number[];
+  /** Distribution Hubs: 'overflow' only takes goods from a supplier whose store is filling up; 'all' takes everything on offer. */
+  hubMode?: 'overflow' | 'all';
+  /** Overflow mode: how full a supplier's store must be (0 to 1) before this hub takes its goods. */
+  trigger?: number;
+  /** Storage Depots: the inputs of the businesses in reach, refreshed as they come and go. The depot asks suppliers for these. */
+  fed?: Good[];
+  /** Yards, ports and airports: a vehicle leaves only with this share of its capacity (0 to 1), unless the store is nearly full. */
+  minLoad?: number;
   /** Rail stations: goods made in the town and waiting for a train. */
   out?: Stock;
   /** Processors: whether the player has switched production on. Nothing is made until they do. */
@@ -104,6 +114,9 @@ export interface Site {
   sendTo?: number[];
   /** Raw producers sell to everyone they are joined to, except the buyers listed here. */
   sendOff?: number[];
+  /** The same two lists for the by-product line. Unset means it follows the main line until the player changes it. */
+  byTo?: number[];
+  byOff?: number[];
   /** What this building has sold to each buyer, by buyer id: units and money. */
   sales?: Record<number, { units: number; money: number }>;
 }
@@ -131,6 +144,14 @@ export const SEGMENT_TILES = 5;
 
 export type VehicleState = 'loading' | 'moving' | 'unloading';
 
+/** A building with a by-product runs two lines: the main good, and the by-product(s). Each has its own buyers and its own vehicles. */
+export type Line = 'main' | 'by';
+
+/** How a vehicle picks which buyer to serve: spread out, hungriest buyer, best price, closest, or best earnings for the trip. */
+export type PickMode = 'any' | 'demand' | 'price' | 'near' | 'earn';
+export const PICK_MODES: PickMode[] = ['any', 'demand', 'price', 'near', 'earn'];
+export const PICK_LABEL: Record<PickMode, string> = { any: 'spread out', demand: 'highest demand', price: 'best price', near: 'closest', earn: 'best earnings' };
+
 export interface Vehicle {
   id: number;
   /** The building it was bought at and works for. */
@@ -139,6 +160,12 @@ export interface Vehicle {
   routeId: number;
   /** Pinned destination building, or 0 to take any route its home may send along. */
   destId: number;
+  /** How it chooses between buyers when not pinned. Unset means spread out: the least busy route. */
+  pick?: PickMode;
+  /** Which line of its home's goods it carries. Unset means the main good. */
+  line?: Line;
+  /** What it is built to haul: a flatbed takes logs, an open-top takes grain, a tanker takes milk. Unset means a box, which takes anything. */
+  body?: Body;
   /** The building the current load came from. */
   fromId?: number;
   kind: VehicleKind;
@@ -217,11 +244,11 @@ export interface World {
   bank?: BankState;
 }
 
-/** A truck leaves the start of its route once this share of its capacity is ready, or after MAX_LOAD_WAIT ticks. */
-const LOAD_WAIT_FRACTION = 0.6;
+/** A truck leaves the start of its route with a full load: all of its capacity, or nine tenths of what its building can hold if that is less. */
+const LOAD_WAIT_FRACTION = 1;
 /** A rail station tops the town's docks up to this share of their storage, so prices hold while it sells. */
 const STATION_FEED = 0.6;
-const MAX_LOAD_WAIT = 60;
+const MAX_LOAD_WAIT = 1200;
 const LOAD_CHECK_EVERY = 5;
 
 const DEFAULT_ELEV: Record<Terrain, number> = { water: 50, grass: 130, forest: 130, mountain: 220, ice: 100 };
@@ -460,7 +487,7 @@ export function townSites(world: World, place: Place): Site[] {
   return out;
 }
 
-/** A town's Market and Freight Yard, found from any site that belongs to the town. */
+/** A town's Market and Supply Yard, found from any site that belongs to the town. */
 export function townDocks(world: World, site: Site): Site[] {
   return world.sites.filter((s) => s.placeId === site.placeId && s.placeId !== null && SITE_DEFS[s.kind].dock);
 }
@@ -730,7 +757,7 @@ export function homesNow(place: Place, level = place.level): number[] {
   return (place.homePlots ?? []).slice(LOTS_PER_LEVEL * (level - 1));
 }
 
-/** How many lots a town has for building at a level (not counting its Market and Freight Yard plots). */
+/** How many lots a town has for building at a level (not counting its Market and Supply Yard plots). */
 export function lotsAt(place: Place, level = place.level): number {
   return plotCount(radiusOf(place)) - 2 - homesNow(place, level).length;
 }
@@ -741,8 +768,7 @@ function townBlocks(world: World, x: number, y: number, mode: RouteMode): boolea
   if (streetAt(world, x, y)) return mode !== 'road';
   if (mode === 'rail') {
     if (plotAt(world, x, y) === null && civicAt(world, x, y) === null) return false;
-    // The last step into a rail depot may cross the lot beside it, so track can reach a hub on the street.
-    return ![[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => siteAt(world, x + dx, y + dy)?.depot);
+    return true;
   }
   return true;
 }
@@ -894,16 +920,37 @@ export function unitPrice(world: World, site: Site, good: Good): number {
 /** Goods a site can ever send out. */
 export function produces(site: Site): Good[] {
   const def = SITE_DEFS[site.kind];
-  if (def.produce) return [def.produce.good];
+  if (def.produce) return [def.produce.good, ...(def.produce.also ?? []).map((x) => x.good)];
   if (def.recipe) return Object.keys(def.recipe.outputs) as Good[];
   if (def.hub || def.station) return GOOD_LIST;
   return [];
+}
+
+/** The goods one line of a building carries. Hubs, terminals and stations have a single line with everything. */
+export function lineGoods(site: Site, line: Line = 'main'): Good[] {
+  const all = produces(site);
+  const def = SITE_DEFS[site.kind];
+  if (!(def.produce || def.recipe)) return all;
+  return line === 'by' ? all.slice(1) : all.slice(0, 1);
+}
+
+/** The body a vehicle for one line of a building is built with, from the good that line carries. */
+export function bodyForLine(site: Site, line: Line = 'main'): Body {
+  const good = lineGoods(site, line)[0];
+  return SITE_DEFS[site.kind].produce || SITE_DEFS[site.kind].recipe ? (good ? bodyOf(good) : 'box') : 'box';
+}
+
+/** Whether a building makes a by-product, and so has a second line. */
+export function hasByLine(site: Site): boolean {
+  const def = SITE_DEFS[site.kind];
+  return !!(def.produce || def.recipe) && produces(site).length > 1;
 }
 
 /** Goods a site asks for. */
 export function wants(world: World, site: Site): Good[] {
   const def = SITE_DEFS[site.kind];
   if (def.recipe) return site.making ? (Object.keys(def.recipe.inputs) as Good[]) : [];
+  if (def.store) return Array.from(new Set([...site.pull, ...(site.fed ?? [])]));
   if (def.hub) return site.pull;
   if (def.dock) return dockDemand(world, site);
   if (def.station) {
@@ -927,6 +974,13 @@ export function needs(world: World, site: Site, good: Good, from?: Site): number
   const room = Math.floor(cap - stockOf(site, good));
   if (room <= 0) return 0;
   // Hubs only pass goods to another hub when the sender is fuller, so goods flow downhill instead of ping-ponging.
+  // A warehouse always takes what the factories next to it need. Anything else only when a supplier is filling up, and only
+  // if there is somewhere for it to go, so by-products with no buyer cannot clog the shelves.
+  const sd = SITE_DEFS[site.kind];
+  if (from && sd.store && !SITE_DEFS[from.kind].hub && !SITE_DEFS[from.kind].station && !(site.fed ?? []).includes(good) && (site.hubMode ?? 'overflow') === 'overflow') {
+    if (stockOf(from, good) / Math.max(1, siteCap(world, from)) < (site.trigger ?? HUB_TRIGGER)) return 0;
+    if (!hasOutlet(world, site, good)) return 0;
+  }
   if (from && SITE_DEFS[site.kind].hub && SITE_DEFS[from.kind].hub) {
     const sendRatio = stockOf(from, good) / siteCap(world, from);
     const recvRatio = stockOf(site, good) / cap;
@@ -936,13 +990,16 @@ export function needs(world: World, site: Site, good: Good, from?: Site): number
 }
 
 /** Best cargo to haul from `src` to `dst`: the most valuable good that src has and dst needs. */
-export function pickCargo(world: World, src: Site, dst: Site, capacity: number): { good: Good; amount: number } | null {
-  if (!sendAllowed(src, dst)) return null;
+export function pickCargo(world: World, src: Site, dst: Site, capacity: number, line?: Line, body?: Body): { good: Good; amount: number } | null {
+  if (!sendAllowed(src, dst, line ?? 'main')) return null;
   let best: { good: Good; amount: number } | null = null;
   let bestValue = 0;
-  for (const g of GOOD_LIST) {
+  for (const g of line ? lineGoods(src, line) : GOOD_LIST) {
+    if (body && body !== 'box' && bodyOf(g) !== body) continue;
     const amount = Math.floor(Math.min(capacity, offers(src, g), needs(world, dst, g, src)));
     if (amount < 1) continue;
+    // A yard, port or airport waits for a worthwhile load unless its store is nearly full.
+    if (src.minLoad && amount < src.minLoad * capacity && stockOf(src, g) < 0.9 * siteCap(world, src)) continue;
     const value = amount * GOODS[g].price;
     if (value > bestValue) {
       bestValue = value;
@@ -956,18 +1013,18 @@ export function pickCargo(world: World, src: Site, dst: Site, capacity: number):
  * Whether `a` may send to `b`. Raw producers sell to anything they are joined to unless the player stopped it, and
  * stations hand goods to trains. Everything else only sends where the player has switched the sale on.
  */
-export function sendAllowed(a: Site, b: Site): boolean {
+export function sendAllowed(a: Site, b: Site, line: Line = 'main'): boolean {
   const def = SITE_DEFS[a.kind];
   if (def.station) return true;
-  if (def.produce) return !(a.sendOff ?? []).includes(b.id);
-  return (a.sendTo ?? []).includes(b.id);
+  if (def.produce) return !(line === 'by' ? a.byOff ?? a.sendOff ?? [] : a.sendOff ?? []).includes(b.id);
+  return (line === 'by' ? a.byTo ?? a.sendTo ?? [] : a.sendTo ?? []).includes(b.id);
 }
 
 /** Whether `a` makes or passes on something `b` asks for, and is allowed to send it. */
-export function supplies(world: World, a: Site, b: Site): boolean {
-  if (!sendAllowed(a, b)) return false;
+export function supplies(world: World, a: Site, b: Site, line: Line = 'main'): boolean {
+  if (!sendAllowed(a, b, line)) return false;
   const asked = wants(world, b);
-  return produces(a).some((g) => asked.includes(g));
+  return lineGoods(a, line).some((g) => asked.includes(g));
 }
 
 /** What a building could ask for if the player switched everything on. */
@@ -987,41 +1044,47 @@ export function canHaul(world: World, a: Site, b: Site): boolean {
 }
 
 /** Whether `a` could ever send `b` something, ignoring what is switched on. */
-function couldSend(world: World, a: Site, b: Site): boolean {
+function couldSend(world: World, a: Site, b: Site, line: Line = 'main'): boolean {
   if (SITE_DEFS[a.kind].dock) return false;
-  if (SITE_DEFS[b.kind].hub) return produces(a).length > 0;
-  return produces(a).some((g) => wantsEver(world, b).includes(g));
+  const mine = lineGoods(a, line);
+  if (SITE_DEFS[b.kind].hub) return mine.length > 0;
+  return mine.some((g) => wantsEver(world, b).includes(g));
 }
 
 /** The buildings a site has a route to and could sell to, with whether the sale is on. */
-export function sellTargets(world: World, site: Site): { site: Site; on: boolean; goods: Good[] }[] {
+export function sellTargets(world: World, site: Site, line: Line = 'main'): { site: Site; on: boolean; goods: Good[] }[] {
   const out: { site: Site; on: boolean; goods: Good[] }[] = [];
   const seen = new Set<number>();
+  const mine = lineGoods(site, line);
   for (const r of world.routes) {
     if (r.free || (r.fromSiteId !== site.id && r.toSiteId !== site.id)) continue;
     const other = siteById(world, r.fromSiteId === site.id ? r.toSiteId : r.fromSiteId);
-    if (!other || seen.has(other.id) || !couldSend(world, site, other)) continue;
+    if (!other || seen.has(other.id) || !couldSend(world, site, other, line)) continue;
     seen.add(other.id);
-    const goods = SITE_DEFS[other.kind].hub ? produces(site) : produces(site).filter((g) => wantsEver(world, other).includes(g));
-    out.push({ site: other, on: sendAllowed(site, other), goods });
+    const goods = SITE_DEFS[other.kind].hub ? mine : mine.filter((g) => wantsEver(world, other).includes(g));
+    out.push({ site: other, on: sendAllowed(site, other, line), goods });
   }
   return out;
 }
 
 /** Switch a sale from one building to another on or off. */
-export function setSendTo(world: World, siteId: number, destId: number, on: boolean): void {
+export function setSendTo(world: World, siteId: number, destId: number, on: boolean, line: Line = 'main'): void {
   const site = siteById(world, siteId);
   if (!site) return;
+  const by = line === 'by';
   if (SITE_DEFS[site.kind].produce) {
-    const off = (site.sendOff ??= []);
-    if (on) site.sendOff = off.filter((id) => id !== destId);
-    else if (!off.includes(destId)) off.push(destId);
+    // The by-product list starts as a copy of the main one, then goes its own way.
+    const off = by ? (site.byOff ??= [...(site.sendOff ?? [])]) : (site.sendOff ??= []);
+    const next = on ? off.filter((id) => id !== destId) : off.includes(destId) ? off : [...off, destId];
+    if (by) site.byOff = next;
+    else site.sendOff = next;
     return;
   }
-  const list = (site.sendTo ??= []);
+  const list = by ? (site.byTo ??= [...(site.sendTo ?? [])]) : (site.sendTo ??= []);
   const has = list.includes(destId);
-  if (on && !has) list.push(destId);
-  if (!on && has) site.sendTo = list.filter((id) => id !== destId);
+  const next = on && !has ? [...list, destId] : !on && has ? list.filter((id) => id !== destId) : list;
+  if (by) site.byTo = next;
+  else site.sendTo = next;
 }
 
 export interface Buyer {
@@ -1037,13 +1100,13 @@ export interface Buyer {
 }
 
 /** Everyone who could buy what this building makes: those already joined to it first, then the nearest few that are not. */
-export function buyersFor(world: World, site: Site, extra = 3): Buyer[] {
+export function buyersFor(world: World, site: Site, extra = 3, line: Line = 'main'): Buyer[] {
   const def = SITE_DEFS[site.kind];
   if (def.dock || def.station) return [];
-  const joined = sellTargets(world, site);
+  const joined = sellTargets(world, site, line);
   const out: Buyer[] = joined.map((t) => ({ site: t.site, goods: t.goods, connected: true, on: t.on }));
   if (def.hub || extra <= 0) return out;
-  const mine = produces(site);
+  const mine = lineGoods(site, line);
   const seen = new Set(joined.map((t) => t.site.id));
   const d2 = (o: Site): number => wrapDx(world, site.x, o.x) ** 2 + (site.y - o.y) ** 2;
   const far = world.sites
@@ -1102,17 +1165,83 @@ export function setMaking(world: World, siteId: number, on: boolean): void {
 
 // ---- simulation ----
 
+/** How full a supplier's store must be before an overflow hub takes its goods. */
+export const HUB_TRIGGER = 0.6;
+/** Whether anything joined to a warehouse would take a good from it: a buyer, a factory or a terminal. */
+function hasOutlet(world: World, hub: Site, good: Good): boolean {
+  return sellTargets(world, hub).some((t) => {
+    const d = SITE_DEFS[t.site.kind];
+    return d.railyard || d.port || d.airport || (!d.hub && wantsEver(world, t.site).includes(good));
+  });
+}
+
+/** What a warehouse asks for: the inputs of every business in its reach. */
+function refreshFed(world: World, depot: Site): void {
+  const near = world.sites.filter((o) => SITE_DEFS[o.kind].recipe && wrapDx(world, o.x, depot.x) ** 2 + (o.y - depot.y) ** 2 <= DEPOT_REACH ** 2);
+  depot.fed = Array.from(new Set(near.flatMap((o) => Object.keys(SITE_DEFS[o.kind].recipe!.inputs) as Good[])));
+}
+
+/** How far a Storage Depot's stock reaches to the businesses around it, in tiles. */
+export const DEPOT_REACH = 14;
+
+/** Storage Depots within reach of a site, nearest first. */
+export function depotsNear(world: World, site: Site): Site[] {
+  return world.sites
+    .filter((d) => SITE_DEFS[d.kind].store && wrapDx(world, d.x, site.x) ** 2 + (d.y - site.y) ** 2 <= DEPOT_REACH ** 2)
+    .sort((a, b) => wrapDx(world, a.x, site.x) ** 2 + (a.y - site.y) ** 2 - (wrapDx(world, b.x, site.x) ** 2 + (b.y - site.y) ** 2));
+}
+
+/** A business short of an input takes it from the nearest depot that has it: a few runs' worth at a time. */
+function drawFromDepot(world: World, site: Site, inputs: Partial<Record<Good, number>>): void {
+  let depots: Site[] | null = null;
+  for (const [g, n] of Object.entries(inputs)) {
+    const need = (n ?? 0) * 4 - stockOf(site, g as Good);
+    if (stockOf(site, g as Good) >= (n ?? 0)) continue;
+    depots ??= depotsNear(world, site);
+    for (const d of depots) {
+      const take = Math.min(need, Math.floor(stockOf(d, g as Good)));
+      if (take < 1) continue;
+      addStock(d, g as Good, -take);
+      addStock(site, g as Good, take);
+      break;
+    }
+  }
+}
+
+export function setHubOptions(world: World, siteId: number, o: { hubMode?: 'overflow' | 'all'; trigger?: number; minLoad?: number }): void {
+  const site = siteById(world, siteId);
+  if (!site) return;
+  if (o.hubMode) site.hubMode = o.hubMode;
+  if (o.trigger !== undefined) site.trigger = Math.max(0.2, Math.min(1, o.trigger));
+  if (o.minLoad !== undefined) site.minLoad = Math.max(0, Math.min(1, o.minLoad));
+}
+
 function stepSite(world: World, site: Site): void {
   const def = SITE_DEFS[site.kind];
   const cap = siteCap(world, site);
   if (def.produce) {
-    const { good, every } = def.produce;
-    if (stockOf(site, good) >= cap) return;
-    site.timer += siteSpeed(world, site);
-    if (site.timer >= every) {
-      site.timer -= every;
-      addStock(site, good, 1);
-      world.produced[good] = (world.produced[good] ?? 0) + 1;
+    const { good, every, also } = def.produce;
+    const speed = siteSpeed(world, site);
+    if (stockOf(site, good) < cap) {
+      site.timer += speed;
+      if (site.timer >= every) {
+        site.timer -= every;
+        addStock(site, good, 1);
+        world.produced[good] = (world.produced[good] ?? 0) + 1;
+      }
+    }
+    // By-products come out beside the main good and wait for a truck the same way. A full shelf of one never stalls the other.
+    if (also) {
+      const t = (site.extra ??= []);
+      also.forEach((x, i) => {
+        if (stockOf(site, x.good) >= cap) return;
+        t[i] = (t[i] ?? 0) + speed;
+        if (t[i] >= x.every) {
+          t[i] -= x.every;
+          addStock(site, x.good, 1);
+          world.produced[x.good] = (world.produced[x.good] ?? 0) + 1;
+        }
+      });
     }
     return;
   }
@@ -1122,6 +1251,7 @@ function stepSite(world: World, site: Site): void {
       site.timer = 0;
       return;
     }
+    if (world.tick % 10 === 0) drawFromDepot(world, site, inputs);
     const hasInputs = Object.entries(inputs).every(([g, n]) => stockOf(site, g as Good) >= (n ?? 0));
     // Only the main product (listed first) can stall the building. By-products that do not fit are simply lost.
     const hasRoom = stockOf(site, Object.keys(outputs)[0] as Good) < cap;
@@ -1141,6 +1271,10 @@ function stepSite(world: World, site: Site): void {
         world.produced[g as Good] = (world.produced[g as Good] ?? 0) + (n ?? 0);
       }
     }
+    return;
+  }
+  if (def.store) {
+    if (world.tick % 50 === 0) refreshFed(world, site);
     return;
   }
   if (def.station) {
@@ -1216,15 +1350,15 @@ export interface GrowPreview {
   to: string;
   popFrom: number;
   popTo: number;
-  /** Goods its Market starts buying, and goods its Freight Yard starts buying. */
+  /** Goods its Market starts buying, and goods its Supply Yard starts buying. */
   newMarket: Good[];
   newFreight: Good[];
-  /** The Freight Yard opens with this level. */
+  /** The Supply Yard opens with this level. */
   freightOpens: boolean;
   /** Price bonus on everything it buys, in percent, before and after. */
   priceFrom: number;
   priceTo: number;
-  /** How much its Market and Freight Yard can hold, per good. */
+  /** How much its Market and Supply Yard can hold, per good. */
   storeFrom: number;
   storeTo: number;
   /** Districts that can be built from this level, and whether it can pick a specialisation. */
@@ -1328,21 +1462,48 @@ export function laneOk(world: World, v: Vehicle, route: Route): boolean {
   if (!home || !other) return false;
   if (v.destId && v.destId !== other.id) return false;
   // A vehicle carries its own building's goods out. Supplying a hub or factory is the supplier's job, not theirs.
-  return supplies(world, home, other);
+  return supplies(world, home, other, v.line ?? 'main');
 }
 
-/** Put a waiting vehicle on the least busy route it is allowed to run. Returns whether it found one. */
-export function assignVehicle(world: World, v: Vehicle): boolean {
+/** How good a run looks to a vehicle with a preference: higher is better. Unset or 'any' scores every run the same. */
+function routeScore(world: World, v: Vehicle, r: Route): number {
+  const mode = v.pick ?? 'any';
+  if (mode === 'any') return 0;
+  const home = siteById(world, v.homeId);
+  const other = siteById(world, r.fromSiteId === v.homeId ? r.toSiteId : r.fromSiteId);
+  if (!home || !other) return -Infinity;
+  const asked = wants(world, other);
+  const goods = lineGoods(home, v.line ?? 'main').filter((g) => asked.includes(g));
+  if (goods.length === 0) return -1;
+  const fill = (g: Good): number => stockOf(other, g) / Math.max(1, siteCap(world, other));
+  const price = (g: Good): number => (SITE_DEFS[other.kind].dock ? unitPrice(world, other, g) : SITE_DEFS[other.kind].hub ? 0 : GOODS[g].price * 0.6);
+  if (mode === 'demand') return Math.max(...goods.map((g) => 1 - fill(g)));
+  if (mode === 'price') return Math.max(...goods.map(price));
+  if (mode === 'near') return -r.path.length;
+  return Math.max(...goods.map((g) => price(g) * Math.max(0.15, 1 - fill(g)))) / (r.path.length + 10);
+}
+
+/** The run a vehicle should be on: its preferred one, and among equals the least busy. */
+function bestRoute(world: World, v: Vehicle): Route | undefined {
   let best: Route | undefined;
+  let bestScore = -Infinity;
   let bestLoad = Infinity;
   for (const r of world.routes) {
     if (!laneOk(world, v, r)) continue;
     const load = world.vehicles.reduce((n, x) => n + (x.routeId === r.id ? 1 : 0), 0);
-    if (load < bestLoad) {
+    const score = routeScore(world, v, r);
+    if (score > bestScore + 1e-9 || (Math.abs(score - bestScore) <= 1e-9 && load < bestLoad)) {
       best = r;
+      bestScore = score;
       bestLoad = load;
     }
   }
+  return best;
+}
+
+/** Put a waiting vehicle on the best run it is allowed to take. Returns whether it found one. */
+export function assignVehicle(world: World, v: Vehicle): boolean {
+  const best = bestRoute(world, v);
   if (!best) return false;
   v.routeId = best.id;
   v.idx = homeEnd(best, v) === 0 ? 0 : best.path.length - 1;
@@ -1352,6 +1513,11 @@ export function assignVehicle(world: World, v: Vehicle): boolean {
   v.cargo = 0;
   v.good = null;
   return true;
+}
+
+export function setVehiclePick(world: World, vehicleId: number, pick: PickMode): void {
+  const v = world.vehicles.find((x) => x.id === vehicleId);
+  if (v) v.pick = pick;
 }
 
 function stepVehicle(world: World, v: Vehicle): void {
@@ -1396,11 +1562,26 @@ function stepVehicle(world: World, v: Vehicle): void {
         v.moveTimer = 0;
         break;
       }
+      // A vehicle with a preference looks again at home between trips, so it follows demand and prices as they change.
+      if (atHome && v.pick && v.pick !== 'any' && !v.destId) {
+        const better = bestRoute(world, v);
+        if (better && better.id !== route.id && routeScore(world, v, better) > routeScore(world, v, route) + 1e-9) {
+          v.routeId = better.id;
+          v.idx = homeEnd(better, v) === 0 ? 0 : better.path.length - 1;
+          v.dir = v.idx === 0 ? 1 : -1;
+          v.moveTimer = 0;
+          break;
+        }
+      }
       const hereTown = siteTown(world, here);
       const capacity = Math.floor(vdef.capacity * (hereTown ? townLoadMult(hereTown) : 1));
-      const pick = pickCargo(world, here, there, capacity);
+      const pick = pickCargo(world, here, there, capacity, atHome ? v.line ?? 'main' : undefined, atHome ? v.body : undefined);
+      // A full load is the vehicle's capacity, or nine tenths of what the building can hold when that is smaller, so it can always fill.
+      const fullLoad = Math.max(1, Math.min(capacity, Math.floor(siteCap(world, here) * 0.9)));
       const waited = v.moveTimer;
-      const enough = pick !== null && pick.amount >= capacity * (atHome ? LOAD_WAIT_FRACTION : 0.4);
+      // When the buyer can only take part of a load, that part is a full load for this trip, as long as it is worth driving.
+      const buyerLimited = pick !== null && pick.amount >= Math.floor(needs(world, there, pick.good, here));
+      const enough = pick !== null && (atHome ? pick.amount >= fullLoad * LOAD_WAIT_FRACTION || (buyerLimited && pick.amount >= fullLoad * 0.4) : pick.amount >= capacity * 0.4);
       // Having come all this way for it (home has nothing to send back), take whatever is waiting.
       const fetch = pick !== null && !atHome && !pickCargo(world, there, here, capacity);
       if (pick && (enough || fetch || (atHome && waited >= MAX_LOAD_WAIT))) {
@@ -1505,7 +1686,7 @@ export function placeError(world: World, kind: SiteKind, x: number, y: number): 
     if (def.airport) return 'Airports need open ground outside a town';
     if (def.port) return 'A Port goes on the coast, outside the town streets';
     if (def.railyard) return 'A Rail Yard goes at the edge of town, outside its streets';
-    if (plot.index < 2) return `Reserved for ${plot.place.name}'s ${plot.index === 0 ? 'Market' : 'Freight Yard'}`;
+    if (plot.index < 2) return `Reserved for ${plot.place.name}'s ${plot.index === 0 ? 'Market' : 'Supply Yard'}`;
     if (isHomePlot(plot.place, plot.index)) return 'Homes line this stretch of street: not for sale';
     if (t === 'water' || t === 'mountain' || t === 'ice') return `Cannot build on ${t}`;
   } else {
@@ -1750,6 +1931,7 @@ export function placeSite(world: World, kind: SiteKind, x: number, y: number): s
     making: def.recipe ? false : undefined,
     sendTo: [],
   });
+  for (const d of world.sites) if (SITE_DEFS[d.kind].store) refreshFed(world, d);
   const home = plotAt(world, wx, y);
   if (home) linkTown(world, home.place);
   // A building put down on a road, or a town street, that already reaches others is joined to them.
@@ -1806,9 +1988,9 @@ export function upgradeSite(world: World, siteId: number): string | null {
   return null;
 }
 
-/** A hub where trains can call: a Rail Yard, or an old hub that was given a rail depot. */
+/** A building where trains can call: a Rail Yard. */
 export function isRailHub(site: Site): boolean {
-  return !!SITE_DEFS[site.kind].railyard || !!site.depot;
+  return !!SITE_DEFS[site.kind].railyard;
 }
 
 export function setHubPull(world: World, siteId: number, good: Good, on: boolean): void {
@@ -1843,7 +2025,10 @@ export function demolishSite(world: World, siteId: number): string | null {
   for (const v of world.vehicles) if (v.homeId === siteId) world.money += VEHICLE_DEFS[v.kind].cost * 0.5;
   world.vehicles = world.vehicles.filter((v) => v.homeId !== siteId);
   for (const v of world.vehicles) if (dead.has(v.routeId)) parkVehicle(v);
-  for (const s of world.sites) if (s.sendTo) s.sendTo = s.sendTo.filter((id) => id !== siteId);
+  for (const s of world.sites) {
+    if (s.sendTo) s.sendTo = s.sendTo.filter((id) => id !== siteId);
+    if (s.byTo) s.byTo = s.byTo.filter((id) => id !== siteId);
+  }
   world.sites = world.sites.filter((s) => s.id !== siteId);
   world.money += demolishRefund(site);
   return null;
@@ -2047,7 +2232,9 @@ export function createRoute(world: World, rawPath: Tile[], mode: RouteMode = 'ro
   // Only ground that is not already laid becomes new stretches, with one tile of the old to join them to.
   const key = (t: Tile): number => t.y * world.width + wrapX(world, t.x);
   const have = new Set<number>();
-  for (const r of world.routes) if (r.mode === mode && !r.over) for (const t of r.path) have.add(key(t));
+  // A highway laid over an existing road is an upgrade: only ground that is already highway counts as laid.
+  const upgrade = mode === 'road' && grade === 'highway';
+  for (const r of world.routes) if (r.mode === mode && !r.over && (!upgrade || r.grade === 'highway')) for (const t of r.path) have.add(key(t));
   const path = plan.path;
   for (let i = 0; i < path.length; i++) {
     if (have.has(key(path[i]))) continue;
@@ -2094,6 +2281,8 @@ export function linkNetwork(world: World, mode: RouteMode): void {
     }
   }
   const hw = highwayTiles(world);
+  // Lanes that now run wholly on highway, after a road was upgraded, drive at highway speed.
+  if (mode === 'road') for (const r of world.routes) if (r.over && r.mode === 'road' && r.grade !== 'highway' && r.path.every((t) => hw.has(key(t.x, t.y)))) r.grade = 'highway';
   const joined = (a: Site, b: Site): boolean =>
     world.routes.some((r) => !r.free && r.mode === mode && ((r.fromSiteId === a.id && r.toSiteId === b.id) || (r.fromSiteId === b.id && r.toSiteId === a.id)));
   const MAX_DEPTH = 260;
@@ -2139,7 +2328,6 @@ export function linkNetwork(world: World, mode: RouteMode): void {
       const [src, dst] = supplies(world, a, b) || !supplies(world, b, a) ? [a, b] : [b, a];
       const path = src === a ? tiles : tiles.reverse();
       const grade: RoadGrade = path.every((t) => hw.has(key(t.x, t.y))) ? 'highway' : 'street';
-      if (planRoute(world, path, mode, grade).error) continue;
       world.routes.push({ id: world.nextId++, mode, grade: mode === 'road' ? grade : undefined, fromSiteId: src.id, toSiteId: dst.id, over: true, path });
     }
   }
@@ -2210,17 +2398,24 @@ export function buyError(world: World, siteId: number, kind: VehicleKind): strin
 }
 
 /** Buy a vehicle that works for a building. It waits there until a route it may run exists. */
-export function buyVehicle(world: World, siteId: number, kind: VehicleKind): string | null {
+export function buyVehicle(world: World, siteId: number, kind: VehicleKind, line: Line = 'main'): string | null {
   const err = buyError(world, siteId, kind);
   if (err) return err;
   world.money -= VEHICLE_DEFS[kind].cost;
-  assignVehicle(world, newVehicle(world, siteId, kind));
+  const v = newVehicle(world, siteId, kind);
+  const site = siteById(world, siteId);
+  if (line === 'by' && site && hasByLine(site)) v.line = 'by';
+  if (site && VEHICLE_DEFS[kind].mode === 'road') {
+    const body = bodyForLine(site, v.line ?? 'main');
+    if (body !== 'box') v.body = body;
+  }
+  assignVehicle(world, v);
   return null;
 }
 
 /** The vehicles that work for a building. */
-export function fleetOf(world: World, siteId: number): Vehicle[] {
-  return world.vehicles.filter((v) => v.homeId === siteId);
+export function fleetOf(world: World, siteId: number, line?: Line): Vehicle[] {
+  return world.vehicles.filter((v) => v.homeId === siteId && (!line || (v.line ?? 'main') === line));
 }
 
 /** What upgrading one vehicle costs: the next class, less what the old one is worth. */

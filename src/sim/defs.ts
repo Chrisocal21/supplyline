@@ -86,8 +86,8 @@ export interface SiteDef {
   /** Must be built on a resource node of this kind. */
   node?: NodeKind;
   color: number;
-  /** Raw producer: one unit of `good` every `every` ticks. */
-  produce?: { good: Good; every: number };
+  /** Raw producer: one unit of `good` every `every` ticks, and slower by-products (`also`) that sell like the main good. */
+  produce?: { good: Good; every: number; also?: { good: Good; every: number }[] };
   /** Processor: consumes inputs, makes outputs every `every` ticks. The first output is the main product. */
   recipe?: { inputs: Stock; outputs: Stock; every: number };
   /** Processing buildings go in a town's plots, as part of the town. */
@@ -102,11 +102,15 @@ export interface SiteDef {
   airport?: boolean;
   /** Rail Yard: a hub at the edge of a town where trains load and unload. */
   railyard?: boolean;
+  /** Storage Depot: goods shipped in wait here, and businesses nearby draw their inputs from it. */
+  store?: boolean;
+  /** The real-life thing this is like, in one plain sentence, shown in its menu and the guide. */
+  real?: string;
   /** Port: a hub on the coast that ships sail between. */
   port?: boolean;
 }
 
-const raw = (label: string, blurb: string, cost: number, tier: number, node: NodeKind, good: Good, every: number, color: number): SiteDef => ({
+const raw = (label: string, blurb: string, cost: number, tier: number, node: NodeKind, good: Good, every: number, color: number, also: Good[] = []): SiteDef => ({
   label,
   blurb,
   category: 'production',
@@ -115,7 +119,7 @@ const raw = (label: string, blurb: string, cost: number, tier: number, node: Nod
   cap: 60,
   node,
   color,
-  produce: { good, every },
+  produce: { good, every, also: also.map((g) => ({ good: g, every: Math.round(every * 2.5) })) },
 });
 
 const proc = (
@@ -132,19 +136,19 @@ const proc = (
 
 const DEFS = {
   // Production: extraction on resource nodes
-  forestry: raw('Forestry Camp', 'Fells timber on a forest node. Output: logs.', 80, 0, 'forest', 'logs', 20, 0x5f7f4a),
-  farm: raw('Farm', 'Grows grain on farmland. Output: grain.', 90, 0, 'farmland', 'grain', 15, 0xc8a850),
-  claypit: raw('Clay Pit', 'Digs clay on a clay node by the water. Output: clay.', 110, 0, 'clay', 'clay', 18, 0xb86f4a),
-  ranch: raw('Dairy Ranch', 'Grazes cattle on pasture. Output: milk.', 130, 0, 'pasture', 'milk', 20, 0x8bb46a),
-  orchard: raw('Orchard', 'Grows fruit on an orchard node. Output: fruit.', 120, 0, 'orchard', 'fruit', 22, 0xb0583f),
-  quarry: raw('Quarry', 'Cuts stone from a pit at the foot of a mountain. Output: stone.', 160, 0, 'quarry', 'stone', 28, 0x8d9298),
-  cottonfarm: raw('Cotton Farm', 'Grows cotton on farmland. Output: cotton.', 150, 1, 'farmland', 'cotton', 22, 0xe6e2d2),
-  coalmine: raw('Coal Mine', 'Mines coal on a coal seam in the hills. Output: coal.', 200, 1, 'coal', 'coal', 24, 0x2b2d31),
-  oremine: raw('Iron Mine', 'Mines iron ore on an ore deposit in the hills. Output: iron ore.', 220, 1, 'mine', 'ore', 26, 0x8a5a4a),
-  coffeefarm: raw('Coffee Plantation', 'Terraced coffee on an island highland. Output: coffee. Islands only, so it has to come by ship.', 420, 2, 'coffee', 'coffee', 26, 0x6b4426),
-  mangogrove: raw('Mango Grove', 'Mango trees in the island sun. Output: mangoes. Islands only, so they have to come by ship.', 320, 2, 'mango', 'mango', 22, 0xf0a630),
-  oilwell: raw('Oil Well', 'Pumps crude oil from a field. Output: oil. Found on a few islands, so it has to come by ship.', 900, 2, 'oil', 'oil', 30, 0x2a2a2e),
-  sandpit: raw('Sand Pit', 'Digs sand on a clay node. Output: sand.', 140, 1, 'clay', 'sand', 16, 0xe0cd96),
+  forestry: raw('Forestry Camp', 'Fells timber on a forest node. Makes logs and sawdust.', 80, 0, 'forest', 'logs', 20, 0x5f7f4a, ['sawdust']),
+  farm: raw('Farm', 'Grows grain on farmland. Makes grain and bran.', 90, 0, 'farmland', 'grain', 15, 0xc8a850, ['bran']),
+  claypit: raw('Clay Pit', 'Digs clay on a clay node by the water. Makes clay and sand.', 110, 0, 'clay', 'clay', 18, 0xb86f4a, ['sand']),
+  ranch: raw('Dairy Ranch', 'Grazes cattle on pasture. Makes milk and whey.', 130, 0, 'pasture', 'milk', 20, 0x8bb46a, ['whey']),
+  orchard: raw('Orchard', 'Grows fruit on an orchard node. Makes fruit and sawdust.', 120, 0, 'orchard', 'fruit', 22, 0xb0583f, ['sawdust']),
+  quarry: raw('Quarry', 'Cuts stone from a pit at the foot of a mountain. Makes stone and gravel.', 160, 0, 'quarry', 'stone', 28, 0x8d9298, ['gravel']),
+  cottonfarm: raw('Cotton Farm', 'Grows cotton on farmland. Makes cotton and bran.', 150, 1, 'farmland', 'cotton', 22, 0xe6e2d2, ['bran']),
+  coalmine: raw('Coal Mine', 'Mines coal on a coal seam in the hills. Makes coal and stone.', 200, 1, 'coal', 'coal', 24, 0x2b2d31, ['stone']),
+  oremine: raw('Iron Mine', 'Mines iron ore on an ore deposit in the hills. Makes iron ore and stone.', 220, 1, 'mine', 'ore', 26, 0x8a5a4a, ['stone']),
+  coffeefarm: raw('Coffee Plantation', 'Terraced coffee on an island highland. Makes coffee and bran. Islands only, so it has to come by ship.', 420, 2, 'coffee', 'coffee', 26, 0x6b4426, ['bran']),
+  mangogrove: raw('Mango Grove', 'Mango trees in the island sun. Makes mangoes and fruit. Islands only, so they have to come by ship.', 320, 2, 'mango', 'mango', 22, 0xf0a630, ['fruit']),
+  oilwell: raw('Oil Well', 'Pumps crude oil from a field. Makes oil and sand. Found on a few islands, so it has to come by ship.', 900, 2, 'oil', 'oil', 30, 0x2a2a2e, ['sand']),
+  sandpit: raw('Sand Pit', 'Digs sand on a clay node. Makes sand and gravel.', 140, 1, 'clay', 'sand', 16, 0xe0cd96, ['gravel']),
 
   // Processing
   sawmill: proc('processing', 'Sawmill', 'Logs in, lumber out. Sawdust is the by-product.', 220, 0, { logs: 2 }, { lumber: 1, sawdust: 1 }, 20, 0xb48650),
@@ -177,18 +181,21 @@ const DEFS = {
 
   // Logistics and town docks
   hub: {
-    label: 'Distribution Hub',
-    blurb: 'Stores goods. Pulls what you choose from suppliers and pushes it on to whoever needs it.',
+    label: 'Warehouse',
+    blurb: 'Keeps your goods safe. It holds the extra when buyers are full, and the factories next to it take what they need.',
+    real: 'Like a real warehouse: goods wait on the shelf until a store or a factory needs them.',
     category: 'logistics',
     cost: 300,
     tier: 1,
     cap: 120,
     color: 0xd68a2e,
     hub: true,
+    store: true,
   } as SiteDef,
   railyard: {
     label: 'Rail Yard',
-    blurb: 'A freight yard at the edge of a town. Trucks bring goods in from the town and trains carry them on to other yards.',
+    blurb: 'A rail freight terminal at the edge of a town. Goods are loaded onto trains here, and unloaded and sent into town when trains arrive.',
+    real: 'Like a real rail yard: where freight is loaded onto trains and unloaded again.',
     category: 'logistics',
     cost: 3000,
     tier: 2,
@@ -199,7 +206,8 @@ const DEFS = {
   } as SiteDef,
   port: {
     label: 'Port',
-    blurb: 'A harbour on the coast. Trucks bring goods in, and ships carry them to other ports across the sea.',
+    blurb: 'A seaport. Goods are loaded onto ships here, and unloaded and sent into town when ships arrive.',
+    real: 'Like a real seaport: cranes load containers onto ships and unload them again.',
     category: 'logistics',
     cost: 4000,
     tier: 2,
@@ -210,7 +218,7 @@ const DEFS = {
   } as SiteDef,
   market: {
     label: 'Market',
-    blurb: 'A town selling point for everyday goods.',
+    blurb: 'Where the town buys finished goods that people use every day.',
     category: null,
     cost: 0,
     tier: 0,
@@ -219,8 +227,8 @@ const DEFS = {
     dock: 'market',
   } as SiteDef,
   freight: {
-    label: 'Freight Yard',
-    blurb: 'A town selling point for raw and bulk goods.',
+    label: 'Supply Yard',
+    blurb: 'Where the town buys raw materials for its builders and factories: logs, grain, ore and leftovers.',
     category: null,
     cost: 0,
     tier: 0,
@@ -240,7 +248,7 @@ const DEFS = {
   } as SiteDef,
   station: {
     label: 'Rail Station',
-    blurb: 'Where trains serve a town. Goods unloaded here are sold on to its Market and Freight Yard.',
+    blurb: 'Where trains serve a town. Goods unloaded here are sold on to its Market and Supply Yard.',
     category: null,
     cost: 0,
     tier: 2,
@@ -250,7 +258,8 @@ const DEFS = {
   } as SiteDef,
   airport: {
     label: 'Airport',
-    blurb: 'Stores goods like a hub, and cargo planes fly between airports over any terrain.',
+    blurb: 'An air cargo terminal. Goods are loaded onto cargo planes here, and unloaded and sent into town when planes land.',
+    real: 'Like a real air cargo terminal: freight is loaded onto planes and unloaded again.',
     category: 'logistics',
     cost: 2500,
     tier: 3,
@@ -318,6 +327,32 @@ export const VEHICLE_DEFS: Record<VehicleKind, VehicleDef> = {
 };
 
 export const VEHICLE_ORDER: VehicleKind[] = ['boxtruck', 'bigtruck', 'rig', 'convoy', 'train', 'heavytrain', 'plane', 'jet', 'boat', 'freighter', 'containership'];
+
+/**
+ * The body a road vehicle is built with, set by what it hauls, like real freight: logs and heavy goods ride on flatbeds,
+ * bulk loose goods like grain and gravel in open-top trucks, liquids and powders in tankers, everything else in boxes.
+ */
+export type Body = 'flatbed' | 'open' | 'tanker' | 'box';
+const BODY_GOODS: Record<Exclude<Body, 'box'>, Good[]> = {
+  flatbed: ['logs', 'lumber', 'stone', 'blocks', 'bricks', 'ingots', 'steel', 'machinery', 'cotton'],
+  open: ['grain', 'coal', 'ore', 'clay', 'sand', 'gravel', 'slag', 'bran', 'sawdust', 'feed'],
+  tanker: ['milk', 'oil', 'whey', 'cement', 'concrete'],
+};
+export function bodyOf(g: Good): Body {
+  for (const b of Object.keys(BODY_GOODS) as Exclude<Body, 'box'>[]) if (BODY_GOODS[b].includes(g)) return b;
+  return 'box';
+}
+const ROAD_NAMES: Record<Body, [string, string, string, string]> = {
+  box: ['Box Truck', 'Big Box Truck', 'Big Rig', 'Truck Fleet'],
+  flatbed: ['Flatbed Truck', 'Big Flatbed', 'Flatbed Rig', 'Flatbed Fleet'],
+  open: ['Open-top Truck', 'Big Open-top', 'Open-top Rig', 'Open-top Fleet'],
+  tanker: ['Tanker Truck', 'Big Tanker', 'Tanker Rig', 'Tanker Fleet'],
+};
+/** A vehicle's name: road vehicles are named for their body, everything else keeps its own name. */
+export function vehicleLabel(kind: VehicleKind, body: Body = 'box'): string {
+  const i = ['boxtruck', 'bigtruck', 'rig', 'convoy'].indexOf(kind);
+  return i < 0 ? VEHICLE_DEFS[kind].label : ROAD_NAMES[body][i];
+}
 
 /** Running costs. Vehicles cost this share of their price every minute; buildings and districts a share of theirs per level. */
 export const VEHICLE_UPKEEP = 0.03;
@@ -391,7 +426,7 @@ export const MARKET_DEMAND: Good[][] = [
   ['flour', 'bread', 'lumber', 'cheese', 'paper', 'pellets', 'jam', 'coffee', 'mango', 'furniture', 'clothes', 'tools', 'glass', 'books', 'bricks', 'concrete', 'blocks', 'machinery'],
 ];
 const FREIGHT_BASE: Good[] = ['logs', 'grain', 'cotton', 'stone', 'ore', 'coal', 'clay', 'sand', 'milk', 'fruit', 'sawdust', 'bran', 'whey', 'gravel', 'slag', 'feed', 'oil'];
-/** Goods the Freight Yard wants by town level (it appears at level 2). Raw materials and by-products find a buyer here. */
+/** Goods the Supply Yard wants by town level (it appears at level 2). Raw materials and by-products find a buyer here. */
 export const FREIGHT_DEMAND: Good[][] = [
   [],
   FREIGHT_BASE,
@@ -679,7 +714,7 @@ export const TIERS: TierDef[] = [
     quests: [
       { id: 't1-variety', label: 'Sell 3 different goods', hint: 'Try grain into flour and bread, or milk into cheese. Towns need variety to grow.', goal: { kind: 'variety', count: 3 }, reward: 600 },
       { id: 't1-upgrade', label: 'Upgrade a building to level 2', hint: 'Click a building, then Upgrade. It works faster and holds more.', goal: { kind: 'upgrade', level: 2, count: 1 }, reward: 300 },
-      { id: 't1-hub', label: 'Build a Distribution Hub', hint: 'Logistics tab. When your supply lines fill up, a hub takes the overflow and spreads it out. Switch on what it sells to under Sell to.', goal: { kind: 'build', site: 'hub', count: 1 }, reward: 400 },
+      { id: 't1-hub', label: 'Build a Warehouse', hint: 'Logistics tab. When your supply lines fill up, a Warehouse takes the overflow and holds it. Switch on what it sells to under Sell to.', goal: { kind: 'build', site: 'hub', count: 1 }, reward: 400 },
       { id: 't1-highway', label: 'Build a highway', hint: 'Logistics tab, Highway. Trucks cover it about a third faster.', goal: { kind: 'route', mode: 'road', grade: 'highway', count: 1 }, reward: 500 },
       { id: 't1-district', label: 'Build a town district', hint: 'Select a town, open Manage town, and build a district such as the Farmers Market. Districts give a town a way to earn and a taste for more goods.', goal: { kind: 'district', level: 1, count: 1 }, reward: 500 },
       { id: 't1-bigtruck', label: 'Upgrade to a Big Box Truck', hint: 'Select a building with a truck. Press Upgrade on that truck in its Vehicles list. A bigger truck carries twice the load.', goal: { kind: 'vehicle', vehicle: 'bigtruck', count: 1 }, reward: 500 },

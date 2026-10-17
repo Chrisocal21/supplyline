@@ -4,7 +4,7 @@ import { findPath } from './path';
 import { put } from './testutil';
 import { runChores } from './bot';
 import { SITE_DEFS } from './defs';
-import { removeRoute, routeAt, addDock, yardSpot, placeError, buildRoadTo, buyersFor, buyOptions, buyVehicle, roadPlan, setMaking, setSendTo, createBlankWorld, createRoute, demolishSite, airPath, createAirRoute, dockDemand, ensureStations, townSites, onNetwork, placeAt, placeSite, planRoute, siteAt, streetAt, step, stockOf, type World } from './world';
+import { needs as needsFn, removeRoute, routeAt, addDock, yardSpot, placeError, buildRoadTo, buyersFor, setHubOptions, buyOptions, buyVehicle, roadPlan, setMaking, setSendTo, createBlankWorld, createRoute, demolishSite, airPath, createAirRoute, dockDemand, ensureStations, townSites, onNetwork, placeAt, placeSite, planRoute, siteAt, streetAt, step, stockOf, type World } from './world';
 
 function open(): World {
   const w = 30;
@@ -714,5 +714,45 @@ describe('growing towns and old saves', () => {
     expect(w.nodes.some((n) => n.id === 9999)).toBe(false);
     const near = w.nodes.filter((n) => n.id !== farmNode.id && Math.abs(n.x - farmNode.x) < 3 && Math.abs(n.y - farmNode.y) < 3);
     expect(near).toHaveLength(0);
+  });
+});
+
+const needsX = (w: World, hub: NonNullable<ReturnType<typeof siteAt>>, from: NonNullable<ReturnType<typeof siteAt>>): number => needsFn(w, hub, 'logs', from);
+
+const raw = (w: World, kind: Parameters<typeof put>[1], x: number, y: number): void => {
+  w.sites.push({ id: w.nextId++, kind, name: `T${x}`, x, y, stock: {}, timer: 0, level: 1, nodeId: null, placeId: null, pull: [], making: false, sendTo: [] });
+};
+
+describe('warehouse rules', () => {
+  it('a warehouse feeds a nearby business, and waits for a full supplier before taking the rest', () => {
+    const w = open();
+    w.money = 100000;
+    raw(w, 'sawmill', 9, 9);
+    raw(w, 'hub', 6, 9);
+    const saw = siteAt(w, 9, 9)!;
+    const dep = siteAt(w, 6, 9)!;
+    setMaking(w, saw.id, true);
+    dep.stock.logs = 40;
+    for (let i = 0; i < 600; i++) step(w);
+    expect((saw.stock.lumber ?? 0) + (w.produced.lumber ?? 0)).toBeGreaterThan(0);
+    expect(dep.fed).toContain('logs');
+    // Hub overflow mode.
+    raw(w, 'forestry', 3, 9);
+    raw(w, 'hub', 4, 5); siteAt(w, 4, 5)!.pull = ['logs'];
+    const camp = siteAt(w, 3, 9)!;
+    const hub = siteAt(w, 4, 5)!;
+    camp.stock.logs = 5;
+    expect(needsX(w, hub, camp)).toBe(0);
+    camp.stock.logs = 1000;
+    // Nothing joined to the hub would take logs, so they are not stored.
+    expect(needsX(w, hub, camp)).toBe(0);
+    // What the factories next to it need is always taken.
+    hub.fed = ['logs'];
+    camp.stock.logs = 1;
+    expect(needsX(w, hub, camp)).toBeGreaterThan(0);
+    hub.fed = [];
+    setHubOptions(w, hub.id, { hubMode: 'all' });
+    camp.stock.logs = 1;
+    expect(needsX(w, hub, camp)).toBeGreaterThan(0);
   });
 });

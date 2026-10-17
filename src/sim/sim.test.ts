@@ -213,7 +213,7 @@ describe('logistics loop', () => {
 });
 
 describe('hubs', () => {
-  it('relay goods: forestry -> hub -> sawmill', () => {
+  it('a warehouse feeds a factory: forestry -> hub -> sawmill', () => {
     const w = testWorld();
     w.tier = 1;
     w.money = 100000;
@@ -222,6 +222,7 @@ describe('hubs', () => {
     put(w, 'sawmill', 11, 5);
     expect(createRoute(w, [...col(3, 4, 8), ...row(4, 8, 8)])).toBeNull();
     expect(createRoute(w, [...col(8, 8, 5), ...row(9, 11, 5)])).toBeNull();
+    for (let i = 0; i < 60; i++) step(w);
     runChores(w);
     for (let i = 0; i < 4000; i++) step(w);
     const saw = w.sites.find((s) => s.kind === 'sawmill')!;

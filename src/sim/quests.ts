@@ -42,7 +42,7 @@ export function questProgress(world: World, goal: QuestGoal): Progress {
       need = goal.count;
       break;
     case 'depot':
-      have = world.sites.filter((q) => q.depot || SITE_DEFS[q.kind].railyard).length;
+      have = world.sites.filter((q) => SITE_DEFS[q.kind].railyard).length;
       need = goal.count;
       break;
     case 'vehicle':

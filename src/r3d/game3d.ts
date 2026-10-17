@@ -11,6 +11,7 @@ import {
   LEVEL_SPEED,
   TICKS_PER_SECOND,
   VEHICLE_DEFS,
+  vehicleLabel,
   VEHICLE_ORDER,
   BUILD_ORDER,
   type DistrictId,
@@ -31,6 +32,10 @@ import {
   upgradeVehicle,
   sellVehicle,
   setVehicleDest,
+  setVehiclePick,
+  bodyForLine,
+  type PickMode,
+  type Line,
   setSendTo,
   setMaking,
   onNetwork,
@@ -282,7 +287,6 @@ export class Game3D {
   private construction: Construction | null = null;
   /** Each building's level when last drawn, so an upgrade can be spotted; and whether the first world sync is done. */
   private readonly siteLevels = new Map<number, number>();
-  private readonly siteDepots = new Set<number>();
   private sitesShown = false;
   /** The time of the current frame, for animations started from inside a sync. */
   private nowMs = 0;
@@ -425,7 +429,6 @@ export class Game3D {
     if (!this.construction.group.parent) this.scene.add(this.construction.group);
     this.construction.clear();
     this.siteLevels.clear();
-    this.siteDepots.clear();
     this.sitesShown = false;
     this.rails = new RoadNet(world, this.hf, this.railTexture, 'rail');
     this.scene.add(this.rails.group);
@@ -584,12 +587,6 @@ export class Game3D {
 
     if (this.showcase) this.updateShowcase(dt);
     else if (now < this.orbitUntil) this.updateShots(dt);
-    else if (this.restoreView) {
-      // The show is over: cut back to where the player was looking.
-      const v = this.restoreView;
-      this.restoreView = null;
-      this.cam.set(v.lon, v.lat, v.dist, v.heading, v.pitch);
-    }
     this.cam.panKeys(this.keys.right, this.keys.forward, dt);
     if (this.keys.turn) this.cam.rotate(this.keys.turn * dt * 1.4, 0);
     this.cam.update(dt);
@@ -640,12 +637,28 @@ export class Game3D {
    * so no trees, homes or buildings stand between the camera and the work. The camera drifts slowly in on each.
    */
   /** Where the view was before a town's growth was shown, to glide back to when it ends. */
-  private restoreView: { lon: number; lat: number; dist: number; heading: number; pitch: number } | null = null;
+  private backView: { lon: number; lat: number; dist: number; heading: number; pitch: number } | null = null;
+
+  /** A town just grew and the show is over: the Back button can take the player to where they were looking. */
+  get canGoBack(): boolean {
+    return this.backView !== null && this.growing.size === 0 && this.districtWork.size === 0 && this.nowMs >= this.orbitUntil;
+  }
+
+  /** Back to the view from before the town grew, in the same camera angle. */
+  goBack(): void {
+    const v = this.backView;
+    this.backView = null;
+    if (v) this.cam.set(v.lon, v.lat, v.dist, v.heading, v.pitch);
+  }
+
+  dismissBack(): void {
+    this.backView = null;
+  }
 
   private watch(x: number, y: number, dist: number, ms: number, back = false): void {
     if (this.showcase) return;
     const keep = { lon: this.cam.lon, lat: this.cam.lat, dist: this.cam.dist, heading: this.cam.heading, pitch: this.cam.pitchManual };
-    this.restoreView = back ? keep : null;
+    if (back) this.backView = keep;
     const tries = (pitch: number) =>
       Array.from({ length: 8 }, (_, k) => {
         const heading = keep.heading + (k * Math.PI) / 4;
@@ -817,7 +830,7 @@ export class Game3D {
     // Roads change with the routes, and when a town grows its streets reach further.
     const roadSig = `${w.routes.length}:${w.places.map((p) => p.level).join('')}`;
     const sig = [
-      w.sites.map((s) => `${s.id}.${s.level}${s.depot ? 'd' : ''}`).join(','),
+      w.sites.map((s) => `${s.id}.${s.level}`).join(','),
       roadSig,
       w.places.map((p) => `${p.level}${Object.values(p.districts ?? {}).join('')}${p.path ?? ''}`).join(''),
       w.vehicles.length,
@@ -915,16 +928,14 @@ export class Game3D {
       this.siteLevels.set(s.id, s.level);
       // Built since the world was first shown, or upgraded: it goes up behind scaffolding.
       const isNew = !m && this.sitesShown;
-      const hadDepot = this.siteDepots.has(s.id);
-      if (s.depot) this.siteDepots.add(s.id);
-      const upgraded = before !== undefined && (s.level > before || (!!s.depot && !hadDepot));
-      if ((isNew || upgraded) && this.construction) {
-        const oldGeo = upgraded ? this.siteGeometryFor(s.kind, before, hadDepot) : null;
-        const text = upgraded && s.depot && !hadDepot ? `${s.name} now has a Rail Depot` : upgraded ? `${s.name} is now level ${s.level}` : SITE_DEFS[s.kind].dock || SITE_DEFS[s.kind].station ? '' : `${s.name} is open`;
-        this.construction.start(s.id, this.nowMs, text, oldGeo, this.siteGeometryFor(s.kind, s.level, !!s.depot));
+      const upgraded = before !== undefined && s.level > before;
+      void upgraded;
+      if (isNew && this.construction) {
+        const text = SITE_DEFS[s.kind].dock || SITE_DEFS[s.kind].station ? '' : `${s.name} is open`;
+        this.construction.start(s.id, this.nowMs, text, null, this.siteGeometryFor(s.kind, s.level));
       }
       if (!m) {
-        m = new THREE.Mesh(this.siteGeometryFor(s.kind, s.level, !!s.depot), siteMaterial);
+        m = new THREE.Mesh(this.siteGeometryFor(s.kind, s.level), siteMaterial);
         m.castShadow = true;
         m.receiveShadow = true;
         m.matrixAutoUpdate = false;
@@ -932,7 +943,7 @@ export class Game3D {
         this.siteMeshes.set(s.id, m);
       }
       // An upgraded building gets its bigger model.
-      const geo = this.siteGeometryFor(s.kind, s.level, !!s.depot);
+      const geo = this.siteGeometryFor(s.kind, s.level);
       if (m.geometry !== geo) m.geometry = geo;
       this.syncSiteAnims(s.id, s.kind, s.level, m);
       // Buildings in a town face the street they front.
@@ -999,9 +1010,30 @@ export class Game3D {
       }));
       // A district lot no district has taken yet is homes like the rest.
       const taken = new Set(Object.values(p.districtLots ?? {}));
-      const homes = [...layout.homes, ...layout.civic.filter((_, i) => !taken.has(i))]
-        .filter((h) => h.level <= p.level)
-        .map((h) => ({ x: h.x, y: h.y, ok: landOk(p.x + h.x, p.y + h.y) && !routeAt(w, p.x + h.x, p.y + h.y) && !siteAt(w, p.x + h.x, p.y + h.y) }));
+      const wanted = [...layout.homes, ...layout.civic.filter((_, i) => !taken.has(i))].filter((h) => h.level <= p.level);
+      const clear = (x: number, y: number): boolean => landOk(p.x + x, p.y + y) && !routeAt(w, p.x + x, p.y + y) && !siteAt(w, p.x + x, p.y + y);
+      // A home whose ground a road or building has taken is not lost: it shifts to the nearest free tile on a street.
+      const used = new Set<string>([...wanted, ...layout.plots, ...layout.streets, ...layout.civic].map((t) => `${t.x},${t.y}`));
+      const onStreet = new Set(streets.map((s) => `${s.x},${s.y}`));
+      const fronts = (x: number, y: number): boolean => [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([a, b]) => onStreet.has(`${x + a},${y + b}`));
+      const homes = wanted.map((h) => {
+        if (clear(h.x, h.y)) return { x: h.x, y: h.y, ok: true };
+        let best: { x: number; y: number } | null = null;
+        let bd = Infinity;
+        for (let dy = -4; dy <= 4; dy++) {
+          for (let dx = -4; dx <= 4; dx++) {
+            const x = h.x + dx;
+            const y = h.y + dy;
+            const d = dx * dx + dy * dy;
+            if (d >= bd || used.has(`${x},${y}`) || !clear(x, y) || !fronts(x, y)) continue;
+            best = { x, y };
+            bd = d;
+          }
+        }
+        if (!best) return { x: h.x, y: h.y, ok: false };
+        used.add(`${best.x},${best.y}`);
+        return { ...best, ok: true };
+      });
       const districts = Object.entries(p.districts ?? {})
         .filter(([id, lv]) => (lv ?? 0) > 0 && p.districtLots?.[id as DistrictId] !== undefined)
         .map(([id, level]) => {
@@ -1025,7 +1057,7 @@ export class Game3D {
           return { id: id as DistrictId, level: level as number, x: lot.x, y: lot.y, ex: lot.entry.x, ey: lot.entry.y, setting };
         });
       const bits = (list: boolean[]): string => list.map((o) => (o ? 1 : 0)).join('');
-      const sig = `${streets.length}.${p.level}.${p.path ?? ''}.${bits(plots.map((t) => t.occupied))}.${bits(plots.map((t) => t.home))}.${bits(homes.map((h) => h.ok))}.${districts.map((d) => `${d.id}${d.level}`).join(',')}`;
+      const sig = `${streets.length}.${p.level}.${p.path ?? ''}.${bits(plots.map((t) => t.occupied))}.${bits(plots.map((t) => t.home))}.${homes.map((h) => (h.ok ? `${h.x}_${h.y}` : "x")).join("")}.${districts.map((d) => `${d.id}${d.level}`).join(',')}`;
       if (have && have.sig === sig) continue;
       // A town that has just grown plays it out: the old model stays up to sink away as the new one rises.
       const grew = !!have && this.townsShown && p.level > have.level;
@@ -1083,7 +1115,7 @@ export class Game3D {
       this.dummies.set(id, dummy);
       this.construction?.start(id, this.nowMs, '', null, dummy.geometry);
     }
-    this.watch(wrapX(this.world, p.x + first.tx), p.y + first.ty, 15, BUILD_MS, true);
+    this.watch(wrapX(this.world, p.x + first.tx), p.y + first.ty, 15, BUILD_MS);
   }
 
   private endDistrictWork(placeId: number): void {
@@ -1128,7 +1160,16 @@ export class Game3D {
       chains.push(from ? [from, s] : [s]);
     }
     for (const c of chains) this.construction?.startRoad(c.map((t) => ({ x: wrapX(w, p.x + t.x), y: p.y + t.y })), 'road', this.nowMs + 600);
-    this.watch(p.x, p.y, radiusOf(p) > 3 ? 46 : 34, GROW_MS, true);
+    // Every building in the town goes up behind scaffolding with the town.
+    if (withRoads) {
+      for (const st of this.world.sites) {
+        if (SITE_DEFS[st.kind].dock === 'civic' || SITE_DEFS[st.kind].station || placeAt(this.world, st.x, st.y)?.id !== p.id) continue;
+        const geo = this.siteGeometryFor(st.kind, st.level);
+        this.construction?.start(st.id, this.nowMs, '', geo, geo);
+      }
+    }
+    // Only a town or city growing hands the player a way back to where they were working.
+    this.watch(p.x, p.y, radiusOf(p) > 3 ? 46 : 34, GROW_MS, withRoads);
   }
 
   /** Move town growth on, with dust along the wave. */
@@ -1617,7 +1658,6 @@ export class Game3D {
 
   pointerDown(x: number, y: number, button: number): void {
     this.orbitUntil = 0;
-    this.restoreView = null;
     const d = this.drag;
     d.x = d.startX = x;
     d.y = d.startY = y;
@@ -1853,7 +1893,7 @@ export class Game3D {
     const rail = this.tool === 'rail';
     const grade = this.tool === 'highway' ? 'highway' : 'street';
     const plan = planRoute(this.world, path, this.routeMode, grade);
-    if (!plan.error && !path.some((t) => !onNetwork(this.world, t.x, t.y, this.routeMode))) {
+    if (!plan.error && !(grade === 'highway' && plan.cost > 0) && !path.some((t) => !onNetwork(this.world, t.x, t.y, this.routeMode))) {
       this.onToast('That is already built');
       return false;
     }
@@ -1907,7 +1947,7 @@ export class Game3D {
   // ---- route drawing ----
 
   /** The draft follows the cheapest buildable road from the end of the fixed part to the tile under the cursor. */
-  /** With the rail tool, pointing at a town's Market or Freight Yard means its Rail Station. */
+  /** With the rail tool, pointing at a town's Market or Supply Yard means its Rail Station. */
   private railTarget(t: Tile): Tile {
     if (this.tool !== 'rail') return t;
     const here = siteAt(this.world, t.x, t.y);
@@ -1990,18 +2030,18 @@ export class Game3D {
 
   upgrade(siteId: number): void {
     const err = upgradeSite(this.world, siteId);
-    this.onToast(err ?? 'Construction started');
     const s = siteById(this.world, siteId);
-    if (!err && s) this.watch(s.x, s.y, 17, BUILD_MS);
+    this.onToast(err ?? (s ? `${s.name} is now level ${s.level}` : 'Upgraded'));
   }
 
   togglePull(siteId: number, good: Good, on: boolean): void {
     setHubPull(this.world, siteId, good, on);
   }
 
-  buy(siteId: number, kind: VehicleKind): void {
-    const err = buyVehicle(this.world, siteId, kind);
-    this.onToast(err ?? `${VEHICLE_DEFS[kind].label} bought`);
+  buy(siteId: number, kind: VehicleKind, line: Line = 'main'): void {
+    const err = buyVehicle(this.world, siteId, kind, line);
+    const site = siteById(this.world, siteId);
+    this.onToast(err ?? `${vehicleLabel(kind, site ? bodyForLine(site, line) : 'box')} bought`);
   }
 
   upgradeVeh(id: number): void {
@@ -2019,8 +2059,8 @@ export class Game3D {
     this.onToast(err ?? 'Vehicle sold');
   }
 
-  sendTo(siteId: number, destId: number, on: boolean): void {
-    setSendTo(this.world, siteId, destId, on);
+  sendTo(siteId: number, destId: number, on: boolean, line: Line = 'main'): void {
+    setSendTo(this.world, siteId, destId, on, line);
   }
 
   making(siteId: number, on: boolean): void {
@@ -2035,6 +2075,10 @@ export class Game3D {
       const r = this.world.routes.filter((x) => x.mode === 'road').pop();
       if (r) this.construction?.startRoad(r.path, 'road', this.nowMs);
     }
+  }
+
+  vehiclePick(id: number, pick: PickMode): void {
+    setVehiclePick(this.world, id, pick);
   }
 
   vehicleDest(id: number, destId: number): void {

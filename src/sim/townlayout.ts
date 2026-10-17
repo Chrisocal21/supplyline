@@ -210,7 +210,7 @@ function build(env: LayoutEnv, place: Place): TownLayout {
   const rank = (c: Cand): number => c.entry.level * 100 + (c.entry.main ? 0 : 3) + Math.hypot(c.x, c.y) + Math.atan2(c.y, c.x) * 0.001;
   const ordered = [...cands.values()].sort((a, b) => rank(a) - rank(b));
   const plots: LayoutPlot[] = [];
-  // The Market and the Freight Yard face each other across the main street, one each side of the centre.
+  // The Market and the Supply Yard face each other across the main street, one each side of the centre.
   for (const [along, across] of [[1, -1], [-1, 1]]) {
     const want = off(along, across);
     const alt = off(along, -across);

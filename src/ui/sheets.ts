@@ -43,83 +43,193 @@ const bodyText = (b: Body): string => {
   if (typeof b === 'string') return isTouch() ? b.replace(/Click/g, 'Tap').replace(/click/g, 'tap') : b;
   return isTouch() ? b.touch : b.mouse;
 };
-const GUIDE: { title: string; body: Body; icon?: string }[] = [
+/** One box in the guide: what it is, what it does in one line, the details, and the one thing to try. */
+interface GuideCard {
+  title: string;
+  /** What it does, in one line. */
+  sum: string;
+  body?: Body;
+  /** The one thing to try, in its own box. */
+  todo?: Body;
+  icon?: string;
+  /** A numbered step: drawn with a big number badge. */
+  step?: number;
+}
+
+interface GuideSection {
+  id: string;
+  label: string;
+  blurb: string;
+  color: number;
+  cards: GuideCard[];
+}
+
+const GUIDE: GuideSection[] = [
   {
-    title: 'The idea',
-    body: 'Towns buy goods. You make the goods, haul them to town and get paid. Sales grow the towns, bigger towns want more kinds of goods, and finished quests unlock new tiers of buildings and vehicles.',
-    icon: 'thumb-market',
+    id: 'steps',
+    label: 'Steps',
+    blurb: 'Do these in order. Each one takes a minute.',
+    color: 0xf2a33a,
+    cards: [
+      {
+        step: 1,
+        title: 'Make raw goods',
+        sum: 'Build a camp or farm on a glowing ring.',
+        body: 'Open Production at the bottom.\nPick a building.\nRings light up on the map.\nClick a ring to build there.\nPurer spots work faster.',
+        todo: 'Done when you see your first building.',
+        icon: 'thumb-forestry',
+      },
+      {
+        step: 2,
+        title: 'Make better goods',
+        sum: 'A factory turns raw goods into better ones.',
+        body: 'Open Processing.\nPick a factory, like a Sawmill.\nClick a for-sale lot in a town.\nClick your new factory and press Start.',
+        todo: 'Logs go in, lumber comes out.',
+        icon: 'thumb-sawmill',
+      },
+      {
+        step: 3,
+        title: 'Build a road',
+        sum: 'A road joins your buildings together.',
+        body: {
+          mouse: 'Open Logistics and pick Road.\nDrag from one building to the other.\nClick to add a corner.\nEnter finishes. Esc cancels.\nThe road goes around hills and over water by itself.',
+          touch: 'Open Logistics and pick Road.\nDrag from one building to the other.\nTap to add a corner.\nUse the buttons to undo, cancel or finish.\nThe road goes around hills and over water by itself.',
+        },
+        todo: 'A road carries nothing. Trucks do. That is the next step.',
+        icon: 'thumb-route',
+      },
+      {
+        step: 4,
+        title: 'Buy a truck',
+        sum: 'Trucks carry your goods along the road.',
+        body: 'Click your camp or farm.\nPress Buy.\nThe truck waits at the gate.\nIt leaves when a road leads to a buyer.',
+        todo: 'No truck, no sales.',
+        icon: 'thumb-boxtruck',
+      },
+      {
+        step: 5,
+        title: 'Sell',
+        sum: 'Choose who buys your goods.',
+        body: 'Click a building.\nFind Who buys.\nTap Sell here on a buyer.\nGreen lines on the map show where you sell.\nCamps and farms sell to everyone they touch.',
+        todo: 'Money goes up. That is the loop. Now do it bigger.',
+        icon: 'thumb-market',
+      },
+    ],
   },
   {
-    title: 'Looking around',
-    body: {
-      mouse: 'Drag to move the map. Right-drag to turn and tilt. Scroll to zoom, from the whole globe down to street level. W A S D or the arrow keys also move, and Q and E turn.',
-      touch: 'Drag with one finger to move the map. Pinch to zoom, from the whole globe down to street level. Twist two fingers to turn, and drag them up or down to tilt.',
-    },
+    id: 'basics',
+    label: 'Basics',
+    blurb: 'The big picture and how to get around.',
+    color: 0x4aa3d8,
+    cards: [
+      { title: 'The big idea', sum: 'You make things. Towns buy them. You get paid.', body: 'Towns grow as you sell to them.\nBig towns want more kinds of goods.\nFinish quests to unlock new buildings and vehicles.', todo: 'Make stuff, move it to a town, get money.' },
+      {
+        title: 'The top box',
+        sum: 'Your coach. It tells you what to do next.',
+        body: 'Click any building and look at the top box.\nIt spots the problem and gives you a button.\nBuyers are full: sell to another town.\nGoods pile up: buy more trucks.\nOut of an input: build a road to a supplier.',
+        todo: 'When it says All running, you are done.',
+      },
+      {
+        title: 'Looking around',
+        sum: 'Move, turn and zoom the map.',
+        body: {
+          mouse: 'Drag to move the map.\nRight-drag to turn.\nScroll to zoom.\nW A S D also move you.',
+          touch: 'Drag to move.\nPinch to zoom.\nTwist two fingers to turn.',
+        },
+        todo: 'Zoom all the way out to see the whole globe.',
+      },
+      { title: 'Quests and tiers', sum: 'Goals that unlock new things and pay money.', body: 'The bar at the top shows your next quest.\nClick it to see them all.\nFinish a whole tier to unlock new buildings and vehicles.', todo: 'Follow the bar when you are not sure what to do.' },
+    ],
   },
   {
-    title: 'Step 1: produce',
-    body: 'Open Production at the bottom and pick a building. The menu folds away and the matching resource spots light up with rings: forest for a Forestry Camp, farmland for a Farm, and so on. Click a ring to build there. Purer spots work faster. Then click the new building and press Buy Box Truck: it waits at the gate until a road gives it somewhere to go.',
-    icon: 'thumb-forestry',
+    id: 'money',
+    label: 'Sell and money',
+    blurb: 'Where the money comes from and how to use the bank.',
+    color: 0x58c58a,
+    cards: [
+      {
+        title: 'Markets',
+        sum: 'Where towns buy your goods.',
+        body: 'Each town has a Market for finished goods, like lumber and flour.\nFrom level 2 it also has a Supply Yard, where builders and factories buy raw goods and leftovers.\nA town pays less for what it is already full of.\nIt uses goods up slowly, so it wants more later.\nA surge pays extra. A glut pays less.',
+        todo: 'Open Towns to see what each town wants and pays.',
+        icon: 'thumb-market',
+      },
+      { title: 'Running costs', sum: 'What your stuff costs every minute.', body: 'Buildings, vehicles and districts cost a little each minute.\nThe number under your money is what is left after costs.\nBigger vehicles carry more but cost more.', todo: 'If that number goes red, sell more or sell a vehicle.' },
+      { title: 'Bank: Loan', sum: 'Borrow money now, pay it back later.', body: 'Open Bank (unlocks at Tier 1).\nYou can borrow up to your limit.\nThe limit grows as you do well.\nIt costs 1% every minute until paid back.', todo: 'Borrow to build, then pay it back fast.' },
+      { title: 'Bank: Savings', sum: 'Park money and earn a little. Safe.', body: 'Put money in the savings account.\nIt earns 0.4% every minute.\nTake it out any time.', todo: 'Good for money you are not using yet.' },
+      { title: 'Bank: Fund', sum: 'Buy shares. The price goes up and down.', body: 'Buy shares when you think the price is low.\nSell when it is high.\nYou can win or lose.\nSelling costs a 2% fee.', todo: 'Only use money you can spare.' },
+    ],
   },
   {
-    title: 'Step 2: process in a town',
-    body: 'Open Processing, Manufacturing or Heavy Industry and pick a building. The for-sale lots in every town light up. Click one. Anything built on a town lot is joined to that town by its streets, and a free van carries goods between the lot and the Market.',
-    icon: 'thumb-sawmill',
+    id: 'move',
+    label: 'Move goods',
+    blurb: 'Warehouses and terminals. How goods travel between towns.',
+    color: 0xd68a2e,
+    cards: [
+      {
+        title: 'Do I need these?',
+        sum: 'Only when your goods get stuck.',
+        body: 'Same town or a road all the way: trucks are enough.\nGoods piling up with nowhere to go: build a Warehouse.\nWater or a long way in between: build a Freight Terminal.',
+        todo: 'Do not build them until the top box tells you to.',
+      },
+      {
+        title: 'Warehouse',
+        sum: 'A big shelf for your goods.',
+        body: 'Goods wait here until someone wants them.\nWhen buyers are full, the extra goes here instead of being wasted.\nFactories next to it grab what they need.\nIt is like a real warehouse.',
+        todo: 'Build one next to your factories.',
+        icon: 'thumb-hub',
+      },
+      {
+        title: 'Freight Terminal',
+        sum: 'A loading dock for trains, ships and planes.',
+        body: 'It is the Rail Yard, the Port or the Airport.\nUse one when a truck cannot get there: over water, or very far.\nGoods go on at one terminal and come off at the other.\nIn its menu pick how full a vehicle must be before it leaves.',
+        todo: 'Build one in each town. Join them with rail, sea or air.',
+      },
+      {
+        title: 'How they fit',
+        sum: 'The trip of your goods, step by step.',
+        body: 'Farm makes grain.\nTruck takes it to the Warehouse.\nTruck takes it to the Terminal.\nTrain, ship or plane carries it to the far Terminal.\nTruck takes it to the far Warehouse.\nThe factory next to it makes flour.',
+        todo: 'Skip any step you do not need.',
+      },
+      { title: 'Highways and rail', sum: 'Faster roads and big trains.', body: 'Highways make trucks about a third faster.\nBuild a highway over a road. You only pay the difference.\nRail carries huge loads.\nTrains reach a town through a Rail Yard at its edge.', todo: 'Upgrade busy roads to highways.' },
+      { title: 'Vehicles', sum: 'Bigger vehicles carry more.', body: 'Box Truck, Truck Fleet, Train, Plane, Jet, Ship.\nSelect a building and press Buy.\nEach vehicle can Upgrade, Sell, or be sent to one destination.', todo: 'Upgrade a truck instead of buying lots of small ones.' },
+      { title: 'By-products', sum: 'A second good that comes out with the first.', body: 'Farms, mines, camps and factories make one too.\nExamples: sawdust, bran, whey, gravel, stone.\nIt has its own page in the building menu: tap By-product at the top.\nIt has its own buyers and its own trucks.\nThe main trucks never carry it. Buy a truck on the By-product page.', todo: 'Like a sawmill: flatbeds for lumber, hopper trucks for sawdust.' },
+      { title: 'Buyers for by-products', sum: 'Most go to the Supply Yard, or to a factory that uses them.', body: 'Sawdust becomes pellets.\nBran and whey become animal feed.\nGravel becomes cement.\nIf one piles up, the top box tells you who would buy it.', todo: 'Do not waste them. They are free money.' },
+    ],
   },
   {
-    title: 'Step 3: build a road',
-    body: {
-      mouse: 'Open Logistics and pick Road. Drag from one building to the other. The road finds its own way round hills, bridges water and tunnels under mountains (those cost more). To steer it, click along the way to drop corners. Enter finishes, Backspace undoes a corner and Esc cancels. Roads carry nothing on their own: buy a truck at a building and it runs along the road to whoever wants its goods. You can also lay roads from open ground or from another road and connect buildings later. The Demolish tool removes a road.',
-      touch: 'Open Logistics and pick Road. Drag from one building to the other. The road finds its own way round hills, bridges water and tunnels under mountains (those cost more). To steer it, tap along the way to drop corners. Undo, Cancel and Finish buttons show while you draw. Roads carry nothing on their own: buy a truck at a building and it runs along the road to whoever wants its goods. You can also lay roads from open ground or from another road and connect buildings later. The Demolish tool removes a road.',
-    },
-    icon: 'thumb-route',
+    id: 'towns',
+    label: 'Towns',
+    blurb: 'Growing and shaping towns.',
+    color: 0xc0504d,
+    cards: [
+      { title: 'Growing towns', sum: 'More sales and more variety make towns level up.', body: 'Every sale adds growth.\nThe more kinds of goods you sell, the higher it can go.\nBig towns want more and pay more.', todo: 'Sell a town something new.' },
+      { title: 'Districts', sum: 'Special buildings a town builds as it grows.', body: 'Select a town and open Manage town.\nExamples: Farmers Market, Hardware Store.\nEach likes certain goods and pays more for them.\nEach costs money to run.', todo: 'Keep a district supplied so it earns.', icon: 'thumb-market' },
+      { title: 'Specialise', sum: 'Pick one path for a town. It is permanent.', body: 'At level 3 pick: Breadbasket, The Forge, Trade Hub or The Boulevard.\nEach path makes certain goods pay more.', todo: 'Give different towns different jobs.' },
+      { title: 'Roads and houses', sum: 'Houses move over to make room. None are deleted.', body: 'When a road or building takes a house\'s spot, the house moves to a free spot nearby.', todo: 'Build freely. Towns adjust.' },
+    ],
   },
   {
-    title: 'Step 4: switch it on and sell',
-    body: 'Click any building: the box at the top always says what to do next, with the button that does it. A factory needs Start. Under Who buys, tap Sell here on a buyer (or Road to join one), and buy a truck to carry the goods. With a building selected, the map shows lines along the roads to its buyers: green where it is selling. Camps and farms sell to whoever they are joined to unless you tap Selling to stop. When a supply line fills up, a Distribution Hub takes the overflow and spreads it out. The Market buys finished goods. From level 2 a town also has a Freight Yard for raw goods and by-products. Open Towns to see what each town wants and what it pays. A town pays less for something it is already full of, and prices swing with market surges.',
-  },
-  {
-    title: 'Growing towns',
-    body: 'Every sale adds growth. To level up a town needs growth and variety: the more kinds of goods you sell it, the higher it can go. Bigger towns want more goods and buy more of them, and the major cities buy much more.',
-  },
-  {
-    title: 'Districts: build a town up',
-    body: 'Select a town and open Manage town. Districts are what a town builds as it grows: a Farmers Market, Restaurant Row, a Hardware Store and more. Each lives on certain goods: it pays more for them, earns money while the town is stocked with them, and appears as a landmark in town. Each level needs the town one level higher. They cost money to run, so keep the town supplied.',
-    icon: 'thumb-market',
-  },
-  {
-    title: 'Specialise a town',
-    body: 'A Town (level 3) can commit to one path: Breadbasket, The Forge, Trade Hub or The Boulevard. It is permanent. A path makes the town pay more for its goods, speeds up the right factories, strengthens the districts that suit it and opens its own districts, with a capstone at level 5. Give different towns different paths.',
-  },
-  {
-    title: 'Keeping things moving',
-    body: 'Click a building to see its stock and what is holding it up. Full means nothing is taking its goods away: buy another truck at it, or tap Sell here on another buyer. Waiting means it is short of an input. Upgrade a building to make it faster and roomier. The Production sheet lists the problems first.',
-    icon: 'thumb-boxtruck',
-  },
-  {
-    title: 'Bigger vehicles and running costs',
-    body: 'Box Truck, Big Box Truck, Big Rig, Truck Fleet. Freight Train, Heavy Haul Train. Cargo Plane, Cargo Jet. Select a building and press Buy to get a vehicle for it. It waits at the gate until a road leads to a building that wants its goods, then sets off by itself. Each vehicle has its own Upgrade (next class up, half the old price back), Sell, and a route picker to send it to one destination. Bigger vehicles carry far more but cost more to run. Vehicles, buildings and districts are paid for every minute, and the figure under your money is what is left after that.',
-    icon: 'thumb-boxtruck',
-  },
-  {
-    title: 'Hubs, highways and rail',
-    body: 'A Distribution Hub stores goods and passes them on: gather from several sites, then feed several others. Highways (Tier 1) carry trucks about a third faster. Rail (Tier 2) is its own network with huge trains, and track meets roads at level crossings. Trains reach a town through a Rail Depot, a rail yard you build on a Distribution Hub: run track to it, buy a train there, and the hub passes what arrives on to the town by truck.',
-    icon: 'thumb-hub',
-  },
-  {
-    title: 'By-products',
-    body: 'Many buildings make a second good: sawdust, bran, whey, gravel, slag. Sell it at a Freight Yard, or turn it into something better: sawdust into pellets, bran and whey into feed, gravel into cement.',
-  },
-  {
-    title: 'Quests and tiers',
-    body: 'The bar at the top shows your next quest. Click it for the full list. Finish every quest of a tier to unlock the next one: new buildings and vehicles, longer bridges and tunnels, and higher building levels. Each quest pays a reward.',
-  },
-  {
-    title: 'Shortcuts',
-    body: {
-      mouse: 'Tab: next category. 1 to 9: pick a card. P: production. T: towns. G: quests. H: this guide. Space: pause. Esc: cancel or close. The game saves by itself every 20 seconds.',
-      touch: 'Every action is a button, so no keyboard is needed. The game saves by itself every 20 seconds.',
-    },
+    id: 'help',
+    label: 'Stuck?',
+    blurb: 'Click the building. The top box says what is wrong and has the fix. Here is what each message means.',
+    color: 0x9a8fd0,
+    cards: [
+      { title: 'Buyers are full', sum: 'Nobody will take your goods right now.', body: 'The towns you sell to have enough.\nSell to another town: tap the Road button.\nOr build a Warehouse to hold the extra.', todo: 'Extra goods wait. They are not lost.' },
+      { title: 'Goods piling up', sum: 'Your storage is nearly full.', body: 'Not enough trucks to carry it all.\nTap Buy to add a truck.\nOr tap Upgrade for more room.', todo: 'A full store stops making more.' },
+      { title: 'Out of an input', sum: 'A factory has nothing to work with.', body: 'It needs a raw good, like logs or grain.\nBuild a road from something that makes it.\nOr put a Warehouse next to the factory and stock it.', todo: 'Check who sells to it in Who buys.' },
+      { title: 'No truck or no route', sum: 'Goods are ready but nothing carries them.', body: 'Tap Buy to get a truck.\nTap Sell here on a buyer.\nCheck a road really joins the two.', todo: 'A road alone carries nothing.' },
+      { title: 'Terminal has goods, nothing leaves', sum: 'There is no line to another town.', body: 'A terminal needs a track, sea route or flight.\nJoin it to a terminal in the other town.\nThen buy a train, ship or plane there.', todo: 'Build the line first, then the vehicle.' },
+      { title: 'Not enough money', sum: 'You cannot afford the next step.', body: 'Check the Bank for a loan.\nSell goods to earn.\nSell a vehicle you do not need.', todo: 'Pay loans back fast. Interest never stops.' },
+      {
+        title: 'Shortcuts',
+        sum: 'Faster ways to do things.',
+        body: {
+          mouse: 'Tab: next category.\n1 to 9: pick a card.\nP: production. T: towns. G: quests. H: this guide.\nSpace: pause. Esc: close.\nIt saves by itself every 20 seconds.',
+          touch: 'Everything is a button.\nIt saves by itself every 20 seconds.',
+        },
+      },
+    ],
   },
 ];
 
@@ -857,27 +967,80 @@ export class Sheets {
     return 90 + Math.ceil(4 / cols) * (ch + gap) + 4;
   }
 
+  /** The guide section on show. */
+  guideTab = 'steps';
+
   private guide(v: View): number {
     const im = this.cim;
     const gap = 14;
-    const cols = v.x1 - v.x0 > 820 ? 2 : 1;
-    const cw = (v.x1 - v.x0 - gap * (cols - 1)) / cols;
-    const colY = new Array<number>(cols).fill(0);
-    GUIDE.forEach((sec, i) => {
-      // Shortest column first keeps the two sides balanced.
-      let c = 0;
-      for (let k = 1; k < cols; k++) if (colY[k] < colY[c]) c = k;
+    const W = v.x1 - v.x0;
+    // Section buttons: pick one and only that part of the guide is shown.
+    let cx = v.x0;
+    let cy = v.y0 - this.scroll;
+    for (const s of GUIDE) {
+      const w = s.label.length * 9 + 36;
+      if (cx + w > v.x1) {
+        cx = v.x0;
+        cy += 46;
+      }
+      const on = s.id === this.guideTab;
+      const hov = im.hit(`gd-tab-${s.id}`, cx, cy, w, 38, () => {
+        this.guideTab = s.id;
+        this.scroll = 0;
+      }, 4);
+      im.rect(3, cx, cy, w, 38, on ? s.color : hov ? 0x2a3646 : COLORS.panelAlt, 1, 19, on ? s.color : COLORS.line, 1);
+      im.text(`gd-tabt-${s.id}`, s.label, cx + w / 2, cy + 10, { size: 15, bold: true, color: on ? 0x10161e : COLORS.text, align: 'center', layer: 4 });
+      cx += w + 10;
+    }
+    cy += 54;
+    const sec = GUIDE.find((s) => s.id === this.guideTab) ?? GUIDE[0];
+    const hd = im.text(`gd-h-${sec.id}`, sec.label.toUpperCase(), v.x0, cy, { size: 24, bold: true, color: sec.color, layer: 3 });
+    const hb = im.text(`gd-hb-${sec.id}`, sec.blurb, v.x0, cy + hd.h + 4, { size: 15, color: COLORS.muted, wrap: W, layer: 3 });
+    cy += hd.h + hb.h + 18;
+
+    const cols = W > 820 ? 2 : 1;
+    const cw = (W - gap * (cols - 1)) / cols;
+    const colY = new Array<number>(cols).fill(cy);
+    const dots: [number, number][] = [];
+    sec.cards.forEach((card, i) => {
+      // Row by row, so the order reads 1, 2 then 3, 4.
+      const c = i % cols;
+      if (c === 0) colY.fill(Math.max(...colY));
       const x = v.x0 + c * (cw + gap);
-      const y = v.y0 - this.scroll + colY[c];
-      const icon = sec.icon && this.hooks.hasTexture(sec.icon) ? sec.icon : null;
-      const tx = x + 18 + (icon ? 66 : 0);
-      const t1 = im.text(`gd-t-${i}`, sec.title, tx, y + 14, { size: 16, bold: true, color: COLORS.accent, layer: 3 });
-      const t2 = im.text(`gd-b-${i}`, bodyText(sec.body), tx, y + 18 + t1.h, { size: 13, wrap: x + cw - 18 - tx, layer: 3 });
-      const h = Math.max(icon ? 88 : 0, 18 + t1.h + t2.h + 18);
-      im.rect(3, x, y, cw, h, COLORS.panelAlt, 1, 14, COLORS.line, 1);
-      if (icon) im.image(`gd-i-${i}`, icon, x + 12, y + 14, 60, 60, 1, 3);
+      const y = colY[c];
+      const key = `${sec.id}-${i}`;
+      const icon = !card.step && card.icon && this.hooks.hasTexture(card.icon) ? card.icon : null;
+      const tx = x + 20 + (card.step ? 62 : icon ? 66 : 0);
+      const tw = x + cw - 20 - tx;
+      let yy = y + 16;
+      const t1 = im.text(`gd-t-${key}`, card.title, tx, yy, { size: card.step ? 21 : 18, bold: true, color: sec.color, wrap: tw, layer: 4 });
+      yy += t1.h + 4;
+      const t2 = im.text(`gd-s-${key}`, card.sum, tx, yy, { size: 15, bold: true, color: COLORS.text, wrap: tw, layer: 4 });
+      yy += t2.h + 10;
+      // The details, a line each with its own dot, so the eye can pick one out.
+      const lines = card.body ? bodyText(card.body).split('\n') : [];
+      lines.forEach((ln, k) => {
+        const t = im.text(`gd-l-${key}-${k}`, ln, tx + 16, yy, { size: 14, color: 0xcfd6df, wrap: tw - 16, layer: 4 });
+        dots.push([tx + 5, yy + 8]);
+        yy += t.h + 5;
+      });
+      let box: { x: number; y: number; w: number; h: number } | null = null;
+      if (card.todo) {
+        yy += 6;
+        const t3 = im.text(`gd-d-${key}`, bodyText(card.todo), tx + 12, yy + 9, { size: 14, bold: true, color: COLORS.good, wrap: tw - 24, layer: 4 });
+        box = { x: tx, y: yy, w: tw, h: t3.h + 18 };
+        yy += t3.h + 18;
+      }
+      const h = Math.max(card.step || icon ? 96 : 0, yy - y + 16);
+      im.rect(3, x, y, cw, h, COLORS.panelAlt, 1, 14, card.step ? sec.color : COLORS.line, card.step ? 0.7 : 1);
+      if (box) im.rect(3, box.x, box.y, box.w, box.h, 0x12261f, 1, 10, COLORS.good, 1);
+      for (const [dx, dy] of dots.splice(0)) im.circle(4, dx, dy, 3, sec.color);
+      if (card.step) {
+        im.circle(4, x + 20 + 22, y + 16 + 24, 24, sec.color);
+        im.text(`gd-n-${key}`, String(card.step), x + 20 + 22, y + 16 + 10, { size: 26, bold: true, color: 0x10161e, align: 'center', layer: 5 });
+      } else if (icon) im.image(`gd-i-${key}`, icon, x + 12, y + 14, 60, 60, 1, 4);
       colY[c] += h + gap;
     });
-    return Math.max(...colY) + 4;
+    return Math.max(...colY) - (v.y0 - this.scroll) + 4;
   }
 }

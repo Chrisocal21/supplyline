@@ -130,7 +130,7 @@ export function townPriceMult(place: Place, good: Good): number {
   return Math.min(2.6, m);
 }
 
-/** Goods the town's Market or Freight Yard asks for because of the districts it has built. */
+/** Goods the town's Market or Supply Yard asks for because of the districts it has built. */
 export function districtDemand(place: Place, kind: 'market' | 'freight'): Good[] {
   const out: Good[] = [];
   for (const { def } of builtDistricts(place)) for (const g of def.demand?.[kind] ?? []) if (!out.includes(g)) out.push(g);
