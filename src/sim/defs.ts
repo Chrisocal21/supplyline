@@ -223,8 +223,8 @@ export const SITE_DEFS: Record<SiteKind, SiteDef> = DEFS;
 /** Every building the player can place, in menu order. */
 export const BUILD_ORDER: SiteKind[] = (Object.keys(DEFS) as SiteKind[]).filter((k) => !DEFS[k].dock && !DEFS[k].station);
 
-/** Plots a town has open for the player, by town level. Plots 0 and 1 belong to the Market and Freight Yard. */
-export const INDUSTRY_PLOTS = [10, 10, 10, 10, 10];
+/** Each time a town grows a level, this many of the homes along its streets make way for lots the player can build on. */
+export const LOTS_PER_LEVEL = 3;
 
 /** How a town looks and what it likes depends on where it is. Style is picked from latitude and a roll of the dice. */
 export type TownStyle = 'nordic' | 'temperate' | 'mediterranean' | 'tropical' | 'arid';
@@ -302,6 +302,8 @@ export const SPAN_LIMIT = [2, 4, 8, 16];
 export type RouteMode = 'road' | 'rail' | 'air';
 export const RAIL_COST_FACTOR = 1.8;
 export const RAIL_TIER = 2;
+/** A Distribution Hub can be given a rail yard, which is how trains reach a town. */
+export const DEPOT_COST = 3000;
 /** Air routes link two airports in a straight line. */
 export const AIR_TIER = 3;
 export const AIR_COST_PER_TILE = 4;
@@ -505,7 +507,15 @@ export const DISTRICT_ORDER: DistrictId[] = Object.keys(DISTRICTS) as DistrictId
 export type QuestGoal =
   | { kind: 'build'; site: SiteKind; count: number }
   | { kind: 'route'; mode: RouteMode; grade?: RoadGrade; count: number }
+  /** Distribution Hubs with a Rail Depot. */
+  | { kind: 'depot'; count: number }
   | { kind: 'vehicle'; vehicle: VehicleKind; count: number }
+  /** Vehicles owned, of any class. */
+  | { kind: 'fleet'; count: number }
+  /** Processing buildings switched on. */
+  | { kind: 'making'; count: number }
+  /** Buildings with a sale switched on to someone. */
+  | { kind: 'selling'; count: number }
   /** Units of one good sold to towns. */
   | { kind: 'deliver'; good: Good; amount: number }
   /** Different goods sold to towns. */
@@ -552,10 +562,13 @@ export const TIERS: TierDef[] = [
     name: 'Startup',
     blurb: 'One camp, one mill, one town. Show that you can get goods to market.',
     quests: [
-      { id: 't0-camp', label: 'Build a Forestry Camp', hint: 'Open Production, pick Forestry Camp, then click a ringed forest spot.', goal: { kind: 'build', site: 'forestry', count: 1 }, reward: 100 },
+      { id: 't0-camp', label: 'Build a Forestry Camp', hint: 'Open Production, pick Forestry Camp, then click a ringed forest spot. (A Farm works the same way, with a Flour Mill in place of the Sawmill.)', goal: { kind: 'build', site: 'forestry', count: 1 }, reward: 100 },
+      { id: 't0-truck', label: 'Buy a delivery truck', hint: 'Click the camp and press Buy Box Truck. It waits at the gate until a road leads somewhere that wants logs.', goal: { kind: 'fleet', count: 1 }, reward: 100 },
       { id: 't0-mill', label: 'Build a Sawmill in a town', hint: 'Open Processing, pick Sawmill, then click a for-sale lot beside a town street.', goal: { kind: 'build', site: 'sawmill', count: 1 }, reward: 150 },
-      { id: 't0-road', label: 'Join them with a road', hint: 'Open Logistics, pick Road, then drag from the camp to the mill. A truck comes with it.', goal: { kind: 'route', mode: 'road', count: 1 }, reward: 150 },
-      { id: 't0-sell', label: 'Sell 100 lumber', hint: 'The mill is linked to the town Market by the street. Lumber sells as it arrives.', goal: { kind: 'deliver', good: 'lumber', amount: 100 }, reward: 500 },
+      { id: 't0-road', label: 'Join them with a road', hint: 'Open Logistics, pick Road, then drag from the camp to the mill. The truck sets off by itself.', goal: { kind: 'route', mode: 'road', count: 1 }, reward: 150 },
+      { id: 't0-making', label: 'Switch the Sawmill on', hint: 'Click the Sawmill and turn on Lumber under Production. Nothing is made until you do.', goal: { kind: 'making', count: 1 }, reward: 100 },
+      { id: 't0-selling', label: 'Sell lumber to the Market', hint: 'Click the Sawmill, buy a truck, and switch the Market on under Sell to. The street already links them.', goal: { kind: 'selling', count: 1 }, reward: 150 },
+      { id: 't0-sell', label: 'Sell 100 lumber', hint: 'Lumber sells as the truck brings it. Add a second truck if it piles up.', goal: { kind: 'deliver', good: 'lumber', amount: 100 }, reward: 500 },
     ],
   },
   {
@@ -565,10 +578,10 @@ export const TIERS: TierDef[] = [
     quests: [
       { id: 't1-variety', label: 'Sell 3 different goods', hint: 'Try grain into flour and bread, or milk into cheese. Towns need variety to grow.', goal: { kind: 'variety', count: 3 }, reward: 600 },
       { id: 't1-upgrade', label: 'Upgrade a building to level 2', hint: 'Click a building, then Upgrade. It works faster and holds more.', goal: { kind: 'upgrade', level: 2, count: 1 }, reward: 300 },
-      { id: 't1-hub', label: 'Build a Distribution Hub', hint: 'Logistics tab. A hub gathers goods from several sites and passes them on.', goal: { kind: 'build', site: 'hub', count: 1 }, reward: 400 },
+      { id: 't1-hub', label: 'Build a Distribution Hub', hint: 'Logistics tab. When your supply lines fill up, a hub takes the overflow and spreads it out. Switch on what it sells to under Sell to.', goal: { kind: 'build', site: 'hub', count: 1 }, reward: 400 },
       { id: 't1-highway', label: 'Build a highway', hint: 'Logistics tab, Highway. Trucks cover it about a third faster.', goal: { kind: 'route', mode: 'road', grade: 'highway', count: 1 }, reward: 500 },
       { id: 't1-district', label: 'Build a town district', hint: 'Select a town, open Manage town, and build a district such as the Farmers Market. Districts give a town a way to earn and a taste for more goods.', goal: { kind: 'district', level: 1, count: 1 }, reward: 500 },
-      { id: 't1-bigtruck', label: 'Trade up to a Big Box Truck', hint: 'Select a building that has a route. In its Vehicles list, press Trade up. A bigger truck carries twice the load.', goal: { kind: 'vehicle', vehicle: 'bigtruck', count: 1 }, reward: 500 },
+      { id: 't1-bigtruck', label: 'Upgrade to a Big Box Truck', hint: 'Select a building with a truck. Press Upgrade on that truck in its Vehicles list. A bigger truck carries twice the load.', goal: { kind: 'vehicle', vehicle: 'bigtruck', count: 1 }, reward: 500 },
       { id: 't1-town', label: 'Grow a town to level 4', hint: 'A level 4 town is a City. It needs three kinds of goods and steady supply. The Towns sheet shows what it wants.', goal: { kind: 'town', level: 4, count: 1 }, reward: 1500 },
     ],
   },
@@ -577,13 +590,14 @@ export const TIERS: TierDef[] = [
     name: 'Industrial Group',
     blurb: 'Rail, metal and cloth. Bigger loads and longer chains.',
     quests: [
-      { id: 't2-rail', label: 'Lay a rail line', hint: 'Logistics tab, Rail. A freight train carries far more than a truck. Every town now has a Rail Station on its edge.', goal: { kind: 'route', mode: 'rail', count: 1 }, reward: 2000 },
+      { id: 't2-depot', label: 'Build a Rail Depot', hint: 'Select a Distribution Hub and build a Rail Depot on it. Trains reach a town through its depot, and trucks and trains work side by side there.', goal: { kind: 'depot', count: 1 }, reward: 1000 },
+      { id: 't2-rail', label: 'Lay a rail line', hint: 'Logistics tab, Rail. Run track to a Rail Depot, or between buildings out in the country, then buy a train. A freight train carries far more than a truck.', goal: { kind: 'route', mode: 'rail', count: 1 }, reward: 2000 },
       { id: 't2-ingots', label: 'Make 60 iron ingots', hint: 'Iron ore and coal from the hills go into a Smelter.', goal: { kind: 'make', good: 'ingots', amount: 60 }, reward: 2000 },
       { id: 't2-tools', label: 'Sell 60 tools', hint: 'A Toolworks turns ingots and lumber into tools.', goal: { kind: 'deliver', good: 'tools', amount: 60 }, reward: 2500 },
       { id: 't2-upgrade', label: 'Upgrade 2 buildings to level 3', hint: 'Level 3 more than triples what a building makes.', goal: { kind: 'upgrade', level: 3, count: 2 }, reward: 1500 },
       { id: 't2-path', label: 'Give a town a specialisation', hint: 'A Town (level 3) can commit to a path: Breadbasket, The Forge, Trade Hub or The Boulevard. Select the town and open Manage town.', goal: { kind: 'path', count: 1 }, reward: 3000 },
       { id: 't2-districts', label: 'Upgrade 2 districts to level 2', hint: 'Each district level needs the town one level higher. Open Manage town and upgrade.', goal: { kind: 'district', level: 2, count: 2 }, reward: 2500 },
-      { id: 't2-rig', label: 'Run a Big Rig', hint: 'Select a building with a route and buy a Big Rig there, or trade a Big Box Truck up.', goal: { kind: 'vehicle', vehicle: 'rig', count: 1 }, reward: 1500 },
+      { id: 't2-rig', label: 'Run a Big Rig', hint: 'Select a building and upgrade a Big Box Truck to a Big Rig.', goal: { kind: 'vehicle', vehicle: 'rig', count: 1 }, reward: 1500 },
       { id: 't2-cities', label: 'Grow 3 towns to level 4', hint: 'Three Cities. Reach the other towns with highways and rail.', goal: { kind: 'town', level: 4, count: 3 }, reward: 5000 },
     ],
   },
@@ -595,9 +609,9 @@ export const TIERS: TierDef[] = [
       { id: 't3-steel', label: 'Make 100 steel', hint: 'A Steelworks turns ingots and coal into steel.', goal: { kind: 'make', good: 'steel', amount: 100 }, reward: 5000 },
       { id: 't3-machinery', label: 'Sell 40 machinery', hint: 'Machine Works: steel and tools in, machinery out. Only the biggest towns buy it.', goal: { kind: 'deliver', good: 'machinery', amount: 40 }, reward: 10000 },
       { id: 't3-metropolis', label: 'Grow a town to level 5', hint: 'A Metropolis needs four kinds of goods and a lot of them.', goal: { kind: 'town', level: 5, count: 1 }, reward: 10000 },
-      { id: 't3-air', label: 'Open an air route', hint: 'Logistics tab: build an Airport at each end, pick Air Route, then click one airport and the other. A cargo plane comes with it.', goal: { kind: 'route', mode: 'air', count: 1 }, reward: 8000 },
+      { id: 't3-air', label: 'Open an air route', hint: 'Logistics tab: build an Airport at each end, pick Air Route, then click one airport and the other. Buy a cargo plane at an airport.', goal: { kind: 'route', mode: 'air', count: 1 }, reward: 8000 },
       { id: 't3-capstone', label: 'Build a capstone district', hint: 'A Metropolis on a path can build its capstone: Grand Food Hall, Heavy Industry Exchange, International Terminal or Grand Plaza.', goal: { kind: 'capstone', count: 1 }, reward: 15000 },
-      { id: 't3-fleet', label: 'Run a Truck Fleet', hint: 'Select a building with a route and trade a Big Rig up to a Truck Fleet.', goal: { kind: 'vehicle', vehicle: 'convoy', count: 1 }, reward: 8000 },
+      { id: 't3-fleet', label: 'Run a Truck Fleet', hint: 'Select a building and upgrade a Big Rig to a Truck Fleet.', goal: { kind: 'vehicle', vehicle: 'convoy', count: 1 }, reward: 8000 },
       { id: 't3-earn', label: 'Earn $250,000 in total', hint: 'High-value goods on fast, full vehicles.', goal: { kind: 'earn', amount: 250000 }, reward: 10000 },
     ],
   },
@@ -607,7 +621,7 @@ export const TIERS: TierDef[] = [
     blurb: 'The world is connected. Now make your towns great, each in its own way.',
     quests: [
       { id: 't4-paths', label: 'Run 3 different specialisations', hint: 'Breadbasket, The Forge, Trade Hub, The Boulevard: give three of your towns different paths.', goal: { kind: 'paths', count: 3 }, reward: 25000 },
-      { id: 't4-jet', label: 'Fly a Cargo Jet', hint: 'Select an airport with an air route and trade a Cargo Plane up to a Cargo Jet.', goal: { kind: 'vehicle', vehicle: 'jet', count: 1 }, reward: 30000 },
+      { id: 't4-jet', label: 'Fly a Cargo Jet', hint: 'Select an airport and upgrade a Cargo Plane to a Cargo Jet.', goal: { kind: 'vehicle', vehicle: 'jet', count: 1 }, reward: 30000 },
       { id: 't4-metropolises', label: 'Grow 3 towns to level 5', hint: 'Three Metropolises, each a different kind of city.', goal: { kind: 'town', level: 5, count: 3 }, reward: 50000 },
       { id: 't4-capstones', label: 'Build 3 capstone districts', hint: 'One in each of three towns.', goal: { kind: 'capstone', count: 3 }, reward: 60000 },
       { id: 't4-earn', label: 'Earn $1,000,000 in total', hint: 'The end game. Nothing stops you playing on.', goal: { kind: 'earn', amount: 1000000 }, reward: 100000 },

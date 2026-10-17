@@ -3,8 +3,7 @@
 import * as THREE from 'three';
 import { tileLonLat } from '../sim/mapgen';
 import type { RouteMode } from '../sim/defs';
-import { plotEntry, plotTiles } from '../sim/features';
-import { placeAt, radiusOf, wrapDx, type Tile, type World } from '../sim/world';
+import { placeAt, plotTiles, townStreets, wrapDx, type Tile, type World } from '../sim/world';
 import { HeightField, R, basisMatrix, lonLatToVec } from './geo';
 import { Parts } from './parts';
 
@@ -19,6 +18,8 @@ export const HW_HALF = 0.58;
 const HW_SHOULDER = 0.68;
 const DASH = 1.6;
 /** Share of the road texture's width that is the road itself; the rest is plain asphalt for junction pads. */
+/** Corner-cutting passes for smooth runs: three turns a quarter-turn into a gentle bend and a staircase into a diagonal. */
+const SMOOTH_PASSES = 3;
 const ROAD_U = 0.8;
 /** How far right of the centre line a vehicle drives. */
 const LANE = 0.16;
@@ -146,6 +147,8 @@ export class RoadNet {
   readonly group = new THREE.Group();
   /** Tiles that carry a road. Trees are cleared from these. */
   readonly tiles = new Set<number>();
+  /** Tiles a highway runs through, so a level crossing there is built for the wider road. */
+  readonly wideTiles = new Set<number>();
   private readonly roadMat: THREE.MeshStandardMaterial;
   private readonly shoulderMat = new THREE.MeshStandardMaterial({ color: 0x3d3e42, roughness: 1 });
   private readonly structMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85 });
@@ -265,23 +268,86 @@ export class RoadNet {
     return this.structure(a, c) === 'road' && this.structure(c, b) === 'road';
   }
 
-  /** A point on the rounded corner at tile c, u from 0 (leaving edge a-c) to 1 (entering edge c-b). */
-  private corner(a: Tile, c: Tile, b: Tile, u: number): { p: THREE.Vector3; n: THREE.Vector3 } {
-    const p0 = this.sampleEdge(a, c, 0.5).p;
-    const p1 = this.sampleEdge(a, c, 1).p;
-    const p2 = this.sampleEdge(c, b, 0.5).p;
-    const k = 1 - u;
-    const p = p0.clone().multiplyScalar(k * k).addScaledVector(p1, 2 * k * u).addScaledVector(p2, u * u);
-    const ll = this.lonLat(p);
-    p.setLength(R + this.hf.surface(ll.lon, ll.lat) + LIFT);
+  /**
+   * Tiles where a smoothed run of road must pass exactly through the tile centre: junctions, dead ends, and where plain
+   * road meets a bridge, tunnel or highway. Everything between two pins is drawn, and driven, as one smooth curve.
+   */
+  private pins = new Set<number>();
+  /** Bumped on every rebuild, so cached vehicle paths are smoothed again against the new pins. */
+  private gen = 0;
+  private readonly smoothCache = new WeakMap<Tile[], { gen: number; runs: { i0: number; i1: number; pts: [number, number][]; cum: number[] }[] }>();
+
+  /** An edge drawn as part of a smooth run: road, highway or track on the ground, not a bridge or tunnel. */
+  private plain(a: Tile, b: Tile): boolean {
+    return this.structure(a, b) === 'road';
+  }
+
+  /** Tile centres as continuous tile coordinates, unwrapped across the date line, then rounded off (corners kept to the ends). */
+  private smoothTiles(tiles: Tile[]): [number, number][] {
+    let pts: [number, number][] = [[tiles[0].x, tiles[0].y]];
+    for (let i = 1; i < tiles.length; i++) pts.push([pts[i - 1][0] + wrapDx(this.world, tiles[i - 1].x, tiles[i].x), tiles[i].y]);
+    for (let it = 0; it < SMOOTH_PASSES && pts.length > 2; it++) {
+      const out: [number, number][] = [pts[0]];
+      for (let i = 0; i < pts.length - 1; i++) {
+        const [ax, ay] = pts[i];
+        const [bx, by] = pts[i + 1];
+        out.push([ax * 0.75 + bx * 0.25, ay * 0.75 + by * 0.25], [ax * 0.25 + bx * 0.75, ay * 0.25 + by * 0.75]);
+      }
+      out.push(pts[pts.length - 1]);
+      pts = out;
+    }
+    return pts;
+  }
+
+  /** The road surface at continuous tile coordinates. */
+  private surfaceAt(u: number, v: number, lift = LIFT): { p: THREE.Vector3; n: THREE.Vector3 } {
+    const { width: W, height: H } = this.world;
+    const { lon, lat } = tileLonLat(W, H, u, v);
+    const p = lonLatToVec(lon, lat, R + this.hf.surface(lon, lat) + lift);
     return { p, n: p.clone().normalize() };
   }
 
-  /** Surface point at fractional index f along a path, with corners rounded. */
+  /** A route's smooth runs, worked out once per rebuild. */
+  private smoothRuns(path: Tile[]): { i0: number; i1: number; pts: [number, number][]; cum: number[] }[] {
+    const hit = this.smoothCache.get(path);
+    if (hit && hit.gen === this.gen) return hit.runs;
+    const W = this.world.width;
+    const runs: { i0: number; i1: number; pts: [number, number][]; cum: number[] }[] = [];
+    let i0 = 0;
+    for (let i = 1; i <= path.length - 1; i++) {
+      const plain = this.plain(path[i - 1], path[i]);
+      const end = i === path.length - 1 || !plain || this.pins.has(path[i].y * W + path[i].x) || !this.plain(path[i], path[i + 1]);
+      if (!plain) {
+        i0 = i;
+        continue;
+      }
+      if (end) {
+        if (i - i0 >= 2) {
+          const pts = this.smoothTiles(path.slice(i0, i + 1));
+          const cum = [0];
+          for (let k = 1; k < pts.length; k++) cum.push(cum[k - 1] + Math.hypot(pts[k][0] - pts[k - 1][0], pts[k][1] - pts[k - 1][1]));
+          runs.push({ i0, i1: i, pts, cum });
+        }
+        i0 = i;
+      }
+    }
+    this.smoothCache.set(path, { gen: this.gen, runs });
+    return runs;
+  }
+
+  /** Surface point at fractional index f along a path, following the same smooth curves the road is drawn with. */
   private pathPoint(path: Tile[], f: number): { p: THREE.Vector3; n: THREE.Vector3 } {
-    const k = Math.round(f);
-    if (k > 0 && k < path.length - 1 && Math.abs(f - k) < 0.5 && this.isCorner(path[k - 1], path[k], path[k + 1])) {
-      return this.corner(path[k - 1], path[k], path[k + 1], f - k + 0.5);
+    for (const run of this.smoothRuns(path)) {
+      if (f < run.i0 || f > run.i1) continue;
+      const total = run.cum[run.cum.length - 1];
+      const d = ((f - run.i0) / (run.i1 - run.i0)) * total;
+      let k = 1;
+      while (k < run.cum.length - 1 && run.cum[k] < d) k++;
+      const seg = run.cum[k] - run.cum[k - 1] || 1;
+      const t = Math.min(1, Math.max(0, (d - run.cum[k - 1]) / seg));
+      const [ax, ay] = run.pts[k - 1];
+      const [bx, by] = run.pts[k];
+      return this.surfaceAt(ax + (bx - ax) * t, ay + (by - ay) * t);
     }
     const i = Math.min(path.length - 2, Math.max(0, Math.floor(f)));
     return this.sampleEdge(path[i], path[i + 1], Math.min(1, Math.max(0, f - i)));
@@ -393,20 +459,26 @@ export class RoadNet {
     this.tiles.clear();
   }
 
-  rebuild(crossWith?: Set<number>): void {
+  rebuild(crossWith?: Set<number>, wideTiles?: Set<number>): void {
     this.clear();
+    this.wideTiles.clear();
     const { width: W } = this.world;
     const key = (t: Tile) => t.y * W + t.x;
     const nodes = new Map<number, { tile: Tile; nbrs: Tile[] }>();
     const edges = new Map<string, [Tile, Tile]>();
 
-    // Every town has a main street running through it, which is part of the road network from the start.
+    // Every town has its main street and lanes, which are part of the road network from the start.
     const paths: Tile[][] = this.world.routes.filter((r) => r.mode === this.mode).map((r) => r.path);
     if (this.mode === 'road') {
       for (const pl of this.world.places) {
-        const wrap = (x: number): number => ((x % W) + W) % W;
-        paths.push(Array.from({ length: radiusOf(pl) * 2 + 1 }, (_, i) => i - radiusOf(pl)).map((d) => ({ x: wrap(pl.x + d), y: pl.y })));
-        paths.push(Array.from({ length: radiusOf(pl) * 2 + 1 }, (_, i) => i - radiusOf(pl)).map((d) => ({ x: pl.x, y: pl.y + d })));
+        const streets = townStreets(this.world, pl);
+        for (const s of streets) {
+          const t = { x: s % W, y: Math.floor(s / W) };
+          for (const [dx, dy] of [[1, 0], [0, 1]]) {
+            const n = { x: (((t.x + dx) % W) + W) % W, y: t.y + dy };
+            if (streets.has(n.y * W + n.x)) paths.push([t, n]);
+          }
+        }
       }
     }
 
@@ -449,6 +521,7 @@ export class RoadNet {
           hwCount.set(key(b), (hwCount.get(key(b)) ?? 0) + 1);
         }
       }
+      for (const k of hwCount.keys()) this.wideTiles.add(k);
       // Where a single highway runs on as a street it narrows into it, instead of stopping dead at full width.
       for (const [k, n] of hwCount) if (n === 1 && nodes.get(k)!.nbrs.length > 1) this.narrow.add(k);
     }
@@ -459,10 +532,38 @@ export class RoadNet {
     const parts = new Parts();
     const rail = this.mode === 'rail';
 
-    // Degree-two nodes that turn on plain road are drawn as curves: edges stop at the tile edge and a bend joins them.
-    const bends = new Map<number, [Tile, Tile]>();
-    for (const [k, n] of nodes) {
-      if (n.nbrs.length === 2 && this.isCorner(n.nbrs[0], n.tile, n.nbrs[1])) bends.set(k, [n.nbrs[0], n.nbrs[1]]);
+    // Plain road (or track) between pins is drawn as one smooth run: staircases become diagonals, corners become bends.
+    this.gen += 1;
+    const pdeg = new Map<number, number>();
+    for (const [a, b] of edges.values()) {
+      if (!this.plain(a, b)) continue;
+      pdeg.set(key(a), (pdeg.get(key(a)) ?? 0) + 1);
+      pdeg.set(key(b), (pdeg.get(key(b)) ?? 0) + 1);
+    }
+    this.pins = new Set<number>();
+    for (const [k, n] of nodes) if ((pdeg.get(k) ?? 0) !== 2 || n.nbrs.length !== 2) this.pins.add(k);
+    const usedEdges = new Set<string>();
+    const walk = (from: Tile, to: Tile): Tile[] => {
+      const out = [to];
+      let prev = from;
+      let cur = to;
+      usedEdges.add(ekey(from, to));
+      while (!this.pins.has(key(cur))) {
+        const next = nodes.get(key(cur))!.nbrs.find((n) => key(n) !== key(prev) && !usedEdges.has(ekey(cur, n)) && this.plain(cur, n));
+        if (!next) break;
+        usedEdges.add(ekey(cur, next));
+        out.push(next);
+        prev = cur;
+        cur = next;
+      }
+      return out;
+    };
+    const runs: Tile[][] = [];
+    for (const [ek, [a, b]] of edges) {
+      if (usedEdges.has(ek) || !this.plain(a, b)) continue;
+      const ahead = walk(a, b);
+      const behind = this.pins.has(key(a)) ? [a] : walk(b, a).reverse();
+      runs.push([...behind, ...ahead]);
     }
 
     /** Road and shoulder along part of an edge, at whatever width the road has there. */
@@ -475,7 +576,55 @@ export class RoadNet {
       this.edgeRibbon(hw ? hwRoad : road, a, b, taper ? halfAt : halfAt(0.5), bridge ? 0.002 : rail ? 0.004 : 0, 0, 0, rail ? 1 : ROAD_U, t0, t1);
     };
 
+    for (const run of runs) {
+      const pts = this.smoothTiles(run);
+      const samples = pts.map(([u, v]) => this.surfaceAt(u, v, 0));
+      const hwAt = run.slice(1).map((t, i) => this.hwEdges.has(ekey(run[i], t)));
+      if (!hwAt.some(Boolean)) {
+        this.ribbon(shoulder, samples, this.shoulder, rail ? -0.02 : -0.015, 0, 0, 1);
+        this.ribbon(road, samples, this.half, rail ? 0.004 : 0, 0, 0, rail ? 1 : ROAD_U);
+        continue;
+      }
+      // Highway and street in one run (a highway turning into a street, say) share one curve. The highway narrows to
+      // street width over the half tile before it hands over, and each part takes its own markings, so the join is seamless.
+      const cum = [0];
+      for (let i = 1; i < pts.length; i++) cum.push(cum[i - 1] + Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]));
+      const total = cum[cum.length - 1] || 1;
+      const last = run.length - 1;
+      const fAt = cum.map((d) => (d / total) * last);
+      const changes: number[] = [];
+      for (let i = 1; i < last; i++) if (hwAt[i - 1] !== hwAt[i]) changes.push(i);
+      if (hwAt[0] && this.narrow.has(key(run[0]))) changes.push(0);
+      if (hwAt[last - 1] && this.narrow.has(key(run[last]))) changes.push(last);
+      const edgeOf = (f: number): number => Math.min(last - 1, Math.max(0, Math.floor(f)));
+      const wideAt = fAt.map((f, i) => {
+        const onHw = hwAt[edgeOf(i > 0 && i < fAt.length - 1 ? f : i === 0 ? 0 : last - 1)];
+        if (!onHw) return 0;
+        return Math.min(1, ...changes.map((c) => THREE.MathUtils.smoothstep(Math.abs(f - c), 0.05, 0.5)));
+      });
+      // Split where the grade changes, with the boundary point in both parts.
+      let from = 0;
+      const flush = (to: number, hw: boolean): void => {
+        if (to - from < 1) return;
+        const part = samples.slice(from, to + 1);
+        const k = wideAt.slice(from, to + 1);
+        this.ribbon(shoulder, part, k.map((f) => this.shoulder + (HW_SHOULDER - this.shoulder) * f), -0.015, 0, 0, 1);
+        this.ribbon(hw ? hwRoad : road, part, k.map((f) => this.half + (HW_HALF - this.half) * f), 0, 0, 0, ROAD_U);
+      };
+      let grade = hwAt[0];
+      for (let i = 1; i < pts.length; i++) {
+        const g = hwAt[edgeOf((fAt[i - 1] + fAt[i]) / 2)];
+        if (g !== grade) {
+          flush(i - 1, grade);
+          from = i - 1;
+          grade = g;
+        }
+      }
+      flush(pts.length - 1, grade);
+    }
+
     for (const [a, b] of edges.values()) {
+      if (this.plain(a, b)) continue;
       const s = this.structure(a, b);
       if (s === 'tunnel') {
         const prof = this.hf.edgeProfile(a, b);
@@ -493,26 +642,13 @@ export class RoadNet {
         for (const p of prof.portals) this.portal(parts, a, b, p.t, p.into, p.depth, this.hwEdges.has(ekey(a, b)) ? HW_HALF : this.half);
         continue;
       }
-      strip(a, b, bends.has(key(a)) ? 0.5 : 0, bends.has(key(b)) ? 0.5 : 1, s === 'bridge');
+      strip(a, b, 0, 1, s === 'bridge');
       if (s === 'bridge') this.bridge(parts, a, b, this.hwEdges.has(ekey(a, b)) ? HW_HALF : this.half);
     }
 
-    for (const [k, [p, q]] of bends) {
-      const c = nodes.get(k)!.tile;
-      const samples: { p: THREE.Vector3; n: THREE.Vector3 }[] = [];
-      for (let i = 0; i <= 6; i++) samples.push(this.corner(p, c, q, i / 6));
-      // A bend is as wide as the two half-edges it joins, so a highway can narrow into a street through a corner.
-      const w0 = this.wide(p, c, 0.5);
-      const w1 = this.wide(c, q, 0.5);
-      const hw = w0 > 0 || w1 > 0;
-      const widths = (from: number, to: number): number[] => samples.map((_, i) => from + (to - from) * (w0 + ((w1 - w0) * i) / (samples.length - 1)));
-      this.ribbon(shoulder, samples, widths(this.shoulder, HW_SHOULDER), rail ? -0.02 : -0.015, 0, 0, 1);
-      this.ribbon(hw ? hwRoad : road, samples, widths(this.half, HW_HALF), rail ? 0.004 : 0, 0, 0, rail ? 1 : ROAD_U);
-    }
-
-    // Junction pads: ends, T-junctions and crossings. Straight tiles and rounded corners need none.
+    // Junction pads: ends, T-junctions and crossings. Smooth runs need none along their length.
     for (const [k, { tile, nbrs }] of nodes) {
-      if (bends.has(k)) continue;
+      if (!this.pins.has(k)) continue;
       const terr = this.terrain(tile);
       if (terr === 'water') continue;
       // Nothing to draw where the roads meet underground.
@@ -529,26 +665,18 @@ export class RoadNet {
     if (this.mode === 'rail' && crossWith) {
       for (const [k, { tile, nbrs }] of nodes) {
         if (!crossWith.has(k) || nbrs.length !== 2) continue;
-        this.crossing(parts, tile, nbrs[0]);
+        this.crossing(parts, tile, nbrs[0], !!wideTiles?.has(k));
       }
     }
 
-    // Driveways: the same road, from the street to the edge of each plot.
+    // Town plots count as served by the road network (each lot draws its own drive).
     if (this.mode === 'road') {
       for (const pl of this.world.places) {
-        const R = radiusOf(pl);
-        plotTiles(pl.x, pl.y, R).forEach((pt, i) => {
-          const wrapT = (q: Tile): Tile => ({ x: ((q.x % W) + W) % W, y: q.y });
-          const plot = wrapT(pt);
+        for (const pt of plotTiles(this.world, pl)) {
+          const plot = { x: ((pt.x % W) + W) % W, y: pt.y };
           const terr = this.terrain(plot);
-          if (terr !== 'grass' && terr !== 'forest') return;
-          const e = plotEntry(pt.x - pl.x, pt.y - pl.y);
-          const entry = wrapT({ x: pl.x + e.x, y: pl.y + e.y });
-          this.tiles.add(key(plot));
-          void i;
-          this.edgeRibbon(shoulder, entry, plot, this.shoulder, -0.015, 0, 0, 1, 0, 0.62);
-          this.edgeRibbon(road, entry, plot, this.half, 0, 0, 0, ROAD_U, 0, 0.62);
-        });
+          if (terr === 'grass' || terr === 'forest') this.tiles.add(key(plot));
+        }
       }
     }
 
@@ -572,12 +700,13 @@ export class RoadNet {
   }
 
   /** Warning signs and lights either side of the road where the track crosses it. */
-  private crossing(parts: Parts, tile: Tile, nbr: Tile): void {
+  private crossing(parts: Parts, tile: Tile, nbr: Tile, wide = false): void {
     const here = this.sampleEdge(tile, nbr, 0);
     const along = this.sampleEdge(tile, nbr, 0.2).p.sub(here.p).normalize();
     const up = here.n;
     const side = new THREE.Vector3().crossVectors(up, along).normalize();
-    const reach = ROAD_HALF + 0.18;
+    // Gates stand clear of the whole road, however wide it is.
+    const reach = (wide ? HW_HALF : ROAD_HALF) + 0.18;
     for (const sign of [1, -1]) {
       const base = here.p.clone().addScaledVector(along, sign * reach).addScaledVector(side, sign * 0.3);
       const m = basisMatrix(base, up, side);

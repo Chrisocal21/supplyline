@@ -1,8 +1,7 @@
-// The model of a town or major city: lots for sale and homes beside the streets, driveways, a signalled crossing,
-// street lamps, and homes or towers around the outside. Everything is built once per change and merged into one mesh.
+// The model of a town or major city: lots for sale and homes beside its streets, driveways, a signalled crossing,
+// street lamps, and homes or towers lining the main street and its lanes. Everything is built once per change and merged into one mesh.
 import * as THREE from 'three';
 import { DISTRICT_ORDER, type DistrictId, type TownStyle } from '../sim/defs';
-import { CITY_RADIUS, homeTiles, plotEntry, plotFacing, plotTiles } from '../sim/features';
 import { R as GLOBE_R } from './geo';
 import { districtLandmark } from './districts';
 import { Parts } from './parts';
@@ -42,21 +41,31 @@ const TREE_GREEN = [0x4f8a3f, 0x5d9a48, 0x3f7a4a];
 
 const YAW: Record<'N' | 'S' | 'E' | 'W', number> = { S: 0, N: Math.PI, E: Math.PI / 2, W: -Math.PI / 2 };
 
+/** Where a district's landmark stands in the model: its tile (offset from the centre) and its place in model units. */
+export interface TownLandmark {
+  id: DistrictId;
+  level: number;
+  tx: number;
+  ty: number;
+  x: number;
+  z: number;
+}
+
 export interface TownModelOptions {
   level: number;
   seed: number;
   /** East-west narrowing at high latitude. */
   squeeze: number;
-  radius: number;
+  /** A major city: longer streets, and blocks and towers instead of houses as it grows. */
+  city: boolean;
   style: TownStyle;
-  /** Per plot: a building (the player's, or the Market and Freight Yard) stands there. */
-  occupied: boolean[];
-  /** Per plot: already homes. */
-  homePlots: number[];
-  /** Per plot and per home tile: dry land that can be built on. */
-  plotOk: boolean[];
-  homeOk: boolean[];
-  /** Districts the town has built, each shown as a landmark on one of the tiles around its streets. */
+  /** The town's streets as built so far, as offsets from the centre. */
+  streets: { x: number; y: number; main: boolean }[];
+  /** The district plots, in order: offset, the street tile the drive meets, dry land, built on, still homes. */
+  plots: { x: number; y: number; ex: number; ey: number; ok: boolean; occupied: boolean; home: boolean }[];
+  /** The tiles beside the streets where homes stand (as far as the town has grown), and whether each can be built on. */
+  homes: { x: number; y: number; ok: boolean }[];
+  /** Districts the town has built, each shown as a landmark on one of the tiles beside its streets. */
   districts?: { id: DistrictId; level: number }[];
 }
 
@@ -64,8 +73,7 @@ export function townGeometry(o: TownModelOptions): THREE.BufferGeometry {
   const r = rng(o.seed * 7919 + 13);
   const p = new Parts();
   const look = STYLE_LOOKS[o.style];
-  const R = o.radius;
-  const city = R === CITY_RADIUS;
+  const city = o.city;
   const sq = o.squeeze;
   const pick = <T,>(list: T[]): T => list[Math.floor(r() * list.length)];
   const level = o.level;
@@ -77,6 +85,7 @@ export function townGeometry(o: TownModelOptions): THREE.BufferGeometry {
   ];
 
   const home = (cx: number, cz: number, yaw: number, w: number, d: number, h: number): void => {
+    p.anchor = [cx, cz];
     const wall = pick(look.walls);
     p.tex = look.wallTex;
     p.box(w, h, d, wall, { x: cx, y: 0.04, z: cz, ry: yaw });
@@ -101,9 +110,11 @@ export function townGeometry(o: TownModelOptions): THREE.BufferGeometry {
       const [sx, sz] = at(cx, cz, yaw, s * (w / 2 + 0.005), 0);
       p.box(0.02, 0.14, 0.14, GLASS, { x: sx, y: 0.04 + h * 0.5, z: sz, ry: yaw });
     }
+    p.anchor = null;
   };
 
   const tall = (cx: number, cz: number, yaw: number, w: number, d: number, h: number, kind: 'block' | 'tower'): void => {
+    p.anchor = [cx, cz];
     p.tex = kind === 'tower' ? 7 : 6;
     p.box(w, h, d, kind === 'tower' ? pick(TOWERS) : pick(BLOCKS), { x: cx, y: 0.04, z: cz, ry: yaw });
     p.box(w * 0.98, 1.6, d * 0.98, 0x6d6b66, { x: cx, y: -1.6, z: cz, ry: yaw });
@@ -114,51 +125,56 @@ export function townGeometry(o: TownModelOptions): THREE.BufferGeometry {
       p.box(0.05, 0.6 + h * 0.05, 0.05, 0x5a5e64, { x: cx, y: 0.46 + h, z: cz });
     }
     p.tex = 0;
+    p.anchor = null;
   };
 
   const tree = (x: number, z: number): void => {
+    p.anchor = [x, z];
     p.cyl(0.05, 0.07, 0.9, 0x6a4a30, { x, y: -0.5, z }, 6);
     p.sphere(0.4 + r() * 0.22, pick(TREE_GREEN), { x, y: 0.5, z }, 1);
+    p.anchor = null;
   };
 
-  // ---- the plots beside the streets ----
-  const plots = plotTiles(0, 0, R);
-  plots.forEach((t, index) => {
-    if (index < 2 && !o.plotOk[index]) return;
-    if (!o.plotOk[index]) return;
-    const cx = t.x * TILE * sq;
-    const cz = t.y * TILE;
-    const face = plotFacing(t.x, t.y);
-    const yaw = YAW[face];
-    const f = plotEntry(t.x, t.y);
-    const fx = Math.sign(f.x - t.x) * (Math.abs(f.x - t.x) > 0 ? 1 : 0);
-    const fz = Math.sign(f.y - t.y) * (Math.abs(f.y - t.y) > 0 ? 1 : 0);
+  // Offsets from the town centre to model coordinates.
+  const X = (dx: number): number => dx * TILE * sq;
+  const Z = (dy: number): number => dy * TILE;
+  const tkey = (x: number, y: number): string => x + ',' + y;
+  const streetMap = new Map(o.streets.map((s) => [tkey(s.x, s.y), s]));
+  const isStreet = (x: number, y: number): boolean => streetMap.has(tkey(x, y));
+  const DIRS: [number, number][] = [[1, 0], [-1, 0], [0, 1], [0, -1]];
 
-    if (index < 2 || o.occupied[index]) return;
-
-    if (o.homePlots.includes(index)) {
-      // Homes (or, in a major city, towers) lining the street.
-      if (city && level >= 2 && r() < 0.35 + level * 0.1) {
-        const h = (1.6 + r() * 2.2) * (0.6 + level * 0.35);
-        const [bx, bz] = at(cx, cz, yaw, 0, 0.2);
-        tall(bx, bz, yaw, 1.7 * sq + 0.3, 1.7, h, level >= 3 && r() < 0.6 ? 'tower' : 'block');
-      } else {
-        const rows = level >= 3 ? 2 : 1;
-        for (let row = 0; row < rows; row++) {
-          for (const side of [-1, 1]) {
-            const [hx, hz] = at(cx, cz, yaw, side * 0.82, 0.75 - row * 1.5);
-            const w = 0.66 + r() * 0.2;
-            const d = 0.62 + r() * 0.2;
-            if (city && level >= 3 && r() < 0.5) tall(hx, hz, yaw, w + 0.35, d + 0.3, 0.9 + r() * 0.9, 'block');
-            else home(hx, hz, yaw, w, d, 0.34 + r() * 0.3 + (level >= 2 ? 0.15 : 0));
-          }
-        }
-      }
-      return;
+  // The road centre lines through town, so nothing is built on the tarmac. A corner is cut, as the road is drawn.
+  const segs: [number, number, number, number][] = [];
+  for (const s of o.streets) {
+    const nb = DIRS.filter(([a, b]) => isStreet(s.x + a, s.y + b));
+    for (const [a, b] of nb) if (a > 0 || b > 0) segs.push([X(s.x), Z(s.y), X(s.x + a), Z(s.y + b)]);
+    if (nb.length === 2 && nb[0][0] !== -nb[1][0]) {
+      const [[a0, b0], [a1, b1]] = nb;
+      segs.push([X(s.x + a0 / 2), Z(s.y + b0 / 2), X(s.x + a1 / 2), Z(s.y + b1 / 2)]);
     }
+    if (nb.length === 0) segs.push([X(s.x), Z(s.y), X(s.x), Z(s.y)]);
+  }
+  const segDist = (px: number, pz: number, [ax, az, bx, bz]: [number, number, number, number]): number => {
+    const vx = bx - ax;
+    const vz = bz - az;
+    const l2 = vx * vx + vz * vz;
+    const t = l2 > 0 ? Math.max(0, Math.min(1, ((px - ax) * vx + (pz - az) * vz) / l2)) : 0;
+    return Math.hypot(px - ax - vx * t, pz - az - vz * t);
+  };
+  const ROAD_CLEAR = 0.5;
+  const offRoad = (x: number, z: number, hx: number, hz: number): boolean =>
+    [[0, 0], [-1, -1], [1, -1], [-1, 1], [1, 1], [0, -1], [0, 1], [-1, 0], [1, 0]].every(([a, b]) => segs.every((sg) => segDist(x + a * hx, z + b * hz, sg) > ROAD_CLEAR));
 
+  // ---- the plots beside the streets ----
+  o.plots.forEach((t, index) => {
+    if (!t.ok || index < 2 || t.occupied || t.home) return;
+    const cx = X(t.x);
+    const cz = Z(t.y);
+    const fx = Math.sign(t.ex - t.x);
+    const fz = Math.sign(t.ey - t.y);
     // A lot held for the player: a level, serviced pad with a painted edge and survey stakes at the corners.
     const hw = 1.3 * sq;
+    p.anchor = [cx, cz];
     p.tex = 6;
     p.box(hw * 2, 0.03, 2.6, 0xb7b1a3, { x: cx, y: 0.0, z: cz });
     p.box(hw * 2 - 0.1, 2.5, 2.5, 0x6d6b66, { x: cx, y: -2.5, z: cz });
@@ -174,20 +190,11 @@ export function townGeometry(o: TownModelOptions): THREE.BufferGeometry {
     p.tex = 6;
     p.box(fx === 0 ? 0.6 : 0.5, 0.012, fz === 0 ? 0.6 : 0.5, 0xa39e92, { x: cx + fx * hw * 0.92, y: 0.03, z: cz + fz * 1.2 });
     p.tex = 0;
+    p.anchor = null;
   });
 
-  // ---- homes and towers around the outside ----
-  const around = homeTiles(0, 0, R)
-    .map((t, i) => ({ t, i, d: Math.hypot(t.x, t.y) + r() * 0.5 }))
-    .filter((h) => o.homeOk[h.i])
-    .sort((a, b) => a.d - b.d);
-  const fillFrac = city ? [0.35, 0.5, 0.65, 0.8, 0.9][level - 1] : [0.3, 0.5, 0.75, 0.95, 1][level - 1];
-  const filled = Math.floor(around.length * fillFrac);
-  // Just beyond the finished streets, the next blocks are being built: sites in several stages, so the town is plainly
-  // in development and fills in as it grows. A fully grown town has none.
-  const frontier = fillFrac >= 1 ? 0 : Math.max(2, Math.min(8, Math.round(around.length * 0.14)));
-
   const construction = (cx: number, cz: number, yaw: number, stage: number): void => {
+    p.anchor = [cx, cz];
     p.tex = 6;
     p.box(1.6, 0.03, 1.5, 0x9c968a, { x: cx, y: 0.0, z: cz, ry: yaw });
     p.box(1.55, 1.5, 1.45, 0x6d6b66, { x: cx, y: -1.5, z: cz, ry: yaw });
@@ -201,8 +208,6 @@ export function townGeometry(o: TownModelOptions): THREE.BufferGeometry {
         const [px, pz] = at(bx, bz, yaw, sx * 0.5, sz * 0.4);
         p.box(0.03, 0.8, 0.03, 0x9a8a5a, { x: px, y: 0.1, z: pz });
       }
-      p.box(1.0, 0.025, 0.025, 0x9a8a5a, { x: bx, y: 0.55, z: bz - 0.4, ry: yaw });
-      p.box(1.0, 0.025, 0.025, 0x9a8a5a, { x: bx, y: 0.55, z: bz + 0.4, ry: yaw });
     }
     // Materials, a site cabin and orange safety fencing along the street side.
     const [mx, mz] = at(cx, cz, yaw, 0.55, 0.45);
@@ -219,102 +224,163 @@ export function townGeometry(o: TownModelOptions): THREE.BufferGeometry {
       p.box(0.05, 1.25, 0.05, 0xd7a21f, { x: tx, y: 0.03, z: tz });
       p.box(0.85, 0.04, 0.04, 0xd7a21f, { x: tx - 0.3, y: 1.25, z: tz, ry: yaw });
     }
+    p.anchor = null;
   };
-  const maxD = Math.max(1, ...around.map((h) => h.d));
-  // Each district has its own slot, taken from the tiles nearest the centre, so it stays put as others are added.
-  const slots = homeTiles(0, 0, R)
-    .map((t, i) => ({ i, d: Math.hypot(t.x, t.y) + Math.atan2(t.y, t.x) * 0.001 }))
-    .filter((h) => o.homeOk[h.i])
+
+  /** The streets a tile fronts, as unit steps toward them; the main street first. */
+  const fronts = (x: number, y: number): [number, number][] =>
+    DIRS.filter(([a, b]) => isStreet(x + a, y + b)).sort(([a, b], [c, d]) => (streetMap.get(tkey(x + c, y + d))!.main ? 1 : 0) - (streetMap.get(tkey(x + a, y + b))!.main ? 1 : 0));
+  const yawToward = (a: number, b: number): number => (a > 0 ? YAW.E : a < 0 ? YAW.W : b > 0 ? YAW.S : YAW.N);
+
+  // ---- homes along the streets, nearest the centre first ----
+  const around = o.homes
+    .map((t, i) => ({ t, i, d: Math.hypot(t.x, t.y) + r() * 0.5 }))
+    .filter((h) => h.t.ok && fronts(h.t.x, h.t.y).length > 0)
+    .sort((a, b) => a.d - b.d);
+  const fillFrac = city ? [0.7, 0.8, 0.9, 1, 1][level - 1] : [0.7, 0.85, 1, 1, 1][level - 1];
+  const filled = Math.floor(around.length * fillFrac);
+  // Just past the finished houses, the next ones are being built: sites in several stages, so the town is plainly in
+  // development and fills in as it grows. A fully grown town has none.
+  const frontier = fillFrac >= 1 ? 0 : Math.max(2, Math.min(8, Math.round(around.length * 0.14)));
+  // Each district has its own slot, taken from the home tiles nearest the centre, so it stays put as others are added.
+  const slots = o.homes
+    .map((t, i) => ({ t, i, d: Math.hypot(t.x, t.y) + Math.atan2(t.y, t.x) * 0.001 }))
+    .filter((h) => h.t.ok && fronts(h.t.x, h.t.y).length > 0)
     .sort((a, b) => a.d - b.d);
   const claimed = new Map<number, { id: DistrictId; level: number }>();
+  const marks: TownLandmark[] = [];
   for (const d of o.districts ?? []) {
     const slot = slots[DISTRICT_ORDER.indexOf(d.id)];
     if (slot) claimed.set(slot.i, d);
   }
+
+  const built: { x: number; y: number }[] = [];
   around.forEach((h, idx) => {
-    const tx = h.t.x * TILE * sq;
-    const tz = h.t.y * TILE;
-    // Face the nearest street.
-    const face = Math.abs(h.t.x) < Math.abs(h.t.y) ? (h.t.x > 0 ? 'W' : 'E') : h.t.y > 0 ? 'N' : 'S';
-    const yaw = YAW[face as 'N' | 'S' | 'E' | 'W'];
+    const [a, b] = fronts(h.t.x, h.t.y)[0];
+    const yaw = yawToward(a, b);
     const landmark = claimed.get(h.i);
     if (landmark) {
-      districtLandmark(p, landmark.id, landmark.level, tx, tz, yaw);
+      marks.push({ id: landmark.id, level: landmark.level, tx: h.t.x, ty: h.t.y, x: X(h.t.x), z: Z(h.t.y) });
+      p.anchor = [X(h.t.x), Z(h.t.y)];
+      districtLandmark(p, landmark.id, landmark.level, X(h.t.x), Z(h.t.y), yaw);
+      p.anchor = null;
       return;
     }
     if (idx >= filled && idx < filled + frontier) {
-      construction(tx, tz, yaw, 1 + Math.floor(r() * 3));
+      const ex = X(h.t.x + a * 0.5);
+      const ez = Z(h.t.y + b * 0.5);
+      construction(ex - a * 0.2, ez - b * 0.2, yaw, 1 + Math.floor(r() * 3));
       return;
     }
     if (idx >= filled) {
-      if (r() < (city ? 0.8 : 0.55)) tree(tx + (r() - 0.5) * 1.6, tz + (r() - 0.5) * 1.6);
-      if (city && r() < 0.5) tree(tx + (r() - 0.5) * 2, tz + (r() - 0.5) * 2);
+      if (r() < (city ? 0.8 : 0.55)) tree(X(h.t.x) + (r() - 0.5) * 1.6, Z(h.t.y) + (r() - 0.5) * 1.6);
       return;
     }
-    const close = 1 - h.d / maxD;
-    if (city && level >= 2) {
-      // Major cities: dense blocks, and the centre climbs into towers.
-      const big = r() < 0.2 + close * 0.45 && level >= 3;
-      const hmax = level === 2 ? 1.6 : level === 3 ? 3.4 : level === 4 ? 6 : 9.5;
-      const height = 0.9 + hmax * (0.25 + close * 0.75) * (0.7 + r() * 0.5);
-      tall(tx, tz, yaw, (1.4 + r() * 0.5) * sq + 0.2, 1.4 + r() * 0.5, height, big ? 'tower' : 'block');
-      return;
-    }
-    for (const lot of [[-0.8, -0.8], [0.8, 0.8], [0.8, -0.8], [-0.8, 0.8]].sort(() => r() - 0.5).slice(0, level >= 3 ? 3 : level >= 2 ? 2 : 1)) {
-      const x = tx + lot[0] * sq;
-      const z = tz + lot[1];
-      const w = 0.66 + r() * 0.2;
-      const d = 0.62 + r() * 0.2;
-      if (level >= 4 && close > 0.5 && r() < 0.5) tall(x, z, yaw, w + 0.2, d + 0.2, 1.3 + r() * 1.5, 'tower');
-      else if (level >= 3 && close > 0.3 && r() < 0.6) tall(x, z, yaw, w + 0.1, d + 0.1, 0.8 + r() * 0.6, 'block');
-      else home(x, z, yaw, w, d, 0.34 + r() * 0.3 + (level >= 2 ? 0.15 : 0));
-    }
+    built.push(h.t);
+  });
+  o.plots.forEach((t, index) => {
+    if (index >= 2 && t.ok && t.home && !t.occupied) built.push(t);
   });
 
-  // ---- the street crossing: crosswalks and traffic signals ----
-  p.tex = 6;
-  for (const dir of [0, 1, 2, 3]) {
-    const ax = dir % 2 === 0 ? 1 : 0;
-    const sgn = dir < 2 ? 1 : -1;
-    for (let k = 0; k < 5; k++) {
-      const a = sgn * (1.0 + k * 0.12);
-      p.box(ax ? 0.07 : 0.56, 0.012, ax ? 0.56 : 0.07, 0xe8e8e0, { x: ax ? a * sq : 0, y: 0.078, z: ax ? 0 : a });
+  // Homes stand shoulder to shoulder along the street in front of each built-up tile, facing it behind a small front
+  // garden, with the gardens running back behind them. In a big city the centre climbs into blocks and towers.
+  const placed: [number, number, number, number][] = [];
+  const free = (x0: number, z0: number, x1: number, z1: number): boolean =>
+    !placed.some(([a0, b0, a1, b1]) => x0 < a1 && x1 > a0 && z0 < b1 && z1 > b0);
+  for (const t of built) {
+    const fr = fronts(t.x, t.y);
+    if (fr.length === 0) continue;
+    for (const [a, b] of fr) {
+      const main = streetMap.get(tkey(t.x + a, t.y + b))!.main;
+      const along: [number, number] = [-b, a];
+      const span = along[0] !== 0 ? TILE * sq : TILE;
+      // The street's centre line, and the frontage line just off it on this tile's side.
+      const sx = X(t.x + a);
+      const sz = Z(t.y + b);
+      const close = 1 - Math.hypot(t.x, t.y) / ((city ? 11 : 8) * 1.2);
+      const yawBase = yawToward(-a, -b);
+      const bigCity = city && level >= 2;
+      let s = -span / 2;
+      while (s < span / 2) {
+        const w = bigCity ? 1.1 + r() * 0.5 : 0.62 + r() * 0.22;
+        const d = bigCity ? 1.0 + r() * 0.4 : 0.58 + r() * 0.2;
+        const gap = bigCity ? 0.15 + r() * 0.15 : 0.1 + r() * 0.2;
+        const mid = s + w / 2;
+        s += w + gap;
+        if (mid + w / 2 > span / 2 + 0.2) break;
+        if (r() < 0.08) continue;
+        const setback = (main ? 0.5 : 0.42) + 0.16 + d / 2;
+        const x = along[0] !== 0 ? X(t.x) + mid : sx - a * setback;
+        const z = along[0] !== 0 ? sz - b * setback : Z(t.y) + mid;
+        const hx = (along[0] !== 0 ? w : d) / 2;
+        const hz = (along[0] !== 0 ? d : w) / 2;
+        if (!offRoad(x, z, hx, hz)) continue;
+        if (!free(x - hx - 0.04, z - hz - 0.04, x + hx + 0.04, z + hz + 0.04)) continue;
+        placed.push([x - hx, z - hz, x + hx, z + hz]);
+        const yaw = yawBase + (r() - 0.5) * 0.06;
+        if (bigCity) {
+          const hmax = level === 2 ? 1.6 : level === 3 ? 3.4 : level === 4 ? 6 : 9.5;
+          const height = 0.9 + hmax * (0.25 + Math.max(0, close) * 0.75) * (0.7 + r() * 0.5);
+          tall(x, z, yaw, w, d, height, level >= 3 && r() < 0.2 + Math.max(0, close) * 0.45 ? 'tower' : 'block');
+        } else if (level >= 4 && close > 0.5 && r() < 0.5) tall(x, z, yaw, w, d, 1.3 + r() * 1.5, 'tower');
+        else if (level >= 3 && close > 0.3 && r() < 0.6) tall(x, z, yaw, w, d, 0.8 + r() * 0.6, 'block');
+        else home(x, z, yaw, w, d, 0.34 + r() * 0.3 + (level >= 2 ? 0.15 : 0));
+        // Now and then a tree in the back garden.
+        if (r() < 0.3) {
+          const gx = x - a * (d / 2 + 0.5);
+          const gz = z - b * (d / 2 + 0.5);
+          if (offRoad(gx, gz, 0.3, 0.3)) tree(gx, gz);
+        }
+      }
+    }
+    // The back of the tile: gardens, a shed, a tree or two.
+    if (r() < 0.6) tree(X(t.x) + (r() - 0.5) * 1.4, Z(t.y) + (r() - 0.5) * 1.4);
+    if (r() < 0.35) {
+      const cx = X(t.x) + (r() - 0.5) * 1.2;
+      const cz = Z(t.y) + (r() - 0.5) * 1.2;
+      if (free(cx - 0.3, cz - 0.3, cx + 0.3, cz + 0.3) && offRoad(cx, cz, 0.3, 0.3)) home(cx, cz, yawToward(-fr[0][0], -fr[0][1]), 0.42, 0.4, 0.26);
     }
   }
-  p.tex = 0;
-  for (const sx of [-1, 1]) {
-    for (const sz of [-1, 1]) {
-      const x = sx * 0.62 * sq;
-      const z = sz * 0.62;
-      p.cyl(0.03, 0.04, 1.05, 0x2d3034, { x, y: 0.04, z }, 6);
-      p.box(0.13, 0.34, 0.13, 0x1d2024, { x, y: 1.0, z });
-      // The lamps facing each street: green one way, red the other, alternating by corner.
-      const nsGreen = sx * sz > 0;
-      for (const [face, green] of [['z', nsGreen], ['x', !nsGreen]] as ['x' | 'z', boolean][]) {
-        const off = 0.07;
-        const colors = [green ? 0x2b3a30 : 0xe04a3a, 0x3a3524, green ? 0x4cd08a : 0x3a2b2b];
-        colors.forEach((c, i) => {
-          p.box(face === 'z' ? 0.07 : 0.02, 0.07, face === 'z' ? 0.02 : 0.07, c, {
-            x: x + (face === 'x' ? off * sx : 0),
-            y: 1.2 - i * 0.1,
-            z: z + (face === 'z' ? off * sz : 0),
+
+  // ---- the crossing at the centre, and lamps along the main street ----
+  if (DIRS.filter(([a, b]) => isStreet(a, b)).length >= 3) {
+    for (const sx of [-1, 1]) {
+      for (const sz of [-1, 1]) {
+        const x = sx * 0.62 * sq;
+        const z = sz * 0.62;
+        p.cyl(0.03, 0.04, 1.05, 0x2d3034, { x, y: 0.04, z }, 6);
+        p.box(0.13, 0.34, 0.13, 0x1d2024, { x, y: 1.0, z });
+        const nsGreen = sx * sz > 0;
+        for (const [face, green] of [['z', nsGreen], ['x', !nsGreen]] as ['x' | 'z', boolean][]) {
+          const off = 0.07;
+          const colors = [green ? 0x2b3a30 : 0xe04a3a, 0x3a3524, green ? 0x4cd08a : 0x3a2b2b];
+          colors.forEach((c, i) => {
+            p.box(face === 'z' ? 0.07 : 0.02, 0.07, face === 'z' ? 0.02 : 0.07, c, {
+              x: x + (face === 'x' ? off * sx : 0),
+              y: 1.2 - i * 0.1,
+              z: z + (face === 'z' ? off * sz : 0),
+            });
           });
-        });
+        }
       }
     }
   }
-
-  // ---- lamps along the two main streets ----
-  for (let k = -R; k <= R; k++) {
-    if (k === 0) continue;
-    for (const [x, z] of [[k * TILE * sq, 0.55], [-0.55 * sq, k * TILE]] as [number, number][]) {
-      p.cyl(0.025, 0.035, 0.75, 0x3a3d40, { x, y: 0.04, z }, 6);
-      p.box(0.12, 0.05, 0.12, 0xfff0b8, { x, y: 0.79, z });
-    }
+  for (const s of o.streets) {
+    if (!s.main || (s.x === 0 && s.y === 0)) continue;
+    const ew = isStreet(s.x + 1, s.y) && isStreet(s.x - 1, s.y);
+    const ns = isStreet(s.x, s.y + 1) && isStreet(s.x, s.y - 1);
+    if (ew === ns) continue;
+    const side = (s.x + s.y) % 2 === 0 ? 1 : -1;
+    const x = X(s.x) + (ns ? side * 0.62 : 0);
+    const z = Z(s.y) + (ew ? side * 0.62 : 0);
+    p.cyl(0.025, 0.035, 0.75, 0x3a3d40, { x, y: 0.04, z }, 6);
+    p.box(0.12, 0.05, 0.12, 0xfff0b8, { x, y: 0.79, z });
   }
 
   if (p.count === 0) p.box(0.1, 0.02, 0.1, ASPHALT, { y: 0 });
-  return bendToGlobe(p.build());
+  const geo = bendToGlobe(p.build());
+  geo.userData.landmarks = marks;
+  return geo;
 }
 
 /** The model is built on a flat plane; the ground it stands on curves away. Follow the sphere so nothing floats at the edges. */

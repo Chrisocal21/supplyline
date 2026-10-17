@@ -1,14 +1,14 @@
 // Builds a small working base near the first town. Used by the #demo link and for screenshots; never saved.
 import type { SiteKind } from '../sim/defs';
 import { findPath } from '../sim/path';
+import { runChores } from '../sim/bot';
 import {
   addDock,
   createRoute,
-  ensureStations,
+  buildDepot,
   placeSite,
   isHomePlot,
   plotTiles,
-  radiusOf,
   step,
   wrapDx,
   wrapX,
@@ -50,7 +50,7 @@ export function buildDemo(world: World): Tile | null {
 
   const place = (kind: SiteKind, x: number, y: number): Site | null =>
     placeSite(world, kind, x, y) === null ? world.sites[world.sites.length - 1] : null;
-  const plots = plotTiles(town.x, town.y, radiusOf(town));
+  const plots = plotTiles(world, town);
   const spots = plots.map((_, i) => i).filter((i) => i >= 2 && !isHomePlot(town, i));
   const inTown = (kind: SiteKind, index: number): Site | null => {
     const pi = spots[index - 2];
@@ -65,18 +65,20 @@ export function buildDemo(world: World): Tile | null {
   const mill = inTown('mill', 3);
   inTown('bakery', 4);
   inTown('feedmill', 6);
-  inTown('hub', 7);
+  const hub = inTown('hub', 7);
   const bricks = inTown('brickworks', 5);
 
   if (forestry && sawmill) connect(world, forestry, sawmill);
   if (farm && mill) connect(world, farm, mill, 'road', 'highway');
   if (quarry && bricks) connect(world, quarry, bricks);
 
-  // A freight line into the town's rail station.
-  ensureStations(world);
-  const station = world.sites.find((s) => s.kind === 'station' && s.placeId === town.id);
-  for (const a of [farm, forestry, quarry]) if (a && station && connect(world, a, station, 'rail')) break;
+  // A freight line into the town's rail depot.
+  if (hub && buildDepot(world, hub.id) === null) {
+    for (const a of [farm, forestry, quarry]) if (a && connect(world, a, hub, 'rail')) break;
+  }
 
+  // The base runs: factories on, sales on, trucks bought, as a player would have set it up.
+  runChores(world);
   for (let i = 0; i < 1200; i++) step(world);
   return { x: town.x, y: town.y };
 }

@@ -57,3 +57,5 @@
 - No HTML in any output
 - No emojis in any output
 - SVG icons only when genuinely needed
+- If the game goes to an app store: a premium currency bought with real money, alongside the in-game cash. Not designed yet.
+- Islands: a Port building (Tier 3?) and cargo ships between ports, so islands with no town become a late-game reward. Until then, islands get no resource spots.

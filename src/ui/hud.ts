@@ -11,14 +11,13 @@ import {
   TIERS,
   TOWN_LEVELS,
   VEHICLE_DEFS,
-  VEHICLE_ORDER,
   PATHS,
   AIR_COST_PER_TILE,
+  DEPOT_COST,
   AIR_TIER,
   type Good,
   BUILD_ORDER,
   type SiteKind,
-  type VehicleKind,
 } from '../sim/defs';
 import {
   demolishRefund,
@@ -27,24 +26,33 @@ import {
   siteCap,
   siteSpeed,
   stockOf,
-  tradeUpPreview,
   unitPrice,
   upgradeCost,
-  addVehicle,
-  linkableSites,
-  startRoute,
+  buyError,
+  buyOptions,
+  destinationsOf,
+  fleetOf,
+  buyersFor,
+  roadPlan,
+  sellVehicleValue,
+  upgradeVehicleCost,
+  upgradeVehicleError,
   routeRefund,
   siteById,
-  tradeUp,
-  tradeUpError,
-  vehicleError,
+  siteTown,
+  growPreview,
+  growTown,
+  readyToGrow,
   upgradeError,
+  depotError,
   wants,
   type Place,
   type Site,
+  type Tile,
+  type Vehicle,
 } from '../sim/world';
 import { nextQuest } from '../sim/quests';
-import type { Game3D, HoverInfo, OverlayItem, Tool } from '../r3d/game3d';
+import { Game3D, type HoverInfo, type OverlayItem, type Tool } from '../r3d/game3d';
 import { COLORS, Im } from './imui';
 import { Rates, Sheets, type SheetId } from './sheets';
 import { byInput, inputMode, isTouch, onInputChange } from './inputmode';
@@ -169,7 +177,6 @@ export class HudScene extends Phaser.Scene {
     this.textures.addCanvas('thumb-highway', this.highwayIcon());
     this.textures.addCanvas('thumb-select', this.cursorIcon());
     this.textures.addCanvas('thumb-demolish', this.demolishIcon());
-    this.textures.addCanvas('thumb-tradeup', this.tradeIcon());
 
     const kb = this.input.keyboard!;
     this.keys = kb.addKeys('W,A,S,D,UP,DOWN,LEFT,RIGHT,Q,E') as Record<string, Phaser.Input.Keyboard.Key>;
@@ -199,6 +206,10 @@ export class HudScene extends Phaser.Scene {
         if (p.isDown) this.sheets.scrollBy(p.prevPosition.y - p.y);
         return;
       }
+      if (p.wasTouch && this.dash !== null) {
+        if (p.isDown) this.dashScroll += p.prevPosition.y - p.y;
+        return;
+      }
       if (p.wasTouch && p.isDown && !this.dragging && this.panelRect && p.prevPosition.x >= this.panelRect.x && p.prevPosition.x <= this.panelRect.x + this.panelRect.w && p.prevPosition.y >= this.panelRect.y && p.prevPosition.y <= this.panelRect.y + this.panelRect.h) this.panelScroll += p.prevPosition.y - p.y;
       if (p.wasTouch && !this.dragging) return;
       const over = this.im.blocked(p.x, p.y) && !this.dragging;
@@ -212,6 +223,7 @@ export class HudScene extends Phaser.Scene {
     });
     this.input.on('wheel', (p: Phaser.Input.Pointer, _o: unknown, _dx: number, dy: number) => {
       if (this.sheet) this.sheets.scrollBy(dy);
+      else if (this.dash !== null) this.dashScroll += dy;
       else if (this.panelRect && p.x >= this.panelRect.x && p.x <= this.panelRect.x + this.panelRect.w && p.y >= this.panelRect.y && p.y <= this.panelRect.y + this.panelRect.h) this.panelScroll += dy;
       else if (!this.im.blocked(p.x, p.y)) this.game3d.wheel(p.x, p.y, dy);
     });
@@ -221,7 +233,7 @@ export class HudScene extends Phaser.Scene {
 
     // A first-time player gets the guide straight away. Screenshot and demo links skip it.
     try {
-      if (!this.game3d.demo && !localStorage.getItem(GUIDE_KEY)) {
+      if (!this.game3d.demo && !location.hash.includes('shot') && !localStorage.getItem(GUIDE_KEY)) {
         this.sheet = 'guide';
         localStorage.setItem(GUIDE_KEY, '1');
       }
@@ -253,8 +265,16 @@ export class HudScene extends Phaser.Scene {
       this.menuOpen = false;
       return;
     }
+    if (this.saves) {
+      this.saves = null;
+      return;
+    }
     if (this.sheet) {
       this.sheet = null;
+      return;
+    }
+    if (this.dash !== null) {
+      this.dash = null;
       return;
     }
     if (g.draft) g.cancelDraft();
@@ -313,9 +333,22 @@ export class HudScene extends Phaser.Scene {
     this.cim.clipBox = null;
     this.overlay(W, H);
     this.topBar(W);
-    if (this.sheet) {
+    const growing = !this.sheet && !g.draft && !this.saves ? this.pendingGrowth() : undefined;
+    if (this.saves) {
+      this.panelRect = null;
+      this.sheetCam.setVisible(false);
+      this.savesModal(W, H);
+    } else if (this.sheet) {
+      this.dash = null;
       this.panelRect = null;
       this.sheetLayer(W, H);
+    } else if (growing) {
+      this.panelRect = null;
+      this.sheetCam.setVisible(false);
+      this.growModal(W, H, growing);
+    } else if (this.dash !== null) {
+      this.panelRect = null;
+      this.dashboard(W, H);
     } else {
       this.bottomBar(W, H);
       this.sheetCam.setVisible(false);
@@ -538,15 +571,13 @@ export class HudScene extends Phaser.Scene {
 
   private menuPanel(W: number, y: number): void {
     const im = this.im;
-    const g = this.game3d;
     const w = 236;
     const x = W - w - 12;
     const items: [string, string, () => void][] = [
       ['Quests', 'G', () => this.toggleSheet('quests')],
       ['How to play', 'H', () => this.toggleSheet('guide')],
-      ['Save game', 'S', () => this.act(g.save() ? 'Game saved' : 'Could not save')],
-      ['Load game', 'L', () => this.act(g.load() ? 'Game loaded' : 'No saved game found')],
-      ['New world', 'N', () => this.newWorld()],
+      ['Save / Load', 'S', () => this.openSaves('manage')],
+      ['New world', 'N', () => this.openSaves('new')],
     ];
     const ph = items.length * 54 + 20 + 92;
     im.rect(3, x, y, w, ph, COLORS.panel, 0.98, 18, COLORS.line, 1);
@@ -573,21 +604,118 @@ export class HudScene extends Phaser.Scene {
     this.sheets.draw(this.game3d.world, this.sheet!, x, y, w, h, () => (this.sheet = null));
   }
 
-  private confirmNew = 0;
-  private newWorld(): void {
-    if (this.time.now < this.confirmNew) {
-      this.confirmNew = 0;
-      this.game3d.newWorld();
-      this.activeTab = 'select';
-      this.toasts.push({ text: 'New world generated', until: this.time.now + 2500 });
-    } else {
-      this.confirmNew = this.time.now + 3000;
-      this.toasts.push({ text: 'Click New again to discard this game', until: this.time.now + 3000 });
-    }
+  // ---- saves: five slots, and a new world that asks before it throws the current one away ----
+
+  /** The saves window: 'new' asks whether to save before starting over, 'manage' saves and loads. */
+  private saves: 'new' | 'manage' | null = null;
+  /** A button that needs a second press to confirm, and until when it waits for it. */
+  private confirm: { id: string; until: number } | null = null;
+
+  private openSaves(mode: 'new' | 'manage'): void {
+    this.saves = mode;
+    this.confirm = null;
+    this.sheet = null;
+    this.dash = null;
+    this.menuOpen = false;
   }
 
-  private act(text: string): void {
-    this.toasts.push({ text, until: this.time.now + 2400 });
+  /** True on the second press of a risky button within a few seconds; the first press arms it. */
+  private confirmed(id: string): boolean {
+    if (this.confirm && this.confirm.id === id && this.time.now < this.confirm.until) {
+      this.confirm = null;
+      return true;
+    }
+    this.confirm = { id, until: this.time.now + 3500 };
+    return false;
+  }
+
+  private armed(id: string): boolean {
+    return !!this.confirm && this.confirm.id === id && this.time.now < this.confirm.until;
+  }
+
+  private startNewWorld(): void {
+    this.saves = null;
+    this.game3d.newWorld();
+    this.activeTab = 'select';
+    this.toasts.push({ text: 'New game started', until: this.time.now + 2500 });
+  }
+
+  private savesModal(W: number, H: number): void {
+    const im = this.im;
+    const g = this.game3d;
+    const mode = this.saves!;
+    im.rect(3, 0, 0, W, H, 0x05080c, 0.62);
+    im.block({ x: 0, y: 0, w: W, h: H });
+    const w = Math.min(600, W - 24);
+    const x = (W - w) / 2;
+    const pad = 22;
+    const inner = w - pad * 2;
+    const rowH = 64;
+    const h = 98 + Game3D.SLOTS * (rowH + 8) + 52 + pad;
+    const y = Math.max(TOP + 6, (H - h) / 2);
+    im.rect(4, x, y, w, h, COLORS.panel, 1, 18, COLORS.accent, 1, 2);
+    let cy = y + pad;
+    im.text('svT', mode === 'new' ? 'Start a new world?' : 'Saved games', x + w / 2, cy, { size: 21, bold: true, align: 'center', layer: 4 });
+    cy += 32;
+    im.text('svS', mode === 'new' ? 'Do you want to save this game first? Pick a slot to save it in, then a new world starts.' : 'Save this game in a slot, or load one. Your game also saves itself every few seconds.', x + w / 2, cy, { size: 12, color: COLORS.muted, align: 'center', wrap: inner, layer: 4 });
+    cy += 44;
+    const when = (t: number): string => {
+      const mins = Math.floor((Date.now() - t) / 60000);
+      return mins < 1 ? 'just now' : mins < 60 ? `${mins} min ago` : mins < 1440 ? `${Math.floor(mins / 60)} h ago` : new Date(t).toLocaleDateString();
+    };
+    for (let i = 1; i <= Game3D.SLOTS; i++) {
+      const info = g.slotInfo(i);
+      im.rect(4, x + pad, cy, inner, rowH, 0x131a24, 1, 12, COLORS.line, 1);
+      im.text(`sv${i}n`, info ? `Slot ${i}: ${info.town}` : `Slot ${i}: empty`, x + pad + 14, cy + 12, { size: 14, bold: true, color: info ? COLORS.text : COLORS.muted, layer: 4 });
+      if (info) im.text(`sv${i}d`, `Tier ${info.tier}  ·  $${fmt(info.money)}  ·  ${info.minutes} min played  ·  saved ${when(info.savedAt)}`, x + pad + 14, cy + 36, { size: 11, color: COLORS.muted, wrap: inner - 230, layer: 4 });
+      // Buttons on the right: save here (and start over, when making a new world), load, delete.
+      const bh = 34;
+      const by = cy + (rowH - bh) / 2;
+      let bx = x + pad + inner - 10;
+      const btn = (id: string, label: string, bw: number, style: 'main' | 'plain' | 'bad', fn: () => void): void => {
+        bx -= bw;
+        const hov = im.hit(id, bx, by, bw, bh, fn, 4);
+        const fill = style === 'main' ? (hov ? 0xf2b04c : COLORS.accent) : style === 'bad' ? (hov ? 0x4a2420 : 0x2a1a1a) : hov ? 0x2a3b50 : 0x1b2735;
+        im.rect(4, bx, by, bw, bh, fill, 1, 10, style === 'plain' ? COLORS.accent : style === 'bad' ? COLORS.bad : fill, 1);
+        im.text(`${id}t`, label, bx + bw / 2, by + 9, { size: 12, bold: true, color: style === 'main' ? 0x1b1204 : style === 'bad' ? COLORS.bad : COLORS.accent, align: 'center', layer: 4 });
+        bx -= 8;
+      };
+      const saveId = `svSave${i}`;
+      const saveLabel = this.armed(saveId) ? 'Overwrite?' : mode === 'new' ? 'Save, then new' : 'Save here';
+      btn(saveId, saveLabel, mode === 'new' ? 124 : 100, 'main', () => {
+        if (info && !this.confirmed(saveId)) return;
+        const ok = g.saveSlot(i);
+        this.toasts.push({ text: ok ? `Saved in slot ${i}` : 'Could not save', until: this.time.now + 2500 });
+        if (ok && mode === 'new') this.startNewWorld();
+      });
+      if (info && mode === 'manage') {
+        const loadId = `svLoad${i}`;
+        btn(loadId, this.armed(loadId) ? 'Sure?' : 'Load', 70, 'plain', () => {
+          if (!this.confirmed(loadId)) return;
+          const ok = g.loadSlot(i);
+          this.toasts.push({ text: ok ? `Loaded slot ${i}` : 'Could not load that save', until: this.time.now + 2500 });
+          if (ok) this.saves = null;
+        });
+        const delId = `svDel${i}`;
+        btn(delId, this.armed(delId) ? 'Delete?' : 'X', this.armed(delId) ? 70 : 34, 'bad', () => {
+          if (this.confirmed(delId)) g.deleteSlot(i);
+        });
+      }
+      cy += rowH + 8;
+    }
+    cy += 10;
+    // Bottom row: start over without saving (new world only), and close.
+    const cw = 120;
+    const ch = im.hit('svClose', x + w - pad - cw, cy, cw, 42, () => (this.saves = null), 4);
+    im.rect(4, x + w - pad - cw, cy, cw, 42, ch ? 0x2a3646 : 0x1b2430, 1, 21, COLORS.line, 1);
+    im.text('svCloseT', mode === 'new' ? 'Cancel' : 'Close', x + w - pad - cw / 2, cy + 12, { size: 14, bold: true, align: 'center', layer: 4 });
+    if (mode === 'new') {
+      const nw = inner - cw - 10;
+      const armed = this.armed('svNoSave');
+      const nh = im.hit('svNoSave', x + pad, cy, nw, 42, () => this.confirmed('svNoSave') && this.startNewWorld(), 4);
+      im.rect(4, x + pad, cy, nw, 42, nh || armed ? 0x4a2420 : 0x2a1a1a, 1, 21, COLORS.bad, 0.8);
+      im.text('svNoSaveT', armed ? 'Press again: this game will be lost' : 'Start new without saving', x + pad + nw / 2, cy + 12, { size: 14, bold: true, color: COLORS.bad, align: 'center', layer: 4 });
+    }
   }
 
   // ---- bottom menu ----
@@ -600,7 +728,7 @@ export class HudScene extends Phaser.Scene {
         cost: 'from $2/tile',
         locked: null,
         thumb: 'thumb-route',
-        blurb: 'Drag from anywhere. Between two buildings that trade, a box truck comes with it.',
+        blurb: 'Drag from anywhere. Roads only carry what trucks bought at a building haul along them.',
         detail: ['Lay roads first and connect buildings to them later: a road can start and end on open ground or on another road.', 'Roads cross water as bridges and mountains as tunnels, at a higher price.', `Bridges and tunnels: up to ${[2, 4, 8, 16][Math.min(3, w.tier)]} tiles at Tier ${w.tier}.`],
       };
     }
@@ -620,8 +748,8 @@ export class HudScene extends Phaser.Scene {
         cost: 'from $4/tile',
         locked: w.tier < 2 ? 'Tier 2' : null,
         thumb: 'thumb-rail',
-        blurb: 'Drag from anywhere. Between two buildings that trade, a freight train comes with it.',
-        detail: ['Rail is its own network, apart from roads.', 'Every town has a Rail Station on its edge. Run track to it (or just point at the Market) and whatever the train unloads is sold on to the town.', 'Where track meets a road it makes a level crossing, at a right angle on a straight stretch.', `Bridges and tunnels: up to ${[2, 4, 8, 16][Math.min(3, w.tier)]} tiles at Tier ${w.tier}.`],
+        blurb: 'Drag from anywhere. Buy a freight train at a building or a station on the line.',
+        detail: ['Rail is its own network, apart from roads.', 'Trains reach a town through a Rail Depot: build one on a Distribution Hub (Tier 2), then run track to it. Out in the country, track can join any two buildings.', 'Where track meets a road it makes a level crossing, at a right angle on a straight stretch.', `Bridges and tunnels: up to ${[2, 4, 8, 16][Math.min(3, w.tier)]} tiles at Tier ${w.tier}.`],
       };
     }
     if (tool === 'air') {
@@ -630,8 +758,8 @@ export class HudScene extends Phaser.Scene {
         cost: `$${AIR_COST_PER_TILE}/tile`,
         locked: w.tier < AIR_TIER ? `Tier ${AIR_TIER}` : null,
         thumb: 'thumb-air',
-        blurb: 'Click one airport, then another. A cargo plane comes with it.',
-        detail: ['Planes fly in a straight line over water and mountains.', 'Airports store goods like hubs: tick what they should pull, and connect them to factories by road or rail.', 'Add more planes with the Cargo Plane card.'],
+        blurb: 'Click one airport, then another. Buy cargo planes at an airport.',
+        detail: ['Planes fly in a straight line over water and mountains.', 'Airports store goods like hubs: tick what they should pull, and connect them to factories by road or rail.', 'Buy planes in the airport panel.'],
       };
     }
     if (tool === 'demolish') {
@@ -642,27 +770,6 @@ export class HudScene extends Phaser.Scene {
         thumb: 'thumb-demolish',
         blurb: 'Remove a building, or take out a road, highway or rail.',
         detail: ['Click a building, or click a road to remove it with its vehicles. You get half the cost back.', 'Town docks and town streets cannot be removed.'],
-      };
-    }
-    if (tool === 'tradeup') {
-      return {
-        name: 'Trade up',
-        cost: 'less your old one',
-        locked: null,
-        thumb: 'thumb-tradeup',
-        blurb: 'Swap the smallest vehicle on a route for the next class up.',
-        detail: ['Box Truck, Big Box Truck, Big Rig, Truck Fleet. Freight Train, Heavy Haul Train. Cargo Plane, Cargo Jet.', 'You get half of the old vehicle back. Bigger classes unlock with the tiers.', 'Click a road, a rail line or an airport on an air route.'],
-      };
-    }
-    if (tool in VEHICLE_DEFS) {
-      const d = VEHICLE_DEFS[tool as VehicleKind];
-      return {
-        name: d.label,
-        cost: `$${fmt(d.cost)}`,
-        locked: !d.implemented ? 'Coming soon' : d.tier > w.tier ? `Tier ${d.tier}` : null,
-        thumb: `thumb-${tool}`,
-        blurb: d.blurb,
-        detail: [`Carries ${d.capacity} units`, `${d.mode === 'road' ? 'Roads' : d.mode === 'rail' ? 'Rails' : 'Air routes'}`, d.mode === 'rail' ? 'Click a rail line to add one.' : d.mode === 'air' ? 'Click an airport on an air route to add one.' : 'Click a road to add one.'],
       };
     }
     const d = SITE_DEFS[tool as SiteKind];
@@ -767,14 +874,8 @@ export class HudScene extends Phaser.Scene {
     else if (g.tool === 'highway') text = `Drag to lay a highway from anywhere. Finish on a building or on another road, or ${byInput('press Enter', 'tap Finish')}`;
     else if (g.tool === 'rail') text = `Drag to lay track from anywhere. Finish on a building or on other track, or ${byInput('press Enter', 'tap Finish')}`;
     else if (g.tool === 'air') text = g.airFrom === null ? `${byInput('Click', 'Tap')} an airport, then ${byInput('click', 'tap')} the airport to fly to` : `Now ${byInput('click', 'tap')} the airport to fly to (${byInput('click', 'tap')} the same one to cancel)`;
-    else if (g.tool === 'demolish') text = h?.site ? `${byInput('Click', 'Tap')} to demolish ${h.site.name}` : h?.route ? (h.error ? h.error : `${byInput('Click', 'Tap')} to remove this ${h.route.mode === 'rail' ? 'track' : h.route.grade === 'highway' ? 'highway' : 'road'} for $${fmt(routeRefund(w, h.route))} back`) : `${byInput('Click', 'Tap')} a building or a road to remove it`;
-    else if (g.tool === 'tradeup') {
-      const pv = h?.route ? tradeUpPreview(w, h.route.id) : null;
-      text = pv ? `${VEHICLE_DEFS[pv.from].label} to ${VEHICLE_DEFS[pv.to].label} for $${fmt(pv.cost)}` : `${byInput('Click', 'Tap')} a road, rail line or airport to trade up its smallest vehicle`;
-    } else if (g.tool in VEHICLE_DEFS) {
-      const d = VEHICLE_DEFS[g.tool as VehicleKind];
-      text = `${byInput('Click', 'Tap')} ${d.mode === 'air' ? 'an airport on an air route' : d.mode === 'rail' ? 'a rail line' : 'a road'} to add a ${d.label} ($${fmt(d.cost)}, carries ${d.capacity})`;
-    } else if (g.tool !== 'select') {
+    else if (g.tool === 'demolish') text = h?.site ? `${byInput('Click', 'Tap')} to demolish ${h.site.name}` : h?.route ? (h.error ? h.error : `${byInput('Click', 'Tap')} to remove this stretch of ${h.route.mode === 'rail' ? 'track' : h.route.grade === 'highway' ? 'highway' : 'road'} for $${fmt(routeRefund(w, h.route))} back`) : `${byInput('Click', 'Tap')} a building or a road to remove it`;
+    else if (g.tool !== 'select') {
       const d = SITE_DEFS[g.tool as SiteKind];
       text = h ? (h.error ? h.error : `${byInput('Click', 'Tap')} to build ${d.label} for $${fmt(d.cost)}`) : `${d.label} $${fmt(d.cost)}`;
     } else if (h) {
@@ -815,6 +916,8 @@ export class HudScene extends Phaser.Scene {
       placed.push({ x0: it.x - 12, y0: it.y - 12, x1: it.x + 12, y1: it.y + 12 });
     }
 
+    this.buyerArrows();
+
     // Towns, largest first, then regions in whatever space is left.
     const towns = items.filter((i) => i.kind === 'town').sort((a, b) => b.value - a.value);
     for (const it of towns) {
@@ -834,6 +937,49 @@ export class HudScene extends Phaser.Scene {
       const r = { x0: it.x - t.w / 2 - 6, y0: it.y - t.h / 2 - 2, x1: it.x + t.w / 2 + 6, y1: it.y + t.h / 2 + 2 };
       if (free(r)) placed.push(r);
       else im.text(`reg${it.id}`, '', -999, -999, { size, layer: 0 });
+    }
+  }
+
+  /**
+   * With a building selected, arrows on the map to everyone who could buy from it, each with a tag to tap:
+   * green is selling, white could sell now, grey needs a road first.
+   */
+  /**
+   * With a building selected, lines on the map along the roads to the buildings it can sell to: green where it is
+   * selling, white where it could. Just lines; selling is switched in the building's panel.
+   */
+  private buyerArrows(): void {
+    const g = this.game3d;
+    const sel = g.selection;
+    if (!sel || sel.kind !== 'site' || g.tool !== 'select' || g.cam.dist > 160 || this.sheet || this.dash !== null) return;
+    const world = g.world;
+    const s = siteById(world, sel.id);
+    if (!s) return;
+    const im = this.im;
+    for (const b of buyersFor(world, s)) {
+      if (!b.connected) continue;
+      const r = world.routes.find((x) => !x.free && ((x.fromSiteId === s.id && x.toSiteId === b.site.id) || (x.fromSiteId === b.site.id && x.toSiteId === s.id)));
+      if (!r || r.path.length < 2) continue;
+      const tiles = r.fromSiteId === s.id ? r.path : [...r.path].reverse();
+      const pts = tiles.map((t) => g.screenOf(t.x, t.y, 0.45));
+      const color = b.on ? COLORS.good : 0xffffff;
+      const alpha = b.on ? 0.85 : 0.45;
+      for (let i = 0; i < pts.length - 1; i++) {
+        const p = pts[i];
+        const q = pts[i + 1];
+        if (p && q) im.line(0, p[0], p[1], q[0], q[1], color, alpha, 3);
+      }
+      const end = pts[pts.length - 1];
+      const prev = pts[pts.length - 2];
+      if (end && prev) {
+        const dx = end[0] - prev[0];
+        const dy = end[1] - prev[1];
+        const len = Math.hypot(dx, dy) || 1;
+        const ux = dx / len;
+        const uy = dy / len;
+        im.line(0, end[0], end[1], end[0] - ux * 11 - uy * 6, end[1] - uy * 11 + ux * 6, color, alpha, 3);
+        im.line(0, end[0], end[1], end[0] - ux * 11 + uy * 6, end[1] - uy * 11 - ux * 6, color, alpha, 3);
+      }
     }
   }
 
@@ -932,6 +1078,7 @@ export class HudScene extends Phaser.Scene {
       return stockOf(s, def.produce.good) >= cap ? { text: 'Full: needs a truck to collect', color: COLORS.bad } : { text: 'Producing', color: COLORS.good };
     }
     if (def.recipe) {
+      if (!s.making) return { text: 'Off: choose what to make below', color: COLORS.warn };
       const ok = Object.entries(def.recipe.inputs).every(([gd, n]) => stockOf(s, gd as Good) >= (n ?? 0));
       if (!ok) return { text: `Waiting for ${Object.keys(def.recipe.inputs).map((gd) => GOODS[gd as Good].label.toLowerCase()).join(' and ')}`, color: COLORS.warn };
       const full = Object.keys(def.recipe.outputs).some((gd) => stockOf(s, gd as Good) >= cap);
@@ -955,6 +1102,7 @@ export class HudScene extends Phaser.Scene {
 
   private sidePanel(W: number, H: number): void {
     const g = this.game3d;
+    this.planBudget = 1;
     const sel = g.selection;
     if (!sel) return;
     const w = g.world;
@@ -1002,6 +1150,7 @@ export class HudScene extends Phaser.Scene {
   }
 
   /** Returns the content height. */
+  /** The side card for a selected building: what to do next, the flow, and the way into its dashboard. */
   private sitePanel(s: Site, x: number, y: number, w: number): number {
     const im = this.pim;
     const g = this.game3d;
@@ -1011,70 +1160,72 @@ export class HudScene extends Phaser.Scene {
     im.text('spName', s.name, x, cy, { size: 17, bold: true, wrap: w - 36, layer: 2 });
     cy += 24;
     im.text('spKind', `${def.label}${def.dock || def.station ? '' : `  ·  Level ${s.level}`}`, x, cy, { size: 12, color: COLORS.muted, layer: 2 });
-    cy += 22;
-    const st = this.siteStatus(s);
-    im.circle(2, x + 5, cy + 8, 4, st.color);
-    im.text('spStatus', st.text, x + 16, cy, { size: 13, color: st.color, wrap: w - 16, layer: 2 });
-    cy += 26;
+    cy += 24;
+    if (def.dock || def.station) {
+      const st = this.siteStatus(s);
+      im.circle(2, x + 5, cy + 8, 4, st.color);
+      im.text('spStatus', st.text, x + 16, cy, { size: 13, color: st.color, wrap: w - 16, layer: 2 });
+      cy += 26;
+      const goods = def.dock ? dockDemand(world, s) : [];
+      const sellers = this.suppliersOf(s).length;
+      im.text('spSum', def.dock ? `Buys ${goods.length} kinds of goods  ·  ${sellers} of yours sell here` : `${sellers} of your buildings send goods here`, x, cy, { size: 12, color: COLORS.muted, wrap: w, layer: 2 });
+      cy += 26;
+      this.button('spOpen', def.dock ? 'Open market' : 'Open station', x, cy, w, 42, true, () => this.openDash(s.id), 'main');
+      return cy + 50 - y;
+    }
+    cy += this.nextStepCard(s, x, cy, w) + 10;
+    if (def.produce || def.recipe) cy += this.flowCard(s, x, cy, w) + 6;
+    // One line on how it is doing, then the dashboard.
+    const buyers = buyersFor(world, s).filter((b) => b.on).length;
+    const trucks = fleetOf(world, s.id);
+    const moving = trucks.filter((v) => v.routeId !== 0).length;
+    im.text('spSum', `Selling to ${buyers}  ·  ${trucks.length} truck${trucks.length === 1 ? '' : 's'}${trucks.length ? `, ${moving} working` : ''}`, x, cy, { size: 12, color: COLORS.muted, layer: 2 });
+    cy += 24;
+    this.button('spOpen', 'Open building', x, cy, w, 42, true, () => this.openDash(s.id), 'main');
+    cy += 50;
+    return cy - y;
+  }
 
-    if (s.nodeId !== null) {
-      const node = world.nodes.find((n) => n.id === s.nodeId);
-      if (node) {
-        const q = NODE_QUALITY[node.quality];
-        im.text('spNode', `${q.label} ${node.kind} node  ·  ${q.mult >= 1 ? '+' : ''}${Math.round((q.mult - 1) * 100)}% output`, x, cy, { size: 12, color: COLORS.muted, layer: 2 });
+  /** Everything about a building that is not its buyers or its trucks: the flow or what it holds, and upgrades. */
+  private infoColumn(s: Site, x: number, y: number, w: number): number {
+    const im = this.pim;
+    const g = this.game3d;
+    const world = g.world;
+    const def = SITE_DEFS[s.kind];
+    const maker = !!(def.produce || def.recipe);
+    let cy = y;
+    if (maker) cy += this.flowCard(s, x, cy, w) + 10;
+    else if (def.dock) cy += this.dockTable(s, x, cy, w);
+    else {
+      im.line(2, x, cy, x + w, cy, COLORS.line, 1);
+      cy += 10;
+      im.text('spStoreH', def.station ? 'WAITING FOR A TRAIN' : 'IN STORE', x, cy, { size: 11, bold: true, color: COLORS.muted, layer: 2 });
+      cy += 20;
+      const cap = siteCap(world, s);
+      const waiting = (gd: Good): number => (def.station ? (s.out?.[gd] ?? 0) : stockOf(s, gd));
+      const goods = (def.hub ? GOOD_LIST.filter((gd) => waiting(gd) >= 1 || s.pull.includes(gd)) : Array.from(new Set([...produces(s), ...wants(world, s)]))).filter((gd) => !def.station || waiting(gd) >= 1);
+      if (goods.length === 0) {
+        im.text('spEmpty', 'Empty', x, cy, { size: 12, color: COLORS.muted, layer: 2 });
         cy += 22;
       }
-    }
-
-    im.line(2, x, cy, x + w, cy, COLORS.line, 1);
-    cy += 10;
-    im.text('spStoreH', 'STORAGE', x, cy, { size: 11, bold: true, color: COLORS.muted, layer: 2 });
-    cy += 20;
-    const cap = siteCap(world, s);
-    const waiting = (gd: Good): number => (def.station ? (s.out?.[gd] ?? 0) : stockOf(s, gd));
-    const goods = Array.from(new Set([...(def.hub ? GOOD_LIST : produces(s)), ...wants(world, s)])).filter((gd) => !def.station || waiting(gd) >= 1);
-    if (def.station && goods.length === 0) {
-      im.text('spEmpty', 'Nothing waiting for a train', x, cy, { size: 12, color: COLORS.muted, layer: 2 });
-      cy += 22;
-    }
-    goods.forEach((gd) => {
-      const n = waiting(gd);
-      im.text(`spG${gd}`, GOODS[gd].label, x, cy, { size: 12, layer: 2 });
-      im.bar(2, x + 78, cy + 5, w - 78 - 70, 7, n / cap, n / cap > 0.85 ? COLORS.bad : COLORS.good);
-      im.text(`spN${gd}`, `${Math.floor(n)} / ${cap}`, x + w, cy, { size: 12, color: COLORS.muted, align: 'right', layer: 2 });
-      cy += 22;
-    });
-
-    if (def.produce || def.recipe) {
-      const per = def.produce ? 1 : Object.values(def.recipe!.outputs)[0] ?? 1;
-      const every = def.produce ? def.produce.every : def.recipe!.every;
-      const rate = ((TICKS_PER_SECOND * 60) / every) * siteSpeed(world, s) * per;
-      const outGood = def.produce ? def.produce.good : (Object.keys(def.recipe!.outputs)[0] as Good);
-      cy += 4;
-      im.text('spRate', `Makes about ${rate.toFixed(1)} ${GOODS[outGood].label.toLowerCase()} per minute`, x, cy, { size: 12, color: COLORS.muted, wrap: w, layer: 2 });
-      cy += 24;
-    }
-
-    if (def.dock) {
-      cy += 6;
-      im.text('spWantH', 'PAYS PER UNIT', x, cy, { size: 11, bold: true, color: COLORS.muted, layer: 2 });
-      cy += 20;
-      for (const gd of dockDemand(world, s)) {
-        im.text(`spP${gd}`, GOODS[gd].label, x, cy, { size: 12, layer: 2 });
-        im.text(`spPv${gd}`, `$${unitPrice(world, s, gd).toFixed(1)}`, x + w, cy, { size: 12, bold: true, color: COLORS.warn, align: 'right', layer: 2 });
-        cy += 20;
-      }
+      goods.slice(0, 12).forEach((gd) => {
+        const n = waiting(gd);
+        im.text(`spG${gd}`, GOODS[gd].label, x, cy, { size: 12, layer: 2 });
+        im.bar(2, x + 90, cy + 5, w - 90 - 70, 7, n / cap, n / cap > 0.85 ? COLORS.bad : COLORS.good);
+        im.text(`spN${gd}`, `${Math.floor(n)} / ${cap}`, x + w, cy, { size: 12, color: COLORS.muted, align: 'right', layer: 2 });
+        cy += 22;
+      });
     }
 
     if (def.station) {
       cy += 6;
-      im.text('spStN', 'Factories in this town send their goods here once a track serves the station, and trains carry them away. Lay track with the Rail tool. The station sells goods on to the Market and Freight Yard as they have room, at their prices.', x, cy, { size: 11, color: COLORS.muted, wrap: w, layer: 2 });
+      im.text('spStN', 'Factories in this town send their goods here once a track serves the station, and trains carry them away. Whatever a train brings is sold on to the town.', x, cy, { size: 11, color: COLORS.muted, wrap: w, layer: 2 });
       cy += 52;
     }
 
     if (def.hub) {
       cy += 6;
-      im.text('spPullH', 'PULLS FROM SUPPLIERS', x, cy, { size: 11, bold: true, color: COLORS.muted, layer: 2 });
+      im.text('spPullH', 'TAKES IN', x, cy, { size: 11, bold: true, color: COLORS.muted, layer: 2 });
       cy += 20;
       GOOD_LIST.forEach((gd, i) => {
         const col = i % 3;
@@ -1087,27 +1238,58 @@ export class HudScene extends Phaser.Scene {
         im.text(`pullT${gd}`, `${on ? '✔ ' : ''}${GOODS[gd].label}`, bx + 6, by + 5, { size: 10, color: on ? COLORS.text : COLORS.muted, layer: 2 });
       });
       cy += Math.ceil(GOOD_LIST.length / 3) * 26 + 6;
-      im.text('spPullN', 'A hub takes in what you tick and passes it on to anything that needs it.', x, cy, { size: 11, color: COLORS.muted, wrap: w, layer: 2 });
+      im.text('spPullN', 'A hub stores the overflow from your supply lines. Tick what it takes in, then pick who it sells to.', x, cy, { size: 11, color: COLORS.muted, wrap: w, layer: 2 });
       cy += 34;
     }
 
-    cy += this.vehicleSection(s, x, cy + 6, w) + 6;
+    if (def.hub && !def.airport) {
+      cy += 4;
+      const derr = depotError(world, s.id);
+      const built = !!s.depot;
+      const dcan = !derr;
+      const dh = !built && im.hit('depot', x, cy, w, 34, () => {
+        if (!dcan) return;
+        // Close the menus so the work can be watched from start to finish.
+        this.dash = null;
+        g.select(null);
+        g.buildDepot(s.id);
+      });
+      im.rect(2, x, cy, w, 34, built ? 0x15251c : dcan ? (dh ? 0x2a3b50 : 0x1b2735) : 0x151c26, 1, 10, built ? COLORS.good : dcan ? COLORS.accent : COLORS.line, 1);
+      im.text('depT', built ? 'Rail Depot built' : `Build Rail Depot   $${fmt(DEPOT_COST)}`, x + w / 2, cy + 9, { size: 12, bold: true, color: built ? COLORS.good : dcan ? COLORS.accent : COLORS.muted, align: 'center', layer: 3 });
+      cy += 40;
+      const dtext = built
+        ? 'Trains can reach this hub: lay track to it, then buy a train here. Trucks and trains work side by side.'
+        : derr
+          ? `${derr}. A depot lets trains bring goods to this hub and carry them away.`
+          : 'Adds a rail yard so trains can serve this hub, alongside its trucks. Trains reach a town only through a depot.';
+      im.text('depInfo', dtext, x, cy, { size: 11, color: derr && !built ? COLORS.warn : COLORS.muted, wrap: w, layer: 2 });
+      cy += 40;
+    }
 
     if (!def.dock && !def.station) {
       cy += 4;
       const err = upgradeError(world, s.id);
       const can = !err;
-      const label = s.level >= 3 ? 'Max level' : `Upgrade to level ${s.level + 1}   $${fmt(upgradeCost(s))}`;
-      const hov = s.level < 3 && im.hit('upgrade', x, cy, w, 36, () => can && g.upgrade(s.id));
-      im.rect(2, x, cy, w, 36, can ? (hov ? 0xf2b04c : COLORS.accent) : 0x202a37, 1, 10);
-      im.text('upgT', label, x + w / 2, cy + 10, { size: 13, bold: true, color: can ? 0x1b1204 : COLORS.muted, align: 'center', layer: 3 });
-      cy += 44;
+      const label = s.level >= 3 ? 'Max level' : `Upgrade building to level ${s.level + 1}   $${fmt(upgradeCost(s))}`;
+      const hov = s.level < 3 && im.hit('upgrade', x, cy, w, 34, () => {
+        if (!can) return;
+        // Close the menus so the work can be watched from start to finish.
+        this.dash = null;
+        g.select(null);
+        g.upgrade(s.id);
+      });
+      im.rect(2, x, cy, w, 34, can ? (hov ? 0x2a3b50 : 0x1b2735) : 0x151c26, 1, 10, can ? COLORS.accent : COLORS.line, 1);
+      im.text('upgT', label, x + w / 2, cy + 9, { size: 12, bold: true, color: can ? COLORS.accent : COLORS.muted, align: 'center', layer: 3 });
+      cy += 40;
       if (s.level < 3) {
-        const nextBoost = `Level ${s.level + 1}: output x${[1, 1.8, 3.2][s.level]}, storage x${LEVEL_CAP[s.level]}`;
+        const nextBoost = `Level ${s.level + 1} makes ${[1, 1.8, 3.2][s.level]}x as much and stores ${LEVEL_CAP[s.level]}x more.`;
         im.text('upgInfo', err && !can ? `${err}. ${nextBoost}` : nextBoost, x, cy, { size: 11, color: err ? COLORS.warn : COLORS.muted, wrap: w, layer: 2 });
         cy += 34;
       }
-      const dh = im.hit('demolish', x, cy, w, 30, () => g.demolish(s.id));
+      const dh = im.hit('demolish', x, cy, w, 30, () => {
+        this.dash = null;
+        g.demolish(s.id);
+      });
       im.rect(2, x, cy, w, 30, dh ? 0x4a2420 : 0x2a1a1a, 1, 8, COLORS.bad, 0.6);
       im.text('demT', `Demolish   +$${fmt(demolishRefund(s))}`, x + w / 2, cy + 7, { size: 12, bold: true, color: COLORS.bad, align: 'center', layer: 3 });
       cy += 38;
@@ -1115,93 +1297,561 @@ export class HudScene extends Phaser.Scene {
     return cy - y;
   }
 
-  /** Which class each route's Buy button buys. */
-  private buyKind = new Map<number, VehicleKind>();
+  // ---- building dashboard: a full-page window for one building ----
 
-  /** The vehicles that serve a building: for each route it is on, what runs there, with Buy and Trade up. */
-  private vehicleSection(s: Site, x: number, y: number, w: number): number {
+  /** The building whose dashboard is open, or null. */
+  private dash: number | null = null;
+  private dashScroll = 0;
+  private dashMax = 0;
+
+  private openDash(id: number): void {
+    this.dash = id;
+    this.dashScroll = 0;
+    this.sheet = null;
+    this.menuOpen = false;
+  }
+
+  private dashboard(W: number, H: number): void {
+    const g = this.game3d;
+    const world = g.world;
+    const s = this.dash === null ? undefined : siteById(world, this.dash);
+    if (!s) {
+      this.dash = null;
+      return;
+    }
+    this.planBudget = 2;
+    const im = this.im;
+    const def = SITE_DEFS[s.kind];
+    const x = 12;
+    const y = TOP + 6;
+    const w = W - 24;
+    const h = H - y - 12;
+    im.rect(1, x, y, w, h, COLORS.panel, 0.98, 18, COLORS.line, 1);
+    im.block({ x, y, w, h });
+
+    // Header, fixed: name, what it is, and the way out.
+    const nameH = im.text('dhName', s.name, x + 22, y + 16, { size: 22, bold: true, wrap: w - 220, layer: 2 }).h;
+    const subY = y + 20 + Math.max(26, nameH);
+    const node = s.nodeId === null ? undefined : world.nodes.find((n) => n.id === s.nodeId);
+    const town = siteTown(world, s);
+    const sub = [def.label, def.dock || def.station ? '' : `Level ${s.level}`, node ? `${NODE_QUALITY[node.quality].label} ${node.kind} spot` : '', town ? `in ${town.name}` : ''].filter(Boolean).join('  ·  ');
+    const subH = im.text('dhSub', sub, x + 22, subY, { size: 13, color: COLORS.muted, wrap: w - 220, layer: 2 }).h;
+    const headH = Math.max(72, subY - y + subH + 12);
+    const mh = im.hit('dhMap', x + w - 168, y + 16, 108, 40, () => {
+      this.dash = null;
+      g.lookAt(s.x, s.y, 45, g.cam.heading, g.cam.pitchManual);
+    }, 3);
+    im.rect(3, x + w - 168, y + 16, 108, 40, mh ? 0x2a3646 : 0x1b2430, 1, 20, COLORS.line, 1);
+    im.text('dhMapT', 'Show on map', x + w - 114, y + 28, { size: 12, bold: true, align: 'center', layer: 3 });
+    const ch = im.hit('dhClose', x + w - 52, y + 16, 40, 40, () => (this.dash = null), 3);
+    im.rect(3, x + w - 52, y + 16, 40, 40, ch ? 0x2a3646 : 0x1b2430, 1, 20);
+    im.line(3, x + w - 38, y + 30, x + w - 26, y + 42, COLORS.text, 1, 2.5);
+    im.line(3, x + w - 26, y + 30, x + w - 38, y + 42, COLORS.text, 1, 2.5);
+    im.line(2, x + 14, y + headH, x + w - 14, y + headH, COLORS.line, 1);
+
+    // Body, scrolling: the next step across the top, then columns.
+    const top = y + headH + 8;
+    const bottom = y + h - 10;
+    this.cim.clipBox = { x, y: top, w, h: bottom - top };
+    this.sheetCam.setVisible(true).setViewport(x, top, w, bottom - top).setScroll(x, top);
+    const pad = 22;
+    const inner = w - pad * 2;
+    let cy = top + 6 - this.dashScroll;
+    if (def.dock || def.station) {
+      const st = this.siteStatus(s);
+      this.pim.circle(2, x + pad + 5, cy + 8, 4, st.color);
+      this.pim.text('dsStatus', st.text, x + pad + 16, cy, { size: 14, color: st.color, layer: 2 });
+      cy += 30;
+    } else cy += this.nextStepCard(s, x + pad, cy, Math.min(inner, 760)) + 18;
+    const cols = inner >= 960 ? 3 : inner >= 620 ? 2 : 1;
+    const gap = 26;
+    const cw = (inner - gap * (cols - 1)) / cols;
+    const colX = (i: number): number => x + pad + i * (cw + gap);
+    type Col = (cx: number, yy: number, ww: number) => number;
+    const info: Col = (cx, yy, ww) => {
+      const t = def.dock ? 'WHAT IT BUYS' : def.station ? 'THE STATION' : def.produce || def.recipe ? 'PRODUCTION' : 'STORAGE';
+      const top2 = this.sectionHead('dcA', t, cx, yy + 6, ww);
+      return top2 - yy + this.infoColumn(s, cx, top2, ww);
+    };
+    const parts: Col[] = def.dock || def.station
+      ? [info, (cx, yy, ww) => this.suppliersSection(s, cx, yy + 6, ww) + 6, (cx, yy, ww) => this.townSection(s, cx, yy + 6, ww) + 6]
+      : [info, (cx, yy, ww) => this.buyerSection(s, cx, yy + 6, ww) + 6, (cx, yy, ww) => this.truckSection(s, cx, yy + 6, ww) + 6];
+    let hA = 0;
+    let hB = 0;
+    let hC = 0;
+    if (cols === 3) {
+      hA = parts[0](colX(0), cy, cw);
+      hB = parts[1](colX(1), cy, cw);
+      hC = parts[2](colX(2), cy, cw);
+    } else if (cols === 2) {
+      hA = parts[0](colX(0), cy, cw);
+      hA += parts[2](colX(0), cy + hA + 6, cw) + 6;
+      hB = parts[1](colX(1), cy, cw);
+    } else {
+      hA = parts[0](colX(0), cy, cw);
+      hA += parts[1](colX(0), cy + hA + 6, cw) + 6;
+      hA += parts[2](colX(0), cy + hA + 6, cw) + 6;
+    }
+    const contentH = cy + this.dashScroll - top + Math.max(hA, hB, hC) + 20;
+    this.dashMax = Math.max(0, contentH - (bottom - top));
+    this.dashScroll = Math.max(0, Math.min(this.dashMax, this.dashScroll));
+    if (this.dashMax > 0) {
+      const trackH = bottom - top - 8;
+      const barH = Math.max(36, (trackH * (bottom - top)) / contentH);
+      const by = top + 4 + (trackH - barH) * (this.dashScroll / this.dashMax);
+      im.rect(3, x + w - 10, top + 4, 4, trackH, 0xffffff, 0.06, 2);
+      im.rect(3, x + w - 10, by, 4, barH, 0xffffff, 0.3, 2);
+    }
+  }
+
+  /** A market's goods in one table: how much it holds, how keen it is, and what it pays. */
+  private dockTable(s: Site, x: number, y: number, w: number): number {
     const im = this.pim;
     const world = this.game3d.world;
-    const SHORT: Record<VehicleKind, string> = { boxtruck: 'Box', bigtruck: 'Big box', rig: 'Rig', convoy: 'Fleet', train: 'Train', heavytrain: 'Heavy', plane: 'Plane', jet: 'Jet' };
-    const say = (text: string): void => {
-      this.toasts.push({ text, until: this.time.now + 3200 });
-    };
+    const cap = siteCap(world, s);
     let cy = y;
+    const wide = w >= 380;
+    for (const gd of dockDemand(world, s)) {
+      const n = stockOf(s, gd);
+      const dm = this.demand(s, gd);
+      im.rect(2, x, cy, w, 30, 0x131a24, 1, 8);
+      im.text(`dt${gd}n`, GOODS[gd].label, x + 10, cy + 8, { size: 12, bold: true, layer: 3 });
+      const bx = x + 100;
+      const bw = wide ? w - 100 - 210 : w - 100 - 76;
+      im.bar(3, bx, cy + 12, bw, 6, n / cap, dm.color);
+      if (wide) im.text(`dt${gd}d`, dm.label, bx + bw + 12, cy + 8, { size: 11, color: dm.color, layer: 3 });
+      im.text(`dt${gd}p`, `$${unitPrice(world, s, gd).toFixed(1)}`, x + w - 10, cy + 8, { size: 12, bold: true, color: COLORS.warn, align: 'right', layer: 3 });
+      cy += 34;
+    }
+    cy += 4;
+    im.text('dtNote', 'The town uses up what it buys, so it keeps wanting more. A fuller stall pays less: sell it something else for a while.', x, cy, { size: 11, color: COLORS.muted, wrap: w, layer: 2 });
+    return cy + 40 - y;
+  }
+
+  /** Your buildings that sell to this one: joined to it, with the sale switched on. */
+  private suppliersOf(s: Site): Site[] {
+    const world = this.game3d.world;
+    return world.sites.filter((o) => o.id !== s.id && buyersFor(world, o, 0).some((b) => b.site.id === s.id && b.on));
+  }
+
+  private suppliersSection(s: Site, x: number, y: number, w: number): number {
+    const im = this.pim;
+    let cy = this.sectionHead('suH', 'WHO SELLS HERE', x, y, w);
+    const list = this.suppliersOf(s);
+    if (list.length === 0) {
+      im.text('suN', 'None of your buildings sell here yet. Open a factory or a camp, and tap Sell here next to this one.', x, cy, { size: 11, color: COLORS.muted, wrap: w, layer: 2 });
+      return cy + 40 - y;
+    }
+    for (const o of list) {
+      const rec = o.sales?.[s.id];
+      im.rect(2, x, cy, w, 50, 0x12261f, 1, 10, COLORS.good, 1);
+      im.text(`su${o.id}n`, o.name, x + 10, cy + 8, { size: 12, bold: true, wrap: w - 100, layer: 3 });
+      im.text(`su${o.id}s`, rec ? `Sold ${fmt(rec.units)} for $${fmt(rec.money)}` : 'Nothing sold yet', x + 10, cy + 28, { size: 11, color: rec ? COLORS.good : COLORS.muted, layer: 3 });
+      this.button(`su${o.id}o`, 'Open', x + w - 80, cy + 9, 70, 32, true, () => this.openDash(o.id));
+      cy += 56;
+    }
+    return cy - y;
+  }
+
+  /** The town a market or station belongs to: how big it is, how close to growing, and the way to manage it. */
+  private townSection(s: Site, x: number, y: number, w: number): number {
+    const im = this.pim;
+    const world = this.game3d.world;
+    const p = siteTown(world, s);
+    if (!p) return 0;
+    let cy = this.sectionHead('twH', 'THE TOWN', x, y, w);
+    const lv = TOWN_LEVELS[p.level - 1];
+    const next = TOWN_LEVELS[p.level];
+    im.text('twN', p.name, x, cy, { size: 15, bold: true, layer: 2 });
+    cy += 22;
+    im.text('twL', `${lv.name}  ·  population ${fmt(lv.pop)}`, x, cy, { size: 12, color: COLORS.muted, layer: 2 });
+    cy += 24;
+    if (next) {
+      const kinds = GOOD_LIST.filter((gd) => (p.delivered[gd] ?? 0) > 0).length;
+      im.text('twG', `Growing into a ${next.name}`, x, cy, { size: 12, layer: 2 });
+      cy += 20;
+      im.bar(2, x, cy + 2, w - 90, 8, p.growth / next.growth, COLORS.good);
+      im.text('twGv', `${fmt(p.growth)} / ${fmt(next.growth)}`, x + w, cy - 2, { size: 11, color: COLORS.muted, align: 'right', layer: 2 });
+      cy += 20;
+      im.text('twV', `Needs ${p.level} kind${p.level > 1 ? 's' : ''} of goods sold to it (${kinds} so far)`, x, cy, { size: 11, color: kinds >= p.level ? COLORS.good : COLORS.warn, wrap: w, layer: 2 });
+      cy += 26;
+    }
+    if (readyToGrow(p)) {
+      this.button('twGrow', `Ready: grow into a ${TOWN_LEVELS[p.level].name}`, x, cy, w, 40, true, () => this.showGrow(p), 'main');
+      cy += 48;
+    }
+    this.button('twM', 'Manage town', x, cy, w, 36, true, () => this.openManage(p.id));
+    return cy + 42 - y;
+  }
+
+  /** A section title with a rule above it. */
+  private sectionHead(id: string, title: string, x: number, cy: number, w: number): number {
+    const im = this.pim;
     im.line(2, x, cy - 6, x + w, cy - 6, COLORS.line, 1);
-    im.text('spVehH', 'VEHICLES', x, cy, { size: 11, bold: true, color: COLORS.muted, layer: 2 });
-    cy += 20;
-    const routes = world.routes.filter((r) => !r.free && (r.fromSiteId === s.id || r.toSiteId === s.id));
-    const links = linkableSites(world, s.id);
-    if (routes.length === 0 && links.length === 0) {
-      im.text('spVehN', 'No routes yet. Lay a road from this building to a building that trades with it (or onto a road that reaches one), and a truck comes with it. Then buy more here, or trade them up.', x, cy, { size: 11, color: COLORS.muted, wrap: w, layer: 2 });
-      return cy + 64 - y;
+    im.text(id, title, x, cy, { size: 11, bold: true, color: COLORS.muted, layer: 2 });
+    return cy + 20;
+  }
+
+  /** A flat button. `style`: 'main' is the orange call to action, 'on' is a lit green state, 'plain' is an outline. */
+  private button(id: string, label: string, x: number, y: number, w: number, h: number, ok: boolean, onClick: () => void, style: 'main' | 'on' | 'plain' = 'plain'): void {
+    const im = this.pim;
+    const hov = im.hit(id, x, y, w, h, () => ok && onClick(), 3);
+    const fill = !ok ? 0x151c26 : style === 'main' ? (hov ? 0xf2b04c : COLORS.accent) : style === 'on' ? (hov ? 0x3ba877 : 0x2f9a69) : hov ? 0x2a3b50 : 0x1b2735;
+    const text = !ok ? COLORS.muted : style === 'main' ? 0x1b1204 : style === 'on' ? 0xffffff : COLORS.accent;
+    im.rect(3, x, y, w, h, fill, 1, 8, !ok || style !== 'plain' ? fill : COLORS.accent, 1);
+    im.text(`${id}t`, label, x + w / 2, y + h / 2 - 7, { size: 12, bold: true, color: text, align: 'center', layer: 4 });
+  }
+
+  /** The good a building is mainly about: what a camp digs up or a factory makes. */
+  private mainGood(s: Site): Good | null {
+    const def = SITE_DEFS[s.kind];
+    return def.produce ? def.produce.good : def.recipe ? (Object.keys(def.recipe.outputs)[0] as Good) : null;
+  }
+
+  private goodsWord(s: Site): string {
+    const gd = this.mainGood(s);
+    return gd ? GOODS[gd].label.toLowerCase() : 'goods';
+  }
+
+  /** How much a buyer wants a good right now, in words. */
+  private demand(buyer: Site, gd: Good): { label: string; color: number; want: number } {
+    const world = this.game3d.world;
+    const fill = stockOf(buyer, gd) / Math.max(1, siteCap(world, buyer));
+    if (fill >= 0.99) return { label: 'Full, try later', color: COLORS.warn, want: 0 };
+    if (fill >= 0.6) return { label: 'Nearly full', color: COLORS.warn, want: 1 - fill };
+    return { label: 'Wants more', color: COLORS.good, want: 1 - fill };
+  }
+
+  /** Price of a "Build road" button to a buyer, worked out once and remembered while the roads stay the same. */
+  private planCache = new Map<string, { cost: number; path: Tile[] } | null>();
+  private roadCost(fromId: number, toId: number): number | null | undefined {
+    const p = this.roadPlanCached(fromId, toId);
+    return p === undefined ? undefined : p === null ? null : p.cost;
+  }
+  private roadPlanCached(fromId: number, toId: number): { cost: number; path: Tile[] } | null | undefined {
+    const world = this.game3d.world;
+    const key = `${fromId}-${toId}-${world.routes.length}-${world.sites.length}-${world.tier}`;
+    if (this.planCache.has(key)) return this.planCache.get(key);
+    // Path finding is costly: one new price per frame at most.
+    if (this.planBudget <= 0) return undefined;
+    this.planBudget -= 1;
+    if (this.planCache.size > 200) this.planCache.clear();
+    const plan = roadPlan(world, fromId, toId);
+    const out = plan ? { cost: Math.ceil(plan.cost), path: plan.path } : null;
+    this.planCache.set(key, out);
+    return out;
+  }
+  private planBudget = 1;
+
+  /** The single most useful thing to do next at this building. */
+  private nextStep(s: Site): { text: string; color: number; label?: string; ok?: boolean; act?: () => void } {
+    const g = this.game3d;
+    const world = g.world;
+    const def = SITE_DEFS[s.kind];
+    const word = this.goodsWord(s);
+    if (def.recipe && !s.making) return { text: `Press Start to make ${word}.`, color: COLORS.warn, label: 'Start', ok: true, act: () => g.making(s.id, true) };
+    const fleet = fleetOf(world, s.id);
+    const kind = buyOptions(world, s.id)[0];
+    if (fleet.length === 0 && kind) {
+      return { text: `Buy a ${VEHICLE_DEFS[kind].label.toLowerCase()} to carry your ${def.hub ? 'goods' : word}.`, color: COLORS.warn, label: `Buy  $${fmt(VEHICLE_DEFS[kind].cost)}`, ok: buyError(world, s.id, kind) === null, act: () => g.buy(s.id, kind) };
     }
-    for (const r of routes.slice(0, 8)) {
-      const other = siteById(world, r.fromSiteId === s.id ? r.toSiteId : r.fromSiteId);
-      const vs = world.vehicles.filter((v) => v.routeId === r.id);
-      const counts = new Map<VehicleKind, number>();
-      for (const v of vs) counts.set(v.kind, (counts.get(v.kind) ?? 0) + 1);
-      const carries = vs.reduce((n, v) => n + VEHICLE_DEFS[v.kind].capacity, 0);
-      im.rect(2, x, cy, w, 128, 0x131a24, 1, 10, COLORS.line, 1);
-      im.text(`vr${r.id}n`, `To ${other?.name ?? 'a building'}`, x + 10, cy + 8, { size: 12, bold: true, wrap: w - 20, layer: 3 });
-      const mix = [...counts.entries()].map(([k, n]) => `${n} ${VEHICLE_DEFS[k].label}${n > 1 ? 's' : ''}`).join(', ');
-      im.text(`vr${r.id}m`, vs.length ? `${mix}  ·  carries ${carries} per trip` : 'No vehicles', x + 10, cy + 26, { size: 11, color: COLORS.muted, wrap: w - 20, layer: 3 });
-      // Pick a class, then buy it.
-      const classes = VEHICLE_ORDER.filter((k) => VEHICLE_DEFS[k].mode === r.mode && VEHICLE_DEFS[k].implemented);
-      const chosen = this.buyKind.get(r.id) && classes.includes(this.buyKind.get(r.id)!) ? this.buyKind.get(r.id)! : classes[0];
-      const gap = 4;
-      const cw = (w - 20 - gap * (classes.length - 1)) / classes.length;
-      classes.forEach((k, i) => {
-        const cx = x + 10 + i * (cw + gap);
-        const locked = VEHICLE_DEFS[k].tier > world.tier;
-        const on = k === chosen;
-        const hov = im.hit(`vr${r.id}c${k}`, cx, cy + 50, cw, 24, () => (locked ? say(`${VEHICLE_DEFS[k].label} unlocks at Tier ${VEHICLE_DEFS[k].tier}`) : this.buyKind.set(r.id, k)), 3);
-        im.rect(3, cx, cy + 50, cw, 24, on ? 0x1f2c3a : hov ? 0x1a2431 : 0x10161e, 1, 8, on ? COLORS.accent : COLORS.line, 1);
-        im.text(`vr${r.id}ct${k}`, SHORT[k], cx + cw / 2, cy + 56, { size: 10, bold: true, color: locked ? 0x566170 : on ? COLORS.accent : COLORS.text, align: 'center', layer: 4 });
-      });
-      const bw = (w - 20 - gap) / 2;
-      const buyErr = vehicleError(world, r.id, chosen);
-      const bx = x + 10;
-      const by = cy + 84;
-      const bh = im.hit(`vr${r.id}b`, bx, by, bw, 34, () => {
-        const e = addVehicle(world, r.id, chosen);
-        say(e ?? `${VEHICLE_DEFS[chosen].label} added`);
-      }, 3);
-      im.rect(3, bx, by, bw, 34, buyErr ? 0x151c26 : bh ? 0xf2b04c : COLORS.accent, 1, 10, buyErr ? COLORS.line : COLORS.accent, 1);
-      im.text(`vr${r.id}bt`, `Buy ${SHORT[chosen]}  $${fmt(VEHICLE_DEFS[chosen].cost)}`, bx + bw / 2, by + 10, { size: 12, bold: true, color: buyErr ? COLORS.muted : 0x1b1204, align: 'center', layer: 4 });
-      const pv = tradeUpPreview(world, r.id);
-      const upErr = pv ? tradeUpError(world, r.id) : 'Already the top class';
-      const ux = bx + bw + gap;
-      const uh = im.hit(`vr${r.id}u`, ux, by, bw, 34, () => {
-        const before = tradeUpPreview(world, r.id);
-        const e = tradeUp(world, r.id);
-        say(e ?? `${VEHICLE_DEFS[before!.from].label} traded up to a ${VEHICLE_DEFS[before!.to].label}`);
-      }, 3);
-      im.rect(3, ux, by, bw, 34, upErr ? 0x151c26 : uh ? 0x2a3b50 : 0x1b2735, 1, 10, upErr ? COLORS.line : COLORS.accent, 1);
-      im.text(`vr${r.id}ut`, pv ? `Trade up  $${fmt(pv.cost)}` : 'Top class', ux + bw / 2, by + 10, { size: 12, bold: true, color: upErr ? COLORS.muted : COLORS.accent, align: 'center', layer: 4 });
-      cy += 136;
+    const buyers = buyersFor(world, s);
+    const joined = buyers.filter((b) => b.connected);
+    if (joined.length === 0) {
+      const far = buyers.find((b) => !b.connected);
+      if (!far) return { text: def.hub ? 'Join this hub to a buyer with a road.' : `Nobody nearby buys ${word} yet.`, color: COLORS.warn };
+      const cost = this.roadCost(s.id, far.site.id);
+      return { text: `No road to anyone who buys ${word}. ${far.site.name} would.`, color: COLORS.warn, label: cost === null ? 'No way' : `Road  $${cost === undefined ? '...' : fmt(cost)}`, ok: !!cost && world.money >= cost, act: () => g.roadTo(s.id, far.site.id) };
     }
-    // Buildings already reached by road or track, with no route yet: one button starts it.
-    if (links.length) {
-      im.text('spLinkH', 'CONNECTED, NO ROUTE YET', x, cy + 2, { size: 11, bold: true, color: COLORS.muted, layer: 2 });
-      cy += 22;
-      for (const l of links.slice(0, 8)) {
-        const first: VehicleKind = l.mode === 'rail' ? 'train' : 'boxtruck';
-        const err = world.money < VEHICLE_DEFS[first].cost ? 'Need money' : null;
-        im.rect(2, x, cy, w, 44, 0x131a24, 1, 10, COLORS.line, 1);
-        im.text(`lk${l.site.id}n`, l.site.name, x + 10, cy + 6, { size: 12, bold: true, wrap: w - 130, layer: 3 });
-        im.text(`lk${l.site.id}d`, `${l.path.length - 1} tiles by ${l.mode === 'rail' ? 'rail' : 'road'}`, x + 10, cy + 24, { size: 10, color: COLORS.muted, layer: 3 });
-        const bx = x + w - 118;
-        const hov = im.hit(`lk${l.site.id}b`, bx, cy + 6, 108, 32, () => {
-          const e = startRoute(world, s.id, l.site.id);
-          say(e ?? `${VEHICLE_DEFS[first].label} on its way to ${l.site.name}`);
-        }, 3);
-        im.rect(3, bx, cy + 6, 108, 32, err ? 0x151c26 : hov ? 0xf2b04c : COLORS.accent, 1, 10);
-        im.text(`lk${l.site.id}bt`, `Start  $${fmt(VEHICLE_DEFS[first].cost)}`, bx + 54, cy + 15, { size: 12, bold: true, color: err ? COLORS.muted : 0x1b1204, align: 'center', layer: 4 });
-        cy += 50;
+    const selling = joined.filter((b) => b.on);
+    if (selling.length === 0) {
+      const b = joined[0];
+      return { text: `Choose who buys your ${word}. ${b.site.name} is joined to you.`, color: COLORS.warn, label: 'Sell there', ok: true, act: () => g.sendTo(s.id, b.site.id, true) };
+    }
+    if (def.recipe) {
+      const short = Object.keys(def.recipe.inputs).find((gd) => stockOf(s, gd as Good) < (def.recipe!.inputs[gd as Good] ?? 0)) as Good | undefined;
+      if (short && !world.sites.some((o) => o.id !== s.id && produces(o).includes(short) && world.routes.some((r) => !r.free && ((r.fromSiteId === o.id && r.toSiteId === s.id) || (r.fromSiteId === s.id && r.toSiteId === o.id))))) {
+        return { text: `Out of ${GOODS[short].label.toLowerCase()}. Build a road from something that makes it.`, color: COLORS.warn };
+      }
+    }
+    if (selling.every((b) => b.goods.every((gd) => !wants(world, b.site).includes(gd) || this.demand(b.site, gd).want === 0))) {
+      return { text: 'Your buyers are full. Goods wait here until they want more, or sell somewhere else too.', color: COLORS.warn };
+    }
+    return { text: 'All running.', color: COLORS.good };
+  }
+
+  private nextStepCard(s: Site, x: number, y: number, w: number): number {
+    const im = this.pim;
+    const step = this.nextStep(s);
+    const bw = step.label ? 104 : 0;
+    const t = im.text('nsT', step.text, x + 12, y + 10, { size: 12, bold: true, color: step.color === COLORS.good ? COLORS.good : COLORS.text, wrap: w - 24 - (bw ? bw + 8 : 0), layer: 3 });
+    const h = Math.max(step.label ? 50 : 36, t.h + 20);
+    im.rect(2, x, y, w, h, step.color === COLORS.good ? 0x12261f : 0x2a2312, 1, 12, step.color, 0.8);
+    if (step.label) this.button('nsB', step.label, x + w - bw - 8, y + (h - 34) / 2, bw, 34, !!step.ok, () => step.act?.(), 'main');
+    return h;
+  }
+
+  /** What goes in, the building, and what comes out, as one picture. */
+  private flowCard(s: Site, x: number, y: number, w: number): number {
+    const im = this.pim;
+    const g = this.game3d;
+    const world = g.world;
+    const def = SITE_DEFS[s.kind];
+    const out = this.mainGood(s)!;
+    const per = def.produce ? 1 : Object.values(def.recipe!.outputs)[0] ?? 1;
+    const every = def.produce ? def.produce.every : def.recipe!.every;
+    const running = !def.recipe || !!s.making;
+    const rate = running ? ((TICKS_PER_SECOND * 60) / every) * siteSpeed(world, s) * per : 0;
+    const node = s.nodeId === null ? undefined : world.nodes.find((n) => n.id === s.nodeId);
+    const cw = (w - 40) / 3;
+    const chip = (id: string, cx: number, title: string, sub: string, color: number, hi = false): void => {
+      im.rect(3, cx, y, cw, 54, hi ? 0x1f2c3a : 0x131a24, 1, 10, hi ? COLORS.accent : COLORS.line, 1);
+      im.text(`${id}a`, title, cx + cw / 2, y + 10, { size: 12, bold: true, color: COLORS.text, align: 'center', wrap: cw - 8, layer: 4 });
+      im.text(`${id}b`, sub, cx + cw / 2, y + 31, { size: 10, color, align: 'center', wrap: cw - 8, layer: 4 });
+    };
+    const arrow = (ax: number): void => {
+      im.line(3, ax + 4, y + 27, ax + 16, y + 27, COLORS.muted, 1, 2);
+      im.line(3, ax + 11, y + 22, ax + 16, y + 27, COLORS.muted, 1, 2);
+      im.line(3, ax + 11, y + 32, ax + 16, y + 27, COLORS.muted, 1, 2);
+    };
+    if (def.produce) {
+      const q = node ? NODE_QUALITY[node.quality] : null;
+      chip('fl0', x, (def.node ?? 'land').toUpperCase(), q ? `${q.label} spot` : '', q && q.mult > 1 ? COLORS.good : COLORS.muted);
+    } else {
+      const inputs = Object.keys(def.recipe!.inputs) as Good[];
+      const low = inputs.some((gd) => stockOf(s, gd) < (def.recipe!.inputs[gd] ?? 0));
+      chip('fl0', x, inputs.map((gd) => GOODS[gd].label.toUpperCase()).join(' + '), `${inputs.map((gd) => Math.floor(stockOf(s, gd))).join(' + ')} in stock`, low ? COLORS.warn : COLORS.good);
+    }
+    arrow(x + cw);
+    const short = def.label.length > 10 ? def.label.split(' ').pop()! : def.label;
+    chip('fl1', x + cw + 20, short.toUpperCase(), running ? `${rate.toFixed(0)} a minute` : 'Stopped', running ? COLORS.good : COLORS.warn, true);
+    arrow(x + cw * 2 + 20);
+    const ready = Math.floor(stockOf(s, out));
+    const full = ready >= siteCap(world, s);
+    chip('fl2', x + cw * 2 + 40, GOODS[out].label.toUpperCase(), full ? `${ready} ready, full` : `${ready} ready`, full ? COLORS.bad : COLORS.text);
+    let cy = y + 62;
+    if (def.recipe) {
+      const by = (Object.keys(def.recipe.outputs) as Good[]).slice(1);
+      if (by.length) {
+        im.text('flBy', `Also makes ${by.map((gd) => `${GOODS[gd].label.toLowerCase()} (${Math.floor(stockOf(s, gd))})`).join(', ')}`, x, cy, { size: 11, color: COLORS.muted, layer: 2 });
+        cy += 20;
+      }
+      // Start lives in the next-step card above; once running, this is where you pause it.
+      if (s.making) {
+        this.button('flGo', 'Pause production', x, cy, w, 32, true, () => g.making(s.id, false));
+        cy += 38;
       }
     }
     return cy - y;
+  }
+
+  /** Who buys this building's goods: those joined to it, and the nearest that could be with a road. */
+  private buyerSection(s: Site, x: number, y: number, w: number): number {
+    const im = this.pim;
+    const g = this.game3d;
+    const world = g.world;
+    const def = SITE_DEFS[s.kind];
+    if (def.dock || def.station) return 0;
+    let cy = this.sectionHead('byH', `WHO BUYS YOUR ${def.hub ? 'GOODS' : this.goodsWord(s).toUpperCase()}`, x, y, w);
+    const buyers = buyersFor(world, s);
+    if (buyers.length === 0) {
+      im.text('byN', def.hub ? 'Nobody yet. Build a road from this hub to a market or a factory.' : 'Nobody nearby buys this yet. Towns want more kinds of goods as they grow.', x, cy, { size: 11, color: COLORS.muted, wrap: w, layer: 2 });
+      return cy + 40 - y;
+    }
+    for (const b of buyers) {
+      const id = `by${b.site.id}`;
+      const dock = SITE_DEFS[b.site.kind].dock;
+      const asked = b.goods.filter((gd) => wants(world, b.site).includes(gd) || !b.connected);
+      const gd = asked[0] ?? b.goods[0];
+      const h = 70;
+      im.rect(2, x, cy, w, h, b.on ? 0x12261f : 0x131a24, 1, 10, b.on ? COLORS.good : COLORS.line, 1);
+      im.text(`${id}n`, b.site.name, x + 10, cy + 8, { size: 12, bold: true, wrap: w - 110, layer: 3 });
+      im.text(`${id}p`, dock ? `$${unitPrice(world, b.site, gd).toFixed(1)} each` : `uses ${GOODS[gd].label.toLowerCase()}`, x + w - 10, cy + 8, { size: 12, bold: true, color: dock ? COLORS.warn : COLORS.muted, align: 'right', layer: 3 });
+      const bx = x + w - 110;
+      const by = cy + 30;
+      if (!b.connected) {
+        im.text(`${id}s`, 'Not joined by road yet', x + 10, cy + 30, { size: 11, color: COLORS.muted, layer: 3 });
+        const cost = this.roadCost(s.id, b.site.id);
+        this.button(`${id}b`, cost === null ? 'No way' : `Road  $${cost === undefined ? '...' : fmt(cost)}`, bx, by, 100, 32, !!cost && world.money >= cost, () => g.roadTo(s.id, b.site.id));
+      } else {
+        const wanted = wants(world, b.site).includes(gd);
+        const dm = wanted ? this.demand(b.site, gd) : { label: 'Not buying right now', color: COLORS.muted, want: 0 };
+        im.text(`${id}s`, dm.label, x + 10, cy + 28, { size: 11, color: dm.color, layer: 3 });
+        im.bar(3, x + 10, cy + 46, w - 140, 6, dm.want, dm.color);
+        this.button(`${id}b`, b.on ? 'Selling' : 'Sell here', bx, by, 100, 32, true, () => g.sendTo(s.id, b.site.id, !b.on), b.on ? 'on' : 'plain');
+      }
+      const rec = s.sales?.[b.site.id];
+      if (rec && rec.units > 0) im.text(`${id}r`, `Sold ${fmt(rec.units)} for $${fmt(rec.money)}`, x + 10, cy + 54, { size: 10, color: COLORS.muted, layer: 3 });
+      cy += h + 6;
+    }
+    im.text('byX', def.produce ? 'Tap Selling to stop selling somewhere.' : 'Tap Sell here to start selling. Tap again to stop.', x, cy, { size: 10, color: COLORS.muted, wrap: w, layer: 2 });
+    return cy + 24 - y;
+  }
+
+  /** Which trucks have their extra buttons open. */
+  private truckOpen = new Set<number>();
+
+  private truckStatus(v: Vehicle): { text: string; color: number } {
+    const world = this.game3d.world;
+    const route = v.routeId ? world.routes.find((r) => r.id === v.routeId) : undefined;
+    const home = siteById(world, v.homeId);
+    if (!route || !home) {
+      const joined = world.routes.some((r) => !r.free && (r.fromSiteId === v.homeId || r.toSiteId === v.homeId));
+      return { text: joined ? 'Waiting: nobody you sell to wants anything yet' : 'Waiting for a road', color: COLORS.warn };
+    }
+    const other = siteById(world, route.fromSiteId === v.homeId ? route.toSiteId : route.fromSiteId);
+    const name = other?.name ?? 'the buyer';
+    const homeIdx = route.fromSiteId === v.homeId ? 0 : route.path.length - 1;
+    if (v.state === 'unloading') return { text: `Unloading at ${v.idx === homeIdx ? 'home' : name}`, color: COLORS.good };
+    if (v.state === 'loading') return v.idx === homeIdx ? { text: `Loading ${this.goodsWord(home)}`, color: COLORS.good } : { text: `At ${name}`, color: COLORS.good };
+    if (v.cargo > 0 && v.good) return { text: `Carrying ${Math.floor(v.cargo)} ${GOODS[v.good].label.toLowerCase()} to ${(v.dir === 1) === (homeIdx === 0) ? name : home.name}`, color: COLORS.good };
+    return { text: (v.dir === 1) === (homeIdx === 0) ? `Driving to ${name}` : 'Heading home', color: COLORS.good };
+  }
+
+  /** The vehicles that work for a building. */
+  private truckSection(s: Site, x: number, y: number, w: number): number {
+    const im = this.pim;
+    const g = this.game3d;
+    const world = g.world;
+    const def = SITE_DEFS[s.kind];
+    if (def.dock) return 0;
+    const fleet = fleetOf(world, s.id);
+    let cy = this.sectionHead('trH', `YOUR ${def.airport ? 'PLANES' : 'TRUCKS'} (${fleet.length})`, x, y, w);
+    const options = buyOptions(world, s.id);
+    const gap = 6;
+    options.forEach((k, i) => {
+      const bw = (w - gap * (options.length - 1)) / options.length;
+      this.button(`tb${k}`, `+ ${VEHICLE_DEFS[k].label}  $${fmt(VEHICLE_DEFS[k].cost)}`, x + i * (bw + gap), cy, bw, 34, buyError(world, s.id, k) === null, () => g.buy(s.id, k), fleet.length === 0 ? 'main' : 'plain');
+    });
+    if (options.length) cy += 42;
+    else {
+      im.text('trN', 'Lay track from this building to run trains.', x, cy, { size: 11, color: COLORS.muted, wrap: w, layer: 2 });
+      cy += 24;
+    }
+    fleet.forEach((v, n) => {
+      const vd = VEHICLE_DEFS[v.kind];
+      const st = this.truckStatus(v);
+      const open = this.truckOpen.has(v.id);
+      const h = open ? 112 : 64;
+      im.rect(2, x, cy, w, h, 0x131a24, 1, 10, COLORS.line, 1);
+      im.text(`tv${v.id}n`, `${vd.label} ${n + 1}`, x + 10, cy + 8, { size: 12, bold: true, layer: 3 });
+      im.text(`tv${v.id}c`, `carries ${vd.capacity}`, x + 10, cy + 26, { size: 10, color: COLORS.muted, layer: 3 });
+      im.text(`tv${v.id}s`, st.text, x + 10, cy + 42, { size: 11, color: st.color, wrap: w - 20, layer: 3 });
+      const upErr = upgradeVehicleError(world, v.id);
+      const next = vd.next ? VEHICLE_DEFS[vd.next] : null;
+      this.button(`tv${v.id}u`, !next ? 'Top class' : next.tier > world.tier ? `Bigger at Tier ${next.tier}` : `Upgrade  $${fmt(upgradeVehicleCost(v.kind))}`, x + w - 170, cy + 8, 116, 28, upErr === null, () => {
+        this.dash = null;
+        g.select(null);
+        g.upgradeVeh(v.id);
+      });
+      this.button(`tv${v.id}m`, open ? 'Less' : 'More', x + w - 48, cy + 8, 40, 28, true, () => (open ? this.truckOpen.delete(v.id) : this.truckOpen.add(v.id)));
+      if (open) {
+        const dests = destinationsOf(world, v);
+        const pinned = dests.find((d) => d.id === v.destId);
+        const label = pinned ? `Only to ${pinned.name}` : 'Goes to: any buyer';
+        this.button(`tv${v.id}d`, label.length > 26 ? `${label.slice(0, 25)}…` : label, x + 10, cy + 68, w - 120, 32, dests.length > 0, () => {
+          const ids = [0, ...dests.map((d) => d.id)];
+          g.vehicleDest(v.id, ids[(ids.indexOf(v.destId) + 1) % ids.length]);
+        });
+        this.button(`tv${v.id}x`, `Sell  +$${fmt(sellVehicleValue(v))}`, x + w - 104, cy + 68, 94, 32, true, () => g.sellVeh(v.id));
+      }
+      cy += h + 6;
+    });
+    return cy - y;
+  }
+
+  // ---- town growth: a town that has earned its next level waits for the player to finish it ----
+
+  /** Towns the player put off with Later, by "id:level", so the popup does not come straight back. */
+  private growLater = new Set<string>();
+
+  private pendingGrowth(): Place | undefined {
+    return this.game3d.world.places.find((p) => readyToGrow(p) && !this.growLater.has(`${p.id}:${p.level}`));
+  }
+
+  /** Bring a town's growth popup back after Later. */
+  private showGrow(p: Place): void {
+    this.growLater.delete(`${p.id}:${p.level}`);
+    this.dash = null;
+  }
+
+  private growModal(W: number, H: number, p: Place): void {
+    const im = this.im;
+    const g = this.game3d;
+    const pv = growPreview(p);
+    if (!pv) return;
+    im.rect(3, 0, 0, W, H, 0x05080c, 0.62);
+    im.block({ x: 0, y: 0, w: W, h: H });
+    const w = Math.min(560, W - 24);
+    const x = (W - w) / 2;
+    const pad = 24;
+    const inner = w - pad * 2;
+    // Lay the window out first to know its height, then centre it.
+    const rows: [string, string, string][] = [
+      ['Population', fmt(pv.popFrom), fmt(pv.popTo)],
+      ['Pays for goods', pv.priceFrom ? `+${pv.priceFrom}%` : 'base price', `+${pv.priceTo}%`],
+      ['Stalls hold', `${fmt(pv.storeFrom)} each`, `${fmt(pv.storeTo)} each`],
+      ['Uses up goods', `${p.level}x`, `${p.level + 1}x`],
+      ...(pv.lotsTo > pv.lotsFrom ? [['Building lots', `${pv.lotsFrom}`, `${pv.lotsTo}`] as [string, string, string]] : []),
+    ];
+    const extras: { title: string; text: string }[] = [];
+    if (pv.lotsTo > pv.lotsFrom) extras.push({ title: `${pv.lotsTo - pv.lotsFrom} new building lots`, text: 'Homes near the centre move out, and the lots open up for your factories and mills' });
+    if (pv.newMarket.length) extras.push({ title: 'Market starts buying', text: pv.newMarket.map((gd) => GOODS[gd].label).join(', ') });
+    if (pv.freightOpens) extras.push({ title: 'Freight Yard opens', text: `Buys raw goods and by-products: ${pv.newFreight.slice(0, 6).map((gd) => GOODS[gd].label.toLowerCase()).join(', ')} and more` });
+    else if (pv.newFreight.length) extras.push({ title: 'Freight Yard starts buying', text: pv.newFreight.map((gd) => GOODS[gd].label).join(', ') });
+    if (pv.districts.length) extras.push({ title: 'New districts to build', text: pv.districts.join(', ') });
+    if (pv.pathOpens) extras.push({ title: 'Can specialise', text: 'Pick a path for the town: Breadbasket, The Forge, Trade Hub or The Boulevard' });
+    // Wrapped lines push the next block down: about 6.3px per character at this size.
+    // What is new goes in two columns on a wide window, so a big list still fits a short screen.
+    const twoCol = inner >= 440 && extras.length > 1;
+    const colW = twoCol ? (inner - 20) / 2 : inner;
+    const lines = (t: string): number => Math.max(1, Math.ceil((t.length * 6.3) / colW));
+    const extraH = (e: { title: string; text: string }): number => (e.title.length * 7.2 > colW ? 44 : 26) + lines(e.text) * 17 + 10;
+    const pairs: { title: string; text: string }[][] = [];
+    for (let i = 0; i < extras.length; i += twoCol ? 2 : 1) pairs.push(extras.slice(i, i + (twoCol ? 2 : 1)));
+    const pairH = (pr: { title: string; text: string }[]): number => Math.max(...pr.map(extraH));
+    const h = 132 + rows.length * 34 + 16 + pairs.reduce((n, pr) => n + pairH(pr), 0) + 82;
+    const y = Math.max(TOP + 6, (H - h) / 2);
+    im.rect(4, x, y, w, h, COLORS.panel, 1, 18, COLORS.accent, 1, 2);
+    let cy = y + pad;
+    im.text('grT', `${p.name} is ready to grow!`, x + w / 2, cy, { size: 22, bold: true, align: 'center', layer: 4 });
+    cy += 34;
+    im.text('grS', `${pv.from}  →  ${pv.to}`, x + w / 2, cy, { size: 16, bold: true, color: COLORS.accent, align: 'center', layer: 4 });
+    cy += 30;
+    im.text('grN', 'Your deliveries have grown this town. Here is what changes:', x + w / 2, cy, { size: 12, color: COLORS.muted, align: 'center', wrap: inner, layer: 4 });
+    cy += 30;
+    const c1 = x + pad;
+    const c2 = x + pad + inner * 0.45;
+    const c3 = x + pad + inner * 0.75;
+    for (const [label, from, to] of rows) {
+      im.rect(4, c1, cy, inner, 28, 0x131a24, 1, 8);
+      im.text(`grR${label}`, label, c1 + 12, cy + 6, { size: 13, layer: 4 });
+      im.text(`grF${label}`, from, c2, cy + 6, { size: 13, color: COLORS.muted, layer: 4 });
+      im.text(`grA${label}`, '→', c3 - 26, cy + 6, { size: 13, color: COLORS.muted, layer: 4 });
+      im.text(`grU${label}`, to, c3, cy + 6, { size: 13, bold: true, color: COLORS.good, layer: 4 });
+      cy += 34;
+    }
+    cy += 10;
+    for (const pr of pairs) {
+      pr.forEach((e, k) => {
+        const ex = c1 + k * (colW + 20);
+        const th = im.text(`grE${e.title}`, e.title, ex, cy, { size: 13, bold: true, color: COLORS.accent, wrap: colW, layer: 4 }).h;
+        im.text(`grX${e.title}`, e.text, ex, cy + th + 4, { size: 12, wrap: colW, layer: 4 });
+      });
+      cy += pairH(pr);
+    }
+    cy += 10;
+    const bw = inner - 120 - 10;
+    const gh = im.hit('grGo', c1, cy, bw, 46, () => {
+      const err = growTown(g.world, p.id);
+      this.toasts.push({ text: err ?? `${p.name} is now a ${pv.to}`, until: this.time.now + 3600 });
+      if (!err) g.lookAt(p.x, p.y, 55, g.cam.heading, g.cam.pitchManual);
+    }, 4);
+    im.rect(4, c1, cy, bw, 46, gh ? 0xf2b04c : COLORS.accent, 1, 23);
+    im.text('grGoT', `Grow into a ${pv.to}`, c1 + bw / 2, cy + 13, { size: 16, bold: true, color: 0x1b1204, align: 'center', layer: 4 });
+    const lh = im.hit('grLater', c1 + bw + 10, cy, 120, 46, () => this.growLater.add(`${p.id}:${p.level}`), 4);
+    im.rect(4, c1 + bw + 10, cy, 120, 46, lh ? 0x2a3646 : 0x1b2430, 1, 23, COLORS.line, 1);
+    im.text('grLaterT', 'Later', c1 + bw + 70, cy + 14, { size: 14, bold: true, align: 'center', layer: 4 });
   }
 
   private placePanel(p: Place, x: number, y: number, w: number): number {
@@ -1213,6 +1863,10 @@ export class HudScene extends Phaser.Scene {
     cy += 24;
     im.text('ppKind', `${lv.name}  ·  ${STYLE_LABEL[p.style]}  ·  Level ${p.level}  ·  population ${fmt(lv.pop)}`, x, cy, { size: 12, color: COLORS.muted, wrap: w, layer: 2 });
     cy += 22;
+    if (readyToGrow(p)) {
+      this.button('ppGrow', `Ready: grow into a ${TOWN_LEVELS[p.level].name}`, x, cy, w, 40, true, () => this.showGrow(p), 'main');
+      cy += 48;
+    }
     const path = p.path ? PATHS[p.path] : null;
     im.text('ppPath', path ? path.label : p.level >= 3 ? 'Ready to specialise' : 'No specialisation yet', x, cy, { size: 12, bold: true, color: path ? path.color : p.level >= 3 ? COLORS.accent : COLORS.muted, layer: 2 });
     cy += 24;
@@ -1326,45 +1980,6 @@ export class HudScene extends Phaser.Scene {
       ctx.translate(-off * 0.7, 0);
     }
     ctx.restore();
-    return c;
-  }
-
-  private tradeIcon(): HTMLCanvasElement {
-    const c = document.createElement('canvas');
-    c.width = c.height = 160;
-    const ctx = c.getContext('2d')!;
-    // A small truck, an arrow, and a bigger truck.
-    ctx.fillStyle = '#dfe1e3';
-    ctx.fillRect(18, 98, 34, 22);
-    ctx.fillStyle = '#3b6ea5';
-    ctx.fillRect(52, 104, 14, 16);
-    ctx.fillStyle = '#1f2124';
-    ctx.beginPath();
-    ctx.arc(28, 122, 6, 0, Math.PI * 2);
-    ctx.arc(58, 122, 6, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = '#e8a23a';
-    ctx.beginPath();
-    ctx.moveTo(80, 30);
-    ctx.lineTo(104, 58);
-    ctx.lineTo(90, 58);
-    ctx.lineTo(90, 78);
-    ctx.lineTo(70, 78);
-    ctx.lineTo(70, 58);
-    ctx.lineTo(56, 58);
-    ctx.closePath();
-    ctx.fill();
-    ctx.fillStyle = '#dfe1e3';
-    ctx.fillRect(86, 84, 56, 36);
-    ctx.fillStyle = '#2f7a6a';
-    ctx.fillRect(86, 84, 56, 6);
-    ctx.fillRect(142, 92, 12, 28);
-    ctx.fillStyle = '#1f2124';
-    ctx.beginPath();
-    ctx.arc(98, 124, 8, 0, Math.PI * 2);
-    ctx.arc(126, 124, 8, 0, Math.PI * 2);
-    ctx.arc(148, 124, 8, 0, Math.PI * 2);
-    ctx.fill();
     return c;
   }
 

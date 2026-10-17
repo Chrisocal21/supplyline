@@ -1,12 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import { MOUNTAIN_ELEV } from './defs';
 import { put } from './testutil';
+import { runChores } from './bot';
 import type { Terrain } from './defs';
 import { generateLand } from './mapgen';
 import {
   addDock,
-  addVehicle,
-  checkTown,
+  buyVehicle,
+  growPreview,
+  growTown,
+  readyToGrow,
   createBlankWorld,
   createRoute,
   createWorld,
@@ -90,8 +93,8 @@ describe('building', () => {
     expect(placeError(w, 'sawmill', 13, 9)).toBeNull();
     expect(placeError(w, 'sawmill', 13, 11)).toMatch(/Reserved/);
     // plots all around the streets are open from the start
-    expect(placeError(w, 'sawmill', 16, 9)).toBeNull();
-    expect(placeError(w, 'sawmill', 12, 11)).toBeNull();
+    expect(placeError(w, 'sawmill', 17, 9)).toBeNull();
+    expect(placeError(w, 'sawmill', 11, 11)).toBeNull();
     
     expect(placeError(w, 'quarry', 30, 9)).toBeNull();
   });
@@ -101,7 +104,7 @@ describe('building', () => {
     expect(placeError(w, 'hub', 9, 4)).toMatch(/Tier 1/);
     w.tier = 1;
     expect(placeError(w, 'hub', 14, 10)).toMatch(/main street/);
-    expect(placeError(w, 'hub', 16, 12)).toMatch(/Too close to Testford/);
+    expect(placeError(w, 'hub', 13, 12)).toMatch(/Too close to Testford/);
     expect(placeError(w, 'hub', 13, 11)).toMatch(/Reserved/);
     w.money = 10;
     expect(placeError(w, 'sawmill', 13, 9)).toBe('Need $220');
@@ -178,6 +181,7 @@ describe('logistics loop', () => {
     put(w, 'sawmill', 9, 4);
     expect(createRoute(w, row(3, 9, 4))).toBeNull();
     expect(createRoute(w, [...row(9, 14, 4), ...col(14, 5, 10), { x: 15, y: 10 }, { x: 15, y: 9 }])).toBeNull();
+    runChores(w);
     return w;
   }
 
@@ -187,7 +191,11 @@ describe('logistics loop', () => {
     expect(w.delivered.lumber ?? 0).toBeGreaterThanOrEqual(100);
     expect(w.tier).toBe(1);
     // The Village threshold is higher than the first quest, so keep selling until the town grows.
-    for (let i = 0; i < 30000 && w.places[0].level < 2; i++) step(w);
+    // A town waits for the player to finish its upgrade.
+    for (let i = 0; i < 30000 && !readyToGrow(w.places[0]); i++) step(w);
+    expect(w.places[0].level).toBe(1);
+    expect(w.log.some((l) => /ready to grow/.test(l.text))).toBe(true);
+    expect(growTown(w, w.places[0].id)).toBeNull();
     expect(w.places[0].level).toBeGreaterThanOrEqual(2);
     expect(w.log.some((l) => /grew into/.test(l.text))).toBe(true);
     // growing to level 2 opens the freight yard
@@ -214,6 +222,7 @@ describe('hubs', () => {
     put(w, 'sawmill', 11, 5);
     expect(createRoute(w, [...col(3, 4, 8), ...row(4, 8, 8)])).toBeNull();
     expect(createRoute(w, [...col(8, 8, 5), ...row(9, 11, 5)])).toBeNull();
+    runChores(w);
     for (let i = 0; i < 4000; i++) step(w);
     const saw = w.sites.find((s) => s.kind === 'sawmill')!;
     expect((saw.stock.lumber ?? 0) + (saw.stock.logs ?? 0)).toBeGreaterThan(0);
@@ -229,6 +238,7 @@ describe('hubs', () => {
     const b = w.sites.find((s) => s.x === 8 && s.y === 12)!;
     a.stock.logs = 100;
     expect(createRoute(w, col(8, 8, 12))).toBeNull();
+    runChores(w);
     for (let i = 0; i < 4000; i++) step(w);
     expect(stockOf(a, 'logs') + stockOf(b, 'logs')).toBe(100); // nothing created or lost
     // flow stops once the hubs are within the balance margin
@@ -247,10 +257,14 @@ describe('towns and levels', () => {
     const p = w.places[0];
     p.growth = 1e7;
     p.delivered = { lumber: 500 };
-    checkTown(w, p);
+    expect(readyToGrow(p)).toBe(true);
+    expect(growTown(w, p.id)).toBeNull();
     expect(p.level).toBe(2); // one kind is enough for level 2, but not level 3
+    expect(growTown(w, p.id)).toMatch(/not ready/);
     p.delivered = { lumber: 500, flour: 500 };
-    checkTown(w, p);
+    expect(growPreview(p)?.to).toBe('Town');
+    expect(growPreview(p)?.newMarket.length).toBeGreaterThan(0);
+    expect(growTown(w, p.id)).toBeNull();
     expect(p.level).toBe(3);
   });
 
@@ -274,8 +288,9 @@ describe('towns and levels', () => {
     placeSite(w, 'forestry', 3, 4);
     put(w, 'sawmill', 9, 4);
     createRoute(w, row(3, 9, 4));
-    expect(addVehicle(w, w.routes[0].id, 'plane')).toMatch(/need an air route/);
-    expect(addVehicle(w, w.routes[0].id, 'rig')).toBeNull();
+    const camp = w.sites.find((s) => s.kind === 'forestry')!;
+    expect(buyVehicle(w, camp.id, 'plane')).toMatch(/cannot run/);
+    expect(buyVehicle(w, camp.id, 'boxtruck')).toBeNull();
   });
 });
 

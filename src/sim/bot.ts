@@ -18,21 +18,29 @@ import {
 import { questState } from './quests';
 import { buildDistrict, choosePath, districtCost, districtError, districtLevel, districtSatisfaction, pathError } from './town';
 import {
-  addVehicle,
+  buyOptions,
+  buyVehicle,
+  growTown,
+  readyToGrow,
   createAirRoute,
   createRoute,
   createWorld,
-  ensureStations,
+  buildDepot,
   findPath,
   placeError,
   placeSite,
   plotTiles,
   produces,
+  setMaking,
+  setSendTo,
+  sellTargets,
+  siteById,
   step,
-  tradeUp,
-  tradeUpError,
+  supplies,
   upgradeError,
   upgradeSite,
+  upgradeVehicle,
+  upgradeVehicleError,
   wrapDx,
   wrapX,
   type Place,
@@ -59,6 +67,37 @@ export interface BotResult {
 
 const DECIDE_EVERY = 100;
 
+/**
+ * The chores a player does by hand once a chain is built: switch every factory on, switch on every sale a road allows,
+ * and buy a truck (or train, or plane) at the supplying end of any route that has none. Returns what it did.
+ */
+export function runChores(w: World): string[] {
+  const did: string[] = [];
+  for (const p of w.places) if (readyToGrow(p) && growTown(w, p.id) === null) did.push(`grew ${p.name}`);
+  for (const site of w.sites) {
+    if (SITE_DEFS[site.kind].recipe && !site.making) {
+      setMaking(w, site.id, true);
+      did.push(`switched on ${site.name}`);
+    }
+    for (const t of sellTargets(w, site)) {
+      if (t.on) continue;
+      setSendTo(w, site.id, t.site.id, true);
+      did.push(`${site.name} sells to ${t.site.name}`);
+    }
+  }
+  for (const r of w.routes) {
+    if (r.free || w.vehicles.some((v) => v.routeId === r.id)) continue;
+    const a = siteById(w, r.fromSiteId)!;
+    const b = siteById(w, r.toSiteId)!;
+    if (!supplies(w, a, b) && !supplies(w, b, a)) continue;
+    const home = supplies(w, a, b) || !supplies(w, b, a) ? a : b;
+    const kind = r.mode === 'rail' ? 'train' : r.mode === 'air' ? 'plane' : 'boxtruck';
+    if (w.vehicles.some((v) => v.homeId === home.id && v.routeId === 0 && VEHICLE_DEFS[v.kind].mode === r.mode)) continue;
+    if (buyVehicle(w, home.id, kind) === null) did.push(`bought a ${VEHICLE_DEFS[kind].label} at ${home.name}`);
+  }
+  return did;
+}
+
 export function playBot(seed: number, ticks: number, onNote?: (n: BotNote) => void): BotResult {
   const w = createWorld(seed);
   const notes: BotNote[] = [];
@@ -76,7 +115,7 @@ export function playBot(seed: number, ticks: number, onNote?: (n: BotNote) => vo
 
   // ---- finding places ----
   const lotFor = (kind: SiteKind, town: Place): { x: number; y: number } | null => {
-    for (const t of plotTiles(town.x, town.y, town.radius ?? 3)) {
+    for (const t of plotTiles(w, town)) {
       const x = wrapX(w, t.x);
       if (placeError(w, kind, x, t.y) === null) return { x, y: t.y };
     }
@@ -108,7 +147,7 @@ export function playBot(seed: number, ticks: number, onNote?: (n: BotNote) => vo
     return openFor(kind, town);
   };
 
-  const inTownOf = (s: Site, town: Place): boolean => plotTiles(town.x, town.y, town.radius ?? 3).some((t) => wrapX(w, t.x) === s.x && t.y === s.y);
+  const inTownOf = (s: Site, town: Place): boolean => plotTiles(w, town).some((t) => wrapX(w, t.x) === s.x && t.y === s.y);
   const routeBetween = (a: Site, b: Site, mode = 'road'): boolean =>
     w.routes.some((r) => r.mode === mode && ((r.fromSiteId === a.id && r.toSiteId === b.id) || (r.fromSiteId === b.id && r.toSiteId === a.id)));
 
@@ -240,17 +279,15 @@ export function playBot(seed: number, ticks: number, onNote?: (n: BotNote) => vo
 
   const vehicleSomething = (): boolean => {
     // Like a player, only trade up where goods are piling up waiting for a bigger vehicle.
-    const pressure = (r: (typeof w.routes)[number]): number => {
+    const pressure = (siteId: number): number => {
+      const site = siteById(w, siteId)!;
       let m = 0;
-      for (const id of [r.fromSiteId, r.toSiteId]) {
-        const site = w.sites.find((x) => x.id === id)!;
-        for (const g of produces(site)) m = Math.max(m, (site.stock[g] ?? 0) / SITE_DEFS[site.kind].cap);
-      }
+      for (const g of produces(site)) m = Math.max(m, (site.stock[g] ?? 0) / SITE_DEFS[site.kind].cap);
       return m;
     };
-    const route = w.routes.find((r) => pressure(r) > 0.6 && tradeUpError(w, r.id) === null);
-    if (route && tradeUp(w, route.id) === null) {
-      note('traded a vehicle up');
+    const v = w.vehicles.find((x) => pressure(x.homeId) > 0.6 && upgradeVehicleError(w, x.id) === null);
+    if (v && upgradeVehicle(w, v.id) === null) {
+      note('upgraded a vehicle');
       return true;
     }
     return false;
@@ -265,6 +302,11 @@ export function playBot(seed: number, ticks: number, onNote?: (n: BotNote) => vo
         if (s && w.money >= def.cost + 100 && def.tier <= w.tier && placeSite(w, goal.site, s.x, s.y) === null) note(`built ${def.label}`);
         break;
       }
+      case 'depot': {
+        const hub = w.sites.find((s) => SITE_DEFS[s.kind].hub && !SITE_DEFS[s.kind].airport && !s.depot);
+        if (hub && buildDepot(w, hub.id) === null) note('built a Rail Depot');
+        break;
+      }
       case 'route': {
         if (goal.mode === 'road') {
           const camp = siteFor('logs', home);
@@ -274,11 +316,10 @@ export function playBot(seed: number, ticks: number, onNote?: (n: BotNote) => vo
             if (path && createRoute(w, path, 'road', goal.grade ?? 'street') === null) note(`built a ${goal.grade ?? 'street'} route`);
           }
         } else if (goal.mode === 'rail') {
-          ensureStations(w);
-          const station = w.sites.find((s) => s.kind === 'station' && s.placeId === home.id);
+          const depot = w.sites.find((s) => s.depot);
           const src = w.sites.find((s) => s.kind === 'farm');
-          if (station && src && !routeBetween(src, station, 'rail')) {
-            const path = w.money > 4000 ? findPath(w, src, station, 120000, 'rail') : null;
+          if (depot && src && !routeBetween(src, depot, 'rail')) {
+            const path = w.money > 4000 ? findPath(w, src, depot, 120000, 'rail') : null;
             if (path && createRoute(w, path, 'rail') === null) note('laid a rail line');
           }
         } else {
@@ -295,12 +336,16 @@ export function playBot(seed: number, ticks: number, onNote?: (n: BotNote) => vo
       }
       case 'vehicle': {
         const def = VEHICLE_DEFS[goal.vehicle];
-        // Walk the ladder up to the wanted class on some route of the right mode.
-        const route = w.routes.find((r) => r.mode === def.mode && (r.mode !== 'road' || r.grade !== undefined));
-        if (route && def.tier <= w.tier) {
-          if (w.vehicles.some((v) => v.routeId === route.id && v.kind === goal.vehicle)) break;
-          if (tradeUp(w, route.id) === null) note('traded a vehicle up');
-          else if (w.money > def.cost * 2 && addVehicle(w, route.id, goal.vehicle) === null) note(`bought a ${def.label}`);
+        if (def.tier > w.tier || w.vehicles.some((v) => v.kind === goal.vehicle)) break;
+        // Walk the ladder up from a smaller vehicle of the same mode, or buy the entry class where the line starts.
+        const lower = w.vehicles.filter((v) => VEHICLE_DEFS[v.kind].mode === def.mode && VEHICLE_ORDER.indexOf(v.kind) < VEHICLE_ORDER.indexOf(goal.vehicle));
+        const up = lower.find((v) => upgradeVehicleError(w, v.id) === null);
+        if (up) {
+          if (upgradeVehicle(w, up.id) === null) note('upgraded a vehicle');
+        } else if (lower.length === 0) {
+          const entry = def.mode === 'rail' ? 'train' : def.mode === 'air' ? 'plane' : 'boxtruck';
+          const at = w.sites.find((x) => buyOptions(w, x.id).includes(entry) && w.routes.some((r) => r.mode === def.mode && !r.free && (r.fromSiteId === x.id || r.toSiteId === x.id)));
+          if (at && w.money > VEHICLE_DEFS[entry].cost * 2 && buyVehicle(w, at.id, entry) === null) note(`bought a ${VEHICLE_DEFS[entry].label}`);
         }
         break;
       }
@@ -340,6 +385,8 @@ export function playBot(seed: number, ticks: number, onNote?: (n: BotNote) => vo
     const d0 = performance.now();
 
     // One action per decision: about a casual human's pace. Quests first, then the base chains, then spending.
+    // Chores are routine and do not count as the one action of this turn.
+    for (const t of runChores(w)) note(t);
     const n0 = notes.length;
     const idle = (): boolean => notes.length === n0;
     const tier = TIERS[w.tier];
@@ -366,7 +413,7 @@ export function playBot(seed: number, ticks: number, onNote?: (n: BotNote) => vo
         const from = w.sites.find((s) => s.id === r.fromSiteId)!;
         const full = Object.values(from.stock).some((n) => (n ?? 0) > SITE_DEFS[from.kind].cap * 0.8);
         const kind = r.mode === 'road' ? 'boxtruck' : r.mode === 'rail' ? 'train' : 'plane';
-        if (full && r.grade !== undefined && w.vehicles.filter((v) => v.routeId === r.id).length < 4 && addVehicle(w, r.id, kind) === null) {
+        if (full && !r.free && w.vehicles.filter((v) => v.routeId === r.id).length < 4 && buyVehicle(w, from.id, kind) === null) {
           note(`added a ${kind}`);
           break;
         }

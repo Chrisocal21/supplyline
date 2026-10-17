@@ -307,3 +307,152 @@ The click-a-road way of adding vehicles was confusing (free roads, shared tiles)
 ## Oct 12, 2026 (late night, fix): roads that joined buildings gave no trucks
 
 A road drawn from a building onto another road is a free road (no vehicle), so a camp could be "connected" with no truck, and the new vehicle panel said "No routes yet". Now routes follow the network: `linkableSites` walks the roads and tracks already laid (tiles joined where a route runs from one to the next; a building is the end of the line) and lists every building the one it is selecting could trade with and has no route to. The building panel shows them under "Connected, no route yet" with a **Start** button (\`startRoute\`), and when a road is laid the buildings at its ends get routes started automatically (\`connectSites\`, up to three, only if money allows). Existing level crossings are no longer charged again. Tests: 59 pass (two new, including the exact two-free-roads case).
+
+## Oct 15, 2026: nothing runs until you set it up
+
+Vehicles, production and sales are now player-driven, one clean flow:
+
+1. **Build** a camp, farm or mill. **Buy a truck at that building** (its panel, Vehicles). The truck belongs to that building (`homeId`) and waits at the gate (`routeId 0`, hidden) until a route it may run exists.
+2. **Roads and rails only open lanes.** `createRoute`, `createAirRoute`, `connectSites` and in-town district links no longer buy anything.
+3. **Raw producers** (farm, camp, pit...) deliver by themselves to any connected building that asks for their good.
+4. **Processors** make nothing until switched on (`site.making`, Production section). While off they ask suppliers for nothing, so a farm's truck stays parked until the mill is on.
+5. **Everything else sells only where switched on** (`site.sendTo`, Sell to section; `sellTargets`, `setSendTo`, `sendAllowed`). Applies to processors, hubs and airports. Stations stay automatic.
+6. **Vehicles are individual.** Each has Upgrade (next class, half the old price back), Sell (half price) and a destination picker (`destId`). Trade-up by route and the click-a-road vehicle tools are gone. A vehicle carries its own building's goods out; the route it runs is whichever lane its building sells along (`laneOk`, `assignVehicle`), least busy first. Switch a sale off and the truck finishes its trip, drives home and parks. Removing a route parks its trucks; demolishing a building sells its trucks.
+7. Tier 0 quests now walk the flow: camp, buy a truck, sawmill, road, switch on, sell to the Market, sell 100 lumber. New quest goals `fleet`, `making`, `selling`.
+8. Bot: `runChores(w)` in bot.ts does what a player does by hand (switch everything on, switch sales on, buy a truck at the supplying end of each route). The demo base uses it too. Save key is now v9 (old saves do not load).
+
+Pacing, seed 11: Tier 1 at 5.7 min, Tier 2 at about 56 (was 45; the bot now pays for trucks per route). 60 tests pass.
+
+Open for later: the hub-as-overflow step (quests nudge it at Tier 1; hubs still need Sell to switched on by hand), and in-app purchases: if this ships to a store it needs a premium currency bought with real money alongside the in-game cash.
+
+## Oct 15, 2026 (later): selling made simple
+
+The building panel was too technical. It now tells one story, top to bottom:
+- **Next step card** (`nextStep` in hud.ts): one plain sentence and one button. Start, Buy a truck, Build road ($), Sell there, or "All running".
+- **Flow card**: what goes in (with stock), the building (per minute or Stopped), and what comes out (ready, full). Pause sits under it once running.
+- **Who buys your X** (`buyersFor` in world.ts): every buyer already joined, plus the three nearest that are not, each with its price, a "Wants more / Nearly full / Full, try later" meter, sales so far, and one button: Selling / Sell here / Road $N (`buildRoadTo` lays the road and turns the sale on; prices come from `roadPlan`, cached, one path search per frame).
+- **Your trucks**: + Truck, then one row per truck in plain words ("Carrying 6 lumber to Birchridge Market", "Waiting for a road"), Upgrade, and More (destination, Sell).
+- **Map arrows**: with a building selected, arrows to its buyers with tappable price tags (green selling, white can sell, grey dashed needs a road).
+- Camps and farms now use the same switch: they sell to whoever they are joined to unless you stop it (`sendOff`).
+
+61 tests pass. Checked the whole loop in the browser: camp, truck, road from the camp's panel, Start, Sell here, lumber sold.
+
+## Oct 15, 2026 (evening): building dashboard, sell lines on the roads
+
+- Clicking a building shows a short side card: the next step, the flow, a one-line summary and **Open building**. That opens a full-page **dashboard** (`dashboard()` in hud.ts): header with Show on map and close, the next step across the top, then three columns (Production, Who buys, Your trucks). It drops to two or one column on narrow screens. Esc closes it; it scrolls with wheel or drag. Docks and stations keep their short side panel.
+- Map sell lines now follow the road that joins the two buildings (the route's tiles), with the arrow at the buyer's door. A buyer not joined yet shows the road a tap would build, dashed, and only when its price tag fits on screen. Tags move along the line to avoid covering each other.
+
+## Oct 15, 2026 (night): towns grow when you say so
+
+A town no longer levels up by itself. When it has the growth and the variety (`readyToGrow`), it is logged once ("ready to grow", `place.readyAt`) and a popup opens (`growModal` in hud.ts): Hamlet to Village, population before and after, price bonus, stall size, how fast it uses goods, what the Market and Freight Yard start buying, new districts, and whether it can specialise (`growPreview`). **Grow into a Village** finishes it (`growTown`: level, Freight Yard at 2, town links) and flies the camera there; **Later** puts it off, and the town's panel and a market's town column show a **Ready: grow into a ...** button to bring it back. The popup waits while a sheet is open or a road is being drawn. The bot grows towns in `runChores`. 61 tests pass.
+
+## Oct 15, 2026 (night): upgraded buildings look bigger
+
+`siteGeometryAt(kind, level)` in r3d/models.ts: the main building grows (factories 1.08x across and 1.3x up at level 2, 1.15x and 1.6x at 3; camps and farms less in height) and each level adds its own pieces (`levelParts`). Factories: a wider paved lot, an annex hall, silos and pallets in the colour of what they make; level 3 adds a tall striped chimney, a sawtooth second hall, a loading dock with a truck, and lamps. Camps, farms, pits and mines: a foundation pad, a fence, a shed and stockpiles; level 3 adds a barn, silos (farms) or an open storage shed (others), a truck and lamps. Hubs: container stacks, then a gantry crane. Markets and stations do not change (towns grow them). Models are cached per kind and level, and swapped when a building is upgraded.
+
+## Oct 15, 2026 (night): construction you can watch
+
+`r3d/construction.ts`: when a building is placed or upgraded, scaffolding goes up round its lot (walkways, braces, a materials pile and a site hut), a yellow tower crane at the back corner swings its load, dust rises (through the smoke system, `every` sets a faster puff rate), and the new model grows out of the ground with a small bounce before the scaffolding comes down. About 3.2 seconds of real time. game3d spots new and upgraded buildings in `syncSites` (`siteLevels`, `sitesShown` so loading a world does not set everything building), keeps each mesh's resting matrix in `userData.base`, and runs `updateConstruction` every frame. The Upgrade button says "Construction started"; the finish says "X is now level N" or "X is open". `construction.debugT` holds every job at one point, for screenshots.
+
+## Oct 15, 2026 (night): upgrades are an event
+
+- Pressing Upgrade on a building closes the dashboard and the side card, and the camera flies in close and slowly circles while the work plays (`watch`, `orbitUntil`; any click or drag hands the camera back).
+- The building job is now about 5 seconds: two flatbed lorries drive in from the street side and their loads swing off onto the lot; scaffolding and the crane go up; the old building sinks away in a burst of dust; the new, bigger one rises with a bounce; the scaffolding comes down and the lorries back out. A new building does the same without the old one sinking.
+- Upgrading a vehicle closes the menu, flies the camera to it, and it swells into its new body with a bounce and a puff of dust (`userData.pop` in game3d).
+- Laying a road or track sends a yellow road roller down its length with dust behind it (`startRoad`).
+- Fixed: the truck Upgrade button had lost its $ sign.
+
+## Oct 15, 2026 (night): resource spots on level ground, spaced out
+
+- Placement (`generateFeatures` in sim/features.ts): farms, pastures, orchards, forests and clay only go on low, level ground (step to every neighbour at most `NODE_SLOPE` 9, height at most `NODE_MAX_ELEV` 160), with at least two clear tiles to any other node (`NODE_GAP` 3, was touching), and land within `NODE_TOWN_REACH` 22 tiles of a town is preferred. Pastures and orchards may use any open land in the region, not only the farming belt. Quarries, mines and coal seams take the lowest half of the grass within two tiles of the rock, so they sit down on the plain at the foot, not up the flank.
+- Ground (`HeightField` in r3d/geo.ts): every node now gets a levelled pad like towns have (a 1-tile flat core blending out over 2.2 tiles, at the average height of the ground round it); quarries keep their dug pit, mines their yard.
+- Town-built stations and docks animate quietly (no "is open" message for each).
+- Pacing seed 11: Tier 1 6.5 min, Tier 2 55 min (unchanged). Existing saves keep their old node positions; a new game uses the new layout.
+
+## Oct 15, 2026 (late): old saves get the new layout, towns open lots as they grow
+
+- Old saves: `relayoutNodes` (sim/world.ts) runs on load when `world.layout` is below `NODE_LAYOUT` (2). It regenerates the nodes with the current rules for the same seed, keeps every node that has a building on it, and adds the new ones that do not crowd a kept node, sit on a building or sit on a road. New worlds are stamped layout 2.
+- Lots: towns start with more of their street plots as homes (60%, cities 50%; was 35%/30%), and each level frees `LOTS_PER_LEVEL` (3) of them, nearest the centre first (`homesNow`, `lotsAt`). The town model draws only the homes still standing, so the freed plots show as empty lots. The grow popup has a "Building lots 8 → 10" row and a "N new building lots" note; its "what is new" list is now in two columns so it fits a short screen. The unused `INDUSTRY_PLOTS` / `openIndustryPlots` are gone. 63 tests pass.
+
+## Oct 15, 2026 (late): five save slots, and New asks first
+
+New world used to need a second click within three seconds, so one click seemed to do nothing. Now the menu has **Save / Load** and **New world**, both opening one window (`savesModal` in hud.ts). Five slots (`saveSlot`, `loadSlot`, `deleteSlot`, `slotInfo` in game3d; each slot stores the world and a small summary: town, tier, money, minutes played, when saved). New world asks "Do you want to save this game first?": each slot has **Save, then new**, plus **Start new without saving** and **Cancel**. Overwriting a slot, loading over the current game, deleting, and starting without saving each need a second press (the button says "Overwrite?", "Sure?", "Delete?" or "Press again"). The autosave keeps running as before. A save is about 250 KB, so six fit well inside the browser's storage.
+
+## Oct 15, 2026 (late): no resource spots on islands no town can reach
+
+`generateFeatures` now floods out from every town over land, letting it hop straight across up to `REACH_BRIDGE` (4) tiles of water (a Tier 1 bridge), and drops any node outside that. An island with no town stays scenery. `NODE_LAYOUT` is now 3, so saves made before this get their unbuilt spots re-laid on load (built ones stay). Every kind of node still appears in every test world.
+
+## Oct 15, 2026 (late): hard rule, no resource spots by the water
+
+Every node is at least `NODE_DRY` + 1 (3) tiles from water (`dry` in features.ts), so its levelled yard or a quarry's pit never reaches the sea or a lake. Clay sits 3 to 4 tiles back from the shore instead of on it. The farming belt's centres are picked from dry ground. Quarries, mines and coal take turns choosing first at each mountain, so all three stay common. `NODE_LAYOUT` 4: older saves are re-laid on load (built spots stay). A test checks the rule on four worlds. Pacing seed 11: Tier 1 7.3 min, Tier 2 47 min.
+
+## Oct 15, 2026 (late): towns as a street grid
+
+- Streets (`streetOffset` in features.ts, `townStreets` in world.ts): the main cross, a ring road round the edge, and in a major city a cross street through each quarter (kept clear of the plots along the cross). Only on dry land; a gap is left beside an old rail station so its track still reaches it; any dead end left over (an arm that would run into the sea) is trimmed back. `streetAt` now asks this set, so pathing, building rules and the road renderer all agree. Cached per town until routes or sites change.
+- Roads renderer draws the town grid from `townStreets`, with square corners in towns (country roads keep their curves).
+- New rail stations stand just outside the ring road, beside a corner. Saves keep their stations; the ring opens beside them.
+- Homes: fuller from the start (fill 70% at level 1, was 30 to 35%), two rows of homes on every home plot, three to four homes per home tile.
+- Pacing seed 11 unchanged within noise. Old saves get the grid on load; nothing moves.
+
+## Oct 15, 2026 (late): roads that flow
+
+- Road and rail drawing (r3d/roads.ts): plain road between "pins" (junctions, dead ends, and where it meets a bridge, tunnel or highway) is now one smooth run, rounded off with three corner-cutting passes (`smoothTiles`, `SMOOTH_PASSES`). Staircases become diagonals, quarter turns become bends, town ring corners round off. Vehicles follow the same curves (`pathPoint` uses the route's cached smooth runs, refreshed each rebuild). Bridges, tunnels and highways keep their exact tile-by-tile shape.
+- Towns: back to the main cross plus the ring road (the city quarter streets made a maze of short stubs). Driveways are a short apron instead of a stub of street. Homes stand in a row facing their street, set back behind front gardens, with small random offsets and turns; a second row fills in from level 2, and a garden tree where there is room.
+
+## 2026-10-16: town grids and farmyards
+- Every town's main east-west street is drawn as a highway through the middle of town; the grid's streets join it.
+- Side streets on the lines between tiles (one each way in a town, three in a city) split towns into real blocks. They run out from the highway and end at the ring road, or in a turning circle where the ring is missing.
+- Homes now line every street shoulder to shoulder, facing it behind a small front garden, with back gardens meeting mid-block. No more homes stranded in the middle of a block, and no more stub driveways.
+- Farm fields lie square to the compass with a farmyard in the middle and a track out to each end, so the farm buildings sit in their yard, in line with the crops.
+- Fix: a nearby farm's levelled yard could raise part of a town's flat ground, burying its streets. A town's flat ground now always wins.
+
+## 2026-10-16: Map 1, a made world
+- New games start on Map 1, "The Known World": a hand-drawn world map with seven landmasses, island chains, an inner sea, lakes and twelve mountain ranges. Seeded links (#seed=N) still make a generated world for tests and screenshots; #map-shot opens Map 1.
+- The globe is bigger: 288 x 96 tiles (was 192 x 64), more than twice the area, at the same tile size. The globe radius, polar caps, camera range and space-view thresholds follow the world's size, so older saves still load at their old size.
+- 28 towns and cities are placed by hand; the map builder moves each to the nearest spot where its whole square is dry, level land, and clears and levels it.
+- Maps live in src/maps/*.json, baked by tools/maps/map1.cjs (`node tools/maps/map1.cjs preview.png` also draws a flat preview). Resources follow the placement rules from the map's fixed seed, so a map always has the same ones, and a map can list its own instead.
+
+## 2026-10-16: strip towns
+- Towns are no longer squares. Each is a strip along one main street (src/sim/townlayout.ts) that leaves the centre toward the nearest towns, bending gently to aim at them (at most one tile sideways in three), with a short cross street at the centre and lanes of uneven length branching off every other tile. Lots and homes line both sides.
+- Streets grow with the town: the main street runs 3 tiles each way at level 1 (5 in a city) and one more per level, and lanes reach out a tile at a time. Neighbours' streets stop just short of halfway, so they reach toward each other and a short road joins them.
+- The layout is worked out from the land and the towns, never saved. Plots, entries, facing, placeAt, townStreets and stations all read it. Dead ends are kept (they are where roads carry a street on); only stretches cut off from the centre are dropped.
+- The town model lines every built street with houses (or blocks and towers in a grown city), keeping off the road's centre line, and the ground is levelled and worn along the whole strip. The main street is no longer a highway through town.
+- Save key is now supplyline.save.v10: old saves had buildings on the old square plots.
+
+## 2026-10-16: highways
+- Highways are drawn as smooth runs like streets (staircases become diagonals, corners become bends) instead of square per-tile strips that overlapped at every turn. A run stops where a highway meets a street, and the highway narrows into the street over its last half tile. Vehicles follow the same curves.
+- A town's streets count as part of the road network for the road and highway tools (`onNetwork`), so a highway can start on one town's street and finish the moment it reaches another's.
+
+## 2026-10-16: build camera
+- Upgrading a building no longer circles the camera round it (it swung behind trees and homes). It holds a low view from one side, then cuts to a higher view from another side halfway through, drifting slowly in on each. Each view is picked from eight headings by checking the sight line against the ground, trees, town buildings and sites (`watch`/`blocked` in game3d.ts). Any click or drag hands the camera back.
+- Building work lasts 9 seconds instead of 5.2 (`BUILD_MS`), so every stage plays out slower: lorries, unloading, scaffolding, the old building sinking and the new one rising.
+- Fix: where a highway turned into a street at a corner, the two were drawn as separate pieces meeting at a small junction pad, leaving a jagged join. A highway and the street it runs on into are now one smooth curve: the highway narrows to street width over its last half tile and the markings change at the hand-over, with no pad in between. Vehicles follow the same curve.
+
+## 2026-10-16: towns grow on screen
+- When a town grows a level, the change plays out over 8.5 seconds (`GROW_MS`, src/r3d/grow.ts): a wave runs out from the centre, the old town's buildings sink into the ground as it reaches them and the bigger town's rise behind it with a small overshoot, dust along the front. Road rollers lay each new stretch of street, and the camera uses the two-view build camera, pulled back to take in the whole town.
+- Every part of a Parts model now carries an anchor (`Parts.anchor`, attribute `anc`), so a building rises as one piece instead of stretching. The town model sets it per house, block, tree, lot and landmark.
+- Shadows wait until the growth ends. `debugGrowT` on the game holds growth at a point for screenshots.
+
+## 2026-10-16: highway quest
+- Fix: "Build a highway" (and the other road quests) ignored any road that did not start and end on a building, which is what a highway between two towns' streets is. The quest now counts every road the player lays; only a town's own street links (no grade) are left out. Test in src/sim/quests.test.ts.
+
+## 2026-10-16: rail station spot
+- Fix: a town's rail station was put on the nearest free tile outside the town, so it could stand alone in the grass with no street. It now takes one of the house tiles beside the main street (towards the outer end, with open ground behind it for the track) and turns to face that street instead of the track. See `stationTile` in sim/world.ts.
+
+## 2026-10-16: every upgrade plays out
+- Town districts: building one, or raising its level, now runs the same building work as a building upgrade: scaffolding and a crane go up at the district's tile, lorries unload, the old landmark sinks and the new one rises (9 seconds, the two-view build camera). Only that landmark changes; the rest of the town stays put (`growMaterial` with a `local` spot in r3d/grow.ts, `startDistrictWork` in game3d.ts). `townGeometry` records each landmark's tile in `geometry.userData.landmarks`.
+- Committing a town to a specialisation path plays the growth wave as a renovation: the town sinks and rises again, without new streets.
+- Already animated: buildings (scaffold, crane, lorries), town levels (growth wave and rollers), vehicles (swell and dust).
+
+## 2026-10-16: trains bend
+- Trains were one rigid box that swung round corners like a stick. A train is now a string of separate units (`trainUnits` in r3d/models.ts): a locomotive with hood, cab, stack, lamps and bogies, and wagons of five kinds (box, tank, hopper, flat with logs, open). Each unit follows the track on its own and points along the chord between its two ends, so the train bends round a curve one unit at a time. The load shows in the first wagon. Icons still use the whole train as one model.
+
+## 2026-10-16: rail depots replace stations
+- Towns no longer get a Rail Station for free. A Distribution Hub can be given a Rail Depot ($3,000, Tier 2; `buildDepot` in sim/world.ts, button in the hub panel): a rail yard with a platform, gantry and containers next to the truck bays, built behind scaffolding like an upgrade. Trains reach a town only through a depot hub (`planRoute`), and the last step into one may cross the lot beside it. Out in the country, track still joins any two buildings. Hubs already pass goods on to the town by truck, so nothing a train brings is lost. Old stations in saves keep working; `ensureStations` is no longer called.
+- New tier 2 quest "Build a Rail Depot" before "Lay a rail line"; the bot and demo build depots.
+- Level crossings are built for the width of the road: gates stand clear of a highway's four lanes (`wideTiles` in roads.ts).
+
+## 2026-10-16: road and track in stretches
+- Road, highway and rail are now laid as stretches of about 5 tiles (`SEGMENT_TILES`, `createRoute` in sim/world.ts). Each stretch is its own piece of ground (`Route.seg`), so the demolish tool removes one stretch, refunds only its own tiles, and leaves the rest. When two buildings are joined, a lane (`Route.over`) runs along the stretches for the vehicles; it owns no ground, so refunds come from the stretches. Taking a stretch out removes the lanes that ran along it and parks their vehicles (`dropBrokenLanes`); the rest of the road stays, and so does the road if a building is demolished.
+- Only ground that is not already road becomes new stretches, so joining more buildings along existing road adds none.
+- The demolish tool shows the stretch it will remove in red.

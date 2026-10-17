@@ -13,14 +13,21 @@ import {
   type SiteKind,
   type VehicleKind,
 } from '../sim/defs';
-import { homeTiles } from '../sim/features';
-import { townGeometry } from './townmodel';
+import { townGeometry, type TownLandmark } from './townmodel';
+import { GROW_MS, growMaterial } from './grow';
 import { tileLonLat } from '../sim/mapgen';
 import { findPath } from '../sim/path';
 import {
-  addVehicle,
-  tradeUp,
-  tradeUpPreview,
+  buyVehicle,
+  buildRoadTo,
+  relayoutNodes,
+  homesNow,
+  upgradeVehicle,
+  buildDepot,
+  sellVehicle,
+  setVehicleDest,
+  setSendTo,
+  setMaking,
   onNetwork,
   connectSites,
   removeRoute,
@@ -30,9 +37,12 @@ import {
   createAirRoute,
   createRoute,
   createWorld,
+  createWorldFromMap,
+  type MapData,
   demolishSite,
   nodeAt,
   plotFacing,
+  layoutOf,
   plotTiles,
   terrainAt,
   placeAt,
@@ -49,6 +59,8 @@ import {
   siteById,
   step,
   wrapDx,
+  wrapX,
+  townStreets,
   upgradeSite,
   type Place,
   type Region,
@@ -59,10 +71,12 @@ import {
   type Tile,
   type World,
 } from '../sim/world';
-import { GlobeCamera, pickGround, MAX_DIST } from './camera';
-import { HeightField, LAT_SPAN, R, basisMatrix, lonLatToTile, lonLatToVec } from './geo';
+import { GlobeCamera, pickGround, maxDist } from './camera';
+import { HeightField, LAT_SPAN, R, basisMatrix, lonLatToTile, lonLatToVec, setGlobeSize, vecToLonLat } from './geo';
 import { buildGlobe, type Globe } from './globeMesh';
-import { siteGeometry, vehicleGeometry } from './models';
+import { siteGeometry, siteGeometryAt, trainUnits, vehicleGeometry } from './models';
+import { BUILD_MS, Construction } from './construction';
+import map1 from '../maps/map1.json';
 import { paintGlobe, paintRoughness } from './paint';
 import { Smoke } from './smoke';
 import { RoadNet, makeHighwayTexture, makeRailTexture, makeRoadTexture } from './roads';
@@ -70,7 +84,19 @@ import { Scenery } from './scenery';
 import { buildDemo } from './demo';
 import type { Good } from '../sim/defs';
 
-export const SAVE_KEY = 'supplyline.save.v8';
+export const SAVE_KEY = 'supplyline.save.v10';
+
+/** The summary shown for a save slot. */
+export interface SlotInfo {
+  savedAt: number;
+  town: string;
+  tier: number;
+  money: number;
+  earned: number;
+  minutes: number;
+  /** Towns grown past a Hamlet. */
+  towns: number;
+}
 const TICK_MS = 1000 / TICKS_PER_SECOND;
 
 /** Where the load shows on each vehicle: height and distance along its length. */
@@ -85,7 +111,7 @@ const CARGO_AT: Record<VehicleKind, [number, number]> = {
   jet: [0.58, -0.14],
 };
 
-export type Tool = 'select' | 'route' | 'highway' | 'rail' | 'air' | 'demolish' | 'tradeup' | SiteKind | VehicleKind;
+export type Tool = 'select' | 'route' | 'highway' | 'rail' | 'air' | 'demolish' | SiteKind;
 export type Selection = { kind: 'site'; id: number } | { kind: 'place'; id: number } | null;
 
 export interface HoverInfo {
@@ -209,6 +235,14 @@ export class Game3D {
 
   private globe: Globe | null = null;
   private readonly smoke = new Smoke();
+  /** Building work on screen. Created on first use, since the shared material is defined further down this module. */
+  private construction: Construction | null = null;
+  /** Each building's level when last drawn, so an upgrade can be spotted; and whether the first world sync is done. */
+  private readonly siteLevels = new Map<number, number>();
+  private readonly siteDepots = new Set<number>();
+  private sitesShown = false;
+  /** The time of the current frame, for animations started from inside a sync. */
+  private nowMs = 0;
   private roads!: RoadNet;
   private rails!: RoadNet;
   private scenery!: Scenery;
@@ -218,7 +252,15 @@ export class Game3D {
   private readonly hemi = new THREE.HemisphereLight(0xd6e4f7, 0x6a6a5c, 1.25);
   private readonly sun = new THREE.DirectionalLight(0xfff1dc, 2.3);
   private readonly siteMeshes = new Map<number, THREE.Mesh>();
-  private readonly townMeshes = new Map<number, { mesh: THREE.Mesh; sig: string }>();
+  private readonly townMeshes = new Map<number, { mesh: THREE.Mesh; sig: string; level: number; districts: Record<string, number>; path: string }>();
+  /** Stand-ins for the building work on a district's landmark, so the scaffolding and lorries have something to stand at. */
+  private readonly dummies = new Map<number, THREE.Mesh>();
+  private readonly districtWork = new Map<number, { start: number; old: THREE.Mesh; mesh: THREE.Mesh; jobs: { id: number }[]; mats: THREE.MeshStandardMaterial[][] }>();
+  /** Towns playing their growth: the old model sinking as the new one rises. */
+  private readonly growing = new Map<number, { start: number; old: THREE.Mesh; mesh: THREE.Mesh; reach: number }>();
+  private townsShown = false;
+  /** For screenshots: hold every growing town at this point of its growth (0 to 1). */
+  debugGrowT: number | null = null;
   private readonly vehicleMeshes = new Map<number, THREE.Mesh>();
   private readonly cargoMeshes = new Map<number, THREE.Mesh>();
   private readonly siteGeoCache = new Map<string, THREE.BufferGeometry>();
@@ -315,10 +357,12 @@ export class Game3D {
     const t0 = performance.now();
     this.disposeWorld();
     this.world = world;
+    setGlobeSize(world);
     this.hf = new HeightField(world);
     this.logSeen = world.logSeq;
 
-    const color = paintGlobe(world, 16);
+    // Texel density drops on a bigger planet so the globe texture stays within what phones can load (4096 wide).
+    const color = paintGlobe(world, Math.min(16, Math.floor(4096 / world.width)));
     const rough = paintRoughness(world, 4);
     const t1 = performance.now();
     this.globe = buildGlobe(world, this.hf, color, rough, this.renderer.capabilities.getMaxAnisotropy());
@@ -327,6 +371,12 @@ export class Game3D {
     this.roads = new RoadNet(world, this.hf, this.roadTexture, 'road', this.highwayTexture);
     this.scene.add(this.roads.group);
     if (!this.smoke.group.parent) this.scene.add(this.smoke.group);
+    this.construction ??= new Construction(siteMaterial);
+    if (!this.construction.group.parent) this.scene.add(this.construction.group);
+    this.construction.clear();
+    this.siteLevels.clear();
+    this.siteDepots.clear();
+    this.sitesShown = false;
     this.rails = new RoadNet(world, this.hf, this.railTexture, 'rail');
     this.scene.add(this.rails.group);
     this.scenery = new Scenery(world, this.hf);
@@ -368,15 +418,19 @@ export class Game3D {
     }
     for (const m of this.siteMeshes.values()) this.scene.remove(m);
     for (const t of this.townMeshes.values()) this.scene.remove(t.mesh);
-    for (const m of this.vehicleMeshes.values()) this.scene.remove(m);
+    for (const id of [...this.growing.keys()]) this.endGrowth(id);
+    for (const id of [...this.districtWork.keys()]) this.endDistrictWork(id);
+    this.townsShown = false;
+    for (const m of this.vehicleMeshes.values()) this.dropVehicle(m);
     this.siteMeshes.clear();
     this.townMeshes.clear();
     this.vehicleMeshes.clear();
     this.cargoMeshes.clear();
   }
 
+  /** A new game on Map 1, or (given a seed, for tests and screenshots) on a generated world. */
   newWorld(seed?: number): void {
-    this.loadWorld(createWorld(seed));
+    this.loadWorld(seed === undefined ? createWorldFromMap(map1 as MapData) : createWorld(seed));
   }
 
   save(): boolean {
@@ -389,15 +443,60 @@ export class Game3D {
     }
   }
 
-  /** Load the saved game if there is one. */
-  load(): boolean {
+  // ---- save slots: five named saves beside the autosave ----
+
+  static readonly SLOTS = 5;
+
+  private slotKey(i: number): string {
+    return `supplyline.slot${i}.v9`;
+  }
+
+  /** What a slot holds, read from its small summary so the list does not parse whole worlds. */
+  slotInfo(i: number): SlotInfo | null {
     try {
-      const raw = localStorage.getItem(SAVE_KEY);
+      const raw = localStorage.getItem(`${this.slotKey(i)}.meta`);
+      return raw ? (JSON.parse(raw) as SlotInfo) : null;
+    } catch {
+      return null;
+    }
+  }
+
+  saveSlot(i: number): boolean {
+    const w = this.world;
+    const info: SlotInfo = { savedAt: Date.now(), town: w.places[0]?.name ?? 'World', tier: w.tier, money: Math.floor(w.money), earned: Math.floor(w.earned), minutes: Math.floor(w.tick / (TICKS_PER_SECOND * 60)), towns: w.places.filter((p) => p.level >= 2).length };
+    try {
+      localStorage.setItem(this.slotKey(i), JSON.stringify(w));
+      localStorage.setItem(`${this.slotKey(i)}.meta`, JSON.stringify(info));
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  loadSlot(i: number): boolean {
+    return this.load(this.slotKey(i));
+  }
+
+  deleteSlot(i: number): void {
+    try {
+      localStorage.removeItem(this.slotKey(i));
+      localStorage.removeItem(`${this.slotKey(i)}.meta`);
+    } catch {
+      // Nothing to remove.
+    }
+  }
+
+  /** Load the autosaved game, or a slot by its key. */
+  load(key = SAVE_KEY): boolean {
+    try {
+      const raw = localStorage.getItem(key);
       if (!raw) return false;
       const w = JSON.parse(raw) as World;
       if (w.version !== 4) return false;
       // Saves from before the quests.
       w.questsDone ??= [];
+      // Spots from an older layout move to level, spaced-out ground (ones with a building stay put).
+      relayoutNodes(w);
       this.loadWorld(w);
       return true;
     } catch {
@@ -420,6 +519,7 @@ export class Game3D {
     const dt = Math.min(0.1, (now - this.last) / 1000);
     this.last = now;
     this.frames += 1;
+    this.nowMs = now;
 
     this.acc += dt * 1000 * this.speed;
     let ticks = 0;
@@ -430,13 +530,16 @@ export class Game3D {
     }
     if (this.speed === 0) this.acc = 0;
 
+    if (now < this.orbitUntil) this.updateShots(dt);
     this.cam.panKeys(this.keys.right, this.keys.forward, dt);
     if (this.keys.turn) this.cam.rotate(this.keys.turn * dt * 1.4, 0);
     this.cam.update(dt);
     this.cam.apply();
     this.syncWorld();
+    this.updateGrowth();
+    const dust = this.updateConstruction();
     this.updateVehicles();
-    this.updateSmoke(dt);
+    this.updateSmoke(dt, dust);
     this.updateLighting();
     this.scenery.update(now / 1000);
     this.updateRings();
@@ -453,9 +556,102 @@ export class Game3D {
     requestAnimationFrame((t) => this.frame(t));
   }
 
+  /** Move building work on. Returns where dust is rising. */
+  private updateConstruction(): Map<number, { pos: THREE.Vector3; up: THREE.Vector3; every: number }> {
+    if (!this.construction) return new Map();
+    const along = (path: Tile[], f: number, mode: 'road' | 'rail') => (mode === 'rail' ? this.rails : this.roads).pointOnPath(path, f, 1, mode === 'road' ? undefined : 0);
+    // Towns build their own stations and docks quietly; only the player's buildings announce themselves.
+    const dust = this.construction.update(this.nowMs, (id) => this.siteMeshes.get(id) ?? this.dummies.get(id), along, (text) => text && this.onToast(text));
+    for (const [k, v] of this.popDust) dust.set(k, v);
+    this.popDust.clear();
+    return dust;
+  }
+
+  /** Dust from vehicles that have just been upgraded, gathered while they are drawn. */
+  private readonly popDust = new Map<number, { pos: THREE.Vector3; up: THREE.Vector3; every: number }>();
+  /** While building work plays, the camera cuts between two clear views of it; any drag or click hands it back. */
+  private orbitUntil = 0;
+  private shotList: { at: number; x: number; y: number; dist: number; heading: number; pitch: number }[] = [];
+  private shotOn = -1;
+
+  /**
+   * Watch something happen on a tile: a low view from one side, then a cut to a higher view from another, each picked
+   * so no trees, homes or buildings stand between the camera and the work. The camera drifts slowly in on each.
+   */
+  private watch(x: number, y: number, dist: number, ms: number): void {
+    const keep = { lon: this.cam.lon, lat: this.cam.lat, dist: this.cam.dist, heading: this.cam.heading, pitch: this.cam.pitchManual };
+    const tries = (pitch: number) =>
+      Array.from({ length: 8 }, (_, k) => {
+        const heading = keep.heading + (k * Math.PI) / 4;
+        return { heading, pitch, block: this.blocked(x, y, dist, heading, pitch) };
+      });
+    const pick = (list: { heading: number; pitch: number; block: number }[], away?: number) =>
+      list
+        .map((c) => ({ ...c, score: c.block * 10 + (away === undefined ? 0 : Math.max(0, Math.PI / 2 - Math.abs(Math.atan2(Math.sin(c.heading - away), Math.cos(c.heading - away))))) }))
+        .sort((a, b) => a.score - b.score)[0];
+    // The low view drops to a steeper angle when nothing low is clear.
+    let a = pick(tries(0.55));
+    if (a.block > 0) a = pick([...tries(0.35), ...tries(0.15)].map((c) => ({ ...c, block: c.block + (c.pitch < 0.3 ? 0.01 : 0) })));
+    const b = pick([...tries(0.1), ...tries(-0.15)], a.heading);
+    this.cam.set(keep.lon, keep.lat, keep.dist, keep.heading, keep.pitch);
+    this.shotList = [
+      { at: this.nowMs, x, y, dist, heading: a.heading, pitch: a.pitch },
+      { at: this.nowMs + ms * 0.48, x, y, dist: dist * 1.15, heading: b.heading, pitch: b.pitch },
+    ];
+    this.shotOn = -1;
+    this.orbitUntil = this.nowMs + ms;
+    this.updateShots(0);
+  }
+
+  /** Cut to the next view when its time comes, and creep in a little meanwhile. */
+  private updateShots(dt: number): void {
+    let i = -1;
+    this.shotList.forEach((s, k) => {
+      if (this.nowMs >= s.at) i = k;
+    });
+    if (i < 0) return;
+    if (i !== this.shotOn) {
+      this.shotOn = i;
+      const s = this.shotList[i];
+      this.lookAt(s.x, s.y, s.dist, s.heading, s.pitch);
+      return;
+    }
+    this.cam.target.dist *= 1 - dt * 0.035;
+  }
+
+  /** How much stands in the way of a view of a tile: the most that a tree, home or building rises above the sight line. */
+  private blocked(x: number, y: number, dist: number, heading: number, pitch: number): number {
+    const w = this.world;
+    this.lookAt(x, y, dist, heading, pitch);
+    const eye = this.camera.position.clone();
+    const { lon, lat } = tileLonLat(w.width, w.height, x, y);
+    const target = lonLatToVec(lon, lat, R + this.hf.surface(lon, lat) + 0.8);
+    const towns = new Map<number, number>();
+    let worst = 0;
+    const p = new THREE.Vector3();
+    for (let k = 1; k < 40; k++) {
+      p.lerpVectors(target, eye, k / 40);
+      const ll = vecToLonLat(p);
+      const t = lonLatToTile(w, ll.lon, ll.lat);
+      if (!t || (t.x === x && t.y === y)) continue;
+      const above = p.length() - R - this.hf.surface(ll.lon, ll.lat);
+      let tall = 0;
+      if (siteAt(w, t.x, t.y)) tall = 1.8;
+      const town = placeAt(w, t.x, t.y);
+      if (town) {
+        if (!towns.has(town.id)) towns.set(town.id, town.level >= 4 ? (radiusOf(town) > 3 ? 8 : 3) : town.level >= 3 ? 2 : 1.1);
+        tall = Math.max(tall, towns.get(town.id)!);
+      } else if (terrainAt(w, t.x, t.y) === 'forest') tall = Math.max(tall, 1.9);
+      else if (terrainAt(w, t.x, t.y) === 'grass') tall = Math.max(tall, 0.9);
+      worst = Math.max(worst, tall - above);
+    }
+    return Math.max(0, worst);
+  }
+
   /** Smoke rises from the chimneys of processing buildings that are running. */
-  private updateSmoke(dt: number): void {
-    const sources = new Map<number, { pos: THREE.Vector3; up: THREE.Vector3 }>();
+
+  private updateSmoke(dt: number, dust: Map<number, { pos: THREE.Vector3; up: THREE.Vector3; every: number }> = new Map()): void {
+    const sources = new Map<number, { pos: THREE.Vector3; up: THREE.Vector3; every?: number }>(dust);
     if (this.speed > 0 && this.cam.dist < 170) {
       const local = new THREE.Vector3(0.45, 1.2, -0.55);
       for (const s of this.world.sites) {
@@ -497,11 +693,12 @@ export class Game3D {
 
   // ---- scene sync ----
 
-  private siteGeometryFor(kind: SiteKind): THREE.BufferGeometry {
-    let g = this.siteGeoCache.get(kind);
+  private siteGeometryFor(kind: SiteKind, level = 1, withDepot = false): THREE.BufferGeometry {
+    const key = `${kind}@${level}${withDepot ? 'd' : ''}`;
+    let g = this.siteGeoCache.get(key);
     if (!g) {
-      g = siteGeometry(kind);
-      this.siteGeoCache.set(kind, g);
+      g = siteGeometryAt(kind, level, withDepot);
+      this.siteGeoCache.set(key, g);
     }
     return g;
   }
@@ -518,15 +715,17 @@ export class Game3D {
 
   private syncWorld(): void {
     const w = this.world;
+    // Roads change with the routes, and when a town grows its streets reach further.
+    const roadSig = `${w.routes.length}:${w.places.map((p) => p.level).join('')}`;
     const sig = [
-      w.sites.map((s) => `${s.id}.${s.level}`).join(','),
-      w.routes.length,
-      w.places.map((p) => `${p.level}${Object.values(p.districts ?? {}).join('')}`).join(''),
+      w.sites.map((s) => `${s.id}.${s.level}${s.depot ? 'd' : ''}`).join(','),
+      roadSig,
+      w.places.map((p) => `${p.level}${Object.values(p.districts ?? {}).join('')}${p.path ?? ''}`).join(''),
       w.vehicles.length,
       w.vehicles.reduce((n, v) => n + VEHICLE_ORDER.indexOf(v.kind), 0),
     ].join('|');
     if (sig !== this.signature) {
-      const routesChanged = !this.signature || this.signature.split('|')[1] !== String(w.routes.length);
+      const routesChanged = !this.signature || this.signature.split('|')[1] !== roadSig;
       this.signature = sig;
       if (routesChanged) {
         // Roads regrade the ground first, so everything else is placed on the ground as it will be.
@@ -539,7 +738,7 @@ export class Game3D {
       this.syncVehicles();
       if (routesChanged) {
         this.roads.rebuild();
-        this.rails.rebuild(this.roads.tiles);
+        this.rails.rebuild(this.roads.tiles, this.roads.wideTiles);
         this.rebuildAir();
         this.scenery.clearTiles(this.roads.tiles);
         this.scenery.clearTiles(this.rails.tiles);
@@ -549,7 +748,7 @@ export class Game3D {
     const townTool = this.isBuildTool() && !SITE_DEFS[this.tool as SiteKind].node;
     this.scenery.showPlots(townTool, (placeId, index) => {
       const pl = w.places.find((p) => p.id === placeId)!;
-      const t = plotTiles(pl.x, pl.y, radiusOf(pl))[index];
+      const t = plotTiles(w, pl)[index];
       const ter = terrainAt(w, t.x, t.y);
       return !siteAt(w, t.x, t.y) && !isHomePlot(pl, index) && (ter === 'grass' || ter === 'forest');
     });
@@ -559,9 +758,18 @@ export class Game3D {
   }
 
   private activeNodeKind(): NodeKind | null {
-    if (this.isRouteTool() || this.tool === 'select' || this.tool === 'air' || this.tool === 'demolish' || this.tool === 'tradeup') return null;
-    if ((VEHICLE_ORDER as string[]).includes(this.tool)) return null;
+    if (this.isRouteTool() || this.tool === 'select' || this.tool === 'air' || this.tool === 'demolish') return null;
     return SITE_DEFS[this.tool as SiteKind].node ?? null;
+  }
+
+  /** The yaw that turns a station to face the town street beside it, or null when none is. */
+  private stationStreetSide(s: { x: number; y: number; placeId: number | null }): number | null {
+    const w = this.world;
+    const town = w.places.find((p) => p.id === s.placeId);
+    if (!town) return null;
+    const streets = townStreets(w, town);
+    const side = ([[0, 1, 0], [0, -1, Math.PI], [1, 0, Math.PI / 2], [-1, 0, -Math.PI / 2]] as const).find(([dx, dy]) => streets.has((s.y + dy) * w.width + wrapX(w, s.x + dx)));
+    return side ? side[2] : null;
   }
 
   private syncSites(): void {
@@ -574,21 +782,38 @@ export class Game3D {
     }
     for (const s of this.world.sites) {
       let m = this.siteMeshes.get(s.id);
+      const before = this.siteLevels.get(s.id);
+      this.siteLevels.set(s.id, s.level);
+      // Built since the world was first shown, or upgraded: it goes up behind scaffolding.
+      const isNew = !m && this.sitesShown;
+      const hadDepot = this.siteDepots.has(s.id);
+      if (s.depot) this.siteDepots.add(s.id);
+      const upgraded = before !== undefined && (s.level > before || (!!s.depot && !hadDepot));
+      if ((isNew || upgraded) && this.construction) {
+        const oldGeo = upgraded ? this.siteGeometryFor(s.kind, before, hadDepot) : null;
+        const text = upgraded && s.depot && !hadDepot ? `${s.name} now has a Rail Depot` : upgraded ? `${s.name} is now level ${s.level}` : SITE_DEFS[s.kind].dock || SITE_DEFS[s.kind].station ? '' : `${s.name} is open`;
+        this.construction.start(s.id, this.nowMs, text, oldGeo, this.siteGeometryFor(s.kind, s.level, !!s.depot));
+      }
       if (!m) {
-        m = new THREE.Mesh(this.siteGeometryFor(s.kind), siteMaterial);
+        m = new THREE.Mesh(this.siteGeometryFor(s.kind, s.level, !!s.depot), siteMaterial);
         m.castShadow = true;
         m.receiveShadow = true;
         m.matrixAutoUpdate = false;
         this.scene.add(m);
         this.siteMeshes.set(s.id, m);
       }
-      const scale = 1 + 0.07 * (s.level - 1);
+      // An upgraded building gets its bigger model.
+      const geo = this.siteGeometryFor(s.kind, s.level, !!s.depot);
+      if (m.geometry !== geo) m.geometry = geo;
       // Buildings in a town face the street they front.
       let yaw = 0;
       const plot = plotAt(this.world, s.x, s.y);
       if (plot) {
-        const face = plotFacing(wrapDx(this.world, plot.place.x, s.x), s.y - plot.place.y);
+        const face = plotFacing(this.world, plot.place, plot.index);
         yaw = face === 'N' ? Math.PI : face === 'W' ? -Math.PI / 2 : face === 'E' ? Math.PI / 2 : 0;
+      } else if (SITE_DEFS[s.kind].station && this.stationStreetSide(s) !== null) {
+        // A rail station fronts the town street beside it, not the track that comes in behind.
+        yaw = this.stationStreetSide(s)!;
       } else {
         // Outside a town, turn the front to face the road that serves the site (roads win over rail).
         const rt = this.world.routes.filter((r) => r.fromSiteId === s.id || r.toSiteId === s.id).filter((r) => r.mode !== 'air').sort((p, q) => (p.mode === 'road' ? 0 : 1) - (q.mode === 'road' ? 0 : 1))[0];
@@ -606,35 +831,60 @@ export class Game3D {
           if (side) yaw = side[2];
         }
       }
-      m.matrix.copy(this.tileMatrix(s)).multiply(new THREE.Matrix4().makeRotationY(yaw)).multiply(new THREE.Matrix4().makeScale(scale, scale, scale));
+      m.matrix.copy(this.tileMatrix(s)).multiply(new THREE.Matrix4().makeRotationY(yaw));
+      m.userData.base = m.matrix.clone();
       m.matrixWorldNeedsUpdate = true;
     }
+    for (const id of [...this.siteLevels.keys()]) if (!live.has(id)) this.siteLevels.delete(id);
+    this.sitesShown = true;
   }
 
   private syncTowns(): void {
     const w = this.world;
     for (const p of w.places) {
       const have = this.townMeshes.get(p.id);
-      const R = radiusOf(p);
-      const plots = plotTiles(p.x, p.y, R);
-      const occupied = plots.map((t) => !!siteAt(w, t.x, t.y));
-      const landOk = (t: Tile): boolean => {
-        const ter = terrainAt(w, t.x, t.y);
+      const layout = layoutOf(w, p);
+      const landOk = (x: number, y: number): boolean => {
+        const ter = terrainAt(w, x, y);
         return ter === 'grass' || ter === 'forest';
       };
-      const plotOk = plots.map(landOk);
-      const homeOk = homeTiles(p.x, p.y, R).map((t) => landOk(t) && !routeAt(w, t.x, t.y, 'rail') && !siteAt(w, t.x, t.y));
+      const built = townStreets(w, p);
+      const streets = layout.streets
+        .filter((s) => built.has((p.y + s.y) * w.width + wrapX(w, p.x + s.x)))
+        .map((s) => ({ x: s.x, y: s.y, main: s.main }));
+      const homePlots = homesNow(p);
+      const plots = layout.plots.map((t, i) => ({
+        x: t.x,
+        y: t.y,
+        ex: t.entry.x,
+        ey: t.entry.y,
+        ok: landOk(p.x + t.x, p.y + t.y),
+        occupied: !!siteAt(w, p.x + t.x, p.y + t.y),
+        home: homePlots.includes(i),
+      }));
+      const homes = layout.homes
+        .filter((h) => h.level <= p.level)
+        .map((h) => ({ x: h.x, y: h.y, ok: landOk(p.x + h.x, p.y + h.y) && !routeAt(w, p.x + h.x, p.y + h.y) && !siteAt(w, p.x + h.x, p.y + h.y) }));
       const districts = Object.entries(p.districts ?? {}).filter(([, lv]) => (lv ?? 0) > 0).map(([id, level]) => ({ id: id as DistrictId, level: level as number }));
-      const sig = `${p.level}.${occupied.map((o) => (o ? 1 : 0)).join('')}.${homeOk.map((o) => (o ? 1 : 0)).join('')}.${districts.map((d) => `${d.id}${d.level}`).join(',')}`;
+      const bits = (list: boolean[]): string => list.map((o) => (o ? 1 : 0)).join('');
+      const sig = `${streets.length}.${p.level}.${p.path ?? ''}.${bits(plots.map((t) => t.occupied))}.${bits(plots.map((t) => t.home))}.${bits(homes.map((h) => h.ok))}.${districts.map((d) => `${d.id}${d.level}`).join(',')}`;
       if (have && have.sig === sig) continue;
-      if (have) {
+      // A town that has just grown plays it out: the old model stays up to sink away as the new one rises.
+      const grew = !!have && this.townsShown && p.level > have.level;
+      const dist: Record<string, number> = Object.fromEntries(districts.map((d) => [d.id, d.level]));
+      const fresh = have && this.townsShown && !grew ? districts.filter((d) => d.level > (have.districts[d.id] ?? 0)) : [];
+      const respec = !!have && this.townsShown && !grew && fresh.length === 0 && (p.path ?? '') !== have.path;
+      const play = grew || respec;
+      if (this.growing.has(p.id)) this.endGrowth(p.id);
+      if (this.districtWork.has(p.id)) this.endDistrictWork(p.id);
+      if (have && !play && fresh.length === 0) {
         this.scene.remove(have.mesh);
         have.mesh.geometry.dispose();
       }
       const { lat } = tileLonLat(w.width, w.height, p.x, p.y);
       const squeeze = THREE.MathUtils.clamp(Math.cos(lat), 0.55, 1);
       const mesh = new THREE.Mesh(
-        townGeometry({ level: p.level, seed: p.id + w.seed, squeeze, radius: R, style: p.style, occupied, homePlots: p.homePlots ?? [], plotOk, homeOk, districts }),
+        townGeometry({ level: p.level, seed: p.id + w.seed, squeeze, city: radiusOf(p) > 3, style: p.style, streets, plots, homes, districts }),
         siteMaterial,
       );
       mesh.castShadow = true;
@@ -643,17 +893,171 @@ export class Game3D {
       mesh.matrix.copy(this.tileMatrix(p));
       mesh.matrixWorldNeedsUpdate = true;
       this.scene.add(mesh);
-      this.townMeshes.set(p.id, { mesh, sig });
+      this.townMeshes.set(p.id, { mesh, sig, level: p.level, districts: dist, path: p.path ?? '' });
+      if (play) this.startGrowth(p, have!.mesh, mesh, streets, grew);
+      else if (fresh.length > 0) this.startDistrictWork(p, have!.mesh, mesh, fresh.map((d) => d.id));
+    }
+    this.townsShown = true;
+  }
+
+  /** A district goes up or is improved: scaffolding, a crane and lorries at its tile while the old landmark sinks and the new one rises. */
+  private startDistrictWork(p: Place, old: THREE.Mesh, mesh: THREE.Mesh, ids: DistrictId[]): void {
+    const marks = (mesh.geometry.userData.landmarks ?? []) as TownLandmark[];
+    const here = marks.filter((m) => ids.includes(m.id));
+    if (here.length === 0) {
+      this.scene.remove(old);
+      old.geometry.dispose();
+      return;
+    }
+    const jobs = here.map((m, i) => ({ m, id: 1e6 + p.id * 100 + i }));
+    // Only the first landmark gets the sink-and-rise; if several change at once (rare) the rest simply appear.
+    const first = here[0];
+    const mats = [[growMaterial(siteMaterial, true, { cx: first.x, cz: first.z, r: 0.3 }), growMaterial(siteMaterial, false, { cx: first.x, cz: first.z, r: 0.3 })]];
+    old.material = mats[0][0];
+    mesh.material = mats[0][1];
+    old.castShadow = mesh.castShadow = false;
+    this.districtWork.set(p.id, { start: this.nowMs, old, mesh, jobs, mats });
+    const drop = (x: number, z: number): number => -(x * x + z * z) / (2 * (R + 0.3));
+    for (const { m, id } of jobs) {
+      const dummy = new THREE.Mesh(new THREE.BufferGeometry());
+      dummy.matrix.copy(this.tileMatrix(p));
+      dummy.userData.base = dummy.matrix.clone().multiply(new THREE.Matrix4().makeTranslation(m.x, drop(m.x, m.z), m.z));
+      this.dummies.set(id, dummy);
+      this.construction?.start(id, this.nowMs, '', null, dummy.geometry);
+    }
+    this.watch(wrapX(this.world, p.x + first.tx), p.y + first.ty, 15, BUILD_MS);
+  }
+
+  private endDistrictWork(placeId: number): void {
+    const g = this.districtWork.get(placeId);
+    if (!g) return;
+    this.districtWork.delete(placeId);
+    for (const { id } of g.jobs) this.dummies.delete(id);
+    this.scene.remove(g.old);
+    g.old.geometry.dispose();
+    for (const [a, b] of g.mats) {
+      a.dispose();
+      b.dispose();
+    }
+    g.mesh.material = siteMaterial;
+    g.mesh.castShadow = true;
+  }
+
+  private startGrowth(p: Place, old: THREE.Mesh, mesh: THREE.Mesh, streets: { x: number; y: number }[], withRoads = true): void {
+    const w = this.world;
+    const anc = mesh.geometry.getAttribute('anc') as THREE.BufferAttribute;
+    let reach = 0;
+    for (let i = 0; i < anc.count; i += 3) reach = Math.max(reach, Math.hypot(anc.getX(i), anc.getY(i)));
+    old.material = growMaterial(siteMaterial, true);
+    mesh.material = growMaterial(siteMaterial, false);
+    // Shadows would show the finished town at once, so they wait for the end.
+    old.castShadow = mesh.castShadow = false;
+    this.growing.set(p.id, { start: this.nowMs, old, mesh, reach: reach + 3 });
+    // Rollers lay each new stretch of street, starting from the street it grows out of.
+    const key = (t: { x: number; y: number }): string => t.x + ',' + t.y;
+    const built = new Set(streets.map(key));
+    const fresh = withRoads ? layoutOf(w, p).streets.filter((s) => s.level === p.level && built.has(key(s))) : [];
+    const freshKeys = new Set(fresh.map(key));
+    const near = (a: { x: number; y: number }, b: { x: number; y: number }): boolean => Math.abs(a.x - b.x) + Math.abs(a.y - b.y) === 1;
+    const chains: { x: number; y: number }[][] = [];
+    for (const s of fresh) {
+      const last = chains[chains.length - 1];
+      if (last && near(last[last.length - 1], s)) {
+        last.push(s);
+        continue;
+      }
+      const from = streets.find((o) => !freshKeys.has(key(o)) && near(o, s));
+      chains.push(from ? [from, s] : [s]);
+    }
+    for (const c of chains) this.construction?.startRoad(c.map((t) => ({ x: wrapX(w, p.x + t.x), y: p.y + t.y })), 'road', this.nowMs + 600);
+    this.watch(p.x, p.y, radiusOf(p) > 3 ? 46 : 34, GROW_MS);
+  }
+
+  /** Move town growth on, with dust along the wave. */
+  private updateGrowth(): void {
+    for (const [id, g] of this.districtWork) {
+      const t = (this.nowMs - g.start) / BUILD_MS;
+      if (t >= 1) {
+        this.endDistrictWork(id);
+        continue;
+      }
+      (g.old.material as THREE.Material).userData.wave.value = t;
+      (g.mesh.material as THREE.Material).userData.wave.value = t;
+    }
+    for (const [id, g] of this.growing) {
+      const t = this.debugGrowT ?? (this.nowMs - g.start) / GROW_MS;
+      if (t >= 1) {
+        this.endGrowth(id);
+        continue;
+      }
+      const wave = -1 + (g.reach + 1) * THREE.MathUtils.smootherstep(t, 0, 0.92);
+      (g.old.material as THREE.Material).userData.wave.value = wave;
+      (g.mesh.material as THREE.Material).userData.wave.value = wave;
+      for (let k = 0; k < 3; k++) {
+        const a = Math.random() * Math.PI * 2;
+        const pos = new THREE.Vector3(Math.cos(a) * wave, 0.3, Math.sin(a) * wave).applyMatrix4(g.mesh.matrix);
+        this.popDust.set(-2e6 - id * 10 - k, { pos, up: pos.clone().normalize(), every: 0.06 });
+      }
     }
   }
 
+  private endGrowth(id: number): void {
+    const g = this.growing.get(id);
+    if (!g) return;
+    this.growing.delete(id);
+    this.scene.remove(g.old);
+    g.old.geometry.dispose();
+    (g.old.material as THREE.Material).dispose();
+    (g.mesh.material as THREE.Material).dispose();
+    g.mesh.material = siteMaterial;
+    g.mesh.castShadow = true;
+  }
+
   private vehicleGeo = new Map<VehicleKind, THREE.BufferGeometry>();
+  private trainGeo = new Map<VehicleKind, ReturnType<typeof trainUnits>>();
+
+  /** Take a vehicle, and any wagons it pulls, out of the scene. */
+  private dropVehicle(m: THREE.Mesh): void {
+    for (const c of (m.userData.cars ?? []) as THREE.Mesh[]) this.scene.remove(c);
+    this.scene.remove(m);
+  }
+
+  /**
+   * A train is its locomotive (the vehicle's own mesh) and a separate mesh for each wagon, so each unit can turn on its
+   * own round a curve. The load shows in the first wagon.
+   */
+  private makeCars(m: THREE.Mesh, kind: VehicleKind, cargo: THREE.Mesh): void {
+    for (const c of (m.userData.cars ?? []) as THREE.Mesh[]) this.scene.remove(c);
+    m.userData.cars = [];
+    m.userData.units = null;
+    if (VEHICLE_DEFS[kind].mode !== 'rail') return;
+    let units = this.trainGeo.get(kind);
+    if (!units) {
+      units = trainUnits(kind);
+      this.trainGeo.set(kind, units);
+    }
+    m.geometry = units[0].geo;
+    m.userData.units = units.map((u) => ({ z: u.z, len: u.len }));
+    const cars = units.slice(1).map((u) => {
+      const c = new THREE.Mesh(u.geo, siteMaterial);
+      c.castShadow = true;
+      c.matrixAutoUpdate = false;
+      this.scene.add(c);
+      return c;
+    });
+    m.userData.cars = cars;
+    if (cars[0]) {
+      m.remove(cargo);
+      cargo.position.set(0, 0.5, 0);
+      cars[0].add(cargo);
+    }
+  }
 
   private syncVehicles(): void {
     const live = new Set(this.world.vehicles.map((v) => v.id));
     for (const [id, m] of this.vehicleMeshes) {
       if (!live.has(id)) {
-        this.scene.remove(m);
+        this.dropVehicle(m);
         this.vehicleMeshes.delete(id);
         this.cargoMeshes.delete(id);
       }
@@ -669,9 +1073,11 @@ export class Game3D {
       if (have) {
         // Traded up: the same vehicle, a bigger body.
         if (have.userData.kind !== v.kind) {
+          have.userData.pop = this.nowMs;
           have.geometry = g;
           have.userData.kind = v.kind;
           this.cargoMeshes.get(v.id)?.position.set(0, CARGO_AT[v.kind][0], CARGO_AT[v.kind][1]);
+          this.makeCars(have, v.kind, this.cargoMeshes.get(v.id)!);
         }
         continue;
       }
@@ -683,6 +1089,7 @@ export class Game3D {
       cargo.position.set(0, CARGO_AT[v.kind][0], CARGO_AT[v.kind][1]);
       cargo.visible = false;
       m.add(cargo);
+      this.makeCars(m, v.kind, cargo);
       this.scene.add(m);
       this.vehicleMeshes.set(v.id, m);
       this.cargoMeshes.set(v.id, cargo);
@@ -736,7 +1143,13 @@ export class Game3D {
     for (const v of this.world.vehicles) {
       const m = this.vehicleMeshes.get(v.id);
       const route = this.world.routes.find((r) => r.id === v.routeId);
-      if (!m || !route) continue;
+      if (!m) continue;
+      // Waiting at home with nowhere to go: out of sight until a route opens.
+      if (!route) {
+        m.visible = false;
+        for (const c of (m.userData.cars ?? []) as THREE.Mesh[]) c.visible = false;
+        continue;
+      }
       const vd = VEHICLE_DEFS[v.kind];
       const last = route.path.length - 1;
       let f = v.idx;
@@ -744,16 +1157,45 @@ export class Game3D {
       // Pull up at the door, not in the middle of the building. A train is long and its engine is at one end, so where it
       // stops depends on which way it faces: turning round at the end of the line leaves the wagons where they stood.
       const stop = Math.min(route.mode === 'rail' ? 0.87 : 0.5, last / 2);
-      const tail = route.mode === 'rail' ? Math.min(1.33, last / 2) : stop;
+      const tail = route.mode === 'rail' ? Math.min(v.kind === 'heavytrain' ? 1.6 : 1.33, last / 2) : stop;
       const dir: 1 | -1 = v.state === 'moving' ? v.dir : v.idx === 0 ? 1 : -1;
       f = Math.max(dir === 1 ? tail : stop, Math.min(last - (dir === -1 ? tail : stop), f));
       const pt = (route.mode === 'rail' ? this.rails : this.roads).pointOnPath(route.path, f, dir, route.mode === 'road' ? undefined : 0);
       const air = route.mode === 'air';
       if (air) pt.pos.addScaledVector(pt.up, this.airAlt(f, last));
       m.visible = !pt.hidden;
-      const sc = air ? 2.1 : 1.35;
-      m.matrix.copy(basisMatrix(pt.pos, pt.up, pt.forward)).multiply(new THREE.Matrix4().makeScale(sc, sc, sc));
-      m.matrixWorldNeedsUpdate = true;
+      // Just upgraded: it swells, overshoots and settles, in a puff of dust.
+      const pop = m.userData.pop as number | undefined;
+      const k = pop === undefined ? 1 : (this.nowMs - pop) / 1200;
+      const bounce = k < 1 ? 1 + 0.6 * Math.sin(k * Math.PI * 2.5) * (1 - k) : 1;
+      if (k < 0.7) this.popDust.set(-2e6 - v.id, { pos: pt.pos.clone().addScaledVector(pt.up, 0.3), up: pt.up.clone(), every: 0.06 });
+      const sc = (air ? 2.1 : 1.35) * bounce;
+      const units = m.userData.units as { z: number; len: number }[] | null;
+      if (units && route.mode === 'rail') {
+        // Each unit sits where its own centre falls along the track and points along the chord between its ends, so
+        // a train bends round a corner one unit at a time.
+        const cars = m.userData.cars as THREE.Mesh[];
+        const tileLen = 3.27;
+        const scale = new THREE.Matrix4().makeScale(sc, sc, sc);
+        units.forEach((u, i) => {
+          const unit = i === 0 ? m : cars[i - 1];
+          const fu = f + (dir * u.z * 1.35) / tileLen;
+          const half = (u.len * 1.35) / 2 / tileLen;
+          const a = this.rails.pointOnPath(route.path, fu + dir * half, dir, 0);
+          const b = this.rails.pointOnPath(route.path, fu - dir * half, dir, 0);
+          const pos = a.pos.clone().add(b.pos).multiplyScalar(0.5);
+          const up = a.up.clone().add(b.up).normalize();
+          const fwd = a.pos.clone().sub(b.pos);
+          if (fwd.lengthSq() < 1e-6) fwd.copy(a.forward);
+          fwd.normalize();
+          unit.matrix.copy(basisMatrix(pos, up, fwd)).multiply(scale);
+          unit.matrixWorldNeedsUpdate = true;
+          unit.visible = !(a.hidden && b.hidden);
+        });
+      } else {
+        m.matrix.copy(basisMatrix(pt.pos, pt.up, pt.forward)).multiply(new THREE.Matrix4().makeScale(sc, sc, sc));
+        m.matrixWorldNeedsUpdate = true;
+      }
       const cargo = this.cargoMeshes.get(v.id);
       if (cargo) {
         cargo.visible = v.cargo > 0 && vd.mode !== 'air';
@@ -773,7 +1215,8 @@ export class Game3D {
     // Up close the sun is a high afternoon sun from the west, relative to where you are looking; from space it is fixed.
     const local = n.clone().multiplyScalar(0.78).addScaledVector(east, -0.5).addScaledVector(north, 0.28).normalize();
     const world = new THREE.Vector3(0.55, 0.3, 0.78).normalize();
-    const t = THREE.MathUtils.smoothstep(dist, 170, 360);
+    const k = R / 100;
+    const t = THREE.MathUtils.smoothstep(dist, 170 * k, 360 * k);
     const dir = local.lerp(world, t).normalize();
     this.sun.position.copy(F).addScaledVector(dir, 300);
     this.sun.target.position.copy(F);
@@ -788,7 +1231,7 @@ export class Game3D {
       sc.updateProjectionMatrix();
     }
 
-    const close = 1 - THREE.MathUtils.smoothstep(dist, 70, 260);
+    const close = 1 - THREE.MathUtils.smoothstep(dist, 70, 260 * k);
     if (close > 0.3) {
       this.scene.background = this.skyTexture;
       this.scene.backgroundIntensity = Math.min(1, close * 1.1);
@@ -807,7 +1250,7 @@ export class Game3D {
     } else {
       this.scene.fog = null;
     }
-    if (this.globe) (this.globe.stars.material as THREE.PointsMaterial).opacity = THREE.MathUtils.smoothstep(dist, 120, 300) * 0.9;
+    if (this.globe) (this.globe.stars.material as THREE.PointsMaterial).opacity = THREE.MathUtils.smoothstep(dist, 120 * k, 300 * k) * 0.9;
     this.hemi.intensity = 1.15 + 0.3 * t;
   }
 
@@ -831,7 +1274,7 @@ export class Game3D {
     info.site = siteAt(w, tile.x, tile.y);
     info.place = placeAt(w, tile.x, tile.y);
     info.node = nodeAt(w, tile.x, tile.y);
-    info.route = routeAt(w, tile.x, tile.y, this.tool === 'rail' || this.tool === 'train' ? 'rail' : undefined);
+    info.route = routeAt(w, tile.x, tile.y, this.tool === 'rail' ? 'rail' : undefined);
     info.region = w.regions.find((r) => r.id === w.regionMap[tile.y * w.width + tile.x]);
     if (this.isBuildTool()) info.error = placeError(w, this.tool as SiteKind, tile.x, tile.y);
     if (this.tool === 'demolish') {
@@ -886,17 +1329,40 @@ export class Game3D {
   }
 
   private isBuildTool(): boolean {
-    return this.tool !== 'select' && !this.isRouteTool() && this.tool !== 'air' && this.tool !== 'demolish' && this.tool !== 'tradeup' && !(VEHICLE_ORDER as string[]).includes(this.tool);
+    return this.tool !== 'select' && !this.isRouteTool() && this.tool !== 'air' && this.tool !== 'demolish';
+  }
+
+  /** The stretch of road or track the demolish tool is pointing at, shown in red. */
+  private removeMesh: THREE.Mesh | null = null;
+  private removeId = 0;
+
+  private showRemoval(route: Route | undefined): void {
+    const id = route && !route.over ? route.id : 0;
+    if (id === this.removeId) return;
+    this.removeId = id;
+    if (this.removeMesh) {
+      this.scene.remove(this.removeMesh);
+      this.removeMesh.geometry.dispose();
+      this.removeMesh = null;
+    }
+    if (!route || id === 0 || route.path.length < 2 || route.mode === 'air') return;
+    const net = route.mode === 'rail' ? this.rails : this.roads;
+    const mat = new THREE.MeshBasicMaterial({ color: 0xff5e50, transparent: true, opacity: 0.55, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -5, polygonOffsetUnits: -5 });
+    this.removeMesh = new THREE.Mesh(net.ribbonGeometry(route.path, route.mode === 'rail' ? 0.3 : route.grade === 'highway' ? 0.7 : 0.45, 0.16), mat);
+    this.removeMesh.frustumCulled = false;
+    this.scene.add(this.removeMesh);
   }
 
   private setHover(tile: Tile | null): void {
     if (!tile || this.hoverBlocked) {
+      this.showRemoval(undefined);
       this.hover = null;
       this.ring.visible = false;
       if (this.ghost) this.ghost.visible = false;
       return;
     }
     this.hover = this.describe(tile);
+    this.showRemoval(this.tool === 'demolish' && !this.hover.site ? this.hover.route : undefined);
     this.ring.matrix.copy(this.tileMatrix(tile, 0.18));
     this.ring.matrixWorldNeedsUpdate = true;
     this.ring.visible = true;
@@ -923,6 +1389,7 @@ export class Game3D {
   }
 
   pointerDown(x: number, y: number, button: number): void {
+    this.orbitUntil = 0;
     const d = this.drag;
     d.x = d.startX = x;
     d.y = d.startY = y;
@@ -1056,22 +1523,6 @@ export class Game3D {
       this.select(site ? { kind: 'site', id: site.id } : place ? { kind: 'place', id: place.id } : null);
       return;
     }
-    if ((VEHICLE_ORDER as string[]).includes(this.tool)) {
-      const mode = VEHICLE_DEFS[this.tool as VehicleKind].mode as 'road' | 'rail' | 'air';
-      const here = siteAt(w, tile.x, tile.y);
-      const route = mode === 'air' ? w.routes.find((r) => r.mode === 'air' && here && (r.fromSiteId === here.id || r.toSiteId === here.id)) : routeAt(w, tile.x, tile.y, mode, { vehicles: true });
-      const err = addVehicle(w, route?.id ?? -1, this.tool as VehicleKind);
-      this.onToast(err ?? `${VEHICLE_DEFS[this.tool as VehicleKind].label} added`);
-      return;
-    }
-    if (this.tool === 'tradeup') {
-      const here = siteAt(w, tile.x, tile.y);
-      const route = routeAt(w, tile.x, tile.y, undefined, { vehicles: true }) ?? w.routes.find((r) => r.mode === 'air' && here && (r.fromSiteId === here.id || r.toSiteId === here.id));
-      const before = route ? tradeUpPreview(w, route.id) : null;
-      const err = tradeUp(w, route?.id ?? -1);
-      this.onToast(err ?? `${VEHICLE_DEFS[before!.from].label} traded up to a ${VEHICLE_DEFS[before!.to].label}`);
-      return;
-    }
     if (this.tool === 'air') {
       const site = siteAt(w, tile.x, tile.y);
       if (!site || !SITE_DEFS[site.kind].airport) {
@@ -1084,7 +1535,7 @@ export class Game3D {
         return;
       }
       const err = createAirRoute(w, this.airFrom, site.id);
-      this.onToast(err ?? 'Air route opened, cargo plane assigned');
+      this.onToast(err ?? 'Air route opened. Buy a cargo plane at either airport');
       if (!err) this.airFrom = null;
       return;
     }
@@ -1102,6 +1553,7 @@ export class Game3D {
       }
       const refund = routeRefund(w, route);
       const err = removeRoute(w, route.id);
+      this.showRemoval(undefined);
       this.onToast(err ?? `Removed for $${refund.toLocaleString('en-US')} back`);
       return;
     }
@@ -1162,13 +1614,14 @@ export class Game3D {
       return false;
     }
     const err = createRoute(this.world, path, this.routeMode, grade);
+    if (!err) this.construction?.startRoad(path, this.routeMode, this.nowMs);
     const what = rail ? 'Track' : this.tool === 'highway' ? 'Highway' : 'Road';
-    this.onToast(err ?? (plan.free ? `${what} laid` : rail ? 'Track laid, freight train assigned' : `${what} built, box truck assigned`));
+    this.onToast(err ?? `${what} ${plan.free ? 'laid' : 'built'}`);
     if (err) return false;
     // Buildings the new road joins to the network get their routes started.
     const ends = [path[0], path[path.length - 1]].map((t) => siteAt(this.world, t.x, t.y)).filter((s): s is NonNullable<typeof s> => !!s);
     const made = connectSites(this.world, ends.map((s) => s.id));
-    if (made.length) this.onToast(`Routes started: ${made.join(', ')}`);
+    if (made.length) this.onToast(`Route open: ${made.join(', ')}. Trucks waiting there start running`);
     this.cancelDraft();
     return true;
   }
@@ -1286,13 +1739,64 @@ export class Game3D {
     this.signature += '#';
   }
 
+  buildDepot(siteId: number): void {
+    const err = buildDepot(this.world, siteId);
+    this.onToast(err ?? 'Construction started');
+    const s = siteById(this.world, siteId);
+    if (!err && s) this.watch(s.x, s.y, 17, BUILD_MS);
+  }
+
   upgrade(siteId: number): void {
     const err = upgradeSite(this.world, siteId);
-    this.onToast(err ?? 'Upgraded');
+    this.onToast(err ?? 'Construction started');
+    const s = siteById(this.world, siteId);
+    if (!err && s) this.watch(s.x, s.y, 17, BUILD_MS);
   }
 
   togglePull(siteId: number, good: Good, on: boolean): void {
     setHubPull(this.world, siteId, good, on);
+  }
+
+  buy(siteId: number, kind: VehicleKind): void {
+    const err = buyVehicle(this.world, siteId, kind);
+    this.onToast(err ?? `${VEHICLE_DEFS[kind].label} bought`);
+  }
+
+  upgradeVeh(id: number): void {
+    const err = upgradeVehicle(this.world, id);
+    const v = this.world.vehicles.find((x) => x.id === id);
+    this.onToast(err ?? (v ? `Upgraded to a ${VEHICLE_DEFS[v.kind].label}` : 'Vehicle upgraded'));
+    if (err || !v) return;
+    const route = this.world.routes.find((r) => r.id === v.routeId);
+    const at = route?.path[Math.max(0, Math.min(route.path.length - 1, v.idx))] ?? siteById(this.world, v.homeId);
+    if (at) this.watch(at.x, at.y, 12, 1800);
+  }
+
+  sellVeh(id: number): void {
+    const err = sellVehicle(this.world, id);
+    this.onToast(err ?? 'Vehicle sold');
+  }
+
+  sendTo(siteId: number, destId: number, on: boolean): void {
+    setSendTo(this.world, siteId, destId, on);
+  }
+
+  making(siteId: number, on: boolean): void {
+    setMaking(this.world, siteId, on);
+  }
+
+  roadTo(fromId: number, toId: number): void {
+    const name = siteById(this.world, toId)?.name ?? 'there';
+    const err = buildRoadTo(this.world, fromId, toId);
+    this.onToast(err ?? `Road built. Now selling to ${name}`);
+    if (!err) {
+      const r = this.world.routes.filter((x) => x.mode === 'road').pop();
+      if (r) this.construction?.startRoad(r.path, 'road', this.nowMs);
+    }
+  }
+
+  vehicleDest(id: number, destId: number): void {
+    setVehicleDest(this.world, id, destId);
   }
 
   // ---- overlay data for the HUD ----
@@ -1439,7 +1943,7 @@ export class Game3D {
   }
 
   get maxDist(): number {
-    return MAX_DIST;
+    return maxDist();
   }
 
   /** Region under the camera focus, for debugging. */

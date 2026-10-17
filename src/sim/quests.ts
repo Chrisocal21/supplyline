@@ -33,12 +33,28 @@ export function questProgress(world: World, goal: QuestGoal): Progress {
       need = goal.count;
       break;
     case 'route':
-      // Roads the player laid: the free street links inside a town have no grade and do not count.
-      have = world.routes.filter((r) => !r.free && r.mode === goal.mode && (r.mode !== 'road' || r.grade !== undefined) && (!goal.grade || r.grade === goal.grade)).length;
+      // Roads the player laid, including ones that run from road to road: the free street links inside a town have no grade and do not count.
+      have = world.routes.filter((r) => r.mode === goal.mode && (r.mode !== 'road' || r.grade !== undefined) && (!goal.grade || r.grade === goal.grade)).length;
+      need = goal.count;
+      break;
+    case 'depot':
+      have = world.sites.filter((q) => q.depot).length;
       need = goal.count;
       break;
     case 'vehicle':
       have = world.vehicles.filter((v) => v.kind === goal.vehicle).length;
+      need = goal.count;
+      break;
+    case 'fleet':
+      have = world.vehicles.length;
+      need = goal.count;
+      break;
+    case 'making':
+      have = world.sites.filter((s) => s.making).length;
+      need = goal.count;
+      break;
+    case 'selling':
+      have = world.sites.filter((s) => (s.sendTo ?? []).length > 0).length;
       need = goal.count;
       break;
     case 'deliver':

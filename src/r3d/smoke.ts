@@ -44,7 +44,7 @@ export class Smoke {
   }
 
   /** `sources` are chimney tops (world position and up direction) keyed by site id. */
-  update(dt: number, sources: Map<number, { pos: THREE.Vector3; up: THREE.Vector3 }>): void {
+  update(dt: number, sources: Map<number, { pos: THREE.Vector3; up: THREE.Vector3; every?: number }>): void {
     for (const [id, s] of sources) {
       const t = (this.spawn.get(id) ?? Math.random() * 0.6) - dt;
       if (t <= 0) {
@@ -57,7 +57,7 @@ export class Smoke {
           p.sprite.userData.up = s.up.clone();
           p.sprite.visible = true;
         }
-        this.spawn.set(id, 0.55 + Math.random() * 0.3);
+        this.spawn.set(id, s.every ?? 0.55 + Math.random() * 0.3);
       } else this.spawn.set(id, t);
     }
     for (const p of this.puffs) {

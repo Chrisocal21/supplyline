@@ -11,6 +11,8 @@ const seed = /seed=(\d+)/.exec(hash);
 if (hash.includes('demo')) {
   game.newWorld(seed ? +seed[1] : 11);
   game.buildDemoBase();
+} else if (hash.includes('map')) {
+  game.newWorld();
 } else if (hash.includes('fresh') || seed) {
   game.newWorld(seed ? +seed[1] : undefined);
 } else if (!game.load()) {

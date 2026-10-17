@@ -1,6 +1,7 @@
 // Named world features: regions, towns and resource nodes. Pure, seeded.
 import { FREIGHT_DEMAND, MARKET_DEMAND, STYLE_TASTE, TOWN_STYLES, type DistrictId, type NodeKind, type PathId, type Stock, type Terrain, type TownStyle } from './defs';
 import { makeNamer } from './names';
+import { footprint, plotCount, townLayout } from './townlayout';
 
 export type RegionKind = 'ocean' | 'sea' | 'lake' | 'forest' | 'mountain' | 'land' | 'ice';
 
@@ -44,73 +45,23 @@ export interface Place {
   path?: PathId | null;
   /** Districts built in the town, by id, with their level. */
   districts?: Partial<Record<DistrictId, number>>;
+  /** The level at which "ready to grow" was last announced, so it is said once. */
+  readyAt?: number;
 }
 
 export const TOWN_RADIUS = 3;
+/** Resource nodes sit on low, level ground: no steeper than this step to a neighbour, and no higher than this. */
+const NODE_SLOPE = 9;
+const NODE_MAX_ELEV = 160;
+/** Nodes keep this many tiles apart (so NODE_GAP - 1 clear tiles between them). */
+const NODE_GAP = 3;
+/** No node within this many tiles of water, so its yard (and a quarry's pit) never reaches the shore. */
+const NODE_DRY = 2;
+/** Nodes are only placed where a road from a town can get to: across at most this much open water. */
+const REACH_BRIDGE = 4;
+/** Nodes this close to a town are preferred. */
+const NODE_TOWN_REACH = 22;
 export const CITY_RADIUS = 5;
-
-/**
- * A town's district plots: the tiles beside its two main streets. The first two are the Market and the Freight Yard,
- * then the four nearest corners, then outward. A town (radius 3) has twelve plots; a major city (radius 5) has 28.
- */
-export function plotTiles(x: number, y: number, radius = TOWN_RADIUS): Tile[] {
-  const first: Tile[] = [
-    { x: x + 1, y: y - 1 },
-    { x: x - 1, y: y + 1 },
-    { x: x - 1, y: y - 1 },
-    { x: x + 1, y: y + 1 },
-  ];
-  const rest: { t: Tile; d: number }[] = [];
-  for (let dy = -(radius - 1); dy <= radius - 1; dy++) {
-    for (let dx = -(radius - 1); dx <= radius - 1; dx++) {
-      if (dx === 0 || dy === 0 || (Math.abs(dx) === 1 && Math.abs(dy) === 1)) continue;
-      const alongH = Math.abs(dy) === 1;
-      const alongV = Math.abs(dx) === 1;
-      if (alongH || alongV) rest.push({ t: { x: x + dx, y: y + dy }, d: Math.hypot(dx, dy) });
-    }
-  }
-  // Stable: nearest first, ties in scan order after a fixed rotation so plots alternate sides.
-  rest.sort((a, b) => a.d - b.d || Math.atan2(a.t.y - y, a.t.x - x) - Math.atan2(b.t.y - y, b.t.x - x));
-  if (radius === TOWN_RADIUS) {
-    // Keep the hand-picked order of the original twelve.
-    return [
-      ...first,
-      { x: x + 2, y: y - 1 },
-      { x: x - 2, y: y + 1 },
-      { x: x + 2, y: y + 1 },
-      { x: x - 2, y: y - 1 },
-      { x: x + 1, y: y - 2 },
-      { x: x - 1, y: y + 2 },
-      { x: x - 1, y: y - 2 },
-      { x: x + 1, y: y + 2 },
-    ];
-  }
-  return [...first, ...rest.map((r) => r.t)];
-}
-
-/** The street tile a plot's driveway meets, as an offset from the town centre. */
-export function plotEntry(dx: number, dy: number): Tile {
-  return Math.abs(dy) === 1 ? { x: dx, y: 0 } : { x: 0, y: dy };
-}
-
-/** Which way a building on this plot (offset dx, dy from the town centre) faces: toward the street it fronts. */
-export function plotFacing(dx: number, dy: number): 'N' | 'S' | 'E' | 'W' {
-  if (Math.abs(dy) === 1) return dy < 0 ? 'S' : 'N';
-  return dx > 0 ? 'W' : 'E';
-}
-
-/** The tiles around the plots where a town's homes stand: everything inside the square that is not a street or a plot. */
-export function homeTiles(x: number, y: number, radius = TOWN_RADIUS): Tile[] {
-  const plots = new Set(plotTiles(0, 0, radius).map((t) => t.x + ',' + t.y));
-  const out: Tile[] = [];
-  for (let dy = -radius; dy <= radius; dy++) {
-    for (let dx = -radius; dx <= radius; dx++) {
-      if (dx === 0 || dy === 0 || plots.has(dx + ',' + dy)) continue;
-      out.push({ x: x + dx, y: y + dy });
-    }
-  }
-  return out;
-}
 
 export interface ResourceNode {
   id: number;
@@ -161,7 +112,16 @@ function circularMeanX(xs: number[], width: number): number {
   return ((((a / (Math.PI * 2)) % 1) + 1) % 1) * width;
 }
 
-export function generateFeatures(terrain: Terrain[], width: number, height: number, seed: number, elev?: number[]): Features {
+/** A town or city placed by hand on a made map. The first one listed is where the game starts. */
+export interface FixedPlace {
+  name: string;
+  x: number;
+  y: number;
+  radius: number;
+  style?: TownStyle;
+}
+
+export function generateFeatures(terrain: Terrain[], width: number, height: number, seed: number, elev?: number[], fixedPlaces?: FixedPlace[]): Features {
   const namer = makeNamer(seed);
   const regions: Region[] = [];
   const regionMap = new Array<number>(width * height).fill(0);
@@ -324,42 +284,47 @@ export function generateFeatures(terrain: Terrain[], width: number, height: numb
   const made: Place[] = [];
   const tooClose = (c: number, R: number): boolean =>
     made.some((p) => dist2(p.y * width + p.x, c) < (p.radius + R + 4) * (p.radius + R + 4));
-  const makePlace = (c: number, R: number): Place => {
+  const makePlace = (c: number, R: number, fixed?: FixedPlace): Place => {
     const x = c % width;
     const y = Math.floor(c / width);
     const lat = Math.abs((0.5 - (y + 0.5) / height) * 120);
     const roll = namer.rand();
-    const style: TownStyle =
-      lat > 46 ? (roll < 0.75 ? 'nordic' : 'temperate')
+    const style: TownStyle = fixed?.style ??
+      (lat > 46 ? (roll < 0.75 ? 'nordic' : 'temperate')
       : lat > 32 ? (roll < 0.55 ? 'temperate' : roll < 0.85 ? 'mediterranean' : 'nordic')
       : lat > 16 ? (roll < 0.4 ? 'mediterranean' : roll < 0.7 ? 'arid' : roll < 0.9 ? 'tropical' : 'temperate')
-      : (roll < 0.55 ? 'tropical' : roll < 0.85 ? 'arid' : 'mediterranean');
+      : (roll < 0.55 ? 'tropical' : roll < 0.85 ? 'arid' : 'mediterranean'));
     void TOWN_STYLES;
     const taste: Stock = {};
     for (const g of new Set([...MARKET_DEMAND[MARKET_DEMAND.length - 1], ...FREIGHT_DEMAND[FREIGHT_DEMAND.length - 1]])) {
       taste[g] = Math.round((0.75 + namer.rand() * 0.7) * (STYLE_TASTE[style][g] ?? 1) * 100) / 100;
     }
-    const plots = plotTiles(x, y, R);
-    // Some plots along the street are already homes, so the street has houses on it and not only empty lots.
+    // Many plots along the street start as homes, so the street has houses on it and not only empty lots. As the town
+    // grows, the homes nearest the centre make way for building lots (see homesNow in world.ts). The plots themselves
+    // are laid out once every town is known (see townLayout), since a town's main street reaches toward its neighbours.
     const homePlots: number[] = [];
-    for (let i = 4; i < plots.length; i++) if (namer.rand() < (R === CITY_RADIUS ? 0.3 : 0.35)) homePlots.push(i);
+    for (let i = 4; i < plotCount(R); i++) if (namer.rand() < (R === CITY_RADIUS ? 0.5 : 0.6)) homePlots.push(i);
     return {
       style,
       taste,
       radius: R,
       homePlots,
       id: 0,
-      name: namer.town(),
+      name: fixed?.name ?? namer.town(),
       x,
       y,
       level: 1,
       growth: 0,
       delivered: {},
-      marketTile: wrapTile(plots[0]),
-      freightTile: wrapTile(plots[1]),
+      marketTile: wrapTile({ x: x + 1, y: y - 1 }),
+      freightTile: wrapTile({ x: x - 1, y: y + 1 }),
     };
   };
 
+  let places: Place[];
+  if (fixedPlaces) {
+    places = fixedPlaces.map((fp) => makePlace(idx(fp.x, fp.y), fp.radius, fp));
+  } else {
   // Major cities first, while there is still room for them.
   const cityTarget = Math.max(2, Math.min(3, Math.round((width * height) / 3600)));
   for (const cand of shuffle(findCandidates(CITY_RADIUS, CITY_FLATNESS, 3))) {
@@ -381,21 +346,65 @@ export function generateFeatures(terrain: Terrain[], width: number, height: numb
     made.push(p);
     towns.push(p);
   }
-  const places: Place[] = [...towns, ...cities];
+  places = [...towns, ...cities];
+  }
   places.forEach((p, i) => (p.id = i + 1));
+  // Lay each town out along its main street, now that the towns it reaches toward are all known.
+  const env = { width, height, terrain, elev, places };
+  const townTiles = new Set<number>();
+  for (const p of places) {
+    const layout = townLayout(env, p);
+    if (layout.plots[0]) p.marketTile = wrapTile({ x: p.x + layout.plots[0].x, y: p.y + layout.plots[0].y });
+    if (layout.plots[1]) p.freightTile = wrapTile({ x: p.x + layout.plots[1].x, y: p.y + layout.plots[1].y });
+    for (const t of footprint(layout, 5)) townTiles.add(idx(p.x + t.x, p.y + t.y));
+  }
 
-  // Resource nodes: spread out within each region, never inside or beside a town.
+  // Resource nodes: spread out within each region, never inside or beside a town, always on low, level ground.
   const nodes: ResourceNode[] = [];
   const nearTown = (t: number, r: number): boolean =>
-    places.some((p) => Math.abs(wrapDelta(p.x, t % width, width)) <= r + p.radius - 3 && Math.abs(p.y - Math.floor(t / width)) <= r + p.radius - 3);
+    townTiles.has(t) || places.some((p) => Math.abs(wrapDelta(p.x, t % width, width)) <= r + p.radius - 3 && Math.abs(p.y - Math.floor(t / width)) <= r + p.radius - 3);
+  /** Steepest step to a neighbouring tile. */
+  const slopeOf = (t: number): number => {
+    if (!elev) return 0;
+    const x = t % width;
+    const y = Math.floor(t / width);
+    let s = 0;
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [-1, -1], [1, -1], [-1, 1]]) s = Math.max(s, Math.abs(elev[idx(x + dx, y + dy)] - elev[t]));
+    return s;
+  };
+  /** Low and level enough for a farm or a camp: not a hilltop, not a hillside. */
+  const level = (t: number, maxSlope = NODE_SLOPE): boolean => !elev || maxSlope === Infinity || (slopeOf(t) <= maxSlope && elev[t] <= NODE_MAX_ELEV);
+  /** At least NODE_GAP - 1 clear tiles to every other node, so their yards do not run into each other. */
+  const clear = (t: number): boolean => !nodes.some((n) => Math.abs(wrapDelta(n.x, t % width, width)) < NODE_GAP && Math.abs(n.y - Math.floor(t / width)) < NODE_GAP);
+  /** Nearest open water, in tiles (Chebyshev), looking no further than `max`. */
+  const waterWithin = (t: number, max: number): number => {
+    const x = t % width;
+    const y = Math.floor(t / width);
+    for (let r = 1; r <= max; r++) {
+      for (let dy = -r; dy <= r; dy++) {
+        for (let dx = -r; dx <= r; dx++) {
+          if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+          const ny = y + dy;
+          if (ny < 0 || ny >= height) continue;
+          if (terrain[idx(x + dx, ny)] === 'water') return r;
+        }
+      }
+    }
+    return Infinity;
+  };
+  /** Hard rule: a node and its levelled yard stay on dry land, NODE_DRY tiles clear of the sea and lakes. */
+  const dry = (t: number): boolean => waterWithin(t, NODE_DRY) > NODE_DRY;
+  /** Within reach of a town, where a player will want them. */
+  const townDist = (t: number): number => Math.min(...places.map((p) => Math.hypot(wrapDelta(p.x, t % width, width), p.y - Math.floor(t / width))));
   const quality = (): number => {
     const r = namer.rand();
     return r < 0.25 ? 2 : r < 0.75 ? 1 : 0;
   };
-  const spread = (tiles: number[], count: number, minGap: number, kind: NodeKind, regionId: number): void => {
-    const pool = tiles.filter(
-      (t) => !nearTown(t, 4) && !nodes.some((n) => Math.abs(wrapDelta(n.x, t % width, width)) <= 1 && Math.abs(n.y - Math.floor(t / width)) <= 1),
-    );
+  const spread = (tiles: number[], count: number, minGap: number, kind: NodeKind, regionId: number, maxSlope = NODE_SLOPE): void => {
+    const ok = tiles.filter((t) => !nearTown(t, 4) && clear(t) && dry(t) && level(t, maxSlope));
+    // Prefer land a town can reach; fall back to the whole region when there is too little of it.
+    const handy = ok.filter((t) => townDist(t) <= NODE_TOWN_REACH);
+    const pool = handy.length >= count * 4 ? handy : ok;
     if (pool.length === 0) return;
     const chosen: number[] = [pool[Math.floor(namer.rand() * pool.length)]];
     while (chosen.length < count) {
@@ -413,11 +422,12 @@ export function generateFeatures(terrain: Terrain[], width: number, height: numb
       chosen.push(best);
     }
     for (const t of chosen) {
+      if (!clear(t)) continue;
       nodes.push({ id: nodes.length + 1, kind, x: t % width, y: Math.floor(t / width), quality: quality(), regionId });
     }
   };
 
-  for (const [id, tiles] of forestTiles) spread(tiles, Math.max(2, Math.min(7, Math.floor(tiles.length / 10))), 3, 'forest', id);
+  for (const [id, tiles] of forestTiles) spread(tiles, Math.max(2, Math.min(7, Math.floor(tiles.length / 10))), 4, 'forest', id);
   for (const [id, tiles] of landRegionTiles) {
     const open = tiles.filter((t) => {
       const x = t % width;
@@ -438,7 +448,7 @@ export function generateFeatures(terrain: Terrain[], width: number, height: numb
       for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) s = Math.max(s, Math.abs(elev[idx(x + dx, y + dy)] - elev[t]));
       return s;
     };
-    const flat = [...open].sort((a, b) => slope(a) - slope(b) || a - b);
+    const flat = open.filter((t) => dry(t)).sort((a, b) => slope(a) - slope(b) || a - b);
     const anchors: number[] = [];
     const wantAnchors = Math.max(1, Math.min(3, Math.round(tiles.length / 160)));
     for (const t of flat.slice(0, Math.max(12, Math.floor(flat.length / 3)))) {
@@ -447,32 +457,37 @@ export function generateFeatures(terrain: Terrain[], width: number, height: numb
     }
     const belt = anchors.length ? open.filter((t) => anchors.some((a) => dist2(a, t) <= 36)) : open;
     const farmPool = belt.length >= 6 ? belt : open;
-    spread(farmPool, Math.max(2, Math.min(5, Math.round(tiles.length / 90))), 3, 'farmland', id);
-    spread(farmPool, Math.max(1, Math.min(3, Math.round(tiles.length / 110))), 3, 'pasture', id);
-    spread(farmPool, Math.max(1, Math.min(2, Math.round(tiles.length / 150))), 3, 'orchard', id);
-    // Clay lies along the water.
-    const shore = tiles.filter((t) => {
-      const x = t % width;
-      const y = Math.floor(t / width);
-      return [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => terrain[idx(x + dx, y + dy)] === 'water');
-    });
-    if (shore.length > 0) spread(shore, Math.max(1, Math.min(2, Math.round(tiles.length / 160))), 3, 'clay', id);
+    spread(farmPool, Math.max(2, Math.min(5, Math.round(tiles.length / 90))), 4, 'farmland', id);
+    spread(open, Math.max(1, Math.min(3, Math.round(tiles.length / 110))), 4, 'pasture', id);
+    spread(open, Math.max(1, Math.min(2, Math.round(tiles.length / 150))), 4, 'orchard', id);
+    // Clay lies near the water: just back from the shore, on dry ground.
+    const shore = tiles.filter((t) => waterWithin(t, NODE_DRY + 2) <= NODE_DRY + 2);
+    if (shore.length > 0) spread(shore, Math.max(1, Math.min(2, Math.round(tiles.length / 160))), 4, 'clay', id);
   }
   for (const [id, tiles] of mountainTiles) {
-    // Quarries, mines and coal seams sit at the foot of a mountain: a grass tile beside the rock, so a road reaches them on the flat.
+    // Quarries, mines and coal seams sit at the foot of a mountain: grass within two tiles of the rock, so a road reaches them on the flat.
     const foot = new Set<number>();
     for (const t of tiles) {
       const x = t % width;
       const y = Math.floor(t / width);
-      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+      for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) {
         const j = idx(x + dx, y + dy);
         if (terrain[j] === 'grass' && y + dy >= ICE_ROWS + 1 && y + dy < height - ICE_ROWS - 1) foot.add(j);
       }
     }
-    const pool = [...foot];
-    spread(pool, Math.max(1, Math.min(2, Math.floor(tiles.length / 10))), 3, 'quarry', id);
-    spread(pool, Math.max(1, Math.min(2, Math.floor(tiles.length / 12))), 3, 'mine', id);
-    if (tiles.length >= 8) spread(pool, 1, 3, 'coal', id);
+    // Only the lowest half of the foot: down on the plain where the rock meets it, not up the mountain's flank.
+    const byHeight = [...foot].sort((a, b) => (elev ? elev[a] - elev[b] : 0));
+    const pool = byHeight.slice(0, Math.max(4, Math.ceil(byHeight.length / 2)));
+    // The foot has room for only a few, so which kind picks first turns from one mountain to the next.
+    const digs: [NodeKind, number][] = [
+      ['quarry', Math.max(1, Math.min(2, Math.floor(tiles.length / 10)))],
+      ['mine', Math.max(1, Math.min(2, Math.floor(tiles.length / 12)))],
+      ['coal', tiles.length >= 8 ? 1 : 0],
+    ];
+    for (let k = 0; k < digs.length; k++) {
+      const [kind, count] = digs[(k + id) % digs.length];
+      if (count > 0) spread(pool, count, 4, kind, id, Infinity);
+    }
   }
 
   // Every town has a forest, farmland and pasture within reach, so a first game never starts far from its first chain.
@@ -491,7 +506,7 @@ export function generateFeatures(terrain: Terrain[], width: number, height: numb
     for (const [kind, pool] of [['forest', forestAny], ['farmland', openAny], ['pasture', openAny]] as [NodeKind, number[]][]) {
       if (nodes.some((n) => n.kind === kind && near(p, n.y * width + n.x) <= reach)) continue;
       const free = pool
-        .filter((t) => near(p, t) <= reach && near(p, t) >= 5 + p.radius - 3 && !nearTown(t, 4) && !nodes.some((n) => Math.abs(wrapDelta(n.x, t % width, width)) <= 1 && Math.abs(n.y - Math.floor(t / width)) <= 1))
+        .filter((t) => near(p, t) <= reach && near(p, t) >= 5 + p.radius - 3 && !nearTown(t, 4) && clear(t) && dry(t) && level(t))
         .sort((a, b) => near(p, a) - near(p, b));
       if (free.length === 0) continue;
       const t = free[Math.min(free.length - 1, 2)];
@@ -499,5 +514,40 @@ export function generateFeatures(terrain: Terrain[], width: number, height: numb
     }
   }
 
-  return { regions, regionMap, places, nodes };
+  // Only keep nodes a town can reach by road: the same land, or across a short bridge. An island with no town on it is
+  // scenery until there is a way to ship to it.
+  const reachable = new Uint8Array(width * height);
+  const queue: number[] = [];
+  const land = (t: number): boolean => terrain[t] !== 'water' && terrain[t] !== 'ice';
+  for (const p of places) {
+    const t = idx(p.x, p.y);
+    if (!reachable[t]) {
+      reachable[t] = 1;
+      queue.push(t);
+    }
+  }
+  for (let qi = 0; qi < queue.length; qi++) {
+    const t = queue[qi];
+    const x = t % width;
+    const y = Math.floor(t / width);
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      // Step onto land next door, or straight across up to REACH_BRIDGE tiles of water to land on the far side.
+      for (let k = 1; k <= REACH_BRIDGE + 1; k++) {
+        const ny = y + dy * k;
+        if (ny < 0 || ny >= height) break;
+        const n = idx(x + dx * k, ny);
+        if (land(n)) {
+          if (!reachable[n]) {
+            reachable[n] = 1;
+            queue.push(n);
+          }
+          break;
+        }
+        if (terrain[n] !== 'water') break;
+      }
+    }
+  }
+  const usable = nodes.filter((n) => reachable[idx(n.x, n.y)]);
+  usable.forEach((n, i) => (n.id = i + 1));
+  return { regions, regionMap, places, nodes: usable };
 }

@@ -2,14 +2,20 @@
 import * as THREE from 'three';
 import { SEA_LEVEL } from '../sim/defs';
 import { LAT_SPAN_DEG, fbm3, tileLonLat } from '../sim/mapgen';
-import { radiusOf, type Tile, type World } from '../sim/world';
+import { townTiles, type Tile, type World } from '../sim/world';
 
 /** Globe radius in world units. One tile is about 3.3 units wide at the equator. */
-export const R = 100;
+export let R = 100;
 /** Terrain relief: how far the highest peak stands above sea level. */
 export const MAX_RELIEF = 6.5;
 /** Rows of polar cap texture beyond the playable grid, on each side. */
-export const CAP_ROWS = 16;
+export let CAP_ROWS = 16;
+
+/** Size the globe for a world: tiles stay the same size on the ground, so a wider world is a bigger planet. */
+export function setGlobeSize(world: World): void {
+  R = (100 * world.width) / 192;
+  CAP_ROWS = Math.round(world.height / 4);
+}
 /** Terrain mesh vertices per tile, in each direction. */
 export const MESH_SUB = 3;
 export const LAT_SPAN = (LAT_SPAN_DEG * Math.PI) / 180;
@@ -124,10 +130,31 @@ export class HeightField {
     this.relief = new Float32Array(world.width * world.height);
     for (let i = 0; i < this.relief.length; i++) this.relief[i] = elevToRelief(world.elev[i]);
     this.padOf = new Int16Array(world.width * world.height).fill(-1);
-    for (const p of world.places) this.addPad({ x: p.x + 0.5, y: p.y + 0.5, height: this.relief[p.y * world.width + p.x], core: radiusOf(p) * 1.5, outer: radiusOf(p) * 2 });
+    // A town is one flat model, so the ground along its whole strip is levelled to the height of its centre.
+    for (const p of world.places) {
+      const height = this.relief[p.y * world.width + p.x];
+      for (const t of townTiles(world, p)) this.addPad({ x: t.x + 0.5, y: t.y + 0.5, height, core: 0.9, outer: 2.2 });
+    }
     for (const n of world.nodes) {
-      if (n.kind !== 'quarry' && n.kind !== 'mine' && n.kind !== 'coal') continue;
       const here = this.relief[n.y * world.width + n.x];
+      if (n.kind !== 'quarry' && n.kind !== 'mine' && n.kind !== 'coal') {
+        // Farms, camps, pits and pastures stand on a level yard at the height of the ground round them, blended back
+        // into the land, so the buildings and the slab under them never perch on a slope.
+        let sum = 0;
+        let cnt = 0;
+        for (let dy = -1; dy <= 1; dy++) {
+          for (let dx = -1; dx <= 1; dx++) {
+            const y = Math.min(world.height - 1, Math.max(0, n.y + dy));
+            const x = (((n.x + dx) % world.width) + world.width) % world.width;
+            const r = this.relief[y * world.width + x];
+            if (r <= 0) continue;
+            sum += r;
+            cnt += 1;
+          }
+        }
+        this.addPad({ x: n.x + 0.5, y: n.y + 0.5, height: cnt ? Math.max(0.06, Math.min(here, sum / cnt)) : here, core: 1.0, outer: 2.2 });
+        continue;
+      }
       if (n.kind === 'quarry') {
         // Dig down below the surrounding ground: a flat floor with sloped walls on the mountain side.
         this.addPad({ x: n.x + 0.5, y: n.y + 0.5, height: Math.max(0.12, here - 0.8), core: 0.95, outer: 2.3 });
@@ -139,6 +166,7 @@ export class HeightField {
   }
 
   private addPad(pad: Pad): void {
+    const wrapTiles = (w: number, dx: number): number => dx - Math.round(dx / w) * w;
     const { width: W, height: H } = this.world;
     const idx = this.pads.push(pad) - 1;
     const r = Math.ceil(pad.outer) + 1;
@@ -152,8 +180,9 @@ export class HeightField {
         if (d > pad.outer + 1) continue;
         if (cur >= 0) {
           const o = this.pads[cur];
-          const od = Math.hypot(x + 0.5 - o.x, y + 0.5 - o.y);
-          if (od < d) continue;
+          const od = Math.hypot(wrapTiles(W, x + 0.5 - o.x), y + 0.5 - o.y);
+          // Ground already levelled flat (a town's streets, say) stays as it is; otherwise the nearer pad wins.
+          if ((od <= o.core && d > pad.core) || od < d) continue;
         }
         this.padOf[y * W + x] = idx;
       }

@@ -16,6 +16,11 @@ export interface Place {
 export class Parts {
   /** Pattern id given to parts added from now on, unless a part says otherwise. */
   tex = 0;
+  /**
+   * Where the building that parts added from now on belong to stands (x, z), so an animation can raise it as one piece.
+   * When unset, each part is its own anchor.
+   */
+  anchor: [number, number] | null = null;
   private readonly list: THREE.BufferGeometry[] = [];
   private readonly m = new THREE.Matrix4();
   private readonly e = new THREE.Euler();
@@ -38,6 +43,7 @@ export class Parts {
     }
     g.setAttribute('color', new THREE.BufferAttribute(arr, 3));
     g.setAttribute('mid', new THREE.BufferAttribute(new Float32Array(count).fill(o.t ?? this.tex), 1));
+    this.setAnchor(g, count, o.x ?? 0, o.z ?? 0);
     this.list.push(g);
     return this;
   }
@@ -57,8 +63,19 @@ export class Parts {
     }
     g.setAttribute('color', new THREE.BufferAttribute(arr, 3));
     g.setAttribute('mid', new THREE.BufferAttribute(new Float32Array(count).fill(this.tex), 1));
+    this.setAnchor(g, count, m.elements[12], m.elements[14]);
     this.list.push(g);
     return this;
+  }
+
+  private setAnchor(g: THREE.BufferGeometry, count: number, x: number, z: number): void {
+    const [ax, az] = this.anchor ?? [x, z];
+    const arr = new Float32Array(count * 2);
+    for (let i = 0; i < count; i++) {
+      arr[i * 2] = ax;
+      arr[i * 2 + 1] = az;
+    }
+    g.setAttribute('anc', new THREE.BufferAttribute(arr, 2));
   }
 
   boxM(w: number, h: number, d: number, color: number, m: THREE.Matrix4): this {

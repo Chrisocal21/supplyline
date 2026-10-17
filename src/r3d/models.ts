@@ -1,7 +1,8 @@
 // Procedural 3D models: industry, logistics, towns and vehicles. Muted, realistic colours.
 // Units: one tile is about 3.3 world units wide, so a building is roughly 2.5 units across.
 import * as THREE from 'three';
-import type { SiteKind, VehicleKind } from '../sim/defs';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { GOODS, SITE_DEFS, type Good, type SiteKind, type VehicleKind } from '../sim/defs';
 import { industryGeometry } from './industry';
 import { Parts } from './parts';
 
@@ -292,6 +293,44 @@ function hub(): THREE.BufferGeometry {
   return p.build();
 }
 
+/** A hub with its rail depot: the warehouse and truck bays on one side, a rail yard with a platform and a gantry on the other. */
+function depot(): THREE.BufferGeometry {
+  const p = new Parts();
+  p.slab(3.1, 3.0, C.concreteDark);
+  p.tex = 5;
+  // Warehouse and truck bays, as the hub, a little smaller.
+  p.box(1.5, 0.7, 1.15, 0x7b8691, { x: -0.8, y: 0.04, z: -0.6 });
+  p.box(1.58, 0.05, 1.23, 0x4a5058, { x: -0.8, y: 0.74, z: -0.6 });
+  p.box(1.5, 0.09, 0.02, C.orange, { x: -0.8, y: 0.5, z: -0.02 });
+  for (let i = 0; i < 3; i++) {
+    p.box(0.4, 0.4, 0.02, 0x23262a, { x: -1.25 + i * 0.45, y: 0.04, z: -0.02 });
+    p.box(0.44, 0.04, 0.03, C.yellow, { x: -1.25 + i * 0.45, y: 0.44, z: -0.01 });
+  }
+  p.box(0.55, 0.36, 0.4, 0xe3e1da, { x: -1.1, y: 0.04, z: 0.8 });
+  p.box(0.6, 0.04, 0.45, 0x6a6e73, { x: -1.1, y: 0.4, z: 0.8 });
+  // The rail yard: two tracks with a loading platform between them.
+  p.tex = 6;
+  p.box(0.34, 0.11, 2.7, C.concrete, { x: 0.95, y: 0.04, z: 0 });
+  for (const x of [0.5, 1.4]) {
+    p.box(0.3, 0.02, 2.8, 0x4a4036, { x, y: 0.04, z: 0 });
+    for (let z = -1.3; z <= 1.31; z += 0.2) p.box(0.34, 0.025, 0.07, 0x3a2f26, { x, y: 0.05, z });
+    for (const dx of [-0.08, 0.08]) p.box(0.03, 0.04, 2.8, 0x9aa3ab, { x: x + dx, y: 0.075, z: 0 });
+  }
+  p.box(0.32, 0.06, 0.1, 0x2a2c30, { x: 0.5, y: 0.1, z: -1.4 });
+  p.box(0.32, 0.06, 0.1, 0x2a2c30, { x: 1.4, y: 0.1, z: -1.4 });
+  // A gantry over the platform, and a stack of containers.
+  for (const z of [-0.5, 0.5]) for (const x of [0.62, 1.28]) p.box(0.05, 0.7, 0.05, C.blue, { x, y: 0.04, z });
+  for (const z of [-0.5, 0.5]) p.box(0.78, 0.06, 0.08, C.blue, { x: 0.95, y: 0.74, z });
+  p.box(0.12, 0.1, 0.18, C.yellow, { x: 0.95, y: 0.62, z: 0.1 });
+  const cols = [C.orange, C.blue, C.green, C.red];
+  for (let i = 0; i < 4; i++) p.box(0.5, 0.26, 0.22, cols[i], { x: -0.1 + (i % 2) * 0.05, y: 0.04 + Math.floor(i / 2) * 0.26, z: 1.25 });
+  // The yard office.
+  p.tex = 3;
+  p.box(0.4, 0.34, 0.5, C.brick, { x: 0.1, y: 0.04, z: -1.2 });
+  p.gable(0.5, 0.2, 0.6, C.roofDark, { x: 0.1, y: 0.38, z: -1.2, ry: Math.PI / 2 });
+  return p.build();
+}
+
 function market(): THREE.BufferGeometry {
   const p = new Parts();
   p.slab(1.9, 1.6, 0x9a968c);
@@ -417,6 +456,255 @@ export function siteGeometry(kind: SiteKind): THREE.BufferGeometry {
 }
 
 
+// ---- building levels: an upgraded building is bigger and has more going on around it ----
+
+/** How much the main building grows at each level: [across, up]. Camps and farms grow less in height. */
+const LEVEL_GROW: Record<number, { raw: [number, number]; other: [number, number] }> = {
+  2: { raw: [1.06, 1.15], other: [1.08, 1.3] },
+  3: { raw: [1.12, 1.3], other: [1.15, 1.6] },
+};
+
+/** A fence round the lot, open at the front where the road comes in. */
+function fence(p: Parts, color: number): void {
+  const e = 1.55;
+  p.box(3.1, 0.14, 0.04, color, { y: 0, z: -e });
+  p.box(0.04, 0.14, 3.1, color, { x: -e, y: 0 });
+  p.box(0.04, 0.14, 3.1, color, { x: e, y: 0 });
+  p.box(1.1, 0.14, 0.04, color, { x: -1.0, y: 0, z: e });
+  p.box(1.1, 0.14, 0.04, color, { x: 1.0, y: 0, z: e });
+  for (const [x, z] of [[-e, -e], [e, -e], [-e, e], [e, e], [-0.45, e], [0.45, e]]) p.box(0.07, 0.24, 0.07, color, { x, y: 0, z });
+}
+
+function truck(p: Parts, x: number, z: number, color: number): void {
+  p.box(0.5, 0.22, 0.26, color, { x: x - 0.06, y: 0.07, z });
+  p.box(0.18, 0.2, 0.26, 0xe6e6e1, { x: x + 0.28, y: 0.07, z });
+  p.box(0.02, 0.09, 0.2, 0x9fc3d6, { x: x + 0.37, y: 0.17, z });
+  for (const [dx, dz] of [[-0.2, 0.13], [0.25, 0.13], [-0.2, -0.13], [0.25, -0.13]]) wheel(p, x + dx, 0.0, z + dz, 0.07);
+}
+
+function lamp(p: Parts, x: number, z: number, h = 1.3): void {
+  p.cyl(0.025, 0.03, h, C.metalDark, { x, y: 0, z }, 6);
+  p.box(0.16, 0.05, 0.08, 0xf2e6b0, { x, y: h, z });
+}
+
+/** What a level adds around a building. */
+function levelParts(kind: SiteKind, level: number): THREE.BufferGeometry {
+  const def = SITE_DEFS[kind];
+  const p = new Parts();
+  const good = def.produce?.good ?? (Object.keys(def.recipe?.outputs ?? {})[0] as Good | undefined);
+  const gc = good ? GOODS[good].color : C.wood;
+
+  if (def.produce) {
+    // Camps, farms, pits and mines: a fenced yard, a shed and stockpiles, then a barn, storage and their own truck.
+    // A foundation pad just under the site's own ground carries the extras on a slope.
+    p.slab(3.2, 3.2, C.soil, { y: -0.05 });
+    p.tex = 2;
+    fence(p, C.timber);
+    p.box(0.7, 0.42, 0.55, C.timber, { x: 1.12, y: 0, z: -1.08 });
+    p.gable(0.8, 0.24, 0.64, C.roofDark, { x: 1.12, y: 0.42, z: -1.08 });
+    p.tex = 0;
+    p.cone(0.34, 0.38, gc, { x: -1.18, y: 0, z: 1.1 }, 9);
+    p.cone(0.24, 0.28, gc, { x: -0.84, y: 0, z: 1.25 }, 9);
+    if (level >= 3) {
+      p.tex = 2;
+      p.box(1.0, 0.7, 0.7, C.red, { x: -1.0, y: 0, z: -1.08 });
+      p.gable(1.12, 0.36, 0.8, C.roofDark, { x: -1.0, y: 0.7, z: -1.08 });
+      p.box(0.34, 0.42, 0.02, 0xe6e2d6, { x: -1.0, y: 0, z: -0.72 });
+      const farmy = def.node === 'farmland' || def.node === 'pasture' || def.node === 'orchard';
+      p.tex = 5;
+      if (farmy) {
+        for (const z of [0.05, 0.5]) {
+          p.cyl(0.19, 0.19, 1.4, 0xc9cdcf, { x: 1.32, y: 0, z });
+          p.dome(0.19, C.metalDark, { x: 1.32, y: 1.4, z });
+        }
+      } else {
+        // An open-sided storage shed with the goods stacked under it.
+        for (const [x, z] of [[1.08, -0.2], [1.5, -0.2], [1.08, 0.75], [1.5, 0.75]]) p.box(0.06, 0.62, 0.06, C.timberDark, { x, y: 0, z });
+        p.box(0.6, 0.05, 1.12, C.roofDark, { x: 1.29, y: 0.62, z: 0.27 });
+        p.tex = 0;
+        for (let i = 0; i < 4; i++) p.box(0.38, 0.16, 0.2, gc, { x: 1.29, y: 0.02 + (i % 2) * 0.16, z: 0.02 + Math.floor(i / 2) * 0.5 });
+      }
+      p.tex = 0;
+      p.cone(0.3, 0.34, gc, { x: -1.3, y: 0, z: 0.7 }, 9);
+      truck(p, 0.85, 1.22, C.blue);
+      lamp(p, -1.48, -1.48);
+      lamp(p, 1.48, 1.48);
+    }
+    return p.build();
+  }
+
+  // Factories, hubs and airports: a bigger paved lot first.
+  p.slab(3.1, 2.8, level >= 3 ? 0x7f7e79 : 0x8f8e89, { y: -0.005 });
+  if (def.hub) {
+    const cols = [C.orange, C.blue, C.green, C.red, 0xd9d6cc];
+    for (let i = 0; i < 6; i++) p.box(0.56, 0.26, 0.24, cols[i % cols.length], { x: -1.25 + (i % 2) * 0.6, y: 0.035 + Math.floor(i / 2) * 0.26, z: -1.2 });
+    if (level >= 3) {
+      for (const x of [-1.45, 1.45]) p.box(0.08, 1.5, 0.08, C.yellow, { x, y: 0.035, z: 1.2 });
+      p.box(3.0, 0.1, 0.12, C.yellow, { y: 1.5, z: 1.2 });
+      p.box(0.3, 0.2, 0.2, C.metalDark, { x: 0.4, y: 1.3, z: 1.2 });
+      for (let i = 0; i < 6; i++) p.box(0.56, 0.26, 0.24, cols[(i + 2) % cols.length], { x: 0.75 + (i % 2) * 0.6, y: 0.035 + Math.floor(i / 2) * 0.26, z: -1.2 });
+      lamp(p, -1.45, -1.45, 1.6);
+      lamp(p, 1.45, -1.45, 1.6);
+    }
+    return p.build();
+  }
+
+  // An annex hall at the back, silos to one side, and pallets of what it makes out front.
+  p.tex = 5;
+  p.box(1.1, 0.55, 0.6, 0xb9b4a8, { x: -0.95, y: 0.035, z: -1.15 });
+  p.box(1.16, 0.05, 0.66, 0x5a6068, { x: -0.95, y: 0.585, z: -1.15 });
+  for (const z of [-1.15, -0.62]) {
+    p.cyl(0.2, 0.2, 1.15, 0xc7cbce, { x: 1.32, y: 0.035, z });
+    p.dome(0.2, C.metalDark, { x: 1.32, y: 1.185, z });
+  }
+  p.tex = 0;
+  for (let i = 0; i < 3; i++) p.box(0.3, 0.14, 0.24, gc, { x: -1.3 + i * 0.36, y: 0.035, z: 1.2 });
+  p.box(0.3, 0.14, 0.24, gc, { x: -1.12, y: 0.175, z: 1.2 });
+  if (level >= 3) {
+    // A tall striped chimney, a second hall with a sawtooth roof, and a loading dock with a truck at it.
+    p.tex = 1;
+    p.cyl(0.11, 0.16, 2.7, 0xd8d4cc, { x: 0.35, y: 0.035, z: -1.35 });
+    for (const h of [1.9, 2.35]) p.cyl(0.125, 0.125, 0.16, C.red, { x: 0.35, y: h, z: -1.35 });
+    p.tex = 5;
+    p.box(1.2, 0.75, 0.5, 0x9aa3ab, { x: 0.65, y: 0.035, z: 0.05 + 1.0 });
+    for (let i = 0; i < 3; i++) p.gable(0.4, 0.22, 0.54, 0x4a525c, { x: 0.65 - 0.4 + i * 0.4, y: 0.785, z: 1.05 });
+    p.tex = 6;
+    p.box(1.2, 0.18, 0.3, C.concrete, { x: 0.65, y: 0.035, z: 1.45 });
+    p.tex = 0;
+    truck(p, -0.5, 0.95, C.orange);
+    lamp(p, -1.48, 1.48);
+    lamp(p, 1.48, -1.48);
+  }
+  return p.build();
+}
+
+/** A building as it looks at a level: the main building grown, with that level's extras around it. */
+export function siteGeometryAt(kind: SiteKind, level: number, withDepot = false): THREE.BufferGeometry {
+  const base = withDepot && kind === 'hub' ? depot() : siteGeometry(kind);
+  const def = SITE_DEFS[kind];
+  const grow = LEVEL_GROW[level];
+  if (!grow || def.dock || def.station) return base;
+  const [across, up] = def.produce ? grow.raw : grow.other;
+  base.scale(across, up, across);
+  const extra = levelParts(kind, level);
+  const out = mergeGeometries([base, extra], false)!;
+  base.dispose();
+  extra.dispose();
+  out.computeBoundingSphere();
+  return out;
+}
+
+
+// ---- rail rolling stock ----
+// A train is a string of separate units (a locomotive and its wagons), each its own model, so on a curve every unit
+// turns on its own and the train bends round the track instead of swinging like a stick. Units face +Z.
+
+/** Two wheel sets on a bogie frame, at z. */
+function bogie(p: Parts, z: number, w = 0.3): void {
+  p.box(w, 0.05, 0.3, 0x24262a, { y: 0.05, z });
+  for (const dz of [-0.09, 0.09]) for (const s of [-1, 1]) p.cyl(0.065, 0.065, 0.04, 0x15171a, { x: s * (w / 2 - 0.01), y: 0.065, z: z + dz, rz: Math.PI / 2 }, 10);
+}
+
+/** A locomotive: long hood in front, cab behind, exhaust stack, headlights, a stripe along the flank. */
+function locomotive(p: Parts, z: number, body: number, accent: number, scale = 1): void {
+  const w = 0.36 * scale;
+  bogie(p, z + 0.3);
+  bogie(p, z - 0.3);
+  p.box(w - 0.02, 0.06, 0.92, 0x2a2c30, { y: 0.1, z });
+  // Hood (front) and cab (rear).
+  p.box(w, 0.2, 0.52, body, { y: 0.16, z: z + 0.2 });
+  p.box(w + 0.02, 0.04, 0.54, accent, { y: 0.28, z: z + 0.2 });
+  p.box(w + 0.01, 0.34, 0.34, body, { y: 0.16, z: z - 0.28 });
+  p.box(w + 0.03, 0.04, 0.38, 0x3a3d42, { y: 0.5, z: z - 0.28 });
+  p.box(w + 0.02, 0.05, 0.92, accent, { y: 0.2, z });
+  // Cab windows and the front glass.
+  p.box(w + 0.02, 0.1, 0.18, 0xbcd6e6, { y: 0.34, z: z - 0.28 });
+  p.box(w - 0.08, 0.1, 0.02, 0xbcd6e6, { y: 0.34, z: z - 0.1 });
+  p.box(w - 0.06, 0.1, 0.02, 0xbcd6e6, { y: 0.34, z: z - 0.46 });
+  // Stack, fan grille, lamps, a buffer beam at each end.
+  p.cyl(0.04, 0.05, 0.12, 0x2b2d30, { y: 0.36, z: z + 0.3 }, 8);
+  p.box(0.2, 0.02, 0.2, 0x4a4d52, { y: 0.36, z: z + 0.0 });
+  for (const s of [-1, 1]) p.box(0.05, 0.05, 0.02, 0xfff0b8, { x: s * 0.1, y: 0.2, z: z + 0.465 });
+  for (const e of [-1, 1]) p.box(w, 0.05, 0.04, 0x1d1f22, { y: 0.1, z: z + e * 0.47 });
+}
+
+type Wagon = 'box' | 'tank' | 'hopper' | 'flat' | 'open';
+
+/** A freight wagon of one of five kinds, with its own paint. */
+function wagon(p: Parts, z: number, kind: Wagon, color: number): void {
+  const w = 0.36;
+  bogie(p, z + 0.26, 0.3);
+  bogie(p, z - 0.26, 0.3);
+  p.box(w - 0.02, 0.05, 0.84, 0x2a2c30, { y: 0.1, z });
+  // Couplings out to each neighbour.
+  for (const e of [-1, 1]) p.box(0.04, 0.03, 0.1, 0x1d1f22, { y: 0.11, z: z + e * 0.45 });
+  switch (kind) {
+    case 'box':
+      p.box(w, 0.3, 0.8, color, { y: 0.15, z });
+      p.box(w + 0.02, 0.03, 0.82, 0x3a3d42, { y: 0.45, z });
+      p.box(0.02, 0.22, 0.2, 0x2a2c30, { x: w / 2 + 0.01, y: 0.19, z });
+      p.box(0.02, 0.22, 0.2, 0x2a2c30, { x: -w / 2 - 0.01, y: 0.19, z });
+      break;
+    case 'tank':
+      p.cyl(0.17, 0.17, 0.78, color, { y: 0.28, z, rx: Math.PI / 2 }, 14);
+      p.box(w - 0.1, 0.06, 0.7, 0x2a2c30, { y: 0.14, z });
+      p.cyl(0.05, 0.05, 0.05, 0x4a4d52, { y: 0.44, z }, 8);
+      break;
+    case 'hopper':
+      p.box(w, 0.2, 0.78, color, { y: 0.15, z });
+      p.box(w - 0.04, 0.16, 0.34, color, { y: 0.35, z: z + 0.2 });
+      p.box(w - 0.04, 0.16, 0.34, color, { y: 0.35, z: z - 0.2 });
+      p.box(w - 0.1, 0.03, 0.3, 0x2a2c30, { y: 0.51, z: z + 0.2 });
+      p.box(w - 0.1, 0.03, 0.3, 0x2a2c30, { y: 0.51, z: z - 0.2 });
+      break;
+    case 'flat':
+      p.box(w, 0.04, 0.82, 0x6b5a44, { y: 0.15, z });
+      for (let i = 0; i < 3; i++) p.cyl(0.07, 0.07, 0.78, [0x7a5a3a, 0x6b4c30, 0x8a6a44][i], { x: (i - 1) * 0.1, y: 0.25, z, rx: Math.PI / 2 }, 8);
+      break;
+    case 'open':
+      p.box(w, 0.04, 0.82, 0x3a3d42, { y: 0.15, z });
+      for (const e of [-1, 1]) p.box(w, 0.2, 0.04, color, { y: 0.15, z: z + e * 0.39 });
+      for (const s of [-1, 1]) p.box(0.04, 0.2, 0.82, color, { x: s * (w / 2 - 0.02), y: 0.15, z });
+      p.box(w - 0.06, 0.12, 0.7, 0x1f1f20, { y: 0.17, z });
+      break;
+  }
+}
+
+const WAGONS: [Wagon, number][] = [
+  ['box', 0x8a4a32], ['tank', 0xc8ccd0], ['hopper', 0x5a6b7c], ['flat', 0x6b5a44], ['open', 0x7a6a3a], ['box', 0x4f6a52], ['tank', 0x8a3a30], ['hopper', 0x8a6a3a],
+];
+
+/**
+ * The separate units of a train, front first: each has its own model centred on its own origin, \`z\` is where that
+ * origin sits along the train (as in vehicleGeometry), and \`len\` its length for working out how it follows the track.
+ */
+export function trainUnits(kind: VehicleKind): { geo: THREE.BufferGeometry; z: number; len: number }[] {
+  const heavy = kind === 'heavytrain';
+  const out: { geo: THREE.BufferGeometry; z: number; len: number }[] = [];
+  const make = (z: number, len: number, draw: (p: Parts) => void): void => {
+    const p = new Parts();
+    draw(p);
+    out.push({ geo: p.build(), z, len });
+  };
+  make(heavy ? 2.4 : 0.8, 0.96, (p) => locomotive(p, 0, heavy ? 0x4a2a28 : 0x2f4a36, heavy ? 0xd7a21f : 0xe0c060, heavy ? 1.04 : 1));
+  const cars = heavy ? 6 : 3;
+  const first = heavy ? 1.45 : -0.1;
+  const step = heavy ? 0.9 : 0.92;
+  for (let i = 0; i < cars; i++) {
+    const [k, c] = WAGONS[(i + (heavy ? 2 : 0)) % WAGONS.length];
+    make(first - i * step, 0.88, (p) => wagon(p, 0, k, c));
+  }
+  return out;
+}
+
+/** All the units of a train in one model, for icons. */
+function mergeUnits(units: { geo: THREE.BufferGeometry; z: number }[]): THREE.BufferGeometry {
+  const geos = units.map((u) => u.geo.clone().translate(0, 0, u.z));
+  const out = mergeGeometries(geos, false)!;
+  out.computeBoundingSphere();
+  return out;
+}
+
 /** Vehicles face +Z. Wheels are included. */
 export function vehicleGeometry(kind: VehicleKind): THREE.BufferGeometry {
   const p = new Parts();
@@ -458,11 +746,8 @@ export function vehicleGeometry(kind: VehicleKind): THREE.BufferGeometry {
       }
       break;
     case 'heavytrain':
-      p.box(0.38, 0.42, 0.95, 0x6b2f2a, { y: 0.1, z: 2.4 });
-      p.box(0.3, 0.12, 0.02, 0xbcd6e6, { y: 0.36, z: 2.88 });
-      p.box(0.18, 0.1, 0.3, 0x2b2d30, { y: 0.52, z: 2.35 });
-      for (let i = 0; i < 6; i++) p.box(0.36, 0.38, 0.8, [0x8a4a32, 0x6b7f8e, 0x9a8a5a, 0x4f6a52, 0x8a6a3a, 0x5a6b7c][i], { y: 0.1, z: 1.45 - i * 0.9 });
-      break;
+    case 'train':
+      return mergeUnits(trainUnits(kind));
     case 'jet':
       p.cyl(0.24, 0.24, 2.3, 0xeceeef, { y: 0.26, z: -1.1, rx: Math.PI / 2 }, 16);
       p.cone(0.24, 0.5, 0xeceeef, { y: 0.26, z: 1.2, rx: Math.PI / 2 }, 16);
@@ -471,11 +756,6 @@ export function vehicleGeometry(kind: VehicleKind): THREE.BufferGeometry {
       for (const x of [-1.1, 1.1]) p.cyl(0.06, 0.06, 0.3, 0x9aa3a9, { x, y: 0.14, z: 0.3, rx: Math.PI / 2 }, 10);
       p.box(0.8, 0.04, 0.3, 0xcfd3d6, { y: 0.28, z: -1.2 });
       p.box(0.04, 0.42, 0.34, 0x2f5f8a, { y: 0.34, z: -1.22 });
-      break;
-    case 'train':
-      p.box(0.36, 0.4, 0.9, 0x2f4a36, { y: 0.1, z: 0.8 });
-      p.box(0.3, 0.12, 0.02, 0xbcd6e6, { y: 0.34, z: 1.255 });
-      for (let i = 0; i < 3; i++) p.box(0.36, 0.38, 0.85, [0x8a4a32, 0x6b7f8e, 0x9a8a5a][i], { y: 0.1, z: -0.1 - i * 0.92 });
       break;
     case 'plane':
       p.cyl(0.17, 0.17, 1.5, 0xe9ebec, { y: 0.22, z: -0.75, rx: Math.PI / 2 }, 14);

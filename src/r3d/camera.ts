@@ -4,7 +4,9 @@ import * as THREE from 'three';
 import { HeightField, MAX_RELIEF, R, lonLatToVec, surfaceFrame, vecToLonLat } from './geo';
 
 export const MIN_DIST = 9;
-export const MAX_DIST = 520;
+const MAX_DIST_BASE = 520;
+/** Furthest the camera pulls back: far enough to see the whole planet, whatever its size. */
+export const maxDist = (): number => (MAX_DIST_BASE * R) / 100;
 const FOV = 45;
 
 const wrapAngle = (a: number): number => {
@@ -48,7 +50,7 @@ export class GlobeCamera {
   focusOn(lon: number, lat: number, dist?: number): void {
     this.target.lon = lon;
     this.target.lat = THREE.MathUtils.clamp(lat, -1.45, 1.45);
-    if (dist !== undefined) this.target.dist = THREE.MathUtils.clamp(dist, MIN_DIST, MAX_DIST);
+    if (dist !== undefined) this.target.dist = THREE.MathUtils.clamp(dist, MIN_DIST, maxDist());
   }
 
   /** Drag the ground: a pixel move in the viewport shifts the focus point the opposite way. */
@@ -86,7 +88,7 @@ export class GlobeCamera {
   }
 
   zoom(factor: number): void {
-    this.target.dist = THREE.MathUtils.clamp(this.target.dist * factor, MIN_DIST, MAX_DIST);
+    this.target.dist = THREE.MathUtils.clamp(this.target.dist * factor, MIN_DIST, maxDist());
   }
 
   /** Ease the visible values toward their targets. */

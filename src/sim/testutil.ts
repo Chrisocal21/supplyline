@@ -8,5 +8,5 @@ export function put(w: World, kind: SiteKind, x: number, y: number): void {
     return;
   }
   w.money -= SITE_DEFS[kind].cost;
-  w.sites.push({ id: w.nextId++, kind, name: `Test ${kind} ${x}`, x, y, stock: {}, timer: 0, level: 1, nodeId: null, placeId: null, pull: SITE_DEFS[kind].hub ? [...GOOD_LIST] : [] });
+  w.sites.push({ id: w.nextId++, kind, name: `Test ${kind} ${x}`, x, y, stock: {}, timer: 0, level: 1, nodeId: null, placeId: null, pull: SITE_DEFS[kind].hub ? [...GOOD_LIST] : [], making: false, sendTo: [] });
 }

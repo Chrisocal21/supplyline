@@ -56,7 +56,7 @@ const GUIDE: { title: string; body: Body; icon?: string }[] = [
   },
   {
     title: 'Step 1: produce',
-    body: 'Open Production at the bottom and pick a building. The menu folds away and the matching resource spots light up with rings: forest for a Forestry Camp, farmland for a Farm, and so on. Click a ring to build there. Purer spots work faster.',
+    body: 'Open Production at the bottom and pick a building. The menu folds away and the matching resource spots light up with rings: forest for a Forestry Camp, farmland for a Farm, and so on. Click a ring to build there. Purer spots work faster. Then click the new building and press Buy Box Truck: it waits at the gate until a road gives it somewhere to go.',
     icon: 'thumb-forestry',
   },
   {
@@ -67,14 +67,14 @@ const GUIDE: { title: string; body: Body; icon?: string }[] = [
   {
     title: 'Step 3: build a road',
     body: {
-      mouse: 'Open Logistics and pick Road. Drag from one building to the other. The road finds its own way round hills, bridges water and tunnels under mountains (those cost more). To steer it, click along the way to drop corners. Enter finishes, Backspace undoes a corner and Esc cancels. Between two buildings that trade a box truck comes with the road. You can also lay roads from open ground or from another road and connect buildings later. The Demolish tool removes a road.',
-      touch: 'Open Logistics and pick Road. Drag from one building to the other. The road finds its own way round hills, bridges water and tunnels under mountains (those cost more). To steer it, tap along the way to drop corners. Undo, Cancel and Finish buttons show while you draw. Between two buildings that trade a truck comes with the road. You can also lay roads from open ground or from another road and connect buildings later. The Demolish tool removes a road.',
+      mouse: 'Open Logistics and pick Road. Drag from one building to the other. The road finds its own way round hills, bridges water and tunnels under mountains (those cost more). To steer it, click along the way to drop corners. Enter finishes, Backspace undoes a corner and Esc cancels. Roads carry nothing on their own: buy a truck at a building and it runs along the road to whoever wants its goods. You can also lay roads from open ground or from another road and connect buildings later. The Demolish tool removes a road.',
+      touch: 'Open Logistics and pick Road. Drag from one building to the other. The road finds its own way round hills, bridges water and tunnels under mountains (those cost more). To steer it, tap along the way to drop corners. Undo, Cancel and Finish buttons show while you draw. Roads carry nothing on their own: buy a truck at a building and it runs along the road to whoever wants its goods. You can also lay roads from open ground or from another road and connect buildings later. The Demolish tool removes a road.',
     },
     icon: 'thumb-route',
   },
   {
-    title: 'Step 4: sell',
-    body: 'The Market buys finished goods. From level 2 a town also has a Freight Yard for raw goods and by-products. Open Towns to see what each town wants and what it pays. A town pays less for something it is already full of, and prices swing with market surges.',
+    title: 'Step 4: switch it on and sell',
+    body: 'Click any building: the box at the top always says what to do next, with the button that does it. A factory needs Start. Under Who buys, tap Sell here on a buyer (or Road to join one), and buy a truck to carry the goods. With a building selected, the map shows lines along the roads to its buyers: green where it is selling. Camps and farms sell to whoever they are joined to unless you tap Selling to stop. When a supply line fills up, a Distribution Hub takes the overflow and spreads it out. The Market buys finished goods. From level 2 a town also has a Freight Yard for raw goods and by-products. Open Towns to see what each town wants and what it pays. A town pays less for something it is already full of, and prices swing with market surges.',
   },
   {
     title: 'Growing towns',
@@ -91,17 +91,17 @@ const GUIDE: { title: string; body: Body; icon?: string }[] = [
   },
   {
     title: 'Keeping things moving',
-    body: 'Click a building to see its stock and what is holding it up. Full means nothing is taking its goods away: add a vehicle (Vehicles, then click the road) or another customer. Waiting means it is short of an input. Upgrade a building to make it faster and roomier. The Production sheet lists the problems first.',
+    body: 'Click a building to see its stock and what is holding it up. Full means nothing is taking its goods away: buy another truck at it, or tap Sell here on another buyer. Waiting means it is short of an input. Upgrade a building to make it faster and roomier. The Production sheet lists the problems first.',
     icon: 'thumb-boxtruck',
   },
   {
     title: 'Bigger vehicles and running costs',
-    body: 'Box Truck, Big Box Truck, Big Rig, Truck Fleet. Freight Train, Heavy Haul Train. Cargo Plane, Cargo Jet. Select any building to see the vehicles that serve it: pick a class and Buy, or Trade up to swap the smallest one for the next class and get half its price back. Bigger vehicles carry far more but cost more to run. Vehicles, buildings and districts are paid for every minute, and the figure under your money is what is left after that.',
+    body: 'Box Truck, Big Box Truck, Big Rig, Truck Fleet. Freight Train, Heavy Haul Train. Cargo Plane, Cargo Jet. Select a building and press Buy to get a vehicle for it. It waits at the gate until a road leads to a building that wants its goods, then sets off by itself. Each vehicle has its own Upgrade (next class up, half the old price back), Sell, and a route picker to send it to one destination. Bigger vehicles carry far more but cost more to run. Vehicles, buildings and districts are paid for every minute, and the figure under your money is what is left after that.',
     icon: 'thumb-boxtruck',
   },
   {
     title: 'Hubs, highways and rail',
-    body: 'A Distribution Hub stores goods and passes them on: gather from several sites, then feed several others. Highways (Tier 1) carry trucks about a third faster. Rail (Tier 2) is its own network with huge trains, and track meets roads at level crossings. Every town has a Rail Station on its edge: run track to it and whatever the train unloads is sold on to the Market and Freight Yard.',
+    body: 'A Distribution Hub stores goods and passes them on: gather from several sites, then feed several others. Highways (Tier 1) carry trucks about a third faster. Rail (Tier 2) is its own network with huge trains, and track meets roads at level crossings. Trains reach a town through a Rail Depot, a rail yard you build on a Distribution Hub: run track to it, buy a train there, and the hub passes what arrives on to the town by truck.',
     icon: 'thumb-hub',
   },
   {
@@ -386,7 +386,7 @@ export class Sheets {
     } else {
       im.text(`tw-g-${p.id}`, 'Fully grown', x + 16, y + 59, { size: 12, color: COLORS.good, layer: 3 });
     }
-    const plots = plotTiles(p.x, p.y, radiusOf(p));
+    const plots = plotTiles(world, p);
     const forSale = plots.map((t, i) => ({ t, i })).filter(({ i }) => i >= 2 && !isHomePlot(p, i));
     const used = forSale.filter(({ t }) => world.sites.some((s) => s.x === wrapped(world, t.x) && s.y === t.y)).length;
     im.text(`tw-p-${p.id}`, `Plots built ${used}/${forSale.length}`, x + w - 16, y + 78, { size: 11, color: COLORS.muted, align: 'right', layer: 3 });

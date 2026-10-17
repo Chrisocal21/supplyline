@@ -2,7 +2,7 @@
 import * as THREE from 'three';
 import type { NodeKind } from '../sim/defs';
 import { tileLonLat } from '../sim/mapgen';
-import { plotTiles, radiusOf, type World } from '../sim/world';
+import { plotTiles, townTiles, type World } from '../sim/world';
 import { HeightField, LAT_SPAN, R, basisMatrix, lonLatToVec } from './geo';
 import { Parts } from './parts';
 
@@ -43,7 +43,7 @@ function nodeProps(kind: NodeKind): THREE.BufferGeometry {
     case 'farmland':
       // Hay bales at the field corner, a hedge along one side and a tractor parked at the gate.
       for (const [x, z] of [[0.7, 0.62], [0.98, 0.7], [0.82, 0.9]]) p.cyl(0.16, 0.16, 0.3, 0xd0b050, { x, y: 0.16, z, rz: Math.PI / 2 }, 10);
-      for (let i = 0; i < 7; i++) p.sphere(0.13 + (i % 2) * 0.03, i % 3 ? 0x3f6a38 : GREEN, { x: -1.0 + i * 0.32, y: 0.12, z: -1.08 }, 0);
+      for (let i = 0; i < 7; i++) p.sphere(0.13 + (i % 2) * 0.03, i % 3 ? 0x3f6a38 : GREEN, { x: -1.0 + i * 0.32, y: 0.12, z: -1.75 }, 0);
       p.box(0.34, 0.16, 0.22, 0x4a7a4a, { x: -0.75, y: 0.1, z: 1.05 });
       p.box(0.14, 0.16, 0.18, 0x4a7a4a, { x: -0.6, y: 0.2, z: 1.05 });
       for (const [x, z] of [[-0.9, 0.97], [-0.9, 1.13], [-0.62, 0.97], [-0.62, 1.13]]) p.cyl(0.07, 0.07, 0.05, 0x1f2124, { x, y: 0.07, z, rx: Math.PI / 2 }, 8);
@@ -213,7 +213,7 @@ export class Scenery {
       const up = pos.clone().normalize();
       const east = new THREE.Vector3(0, 1, 0).cross(up).normalize();
       // Fields and orchards turn to their own angle; the rest face the front.
-      const yaw = n.kind === 'farmland' || n.kind === 'orchard' ? ((n.id * 2.399) % (Math.PI * 2)) : n.kind === 'forest' ? n.id * 1.3 : 0;
+      const yaw = n.kind === 'farmland' ? (n.id % 4) * (Math.PI / 2) : n.kind === 'orchard' ? ((n.id * 2.399) % (Math.PI * 2)) : n.kind === 'forest' ? n.id * 1.3 : 0;
       m.matrix.copy(basisMatrix(pos, up, east)).multiply(new THREE.Matrix4().makeRotationY(yaw));
       m.matrixWorldNeedsUpdate = true;
       this.group.add(m);
@@ -254,6 +254,10 @@ export class Scenery {
         return dx <= r && Math.abs(n.y - y) <= r;
       });
 
+    // Trees keep off the land a town will grow over.
+    const town = new Set<number>();
+    for (const p of w.places) for (const t of townTiles(w, p)) town.add(this.tileIndex(t.x, t.y));
+
     for (let y = 0; y < w.height; y++) {
       for (let x = 0; x < w.width; x++) {
         const t = w.terrain[this.tileIndex(x, y)];
@@ -267,7 +271,7 @@ export class Scenery {
           const jy = r();
           if (t === 'forest' && nearNode(x, y, jx, jy)) continue;
           if (nearQuarry(x, y)) continue;
-          if (w.places.some((p) => Math.abs(p.x - x) <= radiusOf(p) + 1 && Math.abs(p.y - y) <= radiusOf(p) + 1)) continue;
+          if (town.has(this.tileIndex(x, y))) continue;
           spots.push({
             tile: this.tileIndex(x, y),
             lon: lon + (jx - 0.5) * dLon * 0.92,
@@ -377,7 +381,7 @@ export class Scenery {
     ring.rotateX(Math.PI / 2);
     const mat = new THREE.MeshBasicMaterial({ color: 0x5ad1c6, transparent: true, opacity: 0.9, depthWrite: false });
     for (const pl of w.places) {
-      plotTiles(pl.x, pl.y, radiusOf(pl)).forEach((t, index) => {
+      plotTiles(w, pl).forEach((t, index) => {
         if (index < 2) return;
         const g = new THREE.Group();
         g.add(new THREE.Mesh(ring, mat));

@@ -1,7 +1,7 @@
 // Paints the globe's colour texture: shorelines, biomes, mountains and snow, ice caps, resource-node patches
 // and town ground. The 3D lighting does the shading; this supplies realistic, muted albedo.
 import { SEA_LEVEL } from '../sim/defs';
-import type { World } from '../sim/world';
+import { townTiles, type World } from '../sim/world';
 import { CAP_ROWS, LAT_SPAN, textureRows } from './geo';
 
 export interface Pixels {
@@ -320,19 +320,24 @@ function stamp(
 function overlays(world: World, data: Uint8ClampedArray, width: number, height: number, ppt: number, patch: Float32Array): void {
   const noiseAt = (px: number, py: number): number => patch[((Math.floor(py * (16 / ppt)) & (N - 1)) * N) + (Math.floor(px * (16 / ppt)) & (N - 1))];
 
-  // Towns: worn ground under the buildings.
+  // Towns: worn ground along the strip they cover. Each tile paints its own square, and the edge of the strip fades out
+  // into the grass with a ragged margin.
   for (const pl of world.places) {
-    const cx = pl.x + 0.5;
-    const cy = pl.y + CAP_ROWS + 0.5;
-    const rr = (pl.radius ?? 3) / 3;
-    stamp(data, width, height, ppt, cx, cy, 5.6 * rr + 1, (dx, dy, px, py) => {
-      const n = noiseAt(px, py);
-      const d = (Math.hypot(dx, dy) * (1 + (n - 0.5) * 0.3)) / rr;
-      const core = 1 - smoothstep(2.4, 3.6, d);
-      const outer = 1 - smoothstep(3.0, 5.4, d);
-      if (core > 0) return [PAL.townCore[0], PAL.townCore[1], PAL.townCore[2], 0.5 * core];
-      return outer > 0 ? [PAL.town[0], PAL.town[1], PAL.town[2], 0.3 * outer] : null;
-    });
+    const tiles = townTiles(world, pl);
+    const has = new Set(tiles.map((t) => t.x + ',' + t.y));
+    const wrapT = (x: number): number => ((x % world.width) + world.width) % world.width;
+    for (const t of tiles) {
+      stamp(data, width, height, ppt, t.x + 0.5, t.y + CAP_ROWS + 0.5, 1.6, (dx, dy, px, py) => {
+        const ox = Math.round(dx);
+        const oy = Math.round(dy);
+        if ((ox !== 0 || oy !== 0) && has.has(wrapT(t.x + ox) + ',' + (t.y + oy))) return null;
+        const n = noiseAt(px, py);
+        const out = Math.max(0, Math.max(Math.abs(dx), Math.abs(dy)) - 0.5) * (1 + (n - 0.5) * 0.6);
+        const a = 1 - smoothstep(0, 0.9, out);
+        if (a <= 0) return null;
+        return out === 0 ? [PAL.townCore[0], PAL.townCore[1], PAL.townCore[2], 0.42] : [PAL.town[0], PAL.town[1], PAL.town[2], 0.3 * a];
+      });
+    }
   }
 
   // Resource nodes, each with its own look: a clearing, a patchwork field, a meadow, an orchard, a wet clay bank, a quarry
@@ -340,7 +345,8 @@ function overlays(world: World, data: Uint8ClampedArray, width: number, height: 
   for (const nd of world.nodes) {
     const cx = nd.x + 0.5;
     const cy = nd.y + CAP_ROWS + 0.5;
-    const ang = (nd.id * 2.399) % (Math.PI * 2);
+    // Fields lie square to the compass, as the farm buildings do, so the farmstead sits in line with its crops.
+    const ang = nd.kind === 'farmland' ? (nd.id % 4) * (Math.PI / 2) : (nd.id * 2.399) % (Math.PI * 2);
     const ca = Math.cos(ang);
     const sa = Math.sin(ang);
     if (nd.kind === 'forest') {
@@ -397,6 +403,12 @@ function overlays(world: World, data: Uint8ClampedArray, width: number, height: 
         const a = 1 - smoothstep(0, 0.14, edge);
         if (a <= 0) return null;
         if (edge > -0.1) return [60, 94, 52, 0.92 * a];
+        // The farmyard in the middle, where the road comes in and the farm buildings stand: packed earth and gravel,
+        // with a track running out through the crops to either end of the field.
+        const yard = Math.max(Math.abs(lx) - 0.58, Math.abs(ly) - 0.56) + (n - 0.5) * 0.08;
+        const track = Math.abs(ly) < 0.07 + (n - 0.5) * 0.02;
+        if (yard < 0 || track) return [146 + n * 22, 128 + n * 18, 98 + n * 14, 0.95 * a];
+        if (yard < 0.08) return [72, 104, 58, 0.92 * a];
         const strip = Math.max(0, Math.min(2, Math.floor((lx + 1.2) / 0.8)));
         const base = crops[(nd.id + strip) % 3];
         const row = Math.sin(ly * 30 + strip) > 0 ? 1 : 0;

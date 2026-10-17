@@ -13,7 +13,7 @@ import {
   townSpeedMult,
   upkeepPerMinute,
 } from './town';
-import { connectSites, createBlankWorld, createRoute, createWorld, linkableSites, startRoute, dockDemand, onNetwork, placeAt, planRoute, removeRoute, removeRouteError, roadEndError, routeAt, routeRefund, step, tradeUp, tradeUpCost, tradeUpError, unitPrice, type World } from './world';
+import { connectSites, createBlankWorld, createRoute, createWorld, linkableSites, startRoute, dockDemand, onNetwork, placeAt, planRoute, removeRoute, removeRouteError, roadEndError, routeAt, routeRefund, step, upgradeVehicle, upgradeVehicleCost, upgradeVehicleError, unitPrice, type World } from './world';
 
 function world(): World {
   const w = createWorld(11);
@@ -162,22 +162,25 @@ describe('vehicle trade-up', () => {
     const w = world();
     // A route is needed: use the free street link inside any town with two buildings is overkill, so fake one.
     w.routes.push({ id: 900, mode: 'road', fromSiteId: 1, toSiteId: 2, path: [{ x: 0, y: 0 }, { x: 1, y: 0 }] });
-    w.vehicles.push({ id: 901, routeId: 900, kind: 'boxtruck', idx: 0, dir: 1, state: 'loading', moveTimer: 0, cargo: 0, good: null });
+    w.vehicles.push({ id: 901, homeId: 1, routeId: 900, destId: 0, kind: 'boxtruck', idx: 0, dir: 1, state: 'loading', moveTimer: 0, cargo: 0, good: null });
+    w.vehicles.push({ id: 903, homeId: 1, routeId: 900, destId: 0, kind: 'boxtruck', idx: 0, dir: 1, state: 'loading', moveTimer: 0, cargo: 0, good: null });
     w.tier = 0;
-    expect(tradeUpError(w, 900)).toMatch(/Tier 1/);
+    expect(upgradeVehicleError(w, 901)).toMatch(/Tier 1/);
     w.tier = 1;
-    const cost = tradeUpCost('boxtruck');
+    const cost = upgradeVehicleCost('boxtruck');
     expect(cost).toBe(VEHICLE_DEFS.bigtruck.cost - VEHICLE_DEFS.boxtruck.cost / 2);
     const before = w.money;
-    expect(tradeUp(w, 900)).toBeNull();
+    expect(upgradeVehicle(w, 901)).toBeNull();
     expect(w.money).toBe(before - cost);
+    // Only the one that was picked changes.
     expect(w.vehicles[0].kind).toBe('bigtruck');
+    expect(w.vehicles[1].kind).toBe('boxtruck');
     // Next up is the rig at Tier 2.
-    expect(tradeUpError(w, 900)).toMatch(/Tier 2/);
+    expect(upgradeVehicleError(w, 901)).toMatch(/Tier 2/);
     w.tier = 4;
-    for (let i = 0; i < 2; i++) expect(tradeUp(w, 900)).toBeNull();
+    for (let i = 0; i < 2; i++) expect(upgradeVehicle(w, 901)).toBeNull();
     expect(w.vehicles[0].kind).toBe('convoy');
-    expect(tradeUpError(w, 900)).toMatch(/top class/);
+    expect(upgradeVehicleError(w, 901)).toMatch(/top class/);
   });
 });
 
@@ -245,20 +248,21 @@ describe('free roads and removing routes', () => {
     expect(onNetwork(w, x0 + 2, y, 'road')).toBe(false);
   });
 
-  it('removing a route takes its vehicles and leaves town streets alone', () => {
+  it('removing a route sends its vehicles home and leaves town streets alone', () => {
     const w = world();
     w.routes.push({ id: 900, mode: 'road', grade: 'street', fromSiteId: 1, toSiteId: 2, path: [{ x: 0, y: 0 }, { x: 1, y: 0 }] });
-    w.vehicles.push({ id: 901, routeId: 900, kind: 'boxtruck', idx: 0, dir: 1, state: 'loading', moveTimer: 0, cargo: 0, good: null });
+    w.vehicles.push({ id: 901, homeId: 1, routeId: 900, destId: 0, kind: 'boxtruck', idx: 0, dir: 1, state: 'loading', moveTimer: 0, cargo: 0, good: null });
     w.routes.push({ id: 902, mode: 'road', fromSiteId: 1, toSiteId: 2, path: [{ x: 0, y: 1 }, { x: 1, y: 1 }] });
     expect(removeRouteError(w, 902)).toMatch(/streets/);
     expect(removeRoute(w, 900)).toBeNull();
-    expect(w.vehicles.length).toBe(0);
+    expect(w.vehicles.length).toBe(1);
+    expect(w.vehicles[0].routeId).toBe(0);
     expect(w.routes.some((r) => r.id === 900)).toBe(false);
   });
 });
 
 describe('routes along a network of free roads', () => {
-  it('starts a vehicle route between two buildings that are only joined by free roads', () => {
+  it('opens a route between two buildings that are only joined by free roads', () => {
     const w = createBlankWorld(40, 16, new Array(40 * 16).fill('grass'));
     w.money = 10000;
     w.tier = 1;
@@ -279,13 +283,14 @@ describe('routes along a network of free roads', () => {
     expect(links.map((l) => l.site.id)).toEqual([mill.id]);
     const before = w.money;
     expect(startRoute(w, camp.id, mill.id)).toBeNull();
-    expect(w.vehicles.length).toBe(1);
-    expect(w.money).toBe(before - 120);
+    expect(w.vehicles.length).toBe(0);
+    expect(w.routes.some((r) => !r.free)).toBe(true);
+    expect(w.money).toBe(before);
     // It is joined now, so it is not offered again.
     expect(linkableSites(w, camp.id)).toHaveLength(0);
   });
 
-  it('starts routes by itself for the buildings at the ends of a new road', () => {
+  it('opens routes by itself for the buildings at the ends of a new road', () => {
     const w = createBlankWorld(40, 16, new Array(40 * 16).fill('grass'));
     w.money = 10000;
     for (const [kind, x] of [['forestry', 3], ['sawmill', 20]] as const) {
@@ -295,6 +300,6 @@ describe('routes along a network of free roads', () => {
     createRoute(w, row(3, 11));
     createRoute(w, row(11, 20));
     expect(connectSites(w, [w.sites[0].id])).toHaveLength(1);
-    expect(w.vehicles).toHaveLength(1);
+    expect(w.vehicles).toHaveLength(0);
   });
 });
