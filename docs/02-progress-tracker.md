@@ -312,6 +312,17 @@ Money
 
 **Phase progress:** 0%. Full detail, tables and reasoning: [05-desktop-version.md](05-desktop-version.md). Distribution: GitHub download first, Steam later. The browser version stays alive from the same code.
 
+#### 7.00 Release 0.14: the world first
+- [ ] Layered world generator: globe and size, land masses and ocean, mountain ranges with passes, rivers and lakes, land cover, then towns, nodes, corridors, scenery
+- [ ] Claim map: every tile records what owns it; every placement checked against true footprint plus a clearance ring
+- [ ] Towns reserve their full growth footprint and buffer on day one; cities, towns, harbours, canals sited on good land
+- [ ] Nodes in the outskirts as a hinterland per town, outside growth zones, clear of rivers and passes
+- [ ] Placing a building or road never deletes buildings, roads or towns; scenery cleared only from the exact footprint
+- [ ] Bigger, more spread-out map (target about 576x192; step down if the browser cannot hold it)
+- [ ] Tests: generator over many seeds, placement never touches other objects, growth to max with a built-up map loses nothing; Map 1 re-checked
+- [ ] World generator version stored in saves; old saves keep their map
+- [ ] Bump src/version.ts (it still says 0.12 although 0.13 shipped)
+
 #### 7.0 Ground rules and sim changes (before the .exe)
 - [x] Ground rules written down in [05-desktop-version.md](05-desktop-version.md)
 - [ ] Truck capacity per building: 2 / 4 / 6 slots at levels 1 to 3, counted separately per product line (lumber and sawdust each have their own), shown as "Trucks 3 / 4", Upgrade button says "+2 truck slots", buying at the cap is blocked with the fix, old oversized fleets grandfathered
@@ -367,7 +378,7 @@ Money
 - [ ] Environment: pollution and noise
 - [ ] Difficulty and start conditions; scenario and challenge editor
 - [ ] Tech foundations: sim in a Web Worker, instancing and LOD, deterministic sim, automated performance tests, asset pipeline
-- [ ] Release order: 0.14 sim rules, 0.15 QoL select and act, 0.16 QoL see and understand, 0.17 QoL build faster, 0.18 foundations, 0.19 the .exe, 0.20 fleets and mode perks, 0.21 graphics, 0.22 data views, 0.23 bigger world, 0.24+ depth
+- [ ] Release order: 0.14 THE WORLD, 0.15 sim rules, 0.16 to 0.18 QoL batches, 0.19 foundations, 0.20 the .exe, 0.21 fleets and mode perks, 0.22 graphics, 0.23 data views, 0.24 huge worlds, 0.25+ depth
 
 #### 7.3c Quality-of-life backlog (details in 05-desktop-version.md)
 - [ ] Select and act: box-select, bulk actions, copy settings, rename, upgrade all affordable and upgrade queue, search anywhere, favourites bar

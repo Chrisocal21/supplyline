@@ -308,19 +308,55 @@ Each is a 0.X release; QoL batches ship between the big pieces so there is alway
 
 | Release | Theme | Contents |
 |---|---|---|
-| 0.14 | Sim rules | Truck cap per product line, 8 building levels (slots and cost now, art later), outskirts node rule, pacing bot re-run |
-| 0.15 | QoL 1: select and act | Box-select, bulk actions, copy settings, rename, upgrade all affordable, search anywhere |
-| 0.16 | QoL 2: see and understand | Notification log, tooltips, "why?" explainers, price history, per-building profit, payback calculator, hotkey sheet |
-| 0.17 | QoL 3: build faster | Drag and ghost preview, auto-road, undo and redo, bulldoze area, camera bookmarks, quick save |
-| 0.18 | Foundations | Sim in a Web Worker, save versioning and migration, platform layer, deterministic seeds |
-| 0.19 | The .exe | Electron shell, disk saves, auto-updater, GitHub release workflow, settings that persist |
-| 0.20 | QoL 4: fleets and modes | Fleet sheet, auto-renew, train wagons, mode perks and synergies |
-| 0.21 | Graphics 1 | WebGPU, bloom, ambient occlusion, day and night |
-| 0.22 | Data | Map overlays, bottleneck view, throughput stats |
-| 0.23 | Bigger world | Chunked map streaming, much larger maps |
-| 0.24+ | Depth and polish | Passengers, power and fuel, contracts, reputation, rivals, weather, art, audio, tools, Steam |
+| 0.14 | THE WORLD (first, everything builds on it) | Layered world generation, claim map, placement validator, bigger and better spread map, rivers and lakes, outskirts nodes, towns with reserved growth room, nothing ever deleted by building |
+| 0.15 | Sim rules | Truck cap per product line, 8 building levels (slots and cost now, art later), pacing bot re-run |
+| 0.16 | QoL 1: select and act | Box-select, bulk actions, copy settings, rename, upgrade all affordable, search anywhere |
+| 0.17 | QoL 2: see and understand | Notification log, tooltips, why explainers, price history, per-building profit, payback calculator, hotkey sheet |
+| 0.18 | QoL 3: build faster | Drag and ghost preview, auto-road, undo and redo, bulldoze area, camera bookmarks, quick save |
+| 0.19 | Foundations | Sim in a Web Worker, save versioning and migration, platform layer, deterministic seeds |
+| 0.20 | The .exe | Electron shell, disk saves, auto-updater, GitHub release workflow, settings that persist |
+| 0.21 | QoL 4: fleets and modes | Fleet sheet, auto-renew, train wagons, mode perks and synergies |
+| 0.22 | Graphics 1 | WebGPU, bloom, ambient occlusion, day and night |
+| 0.23 | Data | Map overlays, bottleneck view, throughput stats |
+| 0.24 | Huge worlds | Chunk streaming from disk, much larger maps |
+| 0.25+ | Depth and polish | Passengers, power and fuel, contracts, reputation, rivals, weather, art, audio, tools, Steam |
 
-The order can change; the rule is that 0.14 comes first because every later release builds on the new truck and level rules.
+The order can change; the rule is that 0.14 (the world) comes first because towns, nodes, roads and every later feature are placed on it.
+
+---
+
+## The world first: layered generation and nothing ever deleted (Chris, 2026-10-18, release 0.14)
+
+Biggest problem today: towns grow into nodes and roads, and placing a building or road deletes buildings or trees. Fix it at the root: build the world in layers, in a fixed order, and let each layer reserve its space before the next one is placed.
+
+### Build order of the world (each layer sees all earlier layers)
+1. **The globe and its size.** Bigger and more spread out (see size note below).
+2. **Land masses and ocean.** Continents, island chains, seas, polar ice.
+3. **Mountain ranges.** Ridges with passes, so there are natural places for roads and tunnels.
+4. **Rivers and lakes.** Rivers run from mountains and lakes down to the sea; lakes fill basins. Crossings are bridges only.
+5. **Land cover.** Forest, plains, farmland belts, shore, following height, rivers and climate.
+6. **Cities and towns.** Sited on good land (flat, near a river or coast, near resources, not on a mountain or in a flood plain), spaced apart. **Each reserves its full level-max footprint plus a buffer ring on day one**, so growth can never reach anything. Coastal towns get a harbour site; river towns get canal or quay room.
+7. **Resource nodes.** Forests, farmland, quarries, mines and wells in the outskirts, clustered as a hinterland per town, outside every growth zone, clear of each other, rivers and passes.
+8. **Corridors.** Reserve natural road and rail corridors between towns through passes and along valleys, so the world has sensible routes that nothing else blocks.
+9. **Scenery.** Trees, rocks and props fill only what is left, each recorded against the tile it stands on.
+
+### The claim map (the key idea)
+- One grid records what claims every tile: water, mountain, river, lake, town zone (core, growth, buffer), node zone, corridor, player building, player road, scenery, free.
+- Every placement (building, road, rail, airport, port) is checked against the claim map **with its true footprint plus a clearance ring**. If any tile is claimed by something permanent, it is refused, with the reason in plain words and the nearest valid spot highlighted green (we already have green spots).
+- Roads and rails may cross water and rivers only as bridges, and mountains only as tunnels, using the existing span rules; they may not enter a town zone except along its own streets.
+- **Placing never removes anything.** Scenery is the only soft layer: it is cleared only from the exact tiles a build covers, and only scenery. Buildings, roads and towns are never overwritten, shifted or deleted by another placement.
+- Towns grow only inside their reserved zone, so they can never collide with a node, a road, a river or another town, however far the player expands.
+
+### Tests that guard it (written with the generator)
+- Generator test over many seeds: no two permanent layers overlap; every town can reach its max footprint; every node is outside every zone.
+- Placement test: placing any building or road changes no other object's tiles; scenery loss is limited to the footprint.
+- Growth test: grow every town to max level with a heavily built-up player map; nothing moves or disappears.
+- The hand-made map baker (tools/maps) runs the same checks, and Map 1 is re-checked against them.
+
+### Size
+- Today 288x96. Target for 0.14: roughly 4 times the tiles (about 576x192), more spread out, in the browser using instancing, culling and level of detail. Rendering and sim time must be measured; if the browser cannot hold it, we step the size down for 0.14.
+- Truly huge maps need chunk streaming from disk and the sim in a worker, which come with 0.19 to 0.24.
+- Saves record the world generator version: old saves keep their old map and rules; new games use the new generator.
 
 ---
 
