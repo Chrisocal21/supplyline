@@ -1323,7 +1323,7 @@ export class HudScene extends Phaser.Scene {
         locked: w.tier < SEA_TIER ? `Tier ${SEA_TIER}` : null,
         thumb: 'thumb-sea',
         blurb: 'Click one port, then another. Buy cargo boats at a port.',
-        detail: ['Ports go on any shore: sea, lake or river. A River Barge sails any water, a Cargo Boat needs a wide channel and freighters need open sea. Islands grow coffee, mangoes and oil that grow nowhere else, and this is the only way to bring them home.', 'Ports store goods like hubs: bring goods to them by road, and tick what they should pull.', 'Buy ships in the port panel, and trade up to a freighter and a container ship.'],
+        detail: ['Ports go on any shore: sea, lake or river. A River Barge sails any water, a Cargo Boat needs a wide channel and freighters need open sea. If no water joins two ports, the route digs a canal across land for barges and boats, at a price per tile. Islands grow coffee, mangoes and oil that grow nowhere else, and this is the only way to bring them home.', 'Ports store goods like hubs: bring goods to them by road, and tick what they should pull.', 'Buy ships in the port panel, and trade up to a freighter and a container ship.'],
       };
     }
     if (tool === 'demolish') {

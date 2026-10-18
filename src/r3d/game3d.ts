@@ -1595,6 +1595,7 @@ export class Game3D {
     }
     const mat = new THREE.LineBasicMaterial({ color: 0xf2ecc8, transparent: true, opacity: 0.55 });
     const seaMat = new THREE.LineBasicMaterial({ color: 0xbfe6ff, transparent: true, opacity: 0.6 });
+    const canalMat = new THREE.LineBasicMaterial({ color: 0x4fc3ff, transparent: true, opacity: 0.95 });
     for (const r of this.world.routes) {
       if (r.mode === 'sea') {
         const lane: THREE.Vector3[] = [];
@@ -1606,7 +1607,7 @@ export class Game3D {
           const prev = lane.map((q) => q.clone());
           for (let i = 1; i < lane.length - 1; i++) lane[i].copy(prev[i - 1]).add(prev[i]).add(prev[i + 1]).divideScalar(3);
         }
-        this.airGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(lane), seaMat));
+        this.airGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(lane), r.canal ? canalMat : seaMat));
         continue;
       }
       if (r.mode !== 'air') continue;
@@ -2177,7 +2178,7 @@ export class Game3D {
         return;
       }
       const err = createSeaRoute(w, this.airFrom, site.id);
-      this.onToast(err ?? 'Sea route opened. Buy a cargo boat at either port');
+      this.onToast(err ?? (w.routes[w.routes.length - 1].canal ? 'Canal dug and sea route opened. Buy a barge or cargo boat at either port' : 'Sea route opened. Buy a barge or cargo boat at either port'));
       if (!err) this.airFrom = null;
       return;
     }

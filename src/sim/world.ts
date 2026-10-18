@@ -252,6 +252,8 @@ export interface Route {
   over?: boolean;
   /** Sea routes only: the biggest ship class the narrowest water on the path takes (0 barge, 1 boat, 2 any). Older saves have none, which means any. */
   draft?: number;
+  /** Sea routes only: dug through land where no water joins the two ports. Boats and barges sail it; freighters are too big. */
+  canal?: boolean;
   /** Tiles from one site to the other, inclusive. */
   path: Tile[];
 }
@@ -2524,6 +2526,96 @@ export function bestSeaPath(world: World, a: Tile, b: Tile): { path: Tile[]; dra
   return null;
 }
 
+/** A canal costs this a tile to dig across land, and is no more than this many land tiles long. */
+export const CANAL_LAND_COST = 60;
+export const CANAL_MAX_LAND = 40;
+
+/**
+ * The cheapest way to join two ports by digging: water is free to sail, land is dug at a price. Keeps off towns, buildings,
+ * mountains and ice. Returns the tiles and how many of them are dug, or null when the dig would be too long.
+ */
+export function canalPath(world: World, a: Tile, b: Tile): { path: Tile[]; dug: number } | null {
+  const start = portWater(world, a.x, a.y);
+  const goal = portWater(world, b.x, b.y);
+  if (!start || !goal) return null;
+  const W = world.width;
+  const blocked = new Set<number>();
+  for (const p of world.places) for (const t of townTiles(world, p)) blocked.add(t.y * W + wrapX(world, t.x));
+  for (const site of world.sites) for (const t of siteTiles(world, site)) blocked.add(t.y * W + wrapX(world, t.x));
+  const key = (x: number, y: number): number => y * W + x;
+  const dist = new Map<number, number>([[key(start.x, start.y), 0]]);
+  const from = new Map<number, number>([[key(start.x, start.y), -1]]);
+  const heap: [number, number][] = [[0, key(start.x, start.y)]];
+  const push = (item: [number, number]): void => {
+    heap.push(item);
+    let i = heap.length - 1;
+    while (i > 0) {
+      const p = (i - 1) >> 1;
+      if (heap[p][0] <= heap[i][0]) break;
+      [heap[p], heap[i]] = [heap[i], heap[p]];
+      i = p;
+    }
+  };
+  const pop = (): [number, number] => {
+    const top = heap[0];
+    const last = heap.pop()!;
+    if (heap.length > 0) {
+      heap[0] = last;
+      let i = 0;
+      for (;;) {
+        const l = i * 2 + 1;
+        const r = l + 1;
+        let m = i;
+        if (l < heap.length && heap[l][0] < heap[m][0]) m = l;
+        if (r < heap.length && heap[r][0] < heap[m][0]) m = r;
+        if (m === i) break;
+        [heap[m], heap[i]] = [heap[i], heap[m]];
+        i = m;
+      }
+    }
+    return top;
+  };
+  const target = key(goal.x, goal.y);
+  const reach = Math.hypot(wrapDx(world, a.x, b.x), a.y - b.y) * 2 + 20;
+  while (heap.length > 0) {
+    const [d, k] = pop();
+    if (d > (dist.get(k) ?? Infinity)) continue;
+    if (k === target) break;
+    const cx = k % W;
+    const cy = (k - cx) / W;
+    for (const [dx, dy] of ORTHO) {
+      const nx = wrapX(world, cx + dx);
+      const ny = cy + dy;
+      const t = terrainAt(world, nx, ny);
+      if (t === null || t === 'ice' || t === 'mountain') continue;
+      const nk = key(nx, ny);
+      if (t !== 'water' && blocked.has(nk)) continue;
+      if (Math.abs(wrapDx(world, nx, a.x)) > reach || Math.abs(ny - a.y) > reach) continue;
+      const nd = d + (t === 'water' ? 1 : CANAL_LAND_COST);
+      if (nd >= (dist.get(nk) ?? Infinity)) continue;
+      dist.set(nk, nd);
+      from.set(nk, k);
+      push([nd, nk]);
+    }
+  }
+  if (!from.has(target)) return null;
+  const tiles: Tile[] = [];
+  for (let k = target; k !== -1; k = from.get(k)!) tiles.push({ x: k % W, y: Math.floor(k / W) });
+  tiles.reverse();
+  const dug = tiles.filter((t) => terrainAt(world, t.x, t.y) !== 'water').length;
+  if (dug > CANAL_MAX_LAND) return null;
+  return { path: [{ x: a.x, y: a.y }, ...tiles, { x: b.x, y: b.y }], dug };
+}
+
+/** What a sea route between two ports would be: sailed where water joins them, otherwise dug as a canal. */
+export function seaPlan(world: World, a: Tile, b: Tile): { path: Tile[]; draft: number; canal: boolean; cost: number } | null {
+  const found = bestSeaPath(world, a, b);
+  if (found) return { ...found, canal: false, cost: found.path.length * SEA_COST_PER_TILE };
+  const dig = canalPath(world, a, b);
+  if (!dig) return null;
+  return { path: dig.path, draft: 1, canal: true, cost: dig.path.length * SEA_COST_PER_TILE + dig.dug * CANAL_LAND_COST };
+}
+
 /** Why two ports cannot be linked, or null. */
 export function seaError(world: World, aId: number, bId: number): string | null {
   const a = siteById(world, aId);
@@ -2532,9 +2624,9 @@ export function seaError(world: World, aId: number, bId: number): string | null 
   if (!a || !b || !SITE_DEFS[a.kind].port || !SITE_DEFS[b.kind].port) return 'Sea routes join two ports';
   if (a.id === b.id) return 'Pick a different port to sail to';
   if (world.routes.some((r) => r.mode === 'sea' && ((r.fromSiteId === a.id && r.toSiteId === b.id) || (r.fromSiteId === b.id && r.toSiteId === a.id)))) return 'Those ports are already linked';
-  const found = bestSeaPath(world, a, b);
-  if (!found) return 'No water joins those two ports';
-  const cost = found.path.length * SEA_COST_PER_TILE;
+  const found = seaPlan(world, a, b);
+  if (!found) return 'No water joins those two ports, and the ground between is too far or too rough to dig a canal';
+  const cost = found.cost;
   return world.money < cost ? `Need $${cost}` : null;
 }
 
@@ -2544,9 +2636,9 @@ export function createSeaRoute(world: World, aId: number, bId: number): string |
   if (err) return err;
   const a = siteById(world, aId)!;
   const b = siteById(world, bId)!;
-  const { path, draft } = bestSeaPath(world, a, b)!;
-  world.money -= path.length * SEA_COST_PER_TILE;
-  world.routes.push({ id: world.nextId++, mode: 'sea', fromSiteId: a.id, toSiteId: b.id, path, draft });
+  const { path, draft, canal, cost } = seaPlan(world, a, b)!;
+  world.money -= cost;
+  world.routes.push({ id: world.nextId++, mode: 'sea', fromSiteId: a.id, toSiteId: b.id, path, draft, ...(canal ? { canal: true } : {}) });
   return null;
 }
 

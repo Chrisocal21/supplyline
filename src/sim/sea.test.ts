@@ -2,7 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import map2 from '../maps/map2.json';
 import { VEHICLE_DEFS } from './defs';
-import { bestSeaPath, createWorldFromMap, laneOk, placeError, prepareRealisticWorld, type MapData, type Site, type Vehicle, type World } from './world';
+import { bestSeaPath, seaPlan, createWorldFromMap, laneOk, placeError, prepareRealisticWorld, type MapData, type Site, type Vehicle, type World } from './world';
 
 function portTiles(w: World): { x: number; y: number }[] {
   const out: { x: number; y: number }[] = [];
@@ -60,4 +60,27 @@ describe('ships and channels', () => {
     expect(world.tier).toBe(9);
     expect(ship('barge').kind).toBe('barge');
   });
+});
+
+describe('canals', () => {
+  it('join two ports no water joins, by digging, and take boats but not freighters', () => {
+    const w = createWorldFromMap(map2 as MapData);
+    prepareRealisticWorld(w);
+    w.tier = 4;
+    w.money = 1e6;
+    const tiles = portTiles(w);
+    let plan: ReturnType<typeof seaPlan> = null;
+    for (let i = 0; i < tiles.length && !plan?.canal; i += 5) {
+      for (let j = i + 1; j < tiles.length && j < i + 150; j += 3) {
+        const a = tiles[i];
+        const b = tiles[j];
+        if (Math.hypot(a.x - b.x, a.y - b.y) > 50 || bestSeaPath(w, a, b)) continue;
+        plan = seaPlan(w, a, b);
+        if (plan?.canal) break;
+      }
+    }
+    expect(plan?.canal).toBe(true);
+    expect(plan!.draft).toBe(1);
+    expect(plan!.cost).toBeGreaterThan(plan!.path.length * 3);
+  }, 120000);
 });
