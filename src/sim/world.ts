@@ -86,28 +86,21 @@ export function reservedGround(world: World, place: Place): Tile[] {
 }
 
 /**
- * Where a road enters a town: the outer end of its street in each of the four directions. They are on the town's permanent
- * streets, so a road laid to one joins the street that is already planned there.
+ * Where a road enters a town: the two ends of its main street, which no district lot is built across. They are on the town's
+ * permanent streets, so a road laid to one joins the street that is already planned there.
  */
 export function townGates(world: World, place: Place): Tile[] {
-  const streets = layoutOf(world, place).streets;
+  const layout = layoutOf(world, place);
+  const main = layout.streets.filter((s) => s.main);
+  const streets = main.length > 0 ? main : layout.streets;
   if (streets.length === 0) return [];
-  const pick = (better: (a: { x: number; y: number }, b: { x: number; y: number }) => boolean): { x: number; y: number } => streets.reduce((m, t) => (better(t, m) ? t : m));
-  const out = [
-    pick((a, b) => a.x > b.x || (a.x === b.x && Math.abs(a.y) < Math.abs(b.y))),
-    pick((a, b) => a.x < b.x || (a.x === b.x && Math.abs(a.y) < Math.abs(b.y))),
-    pick((a, b) => a.y > b.y || (a.y === b.y && Math.abs(a.x) < Math.abs(b.x))),
-    pick((a, b) => a.y < b.y || (a.y === b.y && Math.abs(a.x) < Math.abs(b.x))),
-  ];
-  const seen = new Set<string>();
-  const tiles: Tile[] = [];
-  for (const g of out) {
-    const k = g.x + ',' + g.y;
-    if (seen.has(k)) continue;
-    seen.add(k);
-    tiles.push({ x: wrapX(world, place.x + g.x), y: place.y + g.y });
-  }
-  return tiles;
+  // The two ends of the main street, the way out toward the nearest towns.
+  const along = (t: { x: number; y: number }): number => (layout.axis === 'h' ? t.x : t.y);
+  const lo = streets.reduce((m, t) => (along(t) < along(m) ? t : m));
+  const hi = streets.reduce((m, t) => (along(t) > along(m) ? t : m));
+  return [lo, hi]
+    .filter((g, i, all) => i === 0 || g.x !== all[0].x || g.y !== all[0].y)
+    .map((g) => ({ x: wrapX(world, place.x + g.x), y: place.y + g.y }));
 }
 
 /** A town's district plots, in order: the Market, the Supply Yard, then outward along the streets. */

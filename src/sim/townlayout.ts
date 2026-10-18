@@ -283,7 +283,10 @@ function build(env: LayoutEnv, place: Place): TownLayout {
   const homes: LayoutHome[] = ordered.filter((c) => !plotKeys.has(key(c)) && !civicKeys.has(key(c))).map((c) => ({ x: c.x, y: c.y, level: c.entry.level }));
   if (env.realisticLots) {
     const used = new Set([...list, ...plots.slice(0, 2)].map(key));
-    const tips = list.filter(s => neighbours(s).filter(n => streets.has(key(n))).length === 1);
+    const allTips = list.filter(s => neighbours(s).filter(n => streets.has(key(n))).length === 1);
+    // The two ends of the main street are the town's way out to the rest of the world: no campus is built across them.
+    const sideTips = allTips.filter(s => !s.main);
+    const tips = sideTips.length >= 3 ? sideTips : allTips;
     const cosLat = Math.max(0.15, Math.cos((0.5 - (place.y + 0.5) / H) * Math.PI * 2 * H / W));
     const campuses: [DistrictId, number, number][] = [['stadium', 180, 125], ['ballpark', 180, 180], ['arena', 105, 85]];
     const clear = (t: Tile): boolean => {

@@ -3,7 +3,7 @@ import { corridorTiles } from '../sim/corridors';
 import * as THREE from 'three';
 import type { NodeKind } from '../sim/defs';
 import { tileLonLat } from '../sim/mapgen';
-import { plotTiles, reservedGround, townGates, townGround, type World } from '../sim/world';
+import { layoutOf, plotTiles, reservedGround, townGates, townGround, type World } from '../sim/world';
 import { HeightField, LAT_SPAN, R, basisMatrix, lonLatToVec } from './geo';
 import { Parts } from './parts';
 import { specialtyNodeProps } from './specialty';
@@ -516,46 +516,60 @@ export class Scenery {
     }
   }
 
-  private reserveShade: THREE.Mesh | null = null;
+  private reserveShade: THREE.Group | null = null;
 
   /**
    * A soft amber wash over ground that is set aside for a town or a district, shown while a building or road tool is active so
-   * the player can see where they cannot build. It is made the first time it is wanted.
+   * the player can see where they cannot build. The streets the town has planned run through it as gold lanes: roads may use
+   * those. It is made the first time it is wanted.
    */
   showReserved(active: boolean): void {
     if (active && !this.reserveShade) this.reserveShade = this.buildReserveShade();
     if (this.reserveShade) this.reserveShade.visible = active;
   }
 
-  private buildReserveShade(): THREE.Mesh {
+  private buildReserveShade(): THREE.Group {
     const w = this.world;
-    const dLon = (Math.PI * 2) / w.width;
-    const dLat = (2 * LAT_SPAN) / w.height;
-    const pos: number[] = [];
-    const idx: number[] = [];
-    const v = new THREE.Vector3();
-    for (const p of w.places) {
-      for (const t of reservedGround(w, p)) {
+    const group = new THREE.Group();
+    const quads = (tiles: { x: number; y: number }[], color: number, opacity: number, lift: number): THREE.Mesh => {
+      const dLon = (Math.PI * 2) / w.width;
+      const dLat = (2 * LAT_SPAN) / w.height;
+      const pos: number[] = [];
+      const idx: number[] = [];
+      const v = new THREE.Vector3();
+      for (const t of tiles) {
         const { lon, lat } = tileLonLat(w.width, w.height, ((t.x % w.width) + w.width) % w.width, t.y);
         const base = pos.length / 3;
         for (const [a, b] of [[-0.5, -0.5], [0.5, -0.5], [0.5, 0.5], [-0.5, 0.5]]) {
           const lo = lon + a * dLon;
           const la = lat + b * dLat;
-          lonLatToVec(lo, la, R + this.hf.surface(lo, la) + 0.07, v);
+          lonLatToVec(lo, la, R + this.hf.surface(lo, la) + lift, v);
           pos.push(v.x, v.y, v.z);
         }
         idx.push(base, base + 1, base + 2, base, base + 2, base + 3);
       }
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+      geo.setIndex(idx);
+      const mat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.frustumCulled = false;
+      return mesh;
+    };
+    const reserved: { x: number; y: number }[] = [];
+    const lanes: { x: number; y: number }[] = [];
+    for (const p of w.places) {
+      const planned = new Set(layoutOf(w, p).streets.map((t) => `${(((p.x + t.x) % w.width) + w.width) % w.width},${p.y + t.y}`));
+      for (const t of reservedGround(w, p)) {
+        if (planned.has(`${t.x},${t.y}`)) lanes.push(t);
+        else reserved.push(t);
+      }
     }
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-    geo.setIndex(idx);
-    const mat = new THREE.MeshBasicMaterial({ color: 0xe0883a, transparent: true, opacity: 0.22, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
-    const mesh = new THREE.Mesh(geo, mat);
-    mesh.frustumCulled = false;
-    mesh.visible = false;
-    this.group.add(mesh);
-    return mesh;
+    group.add(quads(reserved, 0xe0883a, 0.22, 0.07));
+    group.add(quads(lanes, 0xf2b04c, 0.4, 0.09));
+    group.visible = false;
+    this.group.add(group);
+    return group;
   }
 
   private readonly gateMarkers: THREE.Group[] = [];
