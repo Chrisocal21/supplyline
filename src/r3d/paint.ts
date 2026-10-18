@@ -1,5 +1,6 @@
 // Paints the globe's colour texture: shorelines, biomes, mountains and snow, ice caps, resource-node patches
 // and town ground. The 3D lighting does the shading; this supplies realistic, muted albedo.
+import { corridorTiles } from '../sim/corridors';
 import { SEA_LEVEL } from '../sim/defs';
 import { townTiles, type World } from '../sim/world';
 import { CAP_ROWS, LAT_SPAN, textureRows } from './geo';
@@ -338,6 +339,24 @@ function overlays(world: World, data: Uint8ClampedArray, width: number, height: 
         return out === 0 ? [PAL.townCore[0], PAL.townCore[1], PAL.townCore[2], 0.42] : [PAL.town[0], PAL.town[1], PAL.town[2], 0.3 * a];
       });
     }
+  }
+
+  // The natural routes between towns (the lanes kept clear of trees) are worn into dirt tracks, so a gap in a wood reads as a
+  // way through and not a bald strip. A road laid along one will take it over.
+  const inTown = new Set<number>();
+  for (const pl of world.places) for (const t of townTiles(world, pl)) inTown.add(t.y * world.width + t.x);
+  for (const k of corridorTiles(world)) {
+    const tx = k % world.width;
+    const ty = (k - tx) / world.width;
+    const terr = world.terrain[k];
+    if ((terr !== 'grass' && terr !== 'forest') || inTown.has(k)) continue;
+    stamp(data, width, height, ppt, tx + 0.5, ty + CAP_ROWS + 0.5, 1.2, (dx, dy, px, py) => {
+      const n = noiseAt(px, py);
+      const d = Math.hypot(dx, dy) * (1 + (n - 0.5) * 0.7);
+      const a = 1 - smoothstep(0.28, 0.62, d);
+      const rut = noiseAt(px * 2.3, py * 2.3) > 0.55 ? 8 : 0;
+      return a > 0 ? [PAL.soil[0] + 22 + n * 14 + rut, PAL.soil[1] + 16 + n * 12 + rut, PAL.soil[2] + 8 + n * 8, 0.7 * a] : null;
+    });
   }
 
   // Resource nodes, each with its own look: a clearing, a patchwork field, a meadow, an orchard, a wet clay bank, a quarry

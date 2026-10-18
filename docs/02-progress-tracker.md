@@ -312,6 +312,16 @@ Money
 
 **Phase progress:** 0%. Full detail, tables and reasoning: [05-desktop-version.md](05-desktop-version.md). Distribution: GitHub download first, Steam later. The browser version stays alive from the same code.
 
+#### 7.000 Release 0.15: custom maps and the placement rules (Chris, 2026-10-19; Chris says "continue" between steps)
+Notes from playing a Large world (41 fps, 24 ms a frame, draw 10 ms): roads look alike in every town; nodes bunch up in places; too much ocean (water should be about 15% of the globe, it is 64% on random worlds); treeless strips in forests; wants hand-made maps with hard node rules around mountains, oceans, lakes and rivers. Towns should connect naturally, never take over (dominance dropped).
+- [x] Step 1: the treeless strips were the kept-clear routes between towns (0.14); they are now worn into dirt tracks (paint.ts)
+- [ ] Step 2: node placement rules engine: one module used by the generator and the map baker; density cap per area, a hinterland per town, per-kind distances from mountains, ocean, lakes, rivers, towns and each other, no bunching
+- [ ] Step 3: land shaper: about 85% land, islands and island chains, authored continents, mountain ranges, rivers and lakes at exact places
+- [ ] Step 4: custom map pipeline: Map 2 (Large, 384 wide) built from the shaper and the rules, towns placed by hand, baked to JSON with a preview and a rule report (like Map 1); then maps 3 to 5
+- [ ] Step 5: each town style gets its own streets: surface (cobble, brick, dirt, asphalt), width, lamps and layout (grid, organic, radial), so no two look alike
+- [ ] Step 6: dirt tracks become roads: lay a road along a track to upgrade it, cheaper than new ground
+- [ ] Not doing: a bigger partner taking over the smaller (Chris wants them to connect naturally)
+
 #### 7.00 Release 0.14: the world first
 - [x] Layered world generator: land and ocean, mountain ranges, rivers and lakes (new: one-tile rivers from the coast through lowland, each ending in a small lake), land cover, then towns, nodes, corridors, scenery
 - [x] Natural corridors between neighbouring towns (sim/corridors.ts): the cheapest route over the land, crossing a range at its lowest point (the pass) and water where it is narrow; nodes and trees keep off them
