@@ -14,6 +14,8 @@ export interface LayoutEnv {
   elev?: number[];
   places: Place[];
   realisticLots?: boolean;
+  /** Towns may grow into their nearest neighbour (see blendPartner). Set on new worlds; old saves keep their gaps. */
+  blend?: boolean;
   nodes?: (Tile & { kind?: string })[];
 }
 
@@ -73,6 +75,46 @@ function hash(a: number, b: number, c: number): number {
   return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
 }
 
+/** Share of neighbouring pairs that grow together into one built-up area. */
+export const BLEND_SHARE = 0.4;
+/** Two towns can only blend when their centres are no further apart than their radii plus this. */
+export const BLEND_REACH = 8;
+
+/**
+ * The town this one grows into, if any: its nearest neighbour, when they are each other's nearest, close enough to reach,
+ * and the pair is one of the few that join (a share of them, decided by where they stand). Each town has at most one
+ * partner, so a town can stand beside a city but never be surrounded and swallowed by it: its own centre, market and
+ * streets stay its own, and the rest of its sides stay open land.
+ */
+export function blendPartner(env: LayoutEnv, place: Place): Place | null {
+  if (!env.blend) return null;
+  const W = env.width;
+  const wdx = (d: number): number => d - Math.round(d / W) * W;
+  const nearest = (p: Place): Place | null => {
+    let best: Place | null = null;
+    let bd = Infinity;
+    for (const q of env.places) {
+      if (q === p || (q.x === p.x && q.y === p.y)) continue;
+      const d = Math.hypot(wdx(q.x - p.x), q.y - p.y);
+      if (d < bd || (d === bd && best && (q.y < best.y || (q.y === best.y && q.x < best.x)))) {
+        bd = d;
+        best = q;
+      }
+    }
+    return best;
+  };
+  const n = nearest(place);
+  if (!n || nearest(n) !== place) return null;
+  if (Math.hypot(wdx(n.x - place.x), n.y - place.y) > (place.radius ?? 3) + (n.radius ?? 3) + BLEND_REACH) return null;
+  return blendRoll(W, place, n) < BLEND_SHARE ? n : null;
+}
+
+/** A number from 0 to 1 for a pair of towns, the same whichever way round they are given: whether the pair joins. */
+export function blendRoll(width: number, a: Tile, b: Tile): number {
+  const dx = Math.abs(a.x - b.x);
+  return hash(Math.min(a.x, b.x) * 3 + Math.min(dx, width - dx), Math.min(a.y, b.y) * 5 + Math.abs(a.y - b.y), 91);
+}
+
 const cache = new WeakMap<Place, { env: LayoutEnv; n: number; realistic: boolean; layout: TownLayout }>();
 
 export function townLayout(env: LayoutEnv, place: Place): TownLayout {
@@ -105,10 +147,11 @@ function build(env: LayoutEnv, place: Place): TownLayout {
 
   // Which way the main street runs: toward the nearest town, then on the far side toward the nearest one that way.
   const toward = others
-    .map((p) => ({ dx: wdx(p.x - place.x), dy: p.y - place.y }))
+    .map((p) => ({ p, dx: wdx(p.x - place.x), dy: p.y - place.y }))
     .map((v) => ({ ...v, d: Math.hypot(v.dx, v.dy) }))
     .filter((v) => v.d > 0)
     .sort((a, b) => a.d - b.d);
+  const partner = blendPartner(env, place);
   const first = toward[0];
   const axis: 'h' | 'v' = first ? (Math.abs(first.dx) >= Math.abs(first.dy) ? 'h' : 'v') : 'h';
   const maxReach = streetReach(R, MAX_TOWN_LEVEL);
@@ -119,8 +162,10 @@ function build(env: LayoutEnv, place: Place): TownLayout {
     const target = toward.find((v) => along(v) > 0 && Math.abs(across(v)) <= along(v) * 1.6);
     if (!target) return { slope: 0, limit: maxReach };
     const slope = Math.max(-MAX_SLOPE, Math.min(MAX_SLOPE, across(target) / along(target)));
-    // Stop short of halfway, so the two towns' streets reach toward each other and leave the last link to the player.
-    return { slope, limit: Math.max(2, Math.min(maxReach, Math.floor(target.d / 2) - 1)) };
+    // Stop short of halfway, so the two towns' streets reach toward each other and leave the last link to the player. A
+    // pair that blends meets in the middle instead.
+    const meet = target.p === partner ? Math.floor(target.d / 2) : Math.floor(target.d / 2) - 1;
+    return { slope, limit: Math.max(2, Math.min(maxReach, meet)) };
   };
   const off = (along: number, across: number): Tile => (axis === 'h' ? { x: along, y: across } : { x: across, y: along });
   const levelAt = (k: number): number => {

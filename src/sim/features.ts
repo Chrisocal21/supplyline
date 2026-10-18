@@ -1,7 +1,7 @@
 // Named world features: regions, towns and resource nodes. Pure, seeded.
 import { FREIGHT_DEMAND, MARKET_DEMAND, STYLE_TASTE, TOWN_STYLES, type DistrictId, type NodeKind, type PathId, type Stock, type Terrain, type TownStyle } from './defs';
 import { makeNamer } from './names';
-import { footprint, plotCount, townLayout } from './townlayout';
+import { BLEND_REACH, BLEND_SHARE, blendPartner, blendRoll, footprint, plotCount, townLayout } from './townlayout';
 
 export type RegionKind = 'ocean' | 'sea' | 'lake' | 'forest' | 'mountain' | 'land' | 'ice';
 
@@ -299,7 +299,15 @@ export function generateFeatures(terrain: Terrain[], width: number, height: numb
   // The small world has little room, so its towns stand closer; bigger ones spread out.
   const townSpread = width > 200 ? TOWN_SPREAD : 5;
   const tooClose = (c: number, R: number): boolean =>
-    made.some((p) => dist2(p.y * width + p.x, c) < (p.radius + R + townSpread) * (p.radius + R + townSpread));
+    made.some((p) => {
+      const d2 = dist2(p.y * width + p.x, c);
+      const room = p.radius + R + townSpread;
+      if (d2 >= room * room) return false;
+      // A few neighbours stand close enough to grow into each other (see blendPartner); the rest keep their distance.
+      const join = p.radius + R + BLEND_REACH;
+      const closest = p.radius + R + 2;
+      return !(d2 >= closest * closest && d2 <= join * join && blendRoll(width, p, { x: c % width, y: Math.floor(c / width) }) < BLEND_SHARE);
+    });
   const makePlace = (c: number, R: number, fixed?: FixedPlace): Place => {
     const x = c % width;
     const y = Math.floor(c / width);
@@ -350,7 +358,7 @@ export function generateFeatures(terrain: Terrain[], width: number, height: numb
   let townTiles = new Set<number>();
   const settle = (list: Place[]): Place[] => {
     list.forEach((p, i) => (p.id = i + 1));
-    const env = { width, height, terrain, elev, places: list };
+    const env = { width, height, terrain, elev, places: list, blend: true };
     const owner = new Map<number, Place>();
     const crowded: Place[] = [];
     const tiles = new Set<number>();
@@ -370,11 +378,12 @@ export function generateFeatures(terrain: Terrain[], width: number, height: numb
       for (const p of list) {
         if (crowded.includes(p)) continue;
         let hit = false;
+        const partner = blendPartner(env, p);
         for (const t of footprint(townLayout(env, p), 5)) {
           for (let dy = -TOWN_GAP; dy <= TOWN_GAP && !hit; dy++) {
             for (let dx = -TOWN_GAP; dx <= TOWN_GAP && !hit; dx++) {
               const other = owner.get(idx(p.x + t.x + dx, p.y + t.y + dy));
-              if (other && other !== p) hit = true;
+              if (other && other !== p && other !== partner) hit = true;
             }
           }
           if (hit) break;
@@ -621,6 +630,22 @@ export function generateFeatures(terrain: Terrain[], width: number, height: numb
     }
   }
   const usable = nodes.filter((n) => reachable[idx(n.x, n.y)]);
+  // Every world has clay. It lies on the shore, which towns like too: if none is left within reach, a bed is found on the
+  // dry, level ground nearest a town, still outside every town's growth ground.
+  if (!usable.some((n) => n.kind === 'clay')) {
+    const pool: number[] = [];
+    for (let t = 0; t < width * height; t++) {
+      if (!reachable[t] || terrain[t] !== 'grass' || nearTown(t, 4) || !clear(t) || !dry(t) || !level(t, Infinity)) continue;
+      pool.push(t);
+    }
+    pool.sort((p, q) => townDist(p) - townDist(q));
+    const t = pool[Math.min(pool.length - 1, 5)];
+    if (t !== undefined) {
+      const bed: ResourceNode = { id: 0, kind: 'clay', x: t % width, y: Math.floor(t / width), quality: quality(), regionId: regionMap[t] };
+      nodes.push(bed);
+      usable.push(bed);
+    }
+  }
   usable.forEach((n, i) => (n.id = i + 1));
   return { regions, regionMap, places, nodes: usable };
 }

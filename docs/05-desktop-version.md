@@ -345,7 +345,16 @@ Biggest problem today: towns grow into nodes and roads, and placing a building o
 - Every placement (building, road, rail, airport, port) is checked against the claim map **with its true footprint plus a clearance ring**. If any tile is claimed by something permanent, it is refused, with the reason in plain words and the nearest valid spot highlighted green (we already have green spots).
 - Roads and rails may cross water and rivers only as bridges, and mountains only as tunnels, using the existing span rules; they may not enter a town zone except along its own streets.
 - **Placing never removes anything.** Scenery is the only soft layer: it is cleared only from the exact tiles a build covers, and only scenery. Buildings, roads and towns are never overwritten, shifted or deleted by another placement.
-- Towns grow only inside their reserved zone, so they can never collide with a node, a road, a river or another town, however far the player expands.
+- Towns grow only inside their reserved zone, so they can never collide with a node, a road or a river, however far the player expands. Towns do not share tiles, but some neighbours are meant to grow into each other (next section).
+
+### Towns that blend (Chris, 2026-10-18)
+Towns and cities should grow into each other where they can, and work together, but not everywhere, and a town must never be swallowed by a city.
+- **Blend partner.** Each town has at most one partner: its nearest neighbour, when the two are each other's nearest, close enough to reach (radii plus 8 tiles), and the pair is one of the few that join (40% of such pairs, decided by where they stand, so it is the same every time). `blendPartner` in sim/townlayout.ts.
+- **How they join.** A partner pair's main streets reach all the way to meet in the middle; every other pair stops short and leaves the last link to the player. The footprints still never share a tile, but they touch.
+- **No swallowing.** One partner each means a town can stand beside a city but is never surrounded by it. Its own centre, market and streets stay its own, and its other sides stay open land.
+- **Working together (to build).** Joined towns share growth and demand: goods delivered to one count as variety for both, the joined streets form one road network, and a district in one serves both. The shape is in 0.14; the sharing rules are in the tracker.
+- New worlds only (`world.blend`): old saves keep their gaps.
+- Measured: about 40% of towns have a partner on Medium and Large worlds, fewer on Small.
 
 ### District buildings are permanent parts of the town (Chris, 2026-10-18)
 Farmers Market, Restaurant Row, Heating Depot, Coffee House, Hardware Store and the rest are not dropped between buildings.

@@ -305,6 +305,8 @@ for (const [name, x0, y0, R] of PLACES) {
 // Coffee on the highest ground that is not rock, mangoes on low flat land, oil on open flat ground; each at least three tiles
 // from the sea and clear of the towns and of each other.
 const specials = [];
+// Island goods keep clear of the island towns' grown streets (about radius + 7), except on the tiny twin island.
+let GAP = 8;
 const WANT = [
   { island: 'coffee', kind: 'coffee', count: 4, high: true },
   { island: 'mango', kind: 'mango', count: 4, high: false },
@@ -322,7 +324,7 @@ for (const w of WANT) {
       const i = at(x, y);
       if (terrain[i] !== 'grass' && terrain[i] !== 'forest') continue;
       if (coast[i] < 3) continue;
-      if (placed.some((q) => Math.hypot(((q.x - x + W * 1.5) % W) - W / 2, q.y - y) < q.radius + 4)) continue;
+      if (placed.some((q) => Math.hypot(((q.x - x + W * 1.5) % W) - W / 2, q.y - y) < q.radius + (isl.name === 'twin' ? 4 : GAP))) continue;
       cands.push({ x: ((x % W) + W) % W, y, e: elev[i], d: Math.hypot(dx, dy) });
     }
   }

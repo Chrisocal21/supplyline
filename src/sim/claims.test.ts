@@ -20,7 +20,7 @@ function audit(w: World): Record<string, number> {
       if (terr !== 'grass' && terr !== 'forest') out.townOnBadGround++;
     }
   }
-  // Map 1's hand-placed island goods (coffee, mango, oil) still sit beside their island towns; moving them is on the Map 1 list.
+  // Map 1's hand-placed island goods keep clear of their towns, except on the tiny twin island, which has no room for it.
   const island = ['coffee', 'mango', 'oil'];
   for (const n of w.nodes) {
     if (island.includes(n.kind) && w.mapId) continue;

@@ -324,6 +324,8 @@ export interface World {
   districtIncome?: number;
   /** Resource node layout version (see NODE_LAYOUT). */
   layout?: number;
+  /** Towns may grow into their nearest neighbour (see blendPartner). New worlds only: an old save keeps its gaps. */
+  blend?: boolean;
   /** The made map this world was started from, if it was not generated. */
   mapId?: string;
   /** Loans, savings and the market fund. Opened the first time the bank sheet is used. */
@@ -392,6 +394,7 @@ export function createWorld(seed = Math.floor(Math.random() * 1e9), width = 192,
   world.places = f.places;
   world.nodes = f.nodes;
   world.layout = NODE_LAYOUT;
+  world.blend = true;
   for (const p of world.places) {
     addDock(world, p, 'market');
     if (p.level >= 2) addDock(world, p, 'freight');
@@ -457,6 +460,7 @@ export function createWorldFromMap(map: MapData): World {
     world.nodes = nodes;
   }
   world.layout = NODE_LAYOUT;
+  world.blend = true;
   world.mapId = map.id;
   for (const p of world.places) {
     addDock(world, p, 'market');
