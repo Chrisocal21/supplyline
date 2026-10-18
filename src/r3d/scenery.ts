@@ -591,7 +591,7 @@ export class Scenery {
     const washIdx: number[] = [];
     for (const p of parcelsOf(w).parcels) {
       const state = parcelState(w, p);
-      if (state !== 'sale' && state !== 'owned') continue;
+      if (state !== 'sale' && state !== 'owned' && state !== 'free') continue;
       const out = state === 'owned' ? mine : sale;
       for (let i = 0; i < p.w; i++) {
         at(p.x + i, p.y, 0.11, out);

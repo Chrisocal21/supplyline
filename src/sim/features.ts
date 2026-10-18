@@ -3,7 +3,7 @@ import { FREIGHT_DEMAND, MARKET_DEMAND, STYLE_TASTE, TOWN_STYLES, type DistrictI
 import { makeNamer } from './names';
 import { BLEND_REACH, BLEND_SHARE, blendPartner, blendRoll, footprint, plotCount, townLayout } from './townlayout';
 import { corridorTiles } from './corridors';
-import { BLEND_CHANCE, NodeBook, PITCH, SAME_GAP, alignedWithKin, squareWithFamily } from './noderules';
+import { BLEND_CHANCE, IMPURE_GAP, NodeBook, PITCH, SAME_GAP, alignedWithKin, squareWithFamily } from './noderules';
 
 export type RegionKind = 'ocean' | 'sea' | 'lake' | 'forest' | 'mountain' | 'land' | 'ice';
 
@@ -513,8 +513,8 @@ export function generateFeatures(terrain: Terrain[], width: number, height: numb
     const r = namer.rand();
     return r < 0.25 ? 2 : r < 0.75 ? 1 : 0;
   };
-  const spread = (tiles: number[], count: number, minGap: number, kind: NodeKind, regionId: number, maxSlope = NODE_SLOPE): void => {
-    const fit = tiles.filter((t) => !nearTown(t, 4) && clear(t, kind) && dry(t) && level(t, maxSlope));
+  const spread = (tiles: number[], count: number, minGap: number, kind: NodeKind, regionId: number, maxSlope = NODE_SLOPE, forced?: number, gap?: number): void => {
+    const fit = tiles.filter((t) => !nearTown(t, 4) && clear(t, kind, gap) && dry(t) && level(t, maxSlope));
     // Nodes line up in straight rows and columns: a tile must sit a whole number of steps from every kin node near it, and
     // a node with no kin near it stands on the lattice that covers the whole map, so the next ones fall in with it.
     const aligned = fit.filter((t) => alignedWithKin(kind, t % width, Math.floor(t / width), nodes, width));
@@ -565,8 +565,8 @@ export function generateFeatures(terrain: Terrain[], width: number, height: numb
       chosen.push(best);
     }
     for (const t of chosen) {
-      if (!clear(t, kind)) continue;
-      nodes.push({ id: nodes.length + 1, kind, x: t % width, y: Math.floor(t / width), quality: quality(), regionId });
+      if (!clear(t, kind, gap)) continue;
+      nodes.push({ id: nodes.length + 1, kind, x: t % width, y: Math.floor(t / width), quality: forced ?? quality(), regionId });
     }
   };
 
@@ -644,6 +644,17 @@ export function generateFeatures(terrain: Terrain[], width: number, height: numb
       const bare = tiles.filter((t) => !have.some((n) => Math.max(Math.abs(wrapDelta(n.x, t % width, width)), Math.abs(n.y - Math.floor(t / width))) <= 7));
       if (bare.length < 6) break;
       spread(bare, Math.max(1, Math.floor(bare.length / 40)), 4, 'forest', regionMap[tiles[0]]);
+    }
+  }
+
+  // Impure forestry nodes fill in wherever there are trees and no node close by, so most towns have a little forestry to work.
+  // They are small, poor stands (the land under them is free to build on); the pure and normal ones stay where they were.
+  for (let pass = 0; pass < 2; pass++) {
+    for (const tiles of [...forestTiles.values(), ...smallForests]) {
+      const have = woodNodes();
+      const bare = tiles.filter((t) => !have.some((n) => Math.max(Math.abs(wrapDelta(n.x, t % width, width)), Math.abs(n.y - Math.floor(t / width))) <= 6));
+      if (bare.length < 5) continue;
+      spread(bare, Math.max(1, Math.floor(bare.length / 25)), 4, 'forest', regionMap[tiles[0]], 14, 0, IMPURE_GAP);
     }
   }
 

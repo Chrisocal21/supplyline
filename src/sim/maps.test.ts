@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import map1 from '../maps/map1.json';
 import map2 from '../maps/map2.json';
-import { NODE_FAMILY, OTHER_GAP, SAME_GAP, nodeGap } from './noderules';
+import { IMPURE_GAP, NODE_FAMILY, OTHER_GAP, SAME_GAP, nodeGap } from './noderules';
 import { corridorTiles } from './corridors';
 import { claimAt } from './claims';
 import { createWorldFromMap, layoutOf, plotTiles, terrainAt, type MapData } from './world';
@@ -97,7 +97,7 @@ describe('made maps', () => {
       for (let j = i + 1; j < w.nodes.length; j++) {
         const d = nodeGap(n, w.nodes[j], w.width);
         if (NODE_FAMILY[n.kind] === NODE_FAMILY[w.nodes[j].kind]) expect(d).toBeGreaterThanOrEqual(SAME_GAP);
-        else if (d < OTHER_GAP) expect(Math.min(nodeGap(n, start, w.width), nodeGap(w.nodes[j], start, w.width))).toBeLessThanOrEqual(24);
+        else if (d < OTHER_GAP && !((n.kind === 'forest' && n.quality === 0) || (w.nodes[j].kind === 'forest' && w.nodes[j].quality === 0) ? d >= IMPURE_GAP : false)) expect(Math.min(nodeGap(n, start, w.width), nodeGap(w.nodes[j], start, w.width))).toBeLessThanOrEqual(24);
       }
     }
   }, 30000);

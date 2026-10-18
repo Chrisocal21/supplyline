@@ -128,20 +128,29 @@ export function ownedSet(world: World): Set<number> {
   return set;
 }
 
-export type ParcelState = 'owned' | 'sale' | 'town' | 'none';
+/** owned and free plots can be built on; free ones hold only an impure node, which anyone may work at no cost. */
+export type ParcelState = 'owned' | 'free' | 'sale' | 'town' | 'none';
 
 export function parcelState(world: World, p: Parcel): ParcelState {
   if (ownedSet(world).has(p.id)) return 'owned';
   if (p.land < (p.w * p.h) / 2) return 'none';
+  // Impure nodes are free to build on, wherever they are.
+  if (p.nodes.length > 0 && Math.max(...p.nodes) === 0) return 'free';
   // A plot touching a town's ground belongs to the town, unless a resource node lies in it: that must stay for sale.
   if (p.town && p.nodes.length === 0) return 'town';
   return 'sale';
 }
 
-/** What a plot costs: the ground, dearer the nearer a town it lies. */
+/**
+ * What a plot costs: the ground, dearer the nearer a town it lies. A plot with a normal node is half price, and one with an
+ * impure node is free. A plot with a pure node, or no node, costs the full price.
+ */
 export function parcelPrice(p: Parcel): number {
   const near = p.townDist < 10 ? 1.5 : p.townDist < 20 ? 1.2 : 1;
-  return Math.max(60, Math.round((p.value * near) / 10) * 10);
+  const best = p.nodes.length > 0 ? Math.max(...p.nodes) : 2;
+  if (best === 0) return 0;
+  const full = Math.max(60, Math.round((p.value * near) / 10) * 10);
+  return best === 1 ? Math.max(30, Math.round(full / 2 / 10) * 10) : full;
 }
 
 /** Why a building cannot go on these tiles for want of the land, or null. A plot for sale says what it costs. */
@@ -151,7 +160,7 @@ export function landError(world: World, tiles: { x: number; y: number }[]): stri
     const p = parcelAt(world, t.x, t.y);
     if (!p) continue;
     const state = parcelState(world, p);
-    if (state === 'owned' || state === 'none') continue;
+    if (state === 'owned' || state === 'free' || state === 'none') continue;
     if (state === 'town') return 'That ground belongs to the town';
     return `${LAND_PREFIX}: $${parcelPrice(p).toLocaleString('en-US')} (click to buy it, then click again to build)`;
   }
@@ -163,6 +172,7 @@ export function buyParcel(world: World, id: number): string | null {
   if (!p) return 'No such plot';
   const state = parcelState(world, p);
   if (state === 'owned') return 'You already own this plot';
+  if (state === 'free') return 'This ground is free to build on';
   if (state !== 'sale') return 'This ground is not for sale';
   const price = parcelPrice(p);
   if (world.money < price) return `Need $${price.toLocaleString('en-US')} to buy this plot`;

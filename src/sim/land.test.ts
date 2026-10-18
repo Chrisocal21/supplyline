@@ -43,7 +43,7 @@ describe('land plots', () => {
     const first = w.nodes.filter((n) => n.kind === 'forest').sort((p, q) => dist(p) - dist(q))[0];
     expect(placeError(w, 'forestry', first.x, first.y)).toBeNull();
     // A farther forest needs its plot.
-    const far = w.nodes.filter((n) => n.kind === 'forest' && !w.owned!.includes(parcelAt(w, n.x, n.y)!.id)).sort((p, q) => dist(p) - dist(q))[0];
+    const far = w.nodes.filter((n) => n.kind === 'forest' && parcelState(w, parcelAt(w, n.x, n.y)!) === 'sale').sort((p, q) => dist(p) - dist(q))[0];
     const err = placeError(w, 'forestry', far.x, far.y);
     expect(err).toContain(LAND_PREFIX);
   }, 30000);
@@ -105,4 +105,39 @@ describe('land plots', () => {
     }
     expect(checked).toBeGreaterThan(0);
   }, 60000);
+});
+
+describe('plots with nodes', () => {
+  it('are free with an impure node, half price with a normal one and full price with a pure one', () => {
+    const w = createWorldFromMap(map2 as MapData);
+    prepareRealisticWorld(w);
+    enableLandRules(w);
+    const { parcels } = parcelsOf(w);
+    const by = (q: number) => parcels.filter((p) => p.nodes.length === 1 && p.nodes[0] === q && p.land >= (p.w * p.h) / 2 && !w.owned!.includes(p.id));
+    const impure = by(0);
+    const normal = by(1);
+    const pure = by(2);
+    expect(impure.length).toBeGreaterThan(5);
+    for (const p of impure) {
+      expect(parcelState(w, p)).toBe('free');
+      expect(parcelPrice(p)).toBe(0);
+    }
+    // The same ground costs twice as much with a pure node as with a normal one.
+    const p1 = normal[0];
+    const full = Math.max(60, Math.round((p1.value * (p1.townDist < 10 ? 1.5 : p1.townDist < 20 ? 1.2 : 1)) / 10) * 10);
+    expect(parcelPrice(p1)).toBe(Math.max(30, Math.round(full / 2 / 10) * 10));
+    const p2 = pure[0];
+    expect(parcelPrice(p2)).toBe(Math.max(60, Math.round((p2.value * (p2.townDist < 10 ? 1.5 : p2.townDist < 20 ? 1.2 : 1)) / 10) * 10));
+    expect(parcelPrice(p2)).toBeGreaterThan(0);
+  }, 30000);
+
+  it('let a camp go up on an impure node with no purchase', () => {
+    const w = createWorldFromMap(map2 as MapData);
+    prepareRealisticWorld(w);
+    enableLandRules(w);
+    w.money = 100000;
+    const n = w.nodes.find((q) => q.kind === 'forest' && q.quality === 0 && !w.owned!.includes(parcelAt(w, q.x, q.y)!.id) && parcelState(w, parcelAt(w, q.x, q.y)!) === 'free')!;
+    expect(placeError(w, 'forestry', n.x, n.y)).toBeNull();
+    expect(buyParcel(w, parcelAt(w, n.x, n.y)!.id)).toBe('This ground is free to build on');
+  }, 30000);
 });

@@ -1,6 +1,6 @@
 // Resource nodes: kin blend into belts, strangers keep apart, nothing piles up.
 import { describe, expect, it } from 'vitest';
-import { CLUSTER_MAX, NODE_FAMILY, OTHER_GAP, SAME_GAP, clusterSize, nodeAllowed, nodeGap } from './noderules';
+import { CLUSTER_MAX, NODE_FAMILY, IMPURE_GAP, OTHER_GAP, SAME_GAP, clusterSize, nodeAllowed, nodeGap } from './noderules';
 import { createWorld } from './world';
 
 describe('node rules', () => {
@@ -45,7 +45,7 @@ describe('generated worlds', () => {
                 blends += 1;
                 if (nodes[i].kind !== nodes[j].kind) mixedBlends += 1;
               }
-            } else if (d < OTHER_GAP) {
+            } else if (d < OTHER_GAP && !((nodes[i].kind === 'forest' && nodes[i].quality === 0) || (nodes[j].kind === 'forest' && nodes[j].quality === 0) ? d >= IMPURE_GAP : false)) {
               // Only the starting town's first forest, field and meadow may sit closer.
               expect(Math.min(nodeGap(nodes[i], start, world.width), nodeGap(nodes[j], start, world.width)), `${nodes[i].kind}/${nodes[j].kind} piled up`).toBeLessThanOrEqual(20);
             }

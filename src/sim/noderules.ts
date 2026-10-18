@@ -24,6 +24,8 @@ export const NODE_FAMILY: Record<NodeKind, NodeFamily> = {
 export const SAME_GAP = 3;
 /** Tiles between nodes of different families. */
 export const OTHER_GAP = 7;
+/** Impure forestry nodes, the small poor stands that fill out the woods, may stand this close to a stranger. */
+export const IMPURE_GAP = 4;
 /** A family's cluster: no more than CLUSTER_MAX of one family within CLUSTER_RADIUS tiles, so a belt is a belt, not a field of them. */
 export const CLUSTER_RADIUS = 9;
 export const CLUSTER_MAX = 6;
