@@ -551,9 +551,12 @@ export class Scenery {
       const geo = new THREE.BufferGeometry();
       geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
       geo.setIndex(idx);
-      const mat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+      const mat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity, depthWrite: false, side: THREE.DoubleSide, fog: false });
       const mesh = new THREE.Mesh(geo, mat);
       mesh.frustumCulled = false;
+      mesh.castShadow = false;
+      mesh.receiveShadow = false;
+      mesh.renderOrder = 4;
       return mesh;
     };
     const reserved: { x: number; y: number }[] = [];
@@ -565,8 +568,8 @@ export class Scenery {
         else reserved.push(t);
       }
     }
-    group.add(quads(reserved, 0xe0883a, 0.22, 0.07));
-    group.add(quads(lanes, 0xf2b04c, 0.4, 0.09));
+    group.add(quads(reserved, 0xe0883a, 0.22, 0.12));
+    group.add(quads(lanes, 0xf2b04c, 0.4, 0.16));
     group.visible = false;
     this.group.add(group);
     return group;
