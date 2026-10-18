@@ -47,6 +47,7 @@ import {
   partnerOf,
   fleetOf,
   inboundTo,
+  ratePerMin,
   HISTORY_JOBS,
   buyersFor,
   roadPlan,
@@ -1928,6 +1929,14 @@ export class HudScene extends Phaser.Scene {
     }
     cy += this.nextStepCard(s, x, cy, w) + 10;
     if (def.produce || def.recipe) cy += this.flowCard(s, x, cy, w) + 6;
+    const rate = def.produce || def.recipe ? ratePerMin(world, s) : null;
+    if (rate) {
+      const list = (m: Partial<Record<Good, number>>): string => Object.entries(m).map(([gd, n]) => `${n} ${GOODS[gd as Good].label.toLowerCase()}`).join(', ');
+      const up = s.making === false ? 'off' : `running ${Math.round((s.run ?? 0) * 100)}%`;
+      const held = s.stall === 'input' ? '  ·  starved of inputs' : s.stall === 'room' ? '  ·  shelf full' : '';
+      im.text('spRate', `Makes ${list(rate.out)} a minute${Object.keys(rate.in).length ? `, from ${list(rate.in)}` : ''}  ·  ${up}${held}`, x, cy, { size: 11, color: s.stall === 'input' ? COLORS.warn : COLORS.muted, wrap: w, layer: 2 });
+      cy += 34;
+    }
     // One line on how it is doing, then the dashboard.
     const buyers = buyersFor(world, s).filter((b) => b.on).length;
     const trucks = fleetOf(world, s.id);

@@ -152,6 +152,12 @@ export interface Site {
   out?: Stock;
   /** Processors: whether the player has switched production on. Nothing is made until they do. */
   making?: boolean;
+  /** Producers and processors: the share of recent time spent making goods (0 to 1), smoothed over about twenty seconds. */
+  run?: number;
+  /** Why the building is not making goods right now: off, short of an input, or its shelf is full. */
+  stall?: 'off' | 'input' | 'room' | null;
+  /** A stalled-for-input factory has been reported in the log, so it is not reported again until it recovers. */
+  stallLogged?: boolean;
   /** Processors, hubs and airports: the buildings this one sells to. */
   sendTo?: number[];
   /** Raw producers sell to everyone they are joined to, except the buyers listed here. */
@@ -1517,13 +1523,70 @@ export function setHubOptions(world: World, siteId: number, o: { hubMode?: 'over
   if (o.minLoad !== undefined) site.minLoad = Math.max(0, Math.min(1, o.minLoad));
 }
 
+/** Keep a running average of how much of the time a building is making goods, and say so in the log when a factory starves. */
+function noteRun(world: World, site: Site, working: boolean, stall: Site['stall']): void {
+  site.run = (site.run ?? (working ? 1 : 0)) + ((working ? 1 : 0) - (site.run ?? (working ? 1 : 0))) * 0.005;
+  site.stall = stall;
+  if (working && (site.run ?? 0) > 0.6) site.stallLogged = false;
+  if (stall === 'input' && !site.stallLogged && (site.run ?? 0) < 0.2 && world.tick % 100 === 0) {
+    site.stallLogged = true;
+    const def = SITE_DEFS[site.kind];
+    const short = def.recipe ? (Object.keys(def.recipe.inputs) as Good[]).find((g) => stockOf(site, g) < (def.recipe!.inputs[g] ?? 0)) : undefined;
+    addLog(world, `${site.name} has stopped: out of ${short ? GOODS[short].label.toLowerCase() : 'inputs'}`);
+  }
+}
+
+/** What a producer or processor makes and uses each minute at its level, if it never stalls. */
+export function ratePerMin(world: World, site: Site): { out: Partial<Record<Good, number>>; in: Partial<Record<Good, number>> } | null {
+  const def = SITE_DEFS[site.kind];
+  const speed = siteSpeed(world, site);
+  const perMin = (n: number, every: number): number => Math.round(((n * speed * TICKS_PER_SECOND * 60) / every) * 10) / 10;
+  if (def.produce) {
+    const out: Partial<Record<Good, number>> = { [def.produce.good]: perMin(1, def.produce.every) };
+    for (const x of def.produce.also ?? []) out[x.good] = perMin(1, x.every);
+    return { out, in: {} };
+  }
+  if (def.recipe) {
+    const out: Partial<Record<Good, number>> = {};
+    const inn: Partial<Record<Good, number>> = {};
+    for (const [g, n] of Object.entries(def.recipe.outputs)) out[g as Good] = perMin(n ?? 0, def.recipe.every);
+    for (const [g, n] of Object.entries(def.recipe.inputs)) inn[g as Good] = perMin(n ?? 0, def.recipe.every);
+    return { out, in: inn };
+  }
+  return null;
+}
+
+export interface Bottleneck {
+  site: Site;
+  stall: 'off' | 'input' | 'room';
+  /** Money a minute the stall is costing, at what the goods sell for. */
+  lostPerMin: number;
+}
+
+/** Factories and producers held up, worst first: the ones costing the most each minute. Switched-off factories are not counted. */
+export function bottlenecks(world: World): Bottleneck[] {
+  const out: Bottleneck[] = [];
+  for (const site of world.sites) {
+    const r = ratePerMin(world, site);
+    if (!r || !site.stall || site.stall === 'off') continue;
+    const idle = 1 - (site.run ?? 0);
+    if (idle < 0.3) continue;
+    let value = 0;
+    for (const [g, n] of Object.entries(r.out)) value += (n ?? 0) * GOODS[g as Good].price;
+    out.push({ site, stall: site.stall, lostPerMin: Math.round(value * idle) });
+  }
+  return out.sort((a, b) => b.lostPerMin - a.lostPerMin);
+}
+
 function stepSite(world: World, site: Site): void {
   const def = SITE_DEFS[site.kind];
   const cap = siteCap(world, site);
   if (def.produce) {
     const { good, every, also } = def.produce;
     const speed = siteSpeed(world, site);
-    if (stockOf(site, good) < cap) {
+    const working = stockOf(site, good) < cap;
+    noteRun(world, site, working, working ? null : 'room');
+    if (working) {
       site.timer += speed;
       if (site.timer >= every) {
         site.timer -= every;
@@ -1550,6 +1613,7 @@ function stepSite(world: World, site: Site): void {
     const { inputs, outputs, every } = def.recipe;
     if (!site.making) {
       site.timer = 0;
+      noteRun(world, site, false, 'off');
       return;
     }
     if (world.tick % 10 === 0) drawFromDepot(world, site, inputs);
@@ -1558,8 +1622,10 @@ function stepSite(world: World, site: Site): void {
     const hasRoom = stockOf(site, Object.keys(outputs)[0] as Good) < cap;
     if (!hasInputs || !hasRoom) {
       site.timer = 0;
+      noteRun(world, site, false, hasInputs ? 'room' : 'input');
       return;
     }
+    noteRun(world, site, true, null);
     site.timer += siteSpeed(world, site);
     if (site.timer >= every) {
       site.timer -= every;
