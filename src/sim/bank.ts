@@ -31,6 +31,46 @@ export interface BankState {
   /** Recent prices, one per few seconds, for the chart. */
   history: number[];
   rng: number;
+  /** Interest the savings account has paid since the start. */
+  savingsInterest?: number;
+  /** Fund profit already taken: what sales brought in, less what that part cost, fee included. */
+  realised?: number;
+  /** All the cash ever put into the fund. */
+  putIn?: number;
+  /** Snapshots about every ten seconds, so "today" can be measured. */
+  marks?: Mark[];
+}
+
+/** A snapshot of the books at one moment. */
+export interface Mark {
+  tick: number;
+  price: number;
+  net: number;
+  savingsInterest: number;
+  loanInterest: number;
+}
+
+/** A game "day" for the bank's reports: ten minutes of play. */
+export const DAY_TICKS = 6000;
+
+/** How the books have moved over the last day, and over all time, for the bank menu to explain. */
+export interface BankReport {
+  /** Minutes the "today" numbers really cover (less than a day early on). */
+  minutes: number;
+  netToday: number;
+  netTodayPct: number;
+  fundHeld: number;
+  fundToday: number;
+  fundTodayPct: number;
+  fundAllTime: number;
+  fundAllTimePct: number;
+  savingsToday: number;
+  savingsTodayPct: number;
+  savingsAllTime: number;
+  loanToday: number;
+  loanAllTime: number;
+  loanPerMinute: number;
+  savingsPerMinute: number;
 }
 
 /**
@@ -94,8 +134,16 @@ export function stepBank(world: World): void {
     b.loan += add;
     b.interest += add;
   }
-  b.savings += b.savings * SAVINGS_RATE * PER_SECOND;
+  const earnedNow = b.savings * SAVINGS_RATE * PER_SECOND;
+  b.savings += earnedNow;
+  b.savingsInterest = (b.savingsInterest ?? 0) + earnedNow;
   walk(b, world.tick);
+  if (world.tick % 100 === 0) {
+    const marks = (b.marks ??= []);
+    marks.push({ tick: world.tick, price: b.price, net: netWorth(world), savingsInterest: b.savingsInterest ?? 0, loanInterest: b.interest });
+    // Keep a day, plus the one mark just before it to measure from.
+    while (marks.length > 2 && marks[1].tick <= world.tick - DAY_TICKS) marks.shift();
+  }
   if (world.tick % 50 === 0) {
     b.history.push(b.price);
     if (b.history.length > HISTORY) b.history.shift();
@@ -160,6 +208,7 @@ export function invest(world: World, amount: number): string | null {
   if (put < 1) return 'No cash to invest';
   b.shares += put / b.price;
   b.invested += put;
+  b.putIn = (b.putIn ?? 0) + put;
   world.money -= put;
   return null;
 }
@@ -171,6 +220,8 @@ export function divest(world: World, amount: number): string | null {
   if (value < 1) return 'Nothing invested';
   const sell = Math.min(amount, value);
   const frac = sell / value;
+  const cost = b.invested * frac;
+  b.realised = (b.realised ?? 0) + sell * (1 - FUND_FEE) - cost;
   b.invested = Math.max(0, b.invested * (1 - frac));
   b.shares = sell >= value ? 0 : b.shares - sell / b.price;
   if (b.shares < 1e-9) {
@@ -179,4 +230,33 @@ export function divest(world: World, amount: number): string | null {
   }
   world.money += sell * (1 - FUND_FEE);
   return null;
+}
+
+/** Today's and all-time numbers for each account. Safe to call before the bank has any history. */
+export function bankReport(world: World): BankReport {
+  const b = bankOf(world);
+  const marks = b.marks ?? [];
+  const ref: Mark = marks[0] ?? { tick: world.tick, price: b.price, net: netWorth(world), savingsInterest: b.savingsInterest ?? 0, loanInterest: b.interest };
+  const held = b.shares * b.price;
+  const profit = held - b.invested + (b.realised ?? 0);
+  const putIn = b.putIn ?? b.invested;
+  const savingsToday = (b.savingsInterest ?? 0) - ref.savingsInterest;
+  const net = netWorth(world);
+  return {
+    minutes: Math.max(0, (world.tick - ref.tick) / (60 * 10)),
+    netToday: net - ref.net,
+    netTodayPct: ref.net > 0 ? (net / ref.net - 1) * 100 : 0,
+    fundHeld: held,
+    fundToday: b.shares * (b.price - ref.price),
+    fundTodayPct: ref.price > 0 ? (b.price / ref.price - 1) * 100 : 0,
+    fundAllTime: profit,
+    fundAllTimePct: putIn > 0 ? (profit / putIn) * 100 : 0,
+    savingsToday,
+    savingsTodayPct: b.savings > 0 ? (savingsToday / Math.max(1, b.savings - savingsToday)) * 100 : 0,
+    savingsAllTime: b.savingsInterest ?? 0,
+    loanToday: b.interest - ref.loanInterest,
+    loanAllTime: b.interest,
+    loanPerMinute: b.loan * LOAN_RATE,
+    savingsPerMinute: b.savings * SAVINGS_RATE,
+  };
 }

@@ -18,7 +18,7 @@ import {
   TOWN_LEVELS,
   type Good,
 } from '../sim/defs';
-import { BANK_TIER, FUND_FEE, LOAN_RATE, REAL_MONEY_ENABLED, SAVINGS_RATE, bankOf, borrow, creditLimit, deposit, divest, fundValue, invest, netWorth, repay, withdraw } from '../sim/bank';
+import { BANK_TIER, DAY_TICKS, bankReport, FUND_FEE, LOAN_RATE, REAL_MONEY_ENABLED, SAVINGS_RATE, bankOf, borrow, creditLimit, deposit, divest, fundValue, invest, netWorth, repay, withdraw } from '../sim/bank';
 import { pathMastered, pathQuestState, questState, tierUnlocks } from '../sim/quests';
 import { buildDistrict, choosePath, districtBoost, districtCost, districtError, districtLevel, districtRevenue, districtSatisfaction, pathError, townUpkeep } from '../sim/town';
 import { dockDemand, isHomePlot, plotTiles, radiusOf, produces, siteCap, stockOf, unitPrice, wants, type Place, type Site, type World } from '../sim/world';
@@ -953,6 +953,7 @@ export class Sheets {
       return 80;
     }
     const b = bankOf(world);
+    const rep = bankReport(world);
     const stats: [string, number, number][] = [
       ['Cash', world.money, COLORS.text],
       ['Savings', b.savings, COLORS.text],
@@ -967,12 +968,17 @@ export class Sheets {
       im.text(`bk-sl${i}`, label, sx, y0 + 14, { size: 12, color: COLORS.muted, align: 'center', layer: 3 });
       im.text(`bk-sv${i}`, `${val < 0 ? '-' : ''}$${fmt(Math.abs(val))}`, sx, y0 + 34, { size: W < 700 ? 16 : 22, bold: true, color: col, align: 'center', layer: 3 });
     });
-    y0 += 90;
+    const sign = (n: number): string => `${n >= 0 ? '+' : '-'}$${fmt(Math.abs(n))}`;
+    const pct = (n: number): string => `${n >= 0 ? '+' : ''}${n.toFixed(1)}%`;
+    const tint = (n: number): number => (n > 0.005 ? COLORS.good : n < -0.005 ? COLORS.bad : COLORS.muted);
+    const dayLabel = rep.minutes >= 9.9 ? 'Today (last 10 min)' : `Today (last ${Math.max(1, Math.round(rep.minutes))} min)`;
+    im.text('bk-nt', `Net worth ${dayLabel.toLowerCase()}: ${sign(rep.netToday)} (${pct(rep.netTodayPct)}). A "day" in the bank is ${DAY_TICKS / 600} minutes of play.`, v.x0 + 4, y0 + 84, { size: 12, color: tint(rep.netToday), layer: 3, wrap: W - 8 });
+    y0 += 112;
 
     const gap = 14;
     const cols = W > 900 ? 2 : 1;
     const cw = (W - gap * (cols - 1)) / cols;
-    const ch = 250;
+    const ch = 340;
     const pos = (i: number): { x: number; y: number } => ({ x: v.x0 + (i % cols) * (cw + gap), y: y0 + Math.floor(i / cols) * (ch + gap) });
     const toast = (err: string | null): void => {
       if (err) this.hooks.toast(err);
@@ -994,34 +1000,51 @@ export class Sheets {
       return p;
     };
 
+    /** Two lines: how an account did today, and over all time. */
+    const perf = (id: string, p0: { x: number; y: number }, y: number, today: [string, number, number | null], all: [string, number, number | null]): void => {
+      [['Today', today], ['All time', all]].forEach(([label, vals], k) => {
+        const [what, amt, pc] = vals as [string, number, number | null];
+        const ry = p0.y + y + k * 26;
+        im.rect(3, p0.x + 16, ry, cw - 32, 22, 0x10161e, 1, 8);
+        im.text(`${id}-pl${k}`, `${label as string}`, p0.x + 28, ry + 4, { size: 12, bold: true, color: COLORS.muted, layer: 4 });
+        im.text(`${id}-pw${k}`, what, p0.x + 110, ry + 4, { size: 12, color: COLORS.muted, layer: 4 });
+        im.text(`${id}-pa${k}`, pc === null ? sign(amt) : `${sign(amt)}   ${pct(pc)}`, p0.x + cw - 28, ry + 3, { size: 14, bold: true, color: tint(amt), align: 'right', layer: 4 });
+      });
+    };
+
     // Loans
     const limit = creditLimit(world);
     let p = card(0, 'loan', 'Loans', COLORS.bad);
     im.text('bk-l1', `Owed $${fmt(b.loan)}   ·   limit $${fmt(limit)}   ·   interest ${(LOAN_RATE * 100).toFixed(1)}% per minute`, p.x + 16, p.y + 46, { size: 13, color: COLORS.muted, wrap: cw - 32, layer: 3 });
-    im.text('bk-l2', b.loan > 0 ? `Interest runs up about $${fmt(b.loan * LOAN_RATE)} a minute. Interest so far: $${fmt(b.interest)}.` : 'Nothing owed. The limit grows as you earn and reach new tiers.', p.x + 16, p.y + 72, { size: 13, color: COLORS.text, wrap: cw - 32, layer: 3 });
-    row('bk-borrow', p.x, p.y + 152, 'Borrow', (a) => borrow(world, a), 'max');
-    row('bk-repay', p.x, p.y + 196, 'Repay', (a) => repay(world, a), 'all');
+    im.text('bk-l2', 'How it works: borrow cash now and pay it back later. What you owe grows every minute, so a loan is only worth it if what you build with it earns more than the interest. Pay it back as soon as you can.', p.x + 16, p.y + 72, { size: 12, color: COLORS.text, wrap: cw - 32, layer: 3 });
+    perf('bk-ln', p, 138, ['interest added', -rep.loanToday, null], ['interest paid in all', -rep.loanAllTime, null]);
+    im.text('bk-l3', b.loan > 0 ? `Right now the interest adds about $${fmt(rep.loanPerMinute)} a minute.` : 'Nothing owed. The limit grows as you earn and reach new tiers.', p.x + 16, p.y + 196, { size: 12, color: b.loan > 0 ? COLORS.warn : COLORS.muted, wrap: cw - 32, layer: 3 });
+    row('bk-borrow', p.x, p.y + ch - 98, 'Borrow', (a) => borrow(world, a), 'max');
+    row('bk-repay', p.x, p.y + ch - 54, 'Repay', (a) => repay(world, a), 'all');
 
     // Savings
     p = card(1, 'sav', 'Savings account', COLORS.good);
     im.text('bk-s1', `Balance $${fmt(b.savings)}   ·   interest ${(SAVINGS_RATE * 100).toFixed(1)}% per minute`, p.x + 16, p.y + 46, { size: 13, color: COLORS.muted, wrap: cw - 32, layer: 3 });
-    im.text('bk-s2', 'Safe: it only goes up, and you can take it out any time. Slow, but better than idle cash.', p.x + 16, p.y + 72, { size: 13, color: COLORS.text, wrap: cw - 32, layer: 3 });
-    row('bk-dep', p.x, p.y + 152, 'Deposit', (a) => deposit(world, a), 'all');
-    row('bk-wd', p.x, p.y + 196, 'Withdraw', (a) => withdraw(world, a), 'all');
+    im.text('bk-s2', 'How it works: money in savings earns a little every minute and can never go down. You can take it out any time. Slow, but safe, and better than cash sitting idle.', p.x + 16, p.y + 72, { size: 12, color: COLORS.text, wrap: cw - 32, layer: 3 });
+    perf('bk-sv', p, 138, ['interest earned', rep.savingsToday, b.savings > 0 ? rep.savingsTodayPct : null], ['interest earned in all', rep.savingsAllTime, null]);
+    im.text('bk-s3', b.savings > 0 ? `Right now it earns about $${fmt(rep.savingsPerMinute)} a minute.` : 'Nothing saved yet. Put some cash here to start earning.', p.x + 16, p.y + 196, { size: 12, color: b.savings > 0 ? COLORS.good : COLORS.muted, wrap: cw - 32, layer: 3 });
+    row('bk-dep', p.x, p.y + ch - 98, 'Deposit', (a) => deposit(world, a), 'all');
+    row('bk-wd', p.x, p.y + ch - 54, 'Withdraw', (a) => withdraw(world, a), 'all');
 
     // Market fund
     p = card(2, 'fund', 'Market fund', COLORS.accent);
     const hist = b.history;
     const first = hist[0] ?? b.price;
-    const chg = (b.price / first - 1) * 100;
     const held = fundValue(world);
     const profit = held - b.invested;
-    im.text('bk-f1', `Price $${b.price.toFixed(2)}  ${chg >= 0 ? '+' : ''}${chg.toFixed(1)}% on the chart   ·   ${FUND_FEE * 100}% fee when you sell`, p.x + 16, p.y + 40, { size: 13, color: COLORS.muted, wrap: cw - 32, layer: 3 });
-    im.text('bk-f2', held > 0 ? `Holding $${fmt(held)}   ·   ${profit >= 0 ? 'up' : 'down'} $${fmt(Math.abs(profit))}` : 'Nothing held. Prices rise and fall: you can lose money.', p.x + 16, p.y + 60, { size: 13, color: held > 0 ? (profit >= 0 ? COLORS.good : COLORS.bad) : COLORS.text, wrap: cw - 32, layer: 3 });
+    im.text('bk-f1', `Price $${b.price.toFixed(2)} a unit   ·   ${FUND_FEE * 100}% fee when you sell`, p.x + 16, p.y + 40, { size: 13, color: COLORS.muted, wrap: cw - 32, layer: 3 });
+    im.text('bk-f2', 'How it works: a pretend stock market. Buy units when the price is low and sell when it is high. The price moves up and down by itself, so you can lose money as well as make it.', p.x + 16, p.y + 62, { size: 12, color: COLORS.text, wrap: cw - 32, layer: 3 });
+    perf('bk-fd', p, 108, ['your units today', rep.fundToday, rep.fundTodayPct], ['all time, sold and held', rep.fundAllTime, (b.putIn ?? 0) > 0 ? rep.fundAllTimePct : null]);
+    im.text('bk-f3', held > 0 ? `Holding $${fmt(held)}   ·   ${profit >= 0 ? 'up' : 'down'} $${fmt(Math.abs(profit))} on what you paid` : 'Nothing held yet.', p.x + 16, p.y + 166, { size: 12, bold: true, color: held > 0 ? (profit >= 0 ? COLORS.good : COLORS.bad) : COLORS.muted, wrap: cw - 32, layer: 3 });
     const gx = p.x + 16;
-    const gy = p.y + 84;
+    const gy = p.y + 188;
     const gw = cw - 32;
-    const gh = 56;
+    const gh = 46;
     im.rect(3, gx, gy, gw, gh, 0x10161e, 1, 8);
     if (hist.length > 1) {
       const lo = Math.min(...hist);
@@ -1036,8 +1059,8 @@ export class Sheets {
         im.line(3, ax, ay, bx, by, col, 1, 2);
       }
     }
-    row('bk-buy', p.x, p.y + 152, 'Buy', (a) => invest(world, a), 'all');
-    row('bk-sell', p.x, p.y + 196, 'Sell', (a) => divest(world, a), 'all');
+    row('bk-buy', p.x, p.y + ch - 98, 'Buy', (a) => invest(world, a), 'all');
+    row('bk-sell', p.x, p.y + ch - 54, 'Sell', (a) => divest(world, a), 'all');
 
     // Real money: closed until a payment service stands behind it.
     p = card(3, 'real', 'Buy cash', COLORS.muted);

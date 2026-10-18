@@ -196,6 +196,7 @@ Money
 | Oct 17, 2026 | 0.7: Warehouse and freight terminals, by-product lines, stuck diagnosis, vehicle bodies and full loads, new guide, building dashboards | 74% |
 | Oct 17, 2026 | 0.8: Balance passes, stuck and waiting badges, ask-before-buying trucks, full loads with leftover detours, demolish confirm, first-time tips, inbound trucks and selling history, phone layout | 78% |
 | Oct 17, 2026 | 0.9: Menus split into pages, save export and import, green spots for rail yards, airports and ports, big upgrade button, town menu, scaffolding on upgrades, auto-buy prompts | 80% |
+| Oct 17, 2026 | 0.10: Bank explained in plain words with today and all-time results for loans, savings and the fund; vehicle upgrades are quiet and keep the menu open | 81% |
 | Oct 11, 2026 | Direction changed to a 3D globe. Rebuilt the renderer in Three.js, added terrain, towns, nodes, push/pull hubs, vehicle classes, levels, demolish, new HUD | 45% (new, larger scope) |
 
 ---

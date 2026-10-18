@@ -541,3 +541,7 @@ Every node is at least `NODE_DRY` + 1 (3) tiles from water (`dry` in features.ts
 - Placing a rail yard, airport or port lights every valid tile green (game3d updateSpots, a slice of the map per frame).
 - Tabled: bigger, more realistic airport and rail yard models; contracts; larger maps; third-party items; text-size and colour-blind toggles.
 
+## 0.10: the bank explained, quiet vehicle upgrades
+- Bank menu: each account says how it works in plain words, with a Today and an All time line (dollars and percent) and what it earns or costs per minute right now. Loans show interest added and paid; savings show interest earned; the market fund shows its price move on your units today, and all-time profit counting both what was sold and what is held. Net worth shows how it moved today. A bank day is ten minutes of play (bank.ts bankReport, DAY_TICKS, marks every ten seconds).
+- Upgrading a vehicle changes nothing but the vehicle: the menu stays open, nothing is deselected, the camera does not move and there is no toast unless it fails.
+

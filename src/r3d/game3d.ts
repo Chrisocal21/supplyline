@@ -2177,9 +2177,9 @@ export class Game3D {
   }
 
   upgradeVeh(id: number): void {
+    // Quiet on success: the card in the menu simply shows the bigger vehicle. Only a problem is announced.
     const err = upgradeVehicle(this.world, id);
-    const v = this.world.vehicles.find((x) => x.id === id);
-    this.onToast(err ?? (v ? `Upgraded to a ${VEHICLE_DEFS[v.kind].label}` : 'Vehicle upgraded'));
+    if (err) this.onToast(err);
   }
 
   sellVeh(id: number): void {
