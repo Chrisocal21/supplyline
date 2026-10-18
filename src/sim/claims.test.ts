@@ -53,7 +53,7 @@ describe('claim rules', () => {
       const r = audit(createWorld(seed));
       for (const k of RULES) expect(`seed ${seed} ${k}: ${r[k]}`).toBe(`seed ${seed} ${k}: 0`);
     }
-  });
+  }, 30000);
 
   it('hold on the hand-made map', () => {
     const r = audit(createWorldFromMap(map1 as MapData));

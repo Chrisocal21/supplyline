@@ -3,6 +3,7 @@ import { FREIGHT_DEMAND, MARKET_DEMAND, STYLE_TASTE, TOWN_STYLES, type DistrictI
 import { makeNamer } from './names';
 import { BLEND_REACH, BLEND_SHARE, blendPartner, blendRoll, footprint, plotCount, townLayout } from './townlayout';
 import { corridorTiles } from './corridors';
+import { BLEND_CHANCE, NodeBook, SAME_GAP, nextToFamily } from './noderules';
 
 export type RegionKind = 'ocean' | 'sea' | 'lake' | 'forest' | 'mountain' | 'land' | 'ice';
 
@@ -64,8 +65,6 @@ export const TOWN_RADIUS = 3;
 /** Resource nodes sit on low, level ground: no steeper than this step to a neighbour, and no higher than this. */
 const NODE_SLOPE = 9;
 const NODE_MAX_ELEV = 160;
-/** Nodes keep this many tiles apart (so NODE_GAP - 1 clear tiles between them). */
-const NODE_GAP = 3;
 /** No node within this many tiles of water, so its yard (and a quarry's pit) never reaches the shore. */
 const NODE_DRY = 2;
 /** Nodes are only placed where a road from a town can get to: across at most this much open water. */
@@ -469,7 +468,16 @@ export function generateFeatures(terrain: Terrain[], width: number, height: numb
   /** Low and level enough for a farm or a camp: not a hilltop, not a hillside. */
   const level = (t: number, maxSlope = NODE_SLOPE): boolean => !elev || maxSlope === Infinity || (slopeOf(t) <= maxSlope && elev[t] <= NODE_MAX_ELEV);
   /** At least NODE_GAP - 1 clear tiles to every other node, so their yards do not run into each other. */
-  const clear = (t: number): boolean => !nodes.some((n) => Math.abs(wrapDelta(n.x, t % width, width)) < NODE_GAP && Math.abs(n.y - Math.floor(t / width)) < NODE_GAP);
+  // Nodes follow the family rules in noderules.ts: kin may stand side by side, strangers keep well apart.
+  let book: NodeBook | null = null;
+  let bookSize = -1;
+  const clear = (t: number, kind: NodeKind, otherGap?: number): boolean => {
+    if (!book || bookSize !== nodes.length) {
+      book = new NodeBook(nodes, width);
+      bookSize = nodes.length;
+    }
+    return book.allowed(kind, t % width, Math.floor(t / width), otherGap);
+  };
   /** Nearest open water, in tiles (Chebyshev), looking no further than `max`. */
   const waterWithin = (t: number, max: number): number => {
     const x = t % width;
@@ -495,13 +503,30 @@ export function generateFeatures(terrain: Terrain[], width: number, height: numb
     return r < 0.25 ? 2 : r < 0.75 ? 1 : 0;
   };
   const spread = (tiles: number[], count: number, minGap: number, kind: NodeKind, regionId: number, maxSlope = NODE_SLOPE): void => {
-    const ok = tiles.filter((t) => !nearTown(t, 4) && clear(t) && dry(t) && level(t, maxSlope));
+    const ok = tiles.filter((t) => !nearTown(t, 4) && clear(t, kind) && dry(t) && level(t, maxSlope));
     // Prefer land a town can reach; fall back to the whole region when there is too little of it.
     const handy = ok.filter((t) => townDist(t) <= NODE_TOWN_REACH);
     const pool = handy.length >= count * 4 ? handy : ok;
     if (pool.length === 0) return;
-    const chosen: number[] = [pool[Math.floor(namer.rand() * pool.length)]];
+    // Blend: usually the first one joins a belt of its own family that is already there, along the same road.
+    const joinable: number[] = [];
+    if (nodes.length > 0) for (let k = 0; k < pool.length; k += 3) if (nextToFamily(kind, pool[k] % width, Math.floor(pool[k] / width), nodes, width)) joinable.push(pool[k]);
+    const chosen: number[] = [joinable.length > 0 && namer.rand() < BLEND_CHANCE ? joinable[Math.floor(namer.rand() * joinable.length)] : pool[Math.floor(namer.rand() * pool.length)]];
     while (chosen.length < count) {
+      // And the rest, often, stand beside one already chosen: a few kin in a row, then open land.
+      if (namer.rand() < BLEND_CHANCE) {
+        const beside: number[] = [];
+        for (let k = 0; k < pool.length; k += 3) {
+          const t = pool[k];
+          let nearest = Infinity;
+          for (const c of chosen) nearest = Math.min(nearest, Math.max(Math.abs(wrapDelta(c % width, t % width, width)), Math.abs(Math.floor(c / width) - Math.floor(t / width))));
+          if (nearest >= SAME_GAP && nearest <= SAME_GAP + 2) beside.push(t);
+        }
+        if (beside.length > 0) {
+          chosen.push(beside[Math.floor(namer.rand() * beside.length)]);
+          continue;
+        }
+      }
       let best = -1;
       let bestD = minGap * minGap - 1;
       for (let k = 0; k < pool.length; k += 2) {
@@ -516,7 +541,7 @@ export function generateFeatures(terrain: Terrain[], width: number, height: numb
       chosen.push(best);
     }
     for (const t of chosen) {
-      if (!clear(t)) continue;
+      if (!clear(t, kind)) continue;
       nodes.push({ id: nodes.length + 1, kind, x: t % width, y: Math.floor(t / width), quality: quality(), regionId });
     }
   };
@@ -604,7 +629,7 @@ export function generateFeatures(terrain: Terrain[], width: number, height: numb
       for (const radius of radii) {
         if (nodes.some((n) => n.kind === kind && near(p, n.y * width + n.x) <= radius)) break;
         const free = pool
-          .filter((t) => near(p, t) <= radius && near(p, t) >= 5 + p.radius - 3 && !nearTown(t, 4) && clear(t) && dry(t) && level(t))
+          .filter((t) => near(p, t) <= radius && near(p, t) >= 5 + p.radius - 3 && !nearTown(t, 4) && clear(t, kind, p === places[0] ? 4 : undefined) && dry(t) && level(t))
           .sort((x, y) => near(p, x) - near(p, y));
         if (free.length === 0) continue;
         const t = free[Math.min(free.length - 1, 2)];
@@ -662,7 +687,7 @@ export function generateFeatures(terrain: Terrain[], width: number, height: numb
     const want = (t: number): boolean => (kind === 'quarry' || kind === 'mine' || kind === 'coal' ? nearMountain(t) : kind === 'clay' ? waterWithin(t, NODE_DRY + 3) <= NODE_DRY + 3 : true);
     const pool: number[] = [];
     for (let t = 0; t < width * height; t++) {
-      if (!reachable[t] || terrain[t] !== 'grass' || nearTown(t, 4) || !clear(t) || !dry(t) || !want(t)) continue;
+      if (!reachable[t] || terrain[t] !== 'grass' || nearTown(t, 4) || !clear(t, kind) || !dry(t) || !want(t)) continue;
       pool.push(t);
     }
     pool.sort((p, q) => townDist(p) - townDist(q));

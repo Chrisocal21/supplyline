@@ -581,3 +581,7 @@ Every node is at least `NODE_DRY` + 1 (3) tiles from water (`dry` in features.ts
 ## 0.14: last additions before release
 - Joined towns work together (world.ts: JOIN_SHARE, JOIN_CATCH_UP, growthKinds, metroBonus, partnerOf); worldSteps generator makes a world a step at a time for the new-world progress bar; carvePasses cuts the ridge where a corridor crosses it; claims.ts is the claim map (claimAt, blockedBy) with claimmap.test.ts checking it against placeError over a whole world; frame readout on F3; more bushes and rocks in scenery.ts.
 - An old save (no blend, no partners) loads and runs unchanged.
+
+## 0.15 step 2: node families and belts
+- sim/noderules.ts: node families (farming, mining, woods, shore, island). Kin blend into belts (65% of picks join an existing node of the family, 3 to 5 tiles off, along the same stretch), strangers keep 7 tiles apart, and no belt has more than 6 nodes within 9 tiles (NodeBook makes the check quick). The start town's first forest, field and meadow may sit closer (4). Wired into features.ts spread(); old NODE_GAP removed.
+- Seen: a pasture-and-orchard belt side by side in one valley on a Large world.
