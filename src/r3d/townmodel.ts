@@ -156,15 +156,27 @@ export function townGeometry(o: TownModelOptions): THREE.BufferGeometry {
 
   // ---- the plots beside the streets ----
   o.plots.forEach((t, index) => {
-    if (!t.ok || index < 2 || t.occupied || t.home) return;
+    if (!t.ok || index < 2 || t.occupied) return;
     const cx = X(t.x);
     const cz = Z(t.y);
     const fx = Math.sign(t.ex - t.x);
     const fz = Math.sign(t.ey - t.y);
-    // A lot held for the player: a level, serviced pad with a painted edge and survey stakes at the corners.
+    // A lot held for the player: a level, serviced pad with a painted edge and survey stakes at the corners. A lot the
+    // town has not opened yet is only staked out: nothing stands on it, so nothing is ever torn down when it opens.
     const hw = 1.3 * sq;
     p.anchor = [cx, cz];
     p.tex = 6;
+    if (t.home) {
+      p.tex = 0;
+      for (const sx of [-1, 1]) {
+        for (const sz of [-1, 1]) {
+          p.box(0.04, 0.34, 0.04, 0x6a5a48, { x: cx + sx * (hw - 0.1), y: 0.0, z: cz + sz * 1.2 });
+          p.box(0.07, 0.07, 0.07, 0xb8b2a4, { x: cx + sx * (hw - 0.1), y: 0.34, z: cz + sz * 1.2 });
+        }
+      }
+      p.anchor = null;
+      return;
+    }
     p.box(hw * 2, 0.03, 2.6, 0xb7b1a3, { x: cx, y: 0.0, z: cz });
     p.box(hw * 2 - 0.1, 2.5, 2.5, 0x6d6b66, { x: cx, y: -2.5, z: cz });
     p.box(hw * 2 - 0.34, 0.012, 2.26, 0xc9c4b6, { x: cx, y: 0.03, z: cz });
@@ -231,6 +243,10 @@ export function townGeometry(o: TownModelOptions): THREE.BufferGeometry {
   // Just past the finished houses, the next ones are being built: sites in several stages, so the town is plainly in
   // development and fills in as it grows. A fully grown town has none.
   const frontier = fillFrac >= 1 ? 0 : Math.max(2, Math.min(8, Math.round(around.length * 0.14)));
+  // Everything already standing on a lot: a district's ground is its own, so no home or tower is ever built over it.
+  const placed: [number, number, number, number][] = [];
+  const free = (x0: number, z0: number, x1: number, z1: number): boolean =>
+    !placed.some(([a0, b0, a1, b1]) => x0 < a1 && x1 > a0 && z0 < b1 && z1 > b0);
   // Each district is a building on its own lot, turned to face the street its door opens on, with a drive to it.
   const marks: TownLandmark[] = [];
   for (const d of o.districts ?? []) {
@@ -239,6 +255,7 @@ export function townGeometry(o: TownModelOptions): THREE.BufferGeometry {
     const cx = X(d.x);
     const cz = Z(d.y);
     marks.push({ id: d.id, level: d.level, tx: d.x, ty: d.y, x: cx, z: cz });
+    if (!d.campus) placed.push([cx - TILE * sq * 0.5, cz - TILE * 0.5, cx + TILE * sq * 0.5, cz + TILE * 0.5]);
     p.anchor = [cx, cz];
     if (d.campus && (d.id === 'stadium' || d.id === 'ballpark' || d.id === 'arena')) {
       lights.push(...sportsCampus(p, d.id, d.level, cx, cz, yawToward(fx, fz)));
@@ -274,15 +291,9 @@ export function townGeometry(o: TownModelOptions): THREE.BufferGeometry {
     }
     built.push(h.t);
   });
-  o.plots.forEach((t, index) => {
-    if (index >= 2 && t.ok && t.home && !t.occupied) built.push(t);
-  });
 
   // Homes stand shoulder to shoulder along the street in front of each built-up tile, facing it behind a small front
   // garden, with the gardens running back behind them. In a big city the centre climbs into blocks and towers.
-  const placed: [number, number, number, number][] = [];
-  const free = (x0: number, z0: number, x1: number, z1: number): boolean =>
-    !placed.some(([a0, b0, a1, b1]) => x0 < a1 && x1 > a0 && z0 < b1 && z1 > b0);
   for (const t of built) {
     const fr = fronts(t.x, t.y);
     if (fr.length === 0) continue;
