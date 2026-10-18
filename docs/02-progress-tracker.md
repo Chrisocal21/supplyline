@@ -4,6 +4,18 @@
 
 ## Supplyline
 
+### Warehouse list filters (unreleased)
+
+- A warehouse or terminal's Businesses and Sells to pages (and every building's Selling page) get a filter bar: live text search by name, kind, town or good; status, type and goods chips that show how many match; sort orders; a "Showing X of Y" count; and Clear filters.
+- Search is a real text field, so typing never triggers game hotkeys.
+- "Send all shown" / "Stop all shown" (and "Sell to all shown" on the buyers list) switch everything the filters show at once.
+
+### Train movement polish (unreleased)
+
+- Rolling stock follows measured distance along the rendered rails instead of a fixed tile-to-world conversion, keeping wagon spacing consistent through curves and across latitudes.
+- Each carriage turns between its own bogie positions; station stops account for the full train length.
+- Exhaust follows the locomotive's stack rather than the route's centre point.
+
 **Overall progress:** about 72% (by checklist count; all of it runs, most of it is playtested only through automated clicks)
 **Last updated:** October 18, 2026
 **Status:** Active

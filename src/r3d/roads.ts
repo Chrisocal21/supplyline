@@ -8,6 +8,7 @@ import { HeightField, R, basisMatrix, lonLatToVec } from './geo';
 import { Parts } from './parts';
 import { roadSurfaces } from './surfaces';
 import { STREET } from '../scale';
+import { TrackDistance } from './trainMotion';
 
 const LIFT = 0.07;
 const DECK = 0.55;
@@ -283,6 +284,15 @@ export class RoadNet {
   private pins = new Set<number>();
   /** Bumped on every rebuild, so cached vehicle paths are smoothed again against the new pins. */
   private gen = 0;
+  private readonly distanceCache = new WeakMap<Tile[], { gen: number; track: TrackDistance }>();
+
+  trackDistance(path: Tile[]): TrackDistance {
+    const hit = this.distanceCache.get(path);
+    if (hit?.gen === this.gen) return hit.track;
+    const track = new TrackDistance(path.length - 1, (f, dir) => this.pointOnPath(path, f, dir, 0));
+    this.distanceCache.set(path, { gen: this.gen, track });
+    return track;
+  }
   private readonly smoothCache = new WeakMap<Tile[], { gen: number; runs: { i0: number; i1: number; pts: [number, number][]; cum: number[] }[] }>();
 
   /** An edge drawn as part of a smooth run: road, highway or track on the ground, not a bridge or tunnel. */

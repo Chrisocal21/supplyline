@@ -3,8 +3,8 @@ import map1 from '../maps/map1.json';
 import { findPath } from './path';
 import { runChores } from './bot';
 import { put } from './testutil';
-import { HIGHWAY_TIER } from './defs';
-import { buyVehicle, createBlankWorld, createRoute, createSeaRoute, portSpot, portWater, seaPath, setSendTo, createWorldFromMap, layoutOf, placeError, placeSite, plotTiles, siteAt, siteCenter, siteTiles, yardSpot, siteById, step, streetAt, terrainAt, type MapData, type World } from './world';
+import { HIGHWAY_TIER, SITE_DEFS } from './defs';
+import { airportPad, buildCost, FOREST_CLEAR_COST, buyVehicle, createBlankWorld, createRoute, createSeaRoute, portSpot, portWater, seaPath, setSendTo, createWorldFromMap, layoutOf, placeError, placeSite, plotTiles, siteAt, siteCenter, siteTiles, yardSpot, siteById, step, streetAt, terrainAt, type MapData, type World } from './world';
 
 /** A farm on the nearest farmland to the first town, and a free spot on that town's main street to join. */
 function setup(): { w: World; farm: NonNullable<ReturnType<typeof siteAt>>; mill: NonNullable<ReturnType<typeof siteAt>>; street: { x: number; y: number } } {
@@ -169,6 +169,56 @@ describe('places for airports and rail yards', () => {
     expect({ x: w.sites[w.sites.length - 1].x, y: w.sites[w.sites.length - 1].y }).toEqual({ x: 10, y: 4 });
   });
 
+  it('keeps the ground a town will grow over clear, while its plots stay free to build on', () => {
+    const w = createBlankWorld(60, 30, new Array(60 * 30).fill('grass'));
+    w.money = 1e6;
+    w.tier = 3;
+    const town = { id: 1, name: 'Midton', x: 30, y: 15, level: 1, growth: 0, delivered: {}, marketTile: { x: 31, y: 15 }, freightTile: { x: 29, y: 15 }, style: 'temperate' as const, taste: {}, radius: 3, homePlots: [] };
+    w.places.push(town);
+    // The main street reaches 3 tiles each way now and 7 when fully grown: the stretch between is kept for it.
+    expect(placeError(w, 'hub', 35, 15)).toMatch(/Kept clear for Midton/);
+    expect(placeError(w, 'sawmill', 35, 15)).toMatch(/Kept clear for Midton|town/);
+    // Inside the town, its free plots take buildings just as before.
+    const lot = plotTiles(w, town)[4];
+    expect(placeError(w, 'bakery', lot.x, lot.y)).toBeNull();
+    // Once the town has grown over it, it is the town's street.
+    town.level = 5;
+    expect(placeError(w, 'hub', 35, 15)).toMatch(/main street|Too close/);
+  });
+
+  it('clears forest and levels the ground for an airport, at a price', () => {
+    const w = createBlankWorld(60, 30, new Array(60 * 30).fill('grass'));
+    w.money = 1e6;
+    w.tier = 3;
+    for (let dy = -1; dy <= 1; dy++) w.terrain[(15 + dy) * 60 + 20] = 'forest';
+    expect(placeError(w, 'airport', 20, 15)).toBeNull();
+    expect(buildCost(w, 'airport', 20, 15)).toBe(SITE_DEFS.airport.cost + 3 * FOREST_CLEAR_COST);
+    // Gently rolling ground is levelled; a cliff is not.
+    for (let dx = -1; dx <= 1; dx++) w.elev[16 * 60 + 40 + dx] += 20;
+    expect(placeError(w, 'airport', 40, 15)).toBeNull();
+    for (let dx = -1; dx <= 1; dx++) w.elev[16 * 60 + 40 + dx] += 60;
+    expect(placeError(w, 'airport', 40, 15)).toMatch(/steep/);
+    const before = w.money;
+    expect(placeSite(w, 'airport', 20, 15)).toBeNull();
+    expect(before - w.money).toBe(SITE_DEFS.airport.cost + 3 * FOREST_CLEAR_COST);
+  });
+
+  it('keeps a spot for an airport by every town on the map, and lets an airport go there', () => {
+    const w = createWorldFromMap(map1 as MapData);
+    w.tier = 3;
+    w.money = 1e6;
+    const withPad = w.places.filter((p) => airportPad(w, p));
+    expect(withPad.length).toBeGreaterThanOrEqual(w.places.length - 1);
+    const town = withPad[0];
+    const pad = airportPad(w, town)!;
+    expect(placeError(w, 'airport', pad.x, pad.y, pad.rot)).toBeNull();
+    // Nothing else may take it.
+    expect(placeError(w, 'hub', pad.x, pad.y)).toMatch(/Kept clear for .*airport/);
+    expect(placeSite(w, 'airport', pad.x, pad.y, pad.rot)).toBeNull();
+    // Once the town has its airport, the ground is no longer kept.
+    expect(airportPad(w, town)).toBeNull();
+  });
+
   it('puts a Rail Yard just outside a town, never in its streets or lots, and gives it track and trucks', () => {
     const w = createWorldFromMap(map1 as MapData);
     w.tier = 3;
@@ -221,7 +271,7 @@ describe('islands and the sea', () => {
     const isle = w.places.find((p) => p.name === 'Ventura')!;
     const main = w.places.find((p) => p.name === 'Rio Palma')!;
     // Not inland.
-    expect(placeError(w, 'port', main.x + 12, main.y)).toMatch(/coast|town|Too close|Cannot|steep/);
+    expect(placeError(w, 'port', main.x + 12, main.y)).toMatch(/coast|town|Too close|Cannot|steep|Kept clear/);
     const a = portSpot(w, isle)!;
     const b = portSpot(w, main)!;
     expect(a).not.toBeNull();

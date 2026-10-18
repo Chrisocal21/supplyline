@@ -24,6 +24,7 @@ import {
   type SiteKind,
 } from '../sim/defs';
 import {
+  buildCost,
   demolishRefund,
   dockDemand,
   produces,
@@ -67,6 +68,7 @@ import {
   type Tile,
   type Vehicle,
   vehicleRoute,
+  wrapDx,
 } from '../sim/world';
 import { nextQuest } from '../sim/quests';
 import { Game3D, type HoverInfo, type OverlayItem, type Tool } from '../r3d/game3d';
@@ -100,6 +102,31 @@ interface Tab {
 }
 
 const sitesIn = (category: string): Tool[] => BUILD_ORDER.filter((k) => SITE_DEFS[k].category === category);
+
+/** The dashboard pages that have a filtered list. */
+type FilterPage = 'supply' | 'sell';
+interface ListFilter {
+  q: string;
+  status: string;
+  type: string;
+  good: string;
+  sort: string;
+}
+const newFilter = (sort: string): ListFilter => ({ q: '', status: 'all', type: 'all', good: 'all', sort });
+const isFiltered = (f: ListFilter): boolean => !!f.q.trim() || f.status !== 'all' || f.type !== 'all' || f.good !== 'all';
+const TYPE_LABEL: Record<string, string> = {
+  production: 'Producers',
+  processing: 'Processing',
+  manufacturing: 'Manufacturing',
+  heavy: 'Heavy industry',
+  storage: 'Warehouses & terminals',
+  market: 'Markets',
+  freight: 'Freight docks',
+  civic: 'Civic',
+  factory: 'Factories',
+  station: 'Stations',
+  other: 'Other',
+};
 
 const TABS: Tab[] = [
   { id: 'select', label: 'Select', icon: 'thumb-select', blurb: 'Inspect buildings and towns', tools: [] },
@@ -488,6 +515,7 @@ export class HudScene extends Phaser.Scene {
     const now = this.time.now;
 
     if (this.title) {
+      this.hideSearch();
       g.setKeys(0, 0, 0);
       im.begin();
       this.cim.begin();
@@ -552,6 +580,8 @@ export class HudScene extends Phaser.Scene {
     }
     this.offersLayer(W, H);
     if (this.menuOpen) this.menuPanel(W, H);
+    if (!this.searchSeen || this.menuOpen || g.removal) this.hideSearch();
+    this.searchSeen = false;
     this.toastsLayer(W, now);
     this.tooltip(W, H);
     if (this.fadeIn >= 0) {
@@ -608,7 +638,7 @@ export class HudScene extends Phaser.Scene {
     if (info) {
       const demolish = g.tool === 'demolish';
       const d = demolish ? null : SITE_DEFS[g.tool as SiteKind];
-      const label = demolish ? `Demolish ${info.site?.name ?? ''}` : `${d?.label} $${fmt(d?.cost ?? 0)}`;
+      const label = demolish ? `Demolish ${info.site?.name ?? ''}` : `${d?.label} $${fmt(buildCost(g.world, g.tool as SiteKind, info.tile.x, info.tile.y))}`;
       const text = info.error ?? label;
       const tw = im.text('pendText', text, 0, -100, { size: 14, bold: true, layer: 3 }).w;
       const cancelW = 92;
@@ -1396,7 +1426,10 @@ export class HudScene extends Phaser.Scene {
     else if (g.tool !== 'select') {
       const d = SITE_DEFS[g.tool as SiteKind];
       const turn = `  ·  R ${SITE_DEFS[g.tool as SiteKind].airport ? 'turns the runway' : 'to rotate'}`;
-      text = h ? (h.error ? h.error : `${byInput('Click', 'Tap')} to build ${d.label} for $${fmt(d.cost)}${byInput(turn, '')}`) : `${d.label} $${fmt(d.cost)}${g.tool === 'railyard' || g.tool === 'airport' || g.tool === 'port' ? '  ·  green tiles show where it can go' : ''}`;
+      const cost = h ? buildCost(w, g.tool as SiteKind, h.tile.x, h.tile.y) : d.cost;
+      const cleared = cost > d.cost ? ` (incl. $${fmt(cost - d.cost)} to clear forest)` : '';
+      const spots = g.tool === 'airport' ? '  ·  green tiles show where it can go, gold is ground kept for a town\'s airport' : '  ·  green tiles show where it can go';
+      text = h ? (h.error ? h.error : `${byInput('Click', 'Tap')} to build ${d.label} for $${fmt(cost)}${cleared}${byInput(turn, '')}`) : `${d.label} $${fmt(d.cost)}${g.tool === 'railyard' || g.tool === 'airport' || g.tool === 'port' ? spots : ''}`;
     } else if (h) {
       text = h.site?.name ?? (h.place ? h.place.name : h.node ? `${h.node.kind} node` : (h.region?.name ?? ''));
     }
@@ -2159,6 +2192,119 @@ export class HudScene extends Phaser.Scene {
     return cy - y;
   }
 
+  // ---- list filters: search, status, type, goods and sort for the long lists in a building's dashboard ----
+
+  private filters: Record<FilterPage, ListFilter> = { supply: newFilter('name'), sell: newFilter('best') };
+  private searchEl: HTMLInputElement | null = null;
+  private searchFor: FilterPage | null = null;
+  private searchSeen = false;
+
+  /** A real text box laid over the canvas, so typing works like any search field and never fires the game's hotkeys. */
+  private searchBox(page: FilterPage, x: number, y: number, w: number, h: number): void {
+    const im = this.pim;
+    const f = this.filters[page];
+    const focused = !!this.searchEl && document.activeElement === this.searchEl && this.searchFor === page;
+    im.rect(2, x, y, w, h, 0x0d1118, 1, 10, focused ? COLORS.accent : COLORS.line, 1, focused ? 2 : 1);
+    im.circle(3, x + 16, y + h / 2 - 1, 5, COLORS.muted, 0.9);
+    im.circle(3, x + 16, y + h / 2 - 1, 3, 0x0d1118);
+    im.line(3, x + 19, y + h / 2 + 2, x + 23, y + h / 2 + 6, COLORS.muted, 0.9, 2);
+    const clip = this.cim.clipBox;
+    if (clip && (y < clip.y || y + h > clip.y + clip.h)) return;
+    if (!this.searchEl) {
+      const el = document.createElement('input');
+      el.type = 'search';
+      el.placeholder = 'Search by name, kind, town or good';
+      el.spellcheck = false;
+      el.autocomplete = 'off';
+      Object.assign(el.style, { position: 'fixed', zIndex: '20', background: 'transparent', border: 'none', outline: 'none', color: '#eeeae1', font: '13px system-ui, sans-serif', padding: '0', margin: '0' });
+      el.addEventListener('input', () => {
+        if (this.searchFor) this.filters[this.searchFor].q = el.value;
+      });
+      const stop = (e: KeyboardEvent): void => {
+        e.stopPropagation();
+        if (e.type === 'keydown' && (e.key === 'Escape' || e.key === 'Enter')) el.blur();
+      };
+      el.addEventListener('keydown', stop);
+      el.addEventListener('keyup', stop);
+      document.body.appendChild(el);
+      this.searchEl = el;
+    }
+    const el = this.searchEl;
+    if (this.searchFor !== page) {
+      this.searchFor = page;
+      el.value = f.q;
+    }
+    const r = this.game.canvas.getBoundingClientRect();
+    const k = r.width / this.scale.width;
+    Object.assign(el.style, { display: 'block', left: `${r.left + (x + 32) * k}px`, top: `${r.top + y * k}px`, width: `${(w - 40) * k}px`, height: `${h * k}px`, fontSize: `${13 * k}px` });
+    this.searchSeen = true;
+  }
+
+  private hideSearch(): void {
+    if (!this.searchEl || this.searchEl.style.display === 'none') return;
+    this.searchEl.blur();
+    this.searchEl.style.display = 'none';
+  }
+
+  /** A labelled row of chips, one of which is picked. Wraps onto more rows when it runs out of room. Returns its height. */
+  private chipRow(id: string, label: string, opts: { v: string; label: string; n?: number; color?: number }[], cur: string, pick: (v: string) => void, x: number, y: number, w: number): number {
+    const im = this.pim;
+    const lw = 72;
+    im.text(`${id}L`, label, x, y + 7, { size: 10, bold: true, color: COLORS.muted, layer: 2 });
+    let cx = x + lw;
+    let cy = y;
+    opts.forEach((o) => {
+      const on = o.v === cur;
+      const txt = o.n === undefined ? o.label : `${o.label}  ${o.n}`;
+      const cw = Math.ceil(txt.length * 5.9) + (o.color !== undefined ? 32 : 20);
+      if (cx + cw > x + w && cx > x + lw) {
+        cx = x + lw;
+        cy += 30;
+      }
+      const hov = im.hit(`${id}${o.v}`, cx, cy, cw, 26, () => pick(on && o.v !== 'all' ? 'all' : o.v), 3);
+      im.rect(3, cx, cy, cw, 26, on ? 0x2f9a69 : hov ? 0x243246 : 0x161d27, 1, 13, on ? 0x2f9a69 : COLORS.line, 1);
+      let tx = cx + 11;
+      if (o.color !== undefined) {
+        im.circle(4, tx + 4, cy + 13, 5, o.color);
+        tx += 13;
+      }
+      im.text(`${id}${o.v}T`, txt, tx, cy + 6, { size: 11, bold: on, color: on ? 0xffffff : o.n === 0 ? COLORS.muted : COLORS.text, layer: 4 });
+      cx += cw + 6;
+    });
+    return cy + 30 - y;
+  }
+
+  /**
+   * The filter bar over a list: search, the chip rows, a count of what is shown and a way to clear it all. Rows are
+   * [id, label, options, current, setter]. Returns its height.
+   */
+  private filterBar(page: FilterPage, rows: [string, string, { v: string; label: string; n?: number; color?: number }[], string, (v: string) => void][], shown: number, total: number, x: number, y: number, w: number): number {
+    const im = this.pim;
+    const f = this.filters[page];
+    let cy = y;
+    const busy = isFiltered(f);
+    const cw = busy ? 120 : 0;
+    this.searchBox(page, x, cy, w - (busy ? cw + 8 : 0), 34);
+    if (busy) {
+      this.button(`fx${page}`, 'Clear filters', x + w - cw, cy + 1, cw, 32, true, () => {
+        this.filters[page] = newFilter(f.sort);
+        if (this.searchEl && this.searchFor === page) this.searchEl.value = '';
+      });
+    }
+    cy += 42;
+    for (const [id, label, opts, cur, set] of rows) {
+      if (opts.length <= 1 && id !== 'sort') continue;
+      cy += this.chipRow(`fl${page}${id}`, label, opts, cur, set, x, cy, w) + 2;
+    }
+    im.text(`fl${page}N`, shown === total ? `Showing all ${total}` : `Showing ${shown} of ${total}`, x, cy + 2, { size: 11, bold: true, color: shown ? COLORS.info : COLORS.warn, layer: 2 });
+    return cy + 24 - y;
+  }
+
+  /** Tiles between two buildings, going round the globe the short way. */
+  private tilesApart(a: Site, b: Site): number {
+    return Math.hypot(wrapDx(this.game3d.world, a.x, b.x), a.y - b.y);
+  }
+
   /**
    * A warehouse or terminal's own suppliers: every building of yours joined to it that could send it goods. Each card says
    * how that business is doing, and lets the player stop or start its deliveries here, run or pause a factory, or open it.
@@ -2169,17 +2315,70 @@ export class HudScene extends Phaser.Scene {
     const world = g.world;
     let cy = this.sectionHead('bzH', 'YOUR BUSINESSES', x, y, w);
     const lines = (o: Site): Line[] => (hasByLine(o) ? ['main', 'by'] : ['main']);
-    const list = world.sites
+    const all = world.sites
       .filter((o) => o.id !== s.id && !SITE_DEFS[o.kind].dock && !SITE_DEFS[o.kind].station)
       .map((o) => ({ o, ls: lines(o).filter((ln) => sellTargets(world, o, ln).some((t) => t.site.id === s.id)) }))
       .filter((e) => e.ls.length > 0);
-    if (list.length === 0) {
+    if (all.length === 0) {
       im.text('bzN', `No business of yours is joined to this ${SITE_DEFS[s.kind].label.toLowerCase()} yet. Build a road from a farm, camp or factory to it, and its goods can come here.`, x, cy, { size: 11, color: COLORS.muted, wrap: w, layer: 2 });
       return cy + 40 - y;
     }
-    const sending = list.filter((e) => e.ls.some((ln) => sendAllowed(e.o, s, ln))).length;
-    im.text('bzS', `${sending} of ${list.length} send goods here. Switch a business off to keep its goods for your other buyers.`, x, cy, { size: 11, color: COLORS.muted, wrap: w, layer: 2 });
+    const sending = all.filter((e) => e.ls.some((ln) => sendAllowed(e.o, s, ln))).length;
+    im.text('bzS', `${sending} of ${all.length} send goods here. Switch a business off to keep its goods for your other buyers.`, x, cy, { size: 11, color: COLORS.muted, wrap: w, layer: 2 });
     cy += 26;
+
+    // Filters.
+    const f = this.filters.supply;
+    const rows = all.map((e) => {
+      const d = SITE_DEFS[e.o.kind];
+      const st = this.siteStatus(e.o);
+      const goods = Array.from(new Set(e.ls.flatMap((ln) => lineGoods(e.o, ln))));
+      return {
+        ...e,
+        on: e.ls.some((ln) => sendAllowed(e.o, s, ln)),
+        issue: st.color === COLORS.warn || st.color === COLORS.bad,
+        type: d.hub ? 'storage' : d.category ?? 'other',
+        goods,
+        sent: e.o.sales?.[s.id]?.units ?? 0,
+        far: this.tilesApart(s, e.o),
+        text: [e.o.name, d.label, siteTown(world, e.o)?.name ?? '', ...goods.map((gd) => GOODS[gd].label)].join(' ').toLowerCase(),
+      };
+    });
+    type Row = (typeof rows)[number];
+    const passes = (r: Row, skip: keyof ListFilter | null): boolean =>
+      (skip === 'q' || !f.q.trim() || f.q.toLowerCase().trim().split(/\s+/).every((word) => r.text.includes(word))) &&
+      (skip === 'status' || f.status === 'all' || (f.status === 'on' ? r.on : f.status === 'off' ? !r.on : r.issue)) &&
+      (skip === 'type' || f.type === 'all' || r.type === f.type) &&
+      (skip === 'good' || f.good === 'all' || r.goods.includes(f.good as Good));
+    const count = (skip: keyof ListFilter, test: (r: Row) => boolean): number => rows.filter((r) => passes(r, skip) && test(r)).length;
+    const types = (['production', 'processing', 'manufacturing', 'heavy', 'storage', 'other'] as const).filter((t) => rows.some((r) => r.type === t));
+    const goodsHere = GOOD_LIST.filter((gd) => rows.some((r) => r.goods.includes(gd)));
+    const set = (k: keyof ListFilter) => (v: string): void => void ((this.filters.supply as unknown as Record<string, string>)[k] = v);
+    const list = rows.filter((r) => passes(r, null));
+    const byName = (a: Row, b: Row): number => a.o.name.localeCompare(b.o.name);
+    list.sort(f.sort === 'sent' ? (a, b) => b.sent - a.sent || byName(a, b) : f.sort === 'level' ? (a, b) => b.o.level - a.o.level || byName(a, b) : f.sort === 'near' ? (a, b) => a.far - b.far : f.sort === 'issue' ? (a, b) => Number(b.issue) - Number(a.issue) || byName(a, b) : byName);
+    cy += this.filterBar('supply', [
+      ['status', 'STATUS', [
+        { v: 'all', label: 'All', n: count('status', () => true) },
+        { v: 'on', label: 'Sending here', n: count('status', (r) => r.on) },
+        { v: 'off', label: 'Switched off', n: count('status', (r) => !r.on) },
+        { v: 'issue', label: 'Needs attention', n: count('status', (r) => r.issue) },
+      ], f.status, set('status')],
+      ['type', 'TYPE', [{ v: 'all', label: 'All', n: count('type', () => true) }, ...types.map((t) => ({ v: t, label: TYPE_LABEL[t], n: count('type', (r) => r.type === t) }))], f.type, set('type')],
+      ['good', 'GOODS', [{ v: 'all', label: 'All' }, ...goodsHere.map((gd) => ({ v: gd, label: GOODS[gd].label, n: count('good', (r) => r.goods.includes(gd)), color: GOODS[gd].color })).filter((o) => o.n > 0 || o.v === f.good)], f.good, set('good')],
+      ['sort', 'SORT BY', [{ v: 'name', label: 'Name' }, { v: 'sent', label: 'Most sent here' }, { v: 'near', label: 'Nearest' }, { v: 'level', label: 'Level' }, { v: 'issue', label: 'Problems first' }], f.sort, (v) => (f.sort = v === 'all' ? 'name' : v)],
+    ], list.length, rows.length, x, cy, w);
+    if (list.length) {
+      const offN = list.filter((r) => !r.on).length;
+      const onN = list.length - offN;
+      const bw = Math.min(220, (w - 8) / 2);
+      this.button('bzAllOn', `Send all shown  (${offN})`, x, cy, bw, 32, offN > 0, () => list.forEach((r) => !r.on && r.ls.forEach((ln) => g.sendTo(r.o.id, s.id, true, ln))), 'on');
+      this.button('bzAllOff', `Stop all shown  (${onN})`, x + bw + 8, cy, bw, 32, onN > 0, () => list.forEach((r) => r.on && r.ls.forEach((ln) => g.sendTo(r.o.id, s.id, false, ln))));
+      cy += 42;
+    } else {
+      im.text('bzNone', 'No business matches these filters.', x, cy + 4, { size: 12, color: COLORS.warn, layer: 2 });
+      return cy + 34 - y;
+    }
     const gap = 12;
     const cols = Math.max(1, Math.min(3, Math.floor((w + gap) / (380 + gap))));
     const cw = (w - gap * (cols - 1)) / cols;
@@ -2671,10 +2870,67 @@ export class HudScene extends Phaser.Scene {
     };
     const line = this.lineOf(s);
     let cy = this.sectionHead('byH', `WHO BUYS YOUR ${def.hub ? 'GOODS' : lineGoods(s, line).slice(0, 3).map((gd) => GOODS[gd].label.toUpperCase()).join(' + ')}`, x, y, w);
-    const buyers = buyersFor(world, s, 3, line);
-    if (buyers.length === 0) {
+    const allBuyers = buyersFor(world, s, 3, line);
+    if (allBuyers.length === 0) {
       im.text('byN', def.hub ? 'Nobody yet. Build a road from this warehouse to a market or a factory.' : 'Nobody nearby buys this yet. Towns want more kinds of goods as they grow.', x, cy, { size: 11, color: COLORS.muted, wrap: w, layer: 2 });
       return cy + 40 - y + (def.store ? feeds(cy + 40) : 0);
+    }
+
+    // Filters.
+    const f = this.filters.sell;
+    const rows = allBuyers.map((b, rank) => {
+      const d = SITE_DEFS[b.site.kind];
+      const type = d.hub ? 'storage' : d.dock ?? (d.station ? 'station' : d.recipe ? 'factory' : 'other');
+      const asked = b.goods.filter((gd) => wants(world, b.site).includes(gd) || !b.connected);
+      const gd = asked[0] ?? b.goods[0];
+      return {
+        b,
+        rank,
+        type,
+        status: !b.connected ? 'unjoined' : b.on ? 'on' : 'off',
+        price: d.dock && gd ? unitPrice(world, b.site, gd) : 0,
+        sold: s.sales?.[b.site.id]?.units ?? 0,
+        far: this.tilesApart(s, b.site),
+        text: [b.site.name, d.label, siteTown(world, b.site)?.name ?? '', ...b.goods.map((g2) => GOODS[g2].label)].join(' ').toLowerCase(),
+      };
+    });
+    type Row = (typeof rows)[number];
+    const passes = (r: Row, skip: keyof ListFilter | null): boolean =>
+      (skip === 'q' || !f.q.trim() || f.q.toLowerCase().trim().split(/\s+/).every((word) => r.text.includes(word))) &&
+      (skip === 'status' || f.status === 'all' || r.status === f.status) &&
+      (skip === 'type' || f.type === 'all' || r.type === f.type) &&
+      (skip === 'good' || f.good === 'all' || r.b.goods.includes(f.good as Good));
+    const count = (skip: keyof ListFilter, test: (r: Row) => boolean): number => rows.filter((r) => passes(r, skip) && test(r)).length;
+    const types = (['market', 'freight', 'civic', 'storage', 'factory', 'station', 'other'] as const).filter((t) => rows.some((r) => r.type === t));
+    const goodsHere = GOOD_LIST.filter((gd) => rows.some((r) => r.b.goods.includes(gd)));
+    const set = (k: keyof ListFilter) => (v: string): void => void ((this.filters.sell as unknown as Record<string, string>)[k] = v);
+    const shown = rows.filter((r) => passes(r, null));
+    const byName = (a: Row, b: Row): number => a.b.site.name.localeCompare(b.b.site.name);
+    shown.sort(f.sort === 'price' ? (a, b) => b.price - a.price || a.rank - b.rank : f.sort === 'near' ? (a, b) => a.far - b.far : f.sort === 'sold' ? (a, b) => b.sold - a.sold || a.rank - b.rank : f.sort === 'name' ? byName : (a, b) => a.rank - b.rank);
+    const buyers = shown.map((r) => r.b);
+    cy += this.filterBar('sell', [
+      ['status', 'STATUS', [
+        { v: 'all', label: 'All', n: count('status', () => true) },
+        { v: 'on', label: def.hub ? 'Selling to' : 'Joined', n: count('status', (r) => r.status === 'on') },
+        ...(def.hub ? [{ v: 'off', label: 'Switched off', n: count('status', (r) => r.status === 'off') }] : []),
+        { v: 'unjoined', label: 'Not joined yet', n: count('status', (r) => r.status === 'unjoined') },
+      ], f.status, set('status')],
+      ['type', 'TYPE', [{ v: 'all', label: 'All', n: count('type', () => true) }, ...types.map((t) => ({ v: t, label: TYPE_LABEL[t], n: count('type', (r) => r.type === t) }))], f.type, set('type')],
+      ['good', 'GOODS', [{ v: 'all', label: 'All' }, ...goodsHere.map((gd) => ({ v: gd, label: GOODS[gd].label, n: count('good', (r) => r.b.goods.includes(gd)), color: GOODS[gd].color })).filter((o) => o.n > 0 || o.v === f.good)], f.good, set('good')],
+      ['sort', 'SORT BY', [{ v: 'best', label: 'Suggested' }, { v: 'price', label: 'Best price' }, { v: 'near', label: 'Nearest' }, { v: 'sold', label: 'Most sold' }, { v: 'name', label: 'Name' }], f.sort, (v) => (f.sort = v === 'all' ? 'best' : v)],
+    ], buyers.length, allBuyers.length, x, cy, w);
+    if (def.hub && buyers.length) {
+      const joined = buyers.filter((b) => b.connected);
+      const offN = joined.filter((b) => !b.on).length;
+      const onN = joined.length - offN;
+      const bw = Math.min(220, (w - 8) / 2);
+      this.button('byAllOn', `Sell to all shown  (${offN})`, x, cy, bw, 32, offN > 0, () => joined.forEach((b) => !b.on && g.sendTo(s.id, b.site.id, true)), 'on');
+      this.button('byAllOff', `Stop all shown  (${onN})`, x + bw + 8, cy, bw, 32, onN > 0, () => joined.forEach((b) => b.on && g.sendTo(s.id, b.site.id, false)));
+      cy += 42;
+    }
+    if (!buyers.length) {
+      im.text('byNone', 'No buyer matches these filters.', x, cy + 4, { size: 12, color: COLORS.warn, layer: 2 });
+      return cy + 34 - y + (def.store ? feeds(cy + 34) : 0);
     }
     const gGap = 12;
     const gCols = Math.max(1, Math.min(3, Math.floor((w + gGap) / (380 + gGap))));
@@ -2695,7 +2951,7 @@ export class HudScene extends Phaser.Scene {
       const bx = x + w - 110;
       const by = cy + 30;
       if (!b.connected) {
-        const best = buyers.find((o) => !o.connected) === b && (b.perMinute ?? 0) > 0;
+        const best = allBuyers.find((o) => !o.connected) === b && (b.perMinute ?? 0) > 0;
         im.text(`${id}s`, best ? 'Best pick: not joined yet' : 'Not joined by road yet', x + 10, cy + 30, { size: 11, bold: best, color: best ? COLORS.good : COLORS.muted, layer: 3 });
         if (b.perMinute) im.text(`${id}e`, `about $${fmt(b.perMinute)}/min for each truck`, x + 10, cy + 46, { size: 10, color: COLORS.muted, layer: 3 });
         const cost = this.roadCost(s.id, b.site.id);

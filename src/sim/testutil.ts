@@ -4,7 +4,13 @@ import { placeSite, type World } from './world';
 
 export function put(w: World, kind: SiteKind, x: number, y: number): void {
   if (!SITE_DEFS[kind].inTown) {
-    placeSite(w, kind, x, y);
+    // Ground kept clear for a town's growth (or its airport) does not matter to these tests: set the towns aside to build.
+    if (/Kept clear|grow out to here/.test(placeSite(w, kind, x, y) ?? '')) {
+      const towns = w.places;
+      w.places = [];
+      placeSite(w, kind, x, y);
+      w.places = towns;
+    }
     return;
   }
   w.money -= SITE_DEFS[kind].cost;

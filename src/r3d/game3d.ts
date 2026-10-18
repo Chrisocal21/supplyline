@@ -84,6 +84,7 @@ import {
   siteReach,
   siteTiles,
   airportRot,
+  airportPad,
   type Rot,
   step,
   wrapDx,
@@ -1553,12 +1554,10 @@ export class Game3D {
       const last = route.path.length - 1;
       let f = v.idx;
       if (v.state === 'moving') f += (v.dir * (v.moveTimer + (this.speed > 0 ? alpha : 0))) / routeTicks(route, vd.ticksPerTile);
-      // Pull up at the door, not in the middle of the building. A train is long and its engine is at one end, so where it
-      // stops depends on which way it faces: turning round at the end of the line leaves the wagons where they stood.
-      const stop = Math.min(route.mode === 'rail' ? 0.87 : 0.5, last / 2);
-      const tail = route.mode === 'rail' ? Math.min(v.kind === 'heavytrain' ? 1.6 : 1.33, last / 2) : stop;
+      // Pull up at the door. Rail stops are fitted to the full consist below.
+      const stop = Math.min(0.5, last / 2);
       const dir: 1 | -1 = v.state === 'moving' ? v.dir : v.idx === 0 ? 1 : -1;
-      f = Math.max(dir === 1 ? tail : stop, Math.min(last - (dir === -1 ? tail : stop), f));
+      if (route.mode !== 'rail') f = Math.max(stop, Math.min(last - stop, f));
       const pt = (route.mode === 'rail' ? this.rails : this.roads).pointOnPath(route.path, f, dir, route.mode === 'road' ? undefined : 0);
       const air = route.mode === 'air';
       const sea = route.mode === 'sea';
@@ -1572,14 +1571,21 @@ export class Game3D {
         // Each unit sits where its own centre falls along the track and points along the chord between its ends, so
         // a train bends round a corner one unit at a time.
         const cars = m.userData.cars as THREE.Mesh[];
-        const tileLen = 3.27;
+        const track = this.rails.trackDistance(route.path);
+        const front = units[0].z + units[0].len / 2;
+        const rear = units[units.length - 1].z - units[units.length - 1].len / 2;
+        const low = dir === 1 ? -rear : front;
+        const high = track.length - (dir === 1 ? front : -rear);
+        const distance = low <= high
+          ? Math.max(low, Math.min(high, track.distance(f)))
+          : track.length / 2 - dir * (front + rear) / 2;
         const scale = new THREE.Matrix4().makeScale(sc, sc, sc);
         units.forEach((u, i) => {
           const unit = i === 0 ? m : cars[i - 1];
-          const fu = f + (dir * u.z * 1.35) / tileLen;
-          const half = (u.len * 1.35) / 2 / tileLen;
-          const a = this.rails.pointOnPath(route.path, fu + dir * half, dir, 0);
-          const b = this.rails.pointOnPath(route.path, fu - dir * half, dir, 0);
+          const centre = distance + dir * u.z;
+          const half = i === 0 ? 0.3 : 0.26;
+          const a = track.point(centre + dir * half, dir);
+          const b = track.point(centre - dir * half, dir);
           const pos = a.pos.clone().add(b.pos).multiplyScalar(0.5);
           const up = a.up.clone().add(b.up).normalize();
           const fwd = a.pos.clone().sub(b.pos);
@@ -1606,7 +1612,7 @@ export class Game3D {
         m.matrixWorldNeedsUpdate = true;
       }
       // A train under way trails smoke from its engine.
-      if (route.mode === 'rail' && v.state === 'moving') this.popDust.set(-3e6 - v.id, { pos: pt.pos.clone().addScaledVector(pt.up, 1.1), up: pt.up.clone(), every: 0.28 });
+      if (route.mode === 'rail' && v.state === 'moving' && m.visible) this.popDust.set(-3e6 - v.id, { pos: new THREE.Vector3(0, 0.48, 0.3).applyMatrix4(m.matrix), up: new THREE.Vector3().setFromMatrixColumn(m.matrix, 1).normalize(), every: 0.28 });
       const cargo = this.cargoMeshes.get(v.id);
       if (cargo) {
         cargo.visible = v.cargo > 0 && vd.mode !== 'air' && vd.mode !== 'sea';
@@ -1835,25 +1841,39 @@ export class Game3D {
       return;
     }
     const w = this.world;
-    const sig = `${want}:${w.sites.length}:${w.tier}:${w.places.map((p) => p.level).join('')}`;
+    const sig = `${want}:${w.sites.length}:${w.routes.length}:${w.tier}:${w.places.map((p) => p.level).join('')}`;
     if (sig !== this.spotSig) {
       this.spotSig = sig;
       this.spotScan = { next: 0, found: [] };
     }
     const scan = this.spotScan;
     if (scan) {
-      // A slice of the map each frame, so the game never stalls while it looks.
+      // A slice of the map each frame (a few milliseconds' worth), so the game never stalls while it looks.
       const total = w.width * w.height;
-      const end = Math.min(total, scan.next + 1500);
-      for (let i = scan.next; i < end; i++) {
+      const start = performance.now();
+      let i = scan.next;
+      for (; i < total; i++) {
+        if ((i & 63) === 0 && performance.now() - start > 4) break;
         const x = i % w.width;
         const y = Math.floor(i / w.width);
+        const ter = w.terrain[i];
+        if (ter === 'water' || ter === 'ice' || ter === 'mountain') continue;
         const err = placeError(w, want, x, y);
         if (err === null || err.startsWith('Need $')) scan.found.push({ x, y });
       }
+      const end = i;
       scan.next = end;
       if (end >= total) {
-        this.buildSpotMesh(scan.found);
+        // Each town's kept airport ground shows gold, all nine tiles of it.
+        const kept: Tile[] = [];
+        if (want === 'airport') {
+          for (const p of w.places) {
+            const pad = airportPad(w, p);
+            if (pad) for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) kept.push({ x: wrapX(w, pad.x + dx), y: pad.y + dy });
+          }
+        }
+        const gold = new Set(kept.map((k) => k.y * w.width + k.x));
+        this.buildSpotMesh(scan.found.filter((k) => !gold.has(k.y * w.width + k.x)), kept);
         this.spotBuilt = sig;
         this.spotScan = null;
       }
@@ -1861,20 +1881,27 @@ export class Game3D {
     if (this.spotMesh) this.spotMesh.visible = this.spotBuilt.startsWith(`${want}:`);
   }
 
-  private buildSpotMesh(tiles: Tile[]): void {
+  private buildSpotMesh(tiles: Tile[], kept: Tile[] = []): void {
     if (this.spotMesh) {
       this.scene.remove(this.spotMesh);
       this.spotMesh.geometry.dispose();
       this.spotMesh.dispose();
       this.spotMesh = null;
     }
-    if (tiles.length === 0) return;
+    const all = [...tiles, ...kept];
+    if (all.length === 0) return;
     const geo = new THREE.PlaneGeometry(2.9, 2.9);
     geo.rotateX(-Math.PI / 2);
-    const mat = new THREE.MeshBasicMaterial({ color: 0x5be58c, transparent: true, opacity: 0.38, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 });
-    const mesh = new THREE.InstancedMesh(geo, mat, tiles.length);
-    tiles.forEach((tile, i) => mesh.setMatrixAt(i, this.tileMatrix(tile, 0.1)));
+    const mat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.38, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 });
+    const mesh = new THREE.InstancedMesh(geo, mat, all.length);
+    const green = new THREE.Color(0x5be58c);
+    const gold = new THREE.Color(0xffc94a);
+    all.forEach((tile, i) => {
+      mesh.setMatrixAt(i, this.tileMatrix(tile, 0.1));
+      mesh.setColorAt(i, i < tiles.length ? green : gold);
+    });
     mesh.instanceMatrix.needsUpdate = true;
+    if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
     mesh.frustumCulled = false;
     mesh.renderOrder = 6;
     this.scene.add(mesh);

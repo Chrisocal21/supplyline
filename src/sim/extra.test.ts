@@ -254,8 +254,8 @@ describe('towns as districts', () => {
 
   it('lets a road run straight through the town street but not across its blocks', () => {
     const w = townWorld();
-    placeSite(w, 'hub', 16, 6);
-    placeSite(w, 'hub', 24, 6);
+    put(w, 'hub', 16, 6);
+    put(w, 'hub', 24, 6);
     const through = findPath(w, siteAt(w, 16, 6)!, siteAt(w, 24, 6)!)!;
     expect(through.some((t) => t.x === 20 && t.y === 6)).toBe(true);
     expect(planRoute(w, through).error).toBeNull();
@@ -422,7 +422,7 @@ describe('cities, entrances and highways', () => {
     const w = open();
     w.tier = 3;
     w.money = 100000;
-    placeSite(w, 'hub', 14, 6);
+    put(w, 'hub', 14, 6);
     put(w, 'bakery', 19, 5); // plot (x-1,y-1) of Midton at (20,6): its street is the one below it, (19,6)
     const path = findPath(w, siteAt(w, 14, 6)!, siteAt(w, 19, 5)!)!;
     expect(path[path.length - 2]).toEqual({ x: 19, y: 6 });
@@ -586,8 +586,8 @@ describe('air routes and station freight', () => {
     const w = open();
     w.tier = 3;
     w.money = 1e6;
-    placeSite(w, 'airport', 5, 4);
-    placeSite(w, 'airport', 27, 9);
+    put(w, 'airport', 5, 4);
+    put(w, 'airport', 27, 9);
     const [a, b] = w.sites.filter((s) => s.kind === 'airport');
     expect(createAirRoute(w, a.id, b.id)).toBeNull();
     expect(createAirRoute(w, a.id, b.id)).toMatch(/already linked/);

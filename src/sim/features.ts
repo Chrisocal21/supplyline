@@ -51,6 +51,8 @@ export interface Place {
   districtLots?: Partial<Record<DistrictId, number>>;
   /** The level at which "ready to grow" was last announced, so it is said once. */
   readyAt?: number;
+  /** The ground kept clear for this town's airport (its middle and facing), until the town has one. */
+  airportPad?: { x: number; y: number; rot: 0 | 1 | 2 | 3 } | null;
 }
 
 export const TOWN_RADIUS = 3;

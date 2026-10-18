@@ -249,8 +249,8 @@ describe('hubs', () => {
     const w = testWorld();
     w.tier = 1;
     w.money = 100000;
-    placeSite(w, 'hub', 8, 8);
-    placeSite(w, 'hub', 8, 12);
+    put(w, 'hub', 8, 8);
+    put(w, 'hub', 8, 12);
     const a = w.sites.find((s) => s.x === 8 && s.y === 8)!;
     const b = w.sites.find((s) => s.x === 8 && s.y === 12)!;
     a.stock.logs = 100;

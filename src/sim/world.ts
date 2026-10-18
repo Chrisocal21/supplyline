@@ -702,6 +702,46 @@ function coverOf(world: World, p: Place): Set<string> {
   return tiles;
 }
 
+const plannedCache = new WeakMap<Place, { layout: TownLayout; tiles: Set<string> }>();
+/** The tiles a town will cover once fully grown (offsets as "dx,dy"). */
+function plannedCover(world: World, p: Place): Set<string> {
+  const layout = layoutOf(world, p);
+  const hit = plannedCache.get(p);
+  if (hit && hit.layout === layout) return hit.tiles;
+  const tiles = new Set(footprint(layout, 5).map((t) => t.x + ',' + t.y));
+  plannedCache.set(p, { layout, tiles });
+  return tiles;
+}
+
+/** The town that covers this tile now or will once it has fully grown: its future streets, homes and lots. */
+export function plannedTownAt(world: World, x: number, y: number): Place | undefined {
+  if (y < 0 || y >= world.height) return undefined;
+  const id = plannedGrid(world)[y * world.width + wrapX(world, x)];
+  return id ? world.places.find((p) => p.id === id) : undefined;
+}
+
+const plannedGrids = new WeakMap<World, { key: string; grid: Int32Array }>();
+/** Every tile's fully grown town (by id, 0 for none), worked out once: placement checks ask about it constantly. */
+function plannedGrid(world: World): Int32Array {
+  let radii = 0;
+  world.places.forEach((p, i) => (radii += ((p.radius ?? 3) + p.id) * (i + 1)));
+  const key = `${world.places.length}:${!!world.realisticLots}:${radii}`;
+  const hit = plannedGrids.get(world);
+  if (hit && hit.key === key) return hit.grid;
+  const grid = new Int32Array(world.width * world.height);
+  for (const p of world.places) {
+    for (const k of plannedCover(world, p)) {
+      const [dx, dy] = k.split(',').map(Number);
+      const ty = p.y + dy;
+      if (ty < 0 || ty >= world.height) continue;
+      const i = ty * world.width + wrapX(world, p.x + dx);
+      if (!grid[i]) grid[i] = p.id;
+    }
+  }
+  plannedGrids.set(world, { key, grid });
+  return grid;
+}
+
 /** The town whose streets run through this tile, if any. */
 export function streetAt(world: World, x: number, y: number): Place | undefined {
   const p = placeAt(world, x, y);
@@ -1962,10 +2002,21 @@ export function placeError(world: World, kind: SiteKind, x: number, y: number, r
     if (def.inTown) return `${def.label} goes in a town: pick a free plot beside a town street`;
     const town = placeAt(world, x, y);
     if (town) return town && streetAt(world, x, y) ? `That is ${town.name}'s main street` : `Too close to ${town.name}`;
+    if (!def.node) {
+      // Towns grow in set stages: the ground their later streets and homes will take is kept clear.
+      const later = plannedTownAt(world, x, y);
+      if (later) return `Kept clear for ${later.name}: its streets grow out to here`;
+    }
+    if (!def.airport) {
+      const pad = padAt(world, x, y);
+      if (pad) return `Kept clear for ${pad.name}'s airport`;
+    }
     if (def.node) {
       const node = nodeAt(world, x, y);
       if (!node || node.kind !== def.node) return `${def.label} must be built on a ${def.node} node`;
       if (world.sites.some((s) => s.nodeId === node.id)) return 'Node already in use';
+    } else if (def.airport) {
+      // An airport checks all nine of its tiles below; it clears forest and levels the ground itself.
     } else if (t !== 'grass' && !(def.port && t === 'forest')) {
       return t === 'forest' ? 'Forests are reserved for forestry nodes' : `Cannot build on ${t}`;
     } else if (!def.port && slopeAt(world, x, y) > BUILD_SLOPE) {
@@ -1984,18 +2035,40 @@ export function placeError(world: World, kind: SiteKind, x: number, y: number, r
       if (e) return e;
     }
   }
-  if (world.money < def.cost) return `Need $${def.cost}`;
+  const cost = buildCost(world, kind, x, y);
+  if (world.money < cost) return `Need $${cost}`;
   return null;
 }
 
+/** Clearing a forest tile for an airport's field costs this much on top of the airport. */
+export const FOREST_CLEAR_COST = 150;
+/** An airport's ground is levelled when it is built, so its nine tiles may rise and fall by up to this much. */
+export const AIRFIELD_SPREAD = BUILD_SLOPE * 2.5;
+
+/** What a building costs to put down here: an airport pays extra for each forest tile it clears. */
+export function buildCost(world: World, kind: SiteKind, x: number, y: number): number {
+  const def = SITE_DEFS[kind];
+  if (!def.airport) return def.cost;
+  let trees = 0;
+  for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) if (terrainAt(world, wrapX(world, x + dx), y + dy) === 'forest') trees += 1;
+  return def.cost + trees * FOREST_CLEAR_COST;
+}
+
 /**
- * An airport covers 3x3 tiles round (x, y): every one flat, dry, unbuilt and clear of any town, with the runway at the back
- * and the terminal at the front, where a road can come in. With `rot` the front must be that side; without it, any side.
+ * An airport covers 3x3 tiles round (x, y): every one dry, unbuilt and clear of any town (as it will be fully grown, with a
+ * tile to spare), with the runway at the back and the terminal at the front, where a road can come in. Forest is cleared
+ * and the ground levelled, so it only has to be fairly even. With `rot` the front must be that side; without it, any side.
  */
 function airfieldError(world: World, x: number, y: number, rot?: Rot): string | null {
-  for (const p of world.places) {
-    if (Math.abs(wrapDx(world, p.x, x)) <= (p.radius ?? 3) + 2 && Math.abs(p.y - y) <= (p.radius ?? 3) + 2) return `Too close to ${p.name} for an airport`;
+  // The fully grown town covers every lot and street it will ever have, so this also keeps airports out of towns.
+  for (let dy = -2; dy <= 2; dy++) {
+    for (let dx = -2; dx <= 2; dx++) {
+      const p = plannedTownAt(world, x + dx, y + dy);
+      if (p) return Math.abs(dx) <= 1 && Math.abs(dy) <= 1 && placeAt(world, x + dx, y + dy) ? 'Airports need open ground outside a town' : `Too close to ${p.name} for an airport: its streets grow out to here`;
+    }
   }
+  let lo = Infinity;
+  let hi = -Infinity;
   for (let dy = -1; dy <= 1; dy++) {
     for (let dx = -1; dx <= 1; dx++) {
       const tx = wrapX(world, x + dx);
@@ -2004,11 +2077,89 @@ function airfieldError(world: World, x: number, y: number, rot?: Rot): string | 
       if (t !== 'grass' && t !== 'forest') return 'An airport needs 3x3 tiles of open, dry land';
       if (siteAt(world, tx, ty) || nodeAt(world, tx, ty)) return 'An airport needs 3x3 tiles clear of other buildings and resources';
       if (routeAt(world, tx, ty)) return 'A road or track crosses where the runway would go';
-      if (placeAt(world, tx, ty) || plotAt(world, tx, ty)) return 'Airports need open ground outside a town';
-      if (slopeAt(world, tx, ty) > BUILD_SLOPE) return 'Too steep for a runway: an airport needs 3x3 tiles of flat ground';
+      const e = elevAt(world, tx, ty);
+      lo = Math.min(lo, e);
+      hi = Math.max(hi, e);
     }
   }
+  if (hi - lo > AIRFIELD_SPREAD) return 'Too steep for a runway: an airport needs 3x3 tiles of fairly even ground';
   return airportRot(world, x, y, rot) === null ? (rot === undefined ? 'An airport needs a side open for its road' : 'No room for a road at the front: turn it (R) to face open ground') : null;
+}
+
+const padCache = new WeakMap<Place, string>();
+
+/**
+ * The ground kept for a town's airport: the nearest spot an airport can go, found once and kept (and only moved if a road
+ * is laid across it). Null once the town has an airport of its own, or when there is nowhere near it for one.
+ */
+export function airportPad(world: World, place: Place): { x: number; y: number; rot: Rot } | null {
+  const key = `${world.routes.length}:${world.sites.length}:${place.level}`;
+  if (padCache.get(place) === key) return place.airportPad ?? null;
+  padCache.set(place, key);
+  if (world.sites.some((s) => SITE_DEFS[s.kind].airport && nearestPlace(world, siteCenter(world, s))?.id === place.id)) {
+    place.airportPad = null;
+    return null;
+  }
+  const pad = place.airportPad;
+  if (pad && SITE_DEFS[siteAt(world, pad.x, pad.y)?.kind ?? 'hub'].airport) {
+    place.airportPad = null;
+    return null;
+  }
+  if (pad && airfieldError(world, pad.x, pad.y, pad.rot) === null) return pad;
+  place.airportPad = findPad(world, place, true) ?? findPad(world, place, false);
+  return place.airportPad;
+}
+
+/** The closest spot to a town (by rings outward) where an airport fits: on its own side of its neighbours when `own`. */
+function findPad(world: World, place: Place, own: boolean): { x: number; y: number; rot: Rot } | null {
+  // Clear of the ground already kept for other towns' airports.
+  const taken = (x: number, y: number): boolean =>
+    world.places.some((p) => p !== place && p.airportPad && Math.abs(wrapDx(world, p.airportPad.x, x)) <= 3 && Math.abs(p.airportPad.y - y) <= 3);
+  const from = streetReach(radiusOf(place), 5) + 3;
+  for (let r = from; r <= from + 14; r++) {
+    const ring: { x: number; y: number; d: number }[] = [];
+    for (let dy = -r; dy <= r; dy++) {
+      for (let dx = -r; dx <= r; dx++) {
+        if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+        ring.push({ x: wrapX(world, place.x + dx), y: place.y + dy, d: Math.hypot(dx, dy) });
+      }
+    }
+    ring.sort((a, b) => a.d - b.d);
+    for (const c of ring) {
+      const t = terrainAt(world, c.x, c.y);
+      if (t !== 'grass' && t !== 'forest') continue;
+      if (airfieldError(world, c.x, c.y) !== null) continue;
+      if (taken(c.x, c.y) || (own && nearestPlace(world, c)?.id !== place.id)) continue;
+      const rot = airportRot(world, c.x, c.y);
+      if (rot !== null) return { x: c.x, y: c.y, rot };
+    }
+  }
+  return null;
+}
+
+const padTiles = new WeakMap<World, { key: string; at: Map<number, Place> }>();
+
+/** The town whose kept airport ground (its 3x3 field and the tile its road comes in on) covers this tile. */
+export function padAt(world: World, x: number, y: number): Place | undefined {
+  let levels = 0;
+  world.places.forEach((p, i) => (levels += p.level * (i + 1)));
+  const key = `${world.routes.length}:${world.sites.length}:${world.places.length}:${levels}`;
+  let hit = padTiles.get(world);
+  if (!hit || hit.key !== key) {
+    const at = new Map<number, Place>();
+    for (const p of world.places) {
+      const pad = airportPad(world, p);
+      if (!pad) continue;
+      const mark = (tx: number, ty: number): void => {
+        if (ty >= 0 && ty < world.height) at.set(ty * world.width + wrapX(world, tx), p);
+      };
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) mark(pad.x + dx, pad.y + dy);
+      mark(pad.x + FRONT[pad.rot].x * 2, pad.y + FRONT[pad.rot].y * 2);
+    }
+    hit = { key, at };
+    padTiles.set(world, hit);
+  }
+  return hit.at.get(y * world.width + wrapX(world, x));
 }
 
 /**
@@ -2049,7 +2200,8 @@ function openGround(world: World, x: number, y: number, minFlat: number): boolea
 /** A Rail Yard stands just outside a town (within a few tiles of its last street) on open ground with room for a road and track. */
 function railyardError(world: World, x: number, y: number): string | null {
   let near = false;
-  for (let dy = -5; dy <= 5 && !near; dy++) for (let dx = -5; dx <= 5; dx++) if (placeAt(world, wrapX(world, x + dx), y + dy)) near = true;
+  // Measured from the town as it will be fully grown, since its later streets are kept clear.
+  for (let dy = -5; dy <= 5 && !near; dy++) for (let dx = -5; dx <= 5; dx++) if (plannedTownAt(world, wrapX(world, x + dx), y + dy)) near = true;
   if (!near) return 'A Rail Yard goes at the edge of a town: within a few tiles of its last street';
   return openGround(world, x, y, 6) ? null : 'A Rail Yard needs flat, open ground with room beside it for a road and track';
 }
@@ -2057,7 +2209,7 @@ function railyardError(world: World, x: number, y: number): string | null {
 /** Where a town's Rail Yard could go: the closest open ground just outside its edge, or null. Used by the bot and the demo. */
 export function yardSpot(world: World, place: Place): Tile | null {
   const best: { x: number; y: number; d: number }[] = [];
-  const R = (place.radius ?? 3) + 8;
+  const R = streetReach(radiusOf(place), 5) + 8;
   for (let dy = -R; dy <= R; dy++) {
     for (let dx = -R; dx <= R; dx++) {
       const x = wrapX(world, place.x + dx);
@@ -2217,6 +2369,7 @@ export function placeSite(world: World, kind: SiteKind, x: number, y: number, ro
   const err = placeError(world, kind, x, y, rot);
   if (err) return err;
   const def = SITE_DEFS[kind];
+  const cost = buildCost(world, kind, x, y);
   // An airport is placed by its middle, and stored by its gate at the middle of its front edge.
   const turn = def.airport ? airportRot(world, wrapX(world, x), y, rot)! : rot;
   if (def.airport) {
@@ -2225,7 +2378,7 @@ export function placeSite(world: World, kind: SiteKind, x: number, y: number, ro
   }
   const wx = wrapX(world, x);
   const node = def.node ? nodeAt(world, wx, y) : undefined;
-  world.money -= def.cost;
+  world.money -= cost;
   world.sites.push({
     id: world.nextId++,
     kind,
