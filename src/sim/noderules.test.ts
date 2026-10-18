@@ -35,7 +35,7 @@ describe('generated worlds', () => {
         const nodes = world.nodes;
         for (let i = 0; i < nodes.length; i++) {
           // No node has more than CLUSTER_MAX kin close by.
-          expect(clusterSize(nodes[i].kind, nodes[i].x, nodes[i].y, nodes, world.width) - 1, `${nodes[i].kind} crowd`).toBeLessThan(CLUSTER_MAX + 2);
+          expect(clusterSize(nodes[i].kind, nodes[i].x, nodes[i].y, nodes, world.width) - 1, `${nodes[i].kind} crowd`).toBeLessThan((nodes[i].kind === 'forest' ? 14 : CLUSTER_MAX) + 2);
           for (let j = i + 1; j < nodes.length; j++) {
             const d = nodeGap(nodes[i], nodes[j], world.width);
             const sameFamily = NODE_FAMILY[nodes[i].kind] === NODE_FAMILY[nodes[j].kind];

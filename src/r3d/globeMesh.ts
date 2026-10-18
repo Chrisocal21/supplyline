@@ -167,15 +167,8 @@ varying vec3 vSurfacePosition;`)
       .replace(
         '#include <normal_fragment_maps>',
         `#include <normal_fragment_maps>
-  // World-space waves avoid a moving texture seam at the globe's meridian.
-  vec3 p = vSurfacePosition;
-  float waveA = dot(p, vec3(2.1, 0.7, 1.3));
-  float waveB = dot(p, vec3(-1.2, 2.3, 0.8));
-  float footprint = max(length(dFdx(p)), length(dFdy(p)));
-  float waveFade = 1.0 - smoothstep(0.2, 1.4, footprint);
-  float height = surfaceWater * waveFade * (
-    sin(waveA + surfaceTime * 0.8) * 0.035 +
-    sin(waveB - surfaceTime * 0.55) * 0.025);
+  // Water is flat and still: a plain blue that darkens with depth (painted into the ground texture), no moving waves.
+  float height = 0.0;
   height += (1.0 - surfaceWater) * (grain - 0.5) * 0.018;
   vec3 surfaceDx = dFdx(-vViewPosition);
   vec3 surfaceDy = dFdy(-vViewPosition);
@@ -184,7 +177,7 @@ varying vec3 vSurfacePosition;`)
   float determinant = dot(surfaceDx, crossX);
   vec3 gradient = sign(determinant) * (dFdx(height) * crossX + dFdy(height) * crossY);
   normal = normalize(max(abs(determinant), 1e-8) * normal - gradient);
-  roughnessFactor = mix(roughnessFactor, 0.26 + 0.06 * (1.0 - waveFade), surfaceWater);`,
+  roughnessFactor = mix(roughnessFactor, 0.5, surfaceWater);`,
       );
   };
 

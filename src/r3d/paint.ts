@@ -25,9 +25,8 @@ const PAL = {
   snow: [238, 242, 246] as RGB,
   sand: [198, 186, 148] as RGB,
   wetSand: [170, 158, 124] as RGB,
-  shallow: [67, 122, 128] as RGB,
-  deep: [22, 53, 73] as RGB,
-  foam: [226, 238, 238] as RGB,
+  shallow: [70, 138, 182] as RGB,
+  deep: [18, 50, 104] as RGB,
   ice: [230, 238, 245] as RGB,
   iceB: [196, 214, 230] as RGB,
   soil: [122, 98, 70] as RGB,
@@ -185,7 +184,7 @@ export function paintGlobe(world: World, ppt: number): Pixels {
   const data = new Uint8ClampedArray(width * height * 4);
   const { grain, patch, warp, broad } = noise();
   const s = 16 / ppt;
-  const { grassA, grassB, dry, tundra, forestA, forestB, rockA, rockB, snow, sand, wetSand, shallow, deep, foam, ice, iceB } = PAL;
+  const { grassA, grassB, dry, tundra, forestA, forestB, rockA, rockB, snow, sand, wetSand, shallow, deep, ice, iceB } = PAL;
 
   for (let py = 0; py < height; py++) {
     const v = (py + 0.5) / ppt - 0.5;
@@ -206,17 +205,10 @@ export function paintGlobe(world: World, ppt: number): Pixels {
 
       if (wv > 0.5) {
         const dv = bilinear(f.dist, W, rows, u, v);
-        const t = Math.pow(Math.min(1, Math.max(0, (dv - 0.5) / 4.5)), 0.75) + (p - 0.5) * 0.08;
+        const t = Math.min(1, Math.max(0, (dv - 0.5) / 7)) + (p - 0.5) * 0.03;
         r = shallow[0] + (deep[0] - shallow[0]) * t;
         gr = shallow[1] + (deep[1] - shallow[1]) * t;
         bl = shallow[2] + (deep[2] - shallow[2]) * t;
-        const edge = wv - 0.5;
-        if (edge < 0.05) {
-          const k = (1 - edge / 0.05) * 0.5;
-          r += (foam[0] - r) * k;
-          gr += (foam[1] - gr) * k;
-          bl += (foam[2] - bl) * k;
-        }
       } else {
         const h = bilinear(f.relief, W, rows, u, v);
         const mt = bilinear(f.mountain, W, rows, u, v) + (p - 0.5) * 0.35;
@@ -345,18 +337,58 @@ function overlays(world: World, data: Uint8ClampedArray, width: number, height: 
   // way through and not a bald strip. A road laid along one will take it over.
   const inTown = new Set<number>();
   for (const pl of world.places) for (const t of townTiles(world, pl)) inTown.add(t.y * world.width + t.x);
-  for (const k of corridorTiles(world)) {
-    const tx = k % world.width;
-    const ty = (k - tx) / world.width;
+  // Each track is one continuous strip: every tile joins the neighbour tiles on the route with a band, and the bands are
+  // merged in a mask first so the joins do not show.
+  const route = corridorTiles(world);
+  const W = world.width;
+  const wornAt = (x: number, y: number): boolean => {
+    const k = y * W + ((x % W) + W) % W;
     const terr = world.terrain[k];
-    if ((terr !== 'grass' && terr !== 'forest') || inTown.has(k)) continue;
-    stamp(data, width, height, ppt, tx + 0.5, ty + CAP_ROWS + 0.5, 1.2, (dx, dy, px, py) => {
+    return route.has(k) && (terr === 'grass' || terr === 'forest') && !inTown.has(k);
+  };
+  const mask = new Float32Array(width * height);
+  const SEGS: [number, number][] = [[1, 0], [0, 1], [1, 1], [-1, 1]];
+  for (const k of route) {
+    const tx = k % W;
+    const ty = (k - tx) / W;
+    if (!wornAt(tx, ty)) continue;
+    const links = SEGS.filter(([ox, oy]) => wornAt(tx + ox, ty + oy));
+    const cx = tx + 0.5;
+    const cy = ty + CAP_ROWS + 0.5;
+    const x0 = Math.floor((cx - 1.5) * ppt);
+    const x1 = Math.ceil((cx + 1.5) * ppt);
+    const y0 = Math.max(0, Math.floor((cy - 1.5) * ppt));
+    const y1 = Math.min(height - 1, Math.ceil((cy + 1.5) * ppt));
+    for (let py = y0; py <= y1; py++) {
+      for (let px = x0; px <= x1; px++) {
+        const dx = (px + 0.5) / ppt - cx;
+        const dy = (py + 0.5) / ppt - cy;
+        let d = Math.hypot(dx, dy);
+        for (const [ox, oy] of links) {
+          const t = Math.max(0, Math.min(1, (dx * ox + dy * oy) / (ox * ox + oy * oy)));
+          d = Math.min(d, Math.hypot(dx - t * ox, dy - t * oy));
+        }
+        if (d > 0.45) continue;
+        const wx = ((px % width) + width) % width;
+        const n = noiseAt(wx, py);
+        const cover = 1 - smoothstep(0.16, 0.28, d * (1 + (n - 0.5) * 0.45));
+        const o = py * width + wx;
+        if (cover > mask[o]) mask[o] = cover;
+      }
+    }
+  }
+  for (let py = 0; py < height; py++) {
+    for (let px = 0; px < width; px++) {
+      const cover = mask[py * width + px];
+      if (cover <= 0) continue;
       const n = noiseAt(px, py);
-      const d = Math.hypot(dx, dy) * (1 + (n - 0.5) * 0.7);
-      const a = 1 - smoothstep(0.28, 0.62, d);
       const rut = noiseAt(px * 2.3, py * 2.3) > 0.55 ? 8 : 0;
-      return a > 0 ? [PAL.soil[0] + 22 + n * 14 + rut, PAL.soil[1] + 16 + n * 12 + rut, PAL.soil[2] + 8 + n * 8, 0.7 * a] : null;
-    });
+      const o = (py * width + px) * 4;
+      const al = 0.78 * cover;
+      data[o] += (PAL.soil[0] + 22 + n * 14 + rut - data[o]) * al;
+      data[o + 1] += (PAL.soil[1] + 16 + n * 12 + rut - data[o + 1]) * al;
+      data[o + 2] += (PAL.soil[2] + 8 + n * 8 - data[o + 2]) * al;
+    }
   }
 
   // Resource nodes, each with its own look: a clearing, a patchwork field, a meadow, an orchard, a wet clay bank, a quarry

@@ -1,12 +1,12 @@
-// Map 2: "The Continental", a Large made world (384 wide) that is mostly land. One great belt of country runs all the way round
-// the globe: a western cordillera, a coast range, broad plains with a great river system running south to a gulf, a chain of
-// great lakes, low eastern highlands, an eastern seaboard, and a far-eastern range. About 85% of it is land.
+// Map 2: "The Continental", a Large made world (384 wide) of several continents and island groups, about 40% water like a
+// real globe: a wide western continent narrowing to a southern lobe, a great central continent with a gulf, a river system and
+// eastern highlands, an eastern continent of lakes and highlands, a southern island continent, and chains of islands between them.
 // Run `node tools/maps/map2.cjs [preview.png]` to bake src/maps/map2.json (and draw a flat preview).
 //
 // Real geography decides where things go, not chance: rivers rise in the foothills of a range and run to the sea, their valleys
 // are flat flood plains with woods along the banks, cities stand at river mouths, lake shores and on the coast, coal and ore lie
-// at the foot of the old eastern highlands, oil on the gulf coast and in the south-western basin, coffee on the warm south-western
-// slopes, mangoes in the south-east. The only randomness is a fixed noise that roughens coastlines and hills.
+// at the foot of the old eastern highlands, oil on the gulf coast and the western basin, coffee on the western slopes, mangoes in
+// the east. Coastlines are roughened by a fixed noise so no two continents look alike.
 const fs = require('fs');
 const path = require('path');
 const zlib = require('zlib');
@@ -46,61 +46,77 @@ const NORTH_SEA = 6;
 const SOUTH_SEA = 6;
 // The gulf: a bay of the southern sea cutting up into the middle of the continent.
 const GULF = [[146, 120], [148, 112], [156, 102], [170, 96], [186, 93], [204, 96], [216, 104], [222, 112], [226, 121]];
-const LAKES = [[272, 28, 10, 4.5], [288, 36, 8, 3.6], [302, 26, 6, 3], [264, 38, 5, 3], [283, 20, 5, 2.5], [70, 62, 4, 2.2], [140, 92, 3, 2], [205, 30, 4, 2.2], [350, 70, 3.5, 2], [108, 76, 3, 1.8]];
+const LAKES = [[290, 28, 9, 4.2], [304, 38, 7, 3.4], [318, 26, 6, 3], [297, 17, 5, 2.4], [70, 62, 4, 2.2], [140, 92, 3, 2], [205, 30, 4, 2.2]];
 // Rivers: [name, points, width]. Each rises in foothills and ends in the sea, a lake or another river.
 const RIVERS = [
   ['Great River', [[205, 32], [198, 44], [196, 56], [190, 68], [192, 80], [189, 93]], 1.8],
-  ['Missouri', [[68, 36], [86, 39], [110, 44], [140, 50], [168, 56], [196, 58]], 1.6],
+  ['Missouri', [[124, 36], [134, 42], [148, 48], [168, 56], [196, 58]], 1.6],
   ['Ohio', [[246, 62], [232, 64], [214, 68], [196, 69]], 1.5],
-  ['Lake outflow', [[262, 40], [256, 52], [246, 62]], 1.3],
-  ['Northern River', [[120, 16], [118, 28], [112, 41]], 1.2],
-  ['Western River', [[44, 82], [40, 96], [36, 112], [38, 120]], 1.4],
+  ['Lake outflow', [[300, 42], [298, 56], [292, 64], [290, 70]], 1.3],
+  ['Northern River', [[132, 16], [130, 28], [126, 36]], 1.2],
+  ['Western River', [[64, 82], [62, 96], [60, 106], [58, 114]], 1.4],
   ['Eastern River', [[322, 40], [320, 64], [326, 90], [322, 120]], 1.6],
-  ['Southern River', [[100, 80], [110, 96], [120, 112], [124, 120]], 1.3],
-  ['Seaboard River', [[300, 56], [304, 80], [308, 104], [310, 120]], 1.3],
+  ['Southern River', [[134, 78], [136, 92], [138, 104], [140, 120]], 1.3],
   ['Highland River', [[236, 80], [214, 84], [196, 86]], 1.2],
 ];
 // Mountain ranges: a line, its half-width and its peak height.
 const RANGES = [
   [[[52, 14], [48, 30], [56, 46], [50, 62], [58, 78], [52, 96], [60, 112]], 3.6, 255],
   [[[30, 20], [26, 44], [32, 70], [28, 98]], 2.0, 215],
-  [[[270, 40], [262, 48], [250, 60], [240, 74], [232, 88], [226, 104]], 2.6, 222],
-  [[[96, 108], [118, 106], [140, 110]], 2.2, 238],
+  [[[250, 46], [246, 54], [240, 66], [236, 78], [230, 90], [226, 104]], 2.6, 222],
+  [[[118, 108], [128, 107], [142, 110]], 2.2, 238],
   [[[330, 16], [326, 36], [332, 58], [326, 82], [330, 104]], 3.0, 248],
   [[[168, 62], [180, 66]], 1.6, 200],
   [[[150, 14], [176, 12], [204, 14]], 2.0, 204],
-  [[[356, 24], [362, 44]], 1.6, 206],
-  [[[78, 92], [86, 100]], 1.4, 200],
+  [[[342, 24], [346, 44]], 1.6, 206],
+  [[[70, 92], [76, 100]], 1.4, 200],
+];
+// The continents, as polygons (their coasts are roughened by noise when drawn). Land everywhere else is sea.
+const CONTINENTS = [
+  // West: broad in the north, a bite out of its south-west coast, a long lobe pointing south.
+  [[10, 16], [34, 8], [66, 10], [90, 14], [94, 34], [86, 50], [76, 60], [68, 72], [72, 84], [82, 96], [76, 110], [60, 118], [46, 112], [36, 96], [34, 80], [30, 66], [16, 62], [8, 46]],
+  // Centre: the big one, a notched northern coast and the gulf cut up from the south.
+  [[110, 22], [124, 10], [146, 8], [170, 16], [186, 10], [212, 8], [240, 14], [258, 28], [262, 48], [254, 62], [260, 78], [250, 96], [238, 110], [222, 120], [200, 118], [180, 119], [150, 119], [122, 114], [112, 96], [108, 76], [114, 56], [106, 40]],
+  // East: lakes in the north, narrowing to a tapering south.
+  [[282, 14], [320, 8], [350, 16], [354, 40], [350, 64], [342, 86], [334, 110], [312, 116], [300, 100], [296, 80], [284, 64], [278, 40]],
+  // South-east island continent.
+  [[362, 58], [378, 56], [382, 72], [376, 92], [364, 98], [358, 80]],
+];
+// Islands and island chains between them: [cx, cy, rx, ry].
+const ISLANDS = [
+  [368, 28, 5, 10], [372, 44, 5, 4],
+  [100, 44, 6, 7], [100, 70, 4, 4], [100, 92, 6, 6],
+  [276, 100, 8, 5], [270, 88, 4, 3], [224, 6, 6, 3],
 ];
 // Dry country: no woods, a little tough grass. [polygon]
-const DRY = [[[62, 52], [112, 52], [112, 100], [62, 100]], [[90, 100], [150, 100], [150, 112], [90, 112]]];
+const DRY = [[[62, 52], [84, 52], [84, 100], [62, 100]], [[114, 100], [150, 100], [150, 112], [114, 112]]];
 // Cities (radius 5) and the towns placed by hand (radius 3). Each is moved to the nearest spot where it fits on flat, dry land.
 // The first town is where a new game starts.
 const PLACES = [
   ['Millbrook', 128, 47, 3],
   ['Midway', 156, 46, 5],
   ['Gulfport', 176, 88, 5],
-  ['Lakeside', 254, 30, 5],
+  ['Lakeside', 296, 46, 5],
   ['Highgate', 190, 20, 5],
-  ['Seaboard', 302, 62, 5],
-  ['Pacifica', 14, 56, 5],
-  ['Sundown', 32, 104, 5],
-  ['Eastgate', 342, 50, 5],
+  ['Seaboard', 308, 74, 5],
+  ['Pacifica', 22, 52, 5],
+  ['Sundown', 74, 38, 5],
+  ['Eastgate', 340, 50, 5],
   ['Riverton', 196, 62, 3],
   ['Ford Cross', 172, 56, 3],
-  ['Highwater', 110, 41, 3],
+  ['Highwater', 126, 30, 3],
   ['Coalbrook', 236, 70, 3],
   ['Ironvale', 246, 58, 3],
-  ['Tidewater', 189, 90, 3],
+  ['Tidewater', 206, 88, 3],
 ];
 // Oil, coffee and mangoes cannot be grown or dug everywhere: the gulf coast and the south-western basin hold oil, the warm
 // south-western slopes coffee, and the south-eastern lowlands mangoes. [kind, x0, y0, x1, y1, count]
 const SPECIAL_ZONES = [
   ['oil', 150, 84, 224, 100, 5],
-  ['oil', 86, 98, 126, 110, 3],
-  ['coffee', 56, 98, 86, 112, 4],
+  ['oil', 58, 74, 84, 104, 3],
+  ['coffee', 40, 96, 80, 114, 4],
   ['mango', 300, 98, 346, 114, 4],
-  ['mango', 224, 98, 262, 112, 3],
+  ['mango', 362, 60, 380, 94, 2],
 ];
 
 // ---- rasterise ----
@@ -134,10 +150,12 @@ for (let y = 0; y < H; y++) {
   for (let x = 0; x < W; x++) {
     const wx = x + 0.5 + (fbm(x, y, 9, 11) - 0.5) * 4;
     const wy = y + 0.5 + (fbm(x, y, 9, 12) - 0.5) * 3;
-    const north = NORTH_SEA + (fbm(x, 0, 14, 13) - 0.5) * 5;
-    const south = H - 1 - SOUTH_SEA + (fbm(x, 0, 14, 14) - 0.5) * 5;
-    let land = wy >= north && wy <= south;
+    // Ragged coasts: the polygon is read through a warp of the ground.
+    const cx = x + 0.5 + (fbm(x, y, 16, 81) - 0.5) * 12;
+    const cy = y + 0.5 + (fbm(x, y, 16, 82) - 0.5) * 10;
+    let land = CONTINENTS.some((p) => inPoly(p, cx, cy));
     if (LAKES.some((e) => inEllipse(e, wx, wy)) || inPoly(GULF, wx, wy)) land = false;
+    if (y >= NORTH_SEA + 3 && y < H - SOUTH_SEA - 3 && ISLANDS.some((e) => inEllipse(e, wx, wy) && fbm(x, y, 5, 71) > 0.2)) land = true;
     terrain[at(x, y)] = y < ICE_ROWS || y >= H - ICE_ROWS ? 'ice' : land ? 'grass' : 'water';
   }
 }

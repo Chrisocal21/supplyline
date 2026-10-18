@@ -3,7 +3,7 @@ import { FREIGHT_DEMAND, MARKET_DEMAND, STYLE_TASTE, TOWN_STYLES, type DistrictI
 import { makeNamer } from './names';
 import { BLEND_REACH, BLEND_SHARE, blendPartner, blendRoll, footprint, plotCount, townLayout } from './townlayout';
 import { corridorTiles } from './corridors';
-import { BLEND_CHANCE, NodeBook, SAME_GAP, nextToFamily } from './noderules';
+import { BLEND_CHANCE, NodeBook, PITCH, SAME_GAP, alignedWithKin, squareWithFamily } from './noderules';
 
 export type RegionKind = 'ocean' | 'sea' | 'lake' | 'forest' | 'mountain' | 'land' | 'ice';
 
@@ -203,6 +203,7 @@ export function generateFeatures(terrain: Terrain[], width: number, height: numb
   };
 
   const forestTiles = new Map<number, number[]>();
+  const smallForests: number[][] = [];
   const mountainTiles = new Map<number, number[]>();
   for (const [kind, min] of [['water', MIN_WATER], ['forest', MIN_FOREST], ['mountain', MIN_MOUNTAIN]] as [Terrain, number][]) {
     const seen = new Uint8Array(width * height);
@@ -211,6 +212,7 @@ export function generateFeatures(terrain: Terrain[], width: number, height: numb
         const i = idx(x, y);
         if (seen[i] || terrain[i] !== kind) continue;
         const tiles = component(seen, x, y, kind);
+        if (kind === 'forest' && tiles.length < min && tiles.length >= 5) smallForests.push(tiles);
         if (tiles.length < min) continue;
         if (kind === 'water') {
           const name = tiles.length >= OCEAN_SIZE ? namer.ocean() : tiles.length >= SEA_SIZE ? namer.sea() : namer.lake();
@@ -512,24 +514,37 @@ export function generateFeatures(terrain: Terrain[], width: number, height: numb
     return r < 0.25 ? 2 : r < 0.75 ? 1 : 0;
   };
   const spread = (tiles: number[], count: number, minGap: number, kind: NodeKind, regionId: number, maxSlope = NODE_SLOPE): void => {
-    const ok = tiles.filter((t) => !nearTown(t, 4) && clear(t, kind) && dry(t) && level(t, maxSlope));
+    const fit = tiles.filter((t) => !nearTown(t, 4) && clear(t, kind) && dry(t) && level(t, maxSlope));
+    // Nodes line up in straight rows and columns: a tile must sit a whole number of steps from every kin node near it, and
+    // a node with no kin near it stands on the lattice that covers the whole map, so the next ones fall in with it.
+    const aligned = fit.filter((t) => alignedWithKin(kind, t % width, Math.floor(t / width), nodes, width));
+    const lattice = aligned.filter((t) => (t % width) % PITCH === 0 && Math.floor(t / width) % PITCH === 0);
+    const ok = lattice.length > 0 ? lattice : aligned;
     // Prefer land a town can reach; fall back to the whole region when there is too little of it.
     const handy = ok.filter((t) => townDist(t) <= NODE_TOWN_REACH);
     const pool = handy.length >= count * 4 ? handy : ok;
     if (pool.length === 0) return;
     // Blend: usually the first one joins a belt of its own family that is already there, along the same road.
     const joinable: number[] = [];
-    if (nodes.length > 0) for (let k = 0; k < pool.length; k += 3) if (nextToFamily(kind, pool[k] % width, Math.floor(pool[k] / width), nodes, width)) joinable.push(pool[k]);
+    if (nodes.length > 0) for (const t of pool) if (squareWithFamily(kind, t % width, Math.floor(t / width), nodes, width)) joinable.push(t);
     const chosen: number[] = [joinable.length > 0 && namer.rand() < BLEND_CHANCE ? joinable[Math.floor(namer.rand() * joinable.length)] : pool[Math.floor(namer.rand() * pool.length)]];
     while (chosen.length < count) {
       // And the rest, often, stand beside one already chosen: a few kin in a row, then open land.
       if (namer.rand() < BLEND_CHANCE) {
+        // Beside one already chosen on the square lattice: the same row or column, exactly one step along.
         const beside: number[] = [];
-        for (let k = 0; k < pool.length; k += 3) {
-          const t = pool[k];
+        for (const t of pool) {
+          const tx = t % width;
+          const ty = Math.floor(t / width);
+          let square = false;
           let nearest = Infinity;
-          for (const c of chosen) nearest = Math.min(nearest, Math.max(Math.abs(wrapDelta(c % width, t % width, width)), Math.abs(Math.floor(c / width) - Math.floor(t / width))));
-          if (nearest >= SAME_GAP && nearest <= SAME_GAP + 2) beside.push(t);
+          for (const c of chosen) {
+            const dx = Math.abs(wrapDelta(c % width, tx, width));
+            const dy = Math.abs(Math.floor(c / width) - ty);
+            nearest = Math.min(nearest, Math.max(dx, dy));
+            if ((dx === PITCH && dy === 0) || (dx === 0 && dy === PITCH)) square = true;
+          }
+          if (square && nearest >= SAME_GAP) beside.push(t);
         }
         if (beside.length > 0) {
           chosen.push(beside[Math.floor(namer.rand() * beside.length)]);
@@ -555,7 +570,9 @@ export function generateFeatures(terrain: Terrain[], width: number, height: numb
     }
   };
 
-  for (const [id, tiles] of forestTiles) spread(tiles, Math.max(2, Math.min(7, Math.floor(tiles.length / 10))), 4, 'forest', id);
+  for (const [id, tiles] of forestTiles) spread(tiles, Math.max(2, Math.min(36, Math.floor(tiles.length / 18))), 4, 'forest', id);
+  // Every stand of trees too small to be a named forest still has its forestry node.
+  for (const tiles of smallForests) spread(tiles, tiles.length >= 14 ? 2 : 1, 4, 'forest', regionMap[tiles[0]]);
   for (const [id, tiles] of landRegionTiles) {
     const open = tiles.filter((t) => {
       const x = t % width;
@@ -618,6 +635,18 @@ export function generateFeatures(terrain: Terrain[], width: number, height: numb
     }
   }
 
+  // A second look at the woods once everything else is down: any stand of trees still more than a few tiles from a forestry
+  // node gets one, so no wood is left without a way to work it.
+  const woodNodes = (): ResourceNode[] => nodes.filter((n) => n.kind === 'forest');
+  for (const tiles of [...forestTiles.values(), ...smallForests]) {
+    for (let pass = 0; pass < 2; pass++) {
+      const have = woodNodes();
+      const bare = tiles.filter((t) => !have.some((n) => Math.max(Math.abs(wrapDelta(n.x, t % width, width)), Math.abs(n.y - Math.floor(t / width))) <= 7));
+      if (bare.length < 6) break;
+      spread(bare, Math.max(1, Math.floor(bare.length / 40)), 4, 'forest', regionMap[tiles[0]]);
+    }
+  }
+
   // Every town has a forest, farmland and pasture within reach, so a first game never starts far from its first chain.
   const reach = 16;
   const near = (p: Place, t: number): number => Math.hypot(wrapDelta(p.x, t % width, width), p.y - Math.floor(t / width));
@@ -637,9 +666,13 @@ export function generateFeatures(terrain: Terrain[], width: number, height: numb
     for (const [kind, pool] of [['forest', forestAny], ['farmland', openAny], ['pasture', openAny]] as [NodeKind, number[]][]) {
       for (const radius of radii) {
         if (nodes.some((n) => n.kind === kind && near(p, n.y * width + n.x) <= radius)) break;
-        const free = pool
+        const any = pool
           .filter((t) => near(p, t) <= radius && near(p, t) >= 5 + p.radius - 3 && !nearTown(t, 4) && clear(t, kind, p === places[0] ? 4 : undefined) && dry(t) && level(t))
           .sort((x, y) => near(p, x) - near(p, y));
+        // Lined up with any kin near it, and on the lattice when there is a spot there.
+        const aligned = any.filter((t) => alignedWithKin(kind, t % width, Math.floor(t / width), nodes, width));
+        const lattice = aligned.filter((t) => (t % width) % PITCH === 0 && Math.floor(t / width) % PITCH === 0);
+        const free = lattice.length > 0 ? lattice : aligned.length > 0 ? aligned : p === places[0] ? any : [];
         if (free.length === 0) continue;
         const t = free[Math.min(free.length - 1, 2)];
         nodes.push({ id: nodes.length + 1, kind, x: t % width, y: Math.floor(t / width), quality: quality(), regionId: regionMap[t] });
@@ -694,11 +727,18 @@ export function generateFeatures(terrain: Terrain[], width: number, height: numb
   for (const kind of ['clay', 'quarry', 'mine', 'coal', 'orchard'] as NodeKind[]) {
     if (usable.some((n) => n.kind === kind)) continue;
     const want = (t: number): boolean => (kind === 'quarry' || kind === 'mine' || kind === 'coal' ? nearMountain(t) : kind === 'clay' ? waterWithin(t, NODE_DRY + 3) <= NODE_DRY + 3 : true);
-    const pool: number[] = [];
-    for (let t = 0; t < width * height; t++) {
-      if (!reachable[t] || terrain[t] !== 'grass' || nearTown(t, 4) || !clear(t, kind) || !dry(t) || !want(t)) continue;
-      pool.push(t);
+    let pool: number[] = [];
+    // Strangers keep their usual distance if there is room, and failing that stand a little closer.
+    for (const gap of [undefined, 4, 2]) {
+      pool = [];
+      for (let t = 0; t < width * height; t++) {
+        if (!reachable[t] || terrain[t] !== 'grass' || nearTown(t, 4) || !clear(t, kind, gap) || !dry(t) || !want(t)) continue;
+        pool.push(t);
+      }
+      if (pool.length > 0) break;
     }
+    const onLattice = pool.filter((q) => (q % width) % PITCH === 0 && Math.floor(q / width) % PITCH === 0);
+    if (onLattice.length > 0) pool = onLattice;
     pool.sort((p, q) => townDist(p) - townDist(q));
     const t = pool[Math.min(pool.length - 1, 5)];
     if (t === undefined) continue;

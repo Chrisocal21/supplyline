@@ -518,3 +518,21 @@ Tool: `electron-updater`. Nothing for the player to do.
 - Free download from GitHub, or Steam? (decides signing and store work)
 - How far do we push art before touching the renderer?
 - Do we want the web version to match the .exe, or be a lighter "demo"?
+
+## Design north stars (2026-10-18)
+
+Three games set the feel. Every new system should say which one it borrows from.
+
+- **Farming Simulator: land.** The map is a patchwork of plots of different sizes, side by side. You buy a plot before you build a farm, forestry camp, mine or factory on it, and you can buy the next plot over to grow. Plots line up with the node grid (nodes already stand on a 4-tile lattice), districts and town lots are plots too, and land has a price that follows the town and the ground.
+- **American Truck Simulator: moving goods.** Vehicles are bought, licensed and upgraded like rigs: a cab and trailer choice, engine and capacity upgrades, a garage, drivers, contracts with a pick-up and a drop-off. Ships and planes follow the same ladder, with size classes that decide which waters and runways they can use.
+- **Satisfactory and Star Rupture: production.** Buildings run on recipes with rates (items a minute), buffers and bottlenecks you can see. You plan a chain, find the slow link and fix it. Throughput numbers matter more than building count.
+
+### Water and vessel classes
+Sea routes already sail over any connected water tile, rivers and lakes included. To keep that fair there need to be size classes: a river barge and cargo boat (any water, rivers and canals), a freighter (seas and wide rivers), a container ship (deep ocean and deep-water ports only). Canals are a player-built channel through land, expensive, that opens a short cut for the smaller classes.
+
+### Release order that follows from this
+1. 0.16 world and polish (Map 2, squared belts, dirt tracks) plus the game's website at / and the game at /play/.
+2. 0.17 land plots: a parcel layer over the claim map, buying land, prices, plots lined up with nodes.
+3. 0.18 fleets: truck cap per product line, 8 building levels, vehicle licences and upgrades, vessel size classes and canals.
+4. 0.19 production depth: recipes with rates, buffers and a bottleneck view.
+5. Then QoL batches, foundations, the Windows build and Steam.

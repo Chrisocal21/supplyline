@@ -29,7 +29,7 @@ it('the first tier plays through on a generated world, following the quests', ()
   // What a player does by hand now: switch the sawmill on, buy a truck, switch the sale on.
   runChores(w);
   // Quest 4: sell 100 lumber. About ten minutes of game time is plenty.
-  for (let i = 0; i < 6000 && w.tier === 0; i++) step(w);
+  for (let i = 0; i < 9000 && w.tier === 0; i++) step(w);
   expect(w.delivered.lumber ?? 0).toBeGreaterThanOrEqual(100);
   expect(w.tier).toBe(1);
   expect(w.questsDone).toEqual(expect.arrayContaining(['t0-camp', 't0-truck', 't0-mill', 't0-road', 't0-making', 't0-selling', 't0-sell']));

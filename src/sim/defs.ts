@@ -781,7 +781,7 @@ export interface WorldSizeDef {
 }
 export const WORLD_SIZES: WorldSizeDef[] = [
   { id: 'map1', label: 'Map 1: The Known World', width: 288, height: 124, made: true, blurb: 'A hand-made world map: continents, islands and seas, with coffee, mango and oil islands to ship from. A good place to start.' },
-  { id: 'map2', label: 'Map 2: The Continental', width: 384, height: 128, made: true, blurb: 'A large hand-made continent, 85% land: mountain ranges, a great river system to a gulf, lakes, plains and eastern highlands, about 65 towns and cities.' },
+  { id: 'map2', label: 'Map 2: The Continental', width: 384, height: 128, made: true, blurb: 'A large hand-made world, about 46% water: four differently shaped continents and island chains, mountain ranges, a great river system to a gulf, lakes, about 55 towns and cities. Coffee, mangoes and some oil lie overseas, so docks and planes matter.' },
 ];
 /** Generated worlds, for tests and development only (open the game with #seed=N). */
 export const RANDOM_SIZES: WorldSizeDef[] = [

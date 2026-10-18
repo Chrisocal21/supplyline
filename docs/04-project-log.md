@@ -591,3 +591,13 @@ Every node is at least `NODE_DRY` + 1 (3) tiles from water (`dry` in features.ts
 - tools/maps/map2.cjs: 384 x 128, 85.6% land. Western cordillera and coast range, a great river system with flood-plain valleys running south to a gulf, a chain of lakes in the north-east, low eastern highlands (the coal country), a far-eastern range, climate woods (thin on the plains, thick on wet slopes and river banks), dry country in the south-west, 65 towns and cities spaced by the same rules as everywhere else, and oil, coffee and mango sites placed where they belong. The map's specials are now preset nodes (features.ts PresetNode), so every other node keeps clear of them.
 - Scenery thins per tile on mostly-land worlds so the number of trees drawn stays about the same (Map 2 loads in about 5 s headless, with about 337,000 plants and rocks).
 - Scale charter written (05-desktop-version.md): distances are compressed, proportions and geography logic are kept, vehicle speed ratios are listed for a later balance pass.
+
+## 2026-10-18 Map 2 rebuilt at about 31% water, then reshaped
+
+Water raised from 14% to 31% (the 15% target was too low). Three continents split by seas: the wide Pacific (planes), a Western Channel and a narrow Eastern Strait (ships), plus island groups. Coffee and mangoes only grow overseas of the start town, oil on the gulf coast and the western continent, so docks and planes have real work. Map 1 left as is for now; a smaller map comes after the assets are made.
+
+(Same day, reshaped) The strips looked like a beach ball, so the continents are now polygons with ragged coasts: a west continent with a southern lobe, a notched central continent with the gulf, an eastern continent, a south-eastern island continent and island chains. Water is about 46%, 55 towns.
+
+## 2026-10-18 0.16 polish
+
+Ocean animation removed (plain blue with depth shading, no foam). Dirt tracks drawn as continuous strips, not round spots. Resource nodes of a belt stand on a square lattice, in straight rows and columns (4 tiles apart), and a node that has kin near it must line up with them. Forest nodes now scale with forest size (one per about 18 tiles) and small stands get one too, so most trees have a forestry node (76% of forest tiles within 8 tiles of one on Map 2).

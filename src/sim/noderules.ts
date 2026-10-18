@@ -27,6 +27,11 @@ export const OTHER_GAP = 7;
 /** A family's cluster: no more than CLUSTER_MAX of one family within CLUSTER_RADIUS tiles, so a belt is a belt, not a field of them. */
 export const CLUSTER_RADIUS = 9;
 export const CLUSTER_MAX = 6;
+/** Woods are the exception: a forest of any size is dotted with forestry nodes, one for each stand of trees. */
+const CLUSTER_CAP: Partial<Record<NodeFamily, number>> = { woods: 14 };
+const capOf = (family: NodeFamily): number => CLUSTER_CAP[family] ?? CLUSTER_MAX;
+/** Nodes of a belt stand on a square lattice this many tiles apart, in straight rows and columns. */
+export const PITCH = 4;
 /** When choosing where the next node of a family goes, this share of the time it joins an existing one (a blend). */
 export const BLEND_CHANCE = 0.65;
 
@@ -79,10 +84,10 @@ export class NodeBook {
       if (sameFamily && d <= CLUSTER_RADIUS) {
         kin += 1;
         // Nor may this one push a neighbour's own belt over the cap: a crowd builds up around an old node one at a time.
-        if (this.around[i] + 1 >= CLUSTER_MAX) return false;
+        if (this.around[i] + 1 >= capOf(family)) return false;
       }
     }
-    return kin < CLUSTER_MAX;
+    return kin < capOf(family);
   }
 }
 
@@ -107,4 +112,28 @@ export function nextToFamily(kind: NodeKind, x: number, y: number, nodes: Spot[]
     const d = nodeGap({ kind, x, y }, n, width);
     return d >= SAME_GAP && d <= SAME_GAP + 3;
   });
+}
+
+/** Whether a tile sits exactly one lattice step (PITCH tiles) from a node of the same family, on its row, its column or its diagonal. */
+export function squareWithFamily(kind: NodeKind, x: number, y: number, nodes: Spot[], width: number): boolean {
+  const family = NODE_FAMILY[kind];
+  return nodes.some((n) => {
+    if (NODE_FAMILY[n.kind] !== family) return false;
+    const dx = Math.abs(wrapDelta(n.x, x, width));
+    const dy = Math.abs(n.y - y);
+    return (dx === PITCH && dy === 0) || (dx === 0 && dy === PITCH);
+  });
+}
+
+/** Whether a tile lines up (rows and columns a whole number of PITCH steps apart) with every node of its family close by. */
+export function alignedWithKin(kind: NodeKind, x: number, y: number, nodes: Spot[], width: number): boolean {
+  const family = NODE_FAMILY[kind];
+  for (const n of nodes) {
+    if (NODE_FAMILY[n.kind] !== family) continue;
+    const dx = Math.abs(wrapDelta(n.x, x, width));
+    const dy = Math.abs(n.y - y);
+    if (Math.max(dx, dy) > CLUSTER_RADIUS) continue;
+    if (dx % PITCH !== 0 || dy % PITCH !== 0) return false;
+  }
+  return true;
 }
