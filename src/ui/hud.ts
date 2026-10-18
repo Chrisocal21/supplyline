@@ -47,6 +47,7 @@ import {
   partnerOf,
   fleetOf,
   inboundTo,
+  bottlenecks,
   ratePerMin,
   HISTORY_JOBS,
   buyersFor,
@@ -2719,12 +2720,16 @@ export class HudScene extends Phaser.Scene {
       this.toasts.push({ text: 'Nothing is stuck. All running.', until: this.time.now + 2600 });
       return;
     }
+    // The one costing the most each minute comes first.
+    const cost = new Map(bottlenecks(w).map((b) => [b.site.id, b.lostPerMin]));
+    list.sort((a, b) => (cost.get(b.id) ?? 0) - (cost.get(a.id) ?? 0));
     this.problemAt = (this.problemAt + 1) % list.length;
     const s = list[this.problemAt];
+    const lost = cost.get(s.id) ?? 0;
     this.sheet = null;
     g.select({ kind: 'site', id: s.id });
     g.lookAt(s.x, s.y, 45, g.cam.heading, g.cam.pitchManual);
-    this.toasts.push({ text: `${s.name}: ${diagnoseAll(w, s).text}  (${this.problemAt + 1} of ${list.length}, N for next)`, until: this.time.now + 5200 });
+    this.toasts.push({ text: `${s.name}: ${diagnoseAll(w, s).text}${lost > 0 ? ` Costing about ${lost} a minute.` : ''}  (${this.problemAt + 1} of ${list.length}, N for next)`, until: this.time.now + 5200 });
   }
 
   /** After a town has grown: one button back to the view the player had before, in the same camera angle. */
