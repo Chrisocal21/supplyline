@@ -141,7 +141,15 @@ export interface FixedPlace {
   style?: TownStyle;
 }
 
-export function generateFeatures(terrain: Terrain[], width: number, height: number, seed: number, elev?: number[], fixedPlaces?: FixedPlace[]): Features {
+/** Nodes a made map places by hand (island goods, oil fields): they stand first, and everything else is laid out around them. */
+export interface PresetNode {
+  kind: NodeKind;
+  x: number;
+  y: number;
+  quality: number;
+}
+
+export function generateFeatures(terrain: Terrain[], width: number, height: number, seed: number, elev?: number[], fixedPlaces?: FixedPlace[], presets?: PresetNode[]): Features {
   const namer = makeNamer(seed);
   const regions: Region[] = [];
   const regionMap = new Array<number>(width * height).fill(0);
@@ -438,6 +446,7 @@ export function generateFeatures(terrain: Terrain[], width: number, height: numb
 
   // Resource nodes: spread out within each region, never inside or beside a town, always on low, level ground.
   const nodes: ResourceNode[] = [];
+  for (const p of presets ?? []) nodes.push({ id: nodes.length + 1, kind: p.kind, x: p.x, y: p.y, quality: p.quality, regionId: regionMap[p.y * width + p.x] });
   // The ground within NODE_TOWN_BUFFER of any town's fully grown footprint is kept for the town.
   const blocked = new Uint8Array(width * height);
   for (const k of townTiles) {

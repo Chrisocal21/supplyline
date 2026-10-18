@@ -480,7 +480,9 @@ export function createWorldFromMap(map: MapData): World {
     }
   }
   const world = createBlankWorld(width, height, terrain, map.seed, elev);
-  const f = generateFeatures(terrain, width, height, map.seed, elev, map.places);
+  // A map without specialty islands (Map 2) places its oil, coffee and mangoes first, so everything else keeps clear of them.
+  const presets = !map.islands?.length ? (map.specials ?? []).map((q) => ({ kind: q.kind as NodeKind, x: q.x, y: q.y, quality: q.quality })) : undefined;
+  const f = generateFeatures(terrain, width, height, map.seed, elev, map.places, presets);
   world.regions = f.regions;
   world.regionMap = f.regionMap;
   world.places = f.places;

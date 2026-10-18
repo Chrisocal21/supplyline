@@ -269,6 +269,16 @@ export class Scenery {
         return dx <= r && Math.abs(n.y - y) <= r;
       });
 
+    // A mostly-land world has far more ground to plant than a sea-dotted one, so each tile is planted a little thinner: about
+    // the same number of trees to draw, however much land there is.
+    let landTiles = 0;
+    for (const t of w.terrain) if (t !== 'water' && t !== 'ice') landTiles += 1;
+    const thin = Math.min(1, 26000 / landTiles);
+    const some = (n: number): number => {
+      const c = n * thin;
+      return Math.floor(c) + (r() < c - Math.floor(c) ? 1 : 0);
+    };
+
     // Trees keep off the land a town will grow over.
     const town = new Set<number>();
     for (const p of w.places) for (const t of townTiles(w, p)) town.add(this.tileIndex(t.x, t.y));
@@ -283,7 +293,8 @@ export class Scenery {
         // Forests thicken and thin, and grassland has groves and open meadow instead of an even sprinkle.
         const gv = grove(w.seed, x * 0.33, y * 0.33);
         const count = t === 'forest' ? 16 + Math.round(gv * 10) : t === 'mountain' ? 4 : r() < 0.12 + 0.8 * Math.max(0, gv - 0.35) ? 6 + Math.round(gv * 4) : 0;
-        for (let k = 0; k < count; k++) {
+        const trees = some(count);
+        for (let k = 0; k < trees; k++) {
           const jx = r();
           const jy = r();
           if (t === 'forest' && nearNode(x, y, jx, jy)) continue;
@@ -303,7 +314,7 @@ export class Scenery {
         // Undergrowth and loose stone fill in between the trees, so the land looks lived in and not planted: bushes thicken
         // with the groves, forest floors get a ragged edge of shrubs, and small rocks lie about the fields and woods.
         if ((t === 'forest' || t === 'grass') && !town.has(this.tileIndex(x, y)) && !corridor.has(this.tileIndex(x, y)) && !nearQuarry(x, y)) {
-          const bushes = t === 'forest' ? 2 + Math.round(gv * 3) : gv > 0.3 ? 1 + Math.round(gv * 3) : r() < 0.18 ? 1 : 0;
+          const bushes = some(t === 'forest' ? 2 + Math.round(gv * 3) : gv > 0.3 ? 1 + Math.round(gv * 3) : r() < 0.18 ? 1 : 0);
           for (let k = 0; k < bushes; k++) {
             const jx = r();
             const jy = r();

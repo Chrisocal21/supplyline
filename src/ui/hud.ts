@@ -1066,10 +1066,10 @@ export class HudScene extends Phaser.Scene {
       g.speed = 1;
       this.toasts.push({ text: `New ${def.label} world started`, until: this.time.now + 2500 });
     };
-    if (id === 'map1') {
+    if (def.made) {
       this.building = { name: def.label, step: 0, total: 1, label: 'Building the terrain, roads and trees' };
       setTimeout(() => {
-        g.newWorld(undefined, 'map1');
+        g.newWorld(undefined, id);
         done();
       }, 60);
       return;

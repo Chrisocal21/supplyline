@@ -2,6 +2,7 @@
 // town's lots never sit on its streets or homes. Checked over many seeds and on the hand-made map.
 import { describe, expect, it } from 'vitest';
 import map1 from '../maps/map1.json';
+import map2 from '../maps/map2.json';
 import { createWorld, createWorldFromMap, layoutOf, townTiles, wrapX, type MapData, type World } from './world';
 import { civicTiles } from './world';
 import { civicFootprint } from './townlayout';
@@ -59,4 +60,9 @@ describe('claim rules', () => {
     const r = audit(createWorldFromMap(map1 as MapData));
     for (const k of RULES.filter((q) => q !== 'townOverlap')) expect(`${k}: ${r[k]}`).toBe(`${k}: 0`);
   });
+
+  it('hold on Map 2, with no town touching another', () => {
+    const r = audit(createWorldFromMap(map2 as MapData));
+    for (const k of RULES) expect(`${k}: ${r[k]}`).toBe(`${k}: 0`);
+  }, 30000);
 });

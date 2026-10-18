@@ -585,3 +585,9 @@ Every node is at least `NODE_DRY` + 1 (3) tiles from water (`dry` in features.ts
 ## 0.15 step 2: node families and belts
 - sim/noderules.ts: node families (farming, mining, woods, shore, island). Kin blend into belts (65% of picks join an existing node of the family, 3 to 5 tiles off, along the same stretch), strangers keep 7 tiles apart, and no belt has more than 6 nodes within 9 tiles (NodeBook makes the check quick). The start town's first forest, field and meadow may sit closer (4). Wired into features.ts spread(); old NODE_GAP removed.
 - Seen: a pasture-and-orchard belt side by side in one valley on a Large world.
+
+## 0.15 steps 3 and 4: Map 2, The Continental
+- Chris: all maps made by hand, random maps not worked on. The new-game picker now offers Map 1 and Map 2 only (WORLD_SIZES); random worlds stay in RANDOM_SIZES for tests and #seed URLs.
+- tools/maps/map2.cjs: 384 x 128, 85.6% land. Western cordillera and coast range, a great river system with flood-plain valleys running south to a gulf, a chain of lakes in the north-east, low eastern highlands (the coal country), a far-eastern range, climate woods (thin on the plains, thick on wet slopes and river banks), dry country in the south-west, 65 towns and cities spaced by the same rules as everywhere else, and oil, coffee and mango sites placed where they belong. The map's specials are now preset nodes (features.ts PresetNode), so every other node keeps clear of them.
+- Scenery thins per tile on mostly-land worlds so the number of trees drawn stays about the same (Map 2 loads in about 5 s headless, with about 337,000 plants and rocks).
+- Scale charter written (05-desktop-version.md): distances are compressed, proportions and geography logic are kept, vehicle speed ratios are listed for a later balance pass.

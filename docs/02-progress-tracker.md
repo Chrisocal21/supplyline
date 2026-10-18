@@ -317,8 +317,10 @@ Notes from playing a Large world (41 fps, 24 ms a frame, draw 10 ms): roads look
 - [x] Step 1: the treeless strips were the kept-clear routes between towns (0.14); they are now worn into dirt tracks (paint.ts)
 - [x] Step 2: node placement rules (sim/noderules.ts): families (farming: farmland, pasture, orchard; mining: quarry, mine, coal; woods; shore; island) blend into belts along a road, kin stand 3+ tiles apart, other families 7+, no belt over 6 within 9 tiles; used by the generator (the map baker will use the same module in step 4). Tests in noderules.test.ts
 - [ ] Step 2b: per-kind distances from mountains, ocean, lakes and rivers as explicit rules, and a hinterland per town (rides along with step 4, where the custom map needs them)
-- [ ] Step 3: land shaper: about 85% land, islands and island chains, authored continents, mountain ranges, rivers and lakes at exact places
-- [ ] Step 4: custom map pipeline: Map 2 (Large, 384 wide) built from the shaper and the rules, towns placed by hand, baked to JSON with a preview and a rule report (like Map 1); then maps 3 to 5
+- [x] Step 3: land shaper: tools/maps/map2.cjs lays a continent from named geography (ranges, rivers with flood-plain valleys, lakes, a gulf, climate woods, dry country), about 85% land
+- [x] Step 4: Map 2, The Continental (Large, 384 wide, 85.6% land, 65 towns and cities, 19 oil, coffee and mango sites): baked to src/maps/map2.json with a preview; tests in maps.test.ts and claims.test.ts; picker now offers only made maps (random worlds stay for tests and #seed URLs)
+- [ ] Maps 3 to 5
+- [ ] Scale charter speeds: ships slower and bigger, planes faster (see 05-desktop-version.md); its own release
 - [ ] Step 5: each town style gets its own streets: surface (cobble, brick, dirt, asphalt), width, lamps and layout (grid, organic, radial), so no two look alike
 - [ ] Step 6: dirt tracks become roads: lay a road along a track to upgrade it, cheaper than new ground
 - [ ] Not doing: a bigger partner taking over the smaller (Chris wants them to connect naturally)

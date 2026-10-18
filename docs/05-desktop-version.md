@@ -399,6 +399,18 @@ Recommendation:
 
 ---
 
+## Scale charter: how the game relates to real distances (2026-10-19)
+
+Chris asked for the game to be more aligned with real-life distances and with what makes a place what it is.
+
+**The hard fact.** One tile is about 33 m (METERS_PER_UNIT is 10, a tile is 3.27 units) and buildings are drawn at true size. A 384-wide world is about 12.6 km around. Real distances between towns (tens of kilometres) would need thousands of tiles, which no browser or desktop build can draw. So distances are compressed, and the game keeps what can be kept true:
+
+1. **Proportions.** A city is several times the size of a town and they stand several radii apart; real towns sit 5 to 15 of their own radii from a neighbour. Cities stand at river mouths, lake shores and on the coast.
+2. **Geography that obeys logic.** Rivers rise in foothills and run to the sea, a lake or a bigger river; their valleys are flat flood plains with woods along the banks. Ranges are long and run in lines. Plains are open. Deserts are dry.
+3. **Resources where they really are.** Coal and ore at the foot of old highlands, oil on the coast and in basins, coffee on warm high slopes, mangoes in the hot lowlands, farm belts on plains, woods on wet slopes and river banks, clay at the shore.
+4. **Land and water.** The Continental (Map 2) is 85% land. Earth is 29%; a made map chooses its own share.
+5. **Speeds (not changed yet).** Real ratios against a truck at 80 km/h: a freight train about 2x (game: 2x, fine), a boat about 0.4x (game: 1.3x, too fast), a plane about 10x (game: 2x, too slow). Fixing these is a balance change with its own release; it would also need ships to carry far more and cost far less per unit to stay worth using.
+
 ## Distribution path: GitHub now, Steam later
 
 Decision (2026-10-18): Steam is the goal, GitHub download is the easy first step.

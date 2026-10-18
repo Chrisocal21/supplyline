@@ -768,18 +768,24 @@ export const TIERS: TierDef[] = [
   },
 ];
 
-/** The worlds a new game can start on. Width is the tiles around the globe; the height is a third of it. Map 1 is hand-made. */
-export type WorldSizeId = 'map1' | 'small' | 'medium' | 'large';
+/** The worlds a new game can start on: made maps, placed by hand. Random worlds are not offered; they remain for tests and development. */
+export type WorldSizeId = 'map1' | 'map2' | 'small' | 'medium' | 'large';
 export interface WorldSizeDef {
   id: WorldSizeId;
   label: string;
   width: number;
   height: number;
   blurb: string;
+  /** A made map (src/maps), not a generated world. */
+  made?: boolean;
 }
 export const WORLD_SIZES: WorldSizeDef[] = [
-  { id: 'map1', label: 'Map 1', width: 288, height: 124, blurb: 'The hand-made world map: real continents, islands and seas. The best place to start.' },
-  { id: 'small', label: 'Small', width: 192, height: 64, blurb: 'A compact random world. Quick to learn, a handful of towns.' },
-  { id: 'medium', label: 'Medium', width: 288, height: 96, blurb: 'A random world with room to spread. About twenty towns.' },
-  { id: 'large', label: 'Large', width: 384, height: 128, blurb: 'A wide random world, four times the land of Small. About fifty towns and long hauls.' },
+  { id: 'map1', label: 'Map 1: The Known World', width: 288, height: 124, made: true, blurb: 'A hand-made world map: continents, islands and seas, with coffee, mango and oil islands to ship from. A good place to start.' },
+  { id: 'map2', label: 'Map 2: The Continental', width: 384, height: 128, made: true, blurb: 'A large hand-made continent, 85% land: mountain ranges, a great river system to a gulf, lakes, plains and eastern highlands, about 65 towns and cities.' },
+];
+/** Generated worlds, for tests and development only (open the game with #seed=N). */
+export const RANDOM_SIZES: WorldSizeDef[] = [
+  { id: 'small', label: 'Small', width: 192, height: 64, blurb: 'A compact random world.' },
+  { id: 'medium', label: 'Medium', width: 288, height: 96, blurb: 'A random world.' },
+  { id: 'large', label: 'Large', width: 384, height: 128, blurb: 'A wide random world.' },
 ];

@@ -16,6 +16,7 @@ import {
   VEHICLE_ORDER,
   BUILD_ORDER,
   WORLD_SIZES,
+  RANDOM_SIZES,
   type WorldSizeId,
   type DistrictId,
   type NodeKind,
@@ -111,6 +112,7 @@ import { BUILD_MS, Construction } from './construction';
 import { packSave, saveFileName, unpackSave } from '../sim/saveio';
 import { buildDistrict } from '../sim/town';
 import map1 from '../maps/map1.json';
+import map2 from '../maps/map2.json';
 import { paintGlobe, paintRoughness } from './paint';
 import { Smoke } from './smoke';
 import { buildingSurfaces, loadSurfaces } from './surfaces';
@@ -598,8 +600,8 @@ export class Game3D {
 
   /** A new game on Map 1, or (given a seed, for tests and screenshots) on a generated world. `size` picks one of WORLD_SIZES: a random world of that size when it is not Map 1. */
   newWorld(seed?: number, size?: WorldSizeId): void {
-    const def = WORLD_SIZES.find((q) => q.id === size);
-    const world = def && def.id !== 'map1' ? createWorld(seed ?? Math.floor(Math.random() * 1e9), def.width, def.height) : seed === undefined ? createWorldFromMap(map1 as MapData) : createWorld(seed);
+    const def = [...WORLD_SIZES, ...RANDOM_SIZES].find((q) => q.id === size);
+    const world = def?.id === 'map2' ? createWorldFromMap(map2 as MapData) : def && !def.made ? createWorld(seed ?? Math.floor(Math.random() * 1e9), def.width, def.height) : seed === undefined ? createWorldFromMap(map1 as MapData) : createWorld(seed);
     prepareRealisticWorld(world);
     this.loadWorld(world);
   }
