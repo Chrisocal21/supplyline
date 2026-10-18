@@ -313,12 +313,14 @@ Money
 **Phase progress:** 0%. Full detail, tables and reasoning: [05-desktop-version.md](05-desktop-version.md). Distribution: GitHub download first, Steam later. The browser version stays alive from the same code.
 
 #### 7.00 Release 0.14: the world first
-- [ ] Layered world generator: globe and size, land masses and ocean, mountain ranges with passes, rivers and lakes, land cover, then towns, nodes, corridors, scenery
+- [x] Layered world generator: land and ocean, mountain ranges, rivers and lakes (new: one-tile rivers from the coast through lowland, each ending in a small lake), land cover, then towns, nodes, corridors, scenery
+- [x] Natural corridors between neighbouring towns (sim/corridors.ts): the cheapest route over the land, crossing a range at its lowest point (the pass) and water where it is narrow; nodes and trees keep off them
+- [ ] Passes carved into the mountains (today a pass is a reserved route a road tunnels through)
 - [~] Claim map: every tile records what owns it; every placement checked against true footprint plus a clearance ring
 - [x] Towns reserve their full growth footprint and buffer on day one; cities, towns, harbours, canals sited on good land
 - [x] Nodes kept 3+ tiles from every town's grown footprint and clear of airport pads (hinterland clustering, rivers and passes still to do)
 - [ ] Nodes in the outskirts as a hinterland per town, outside growth zones, clear of rivers and passes
-- [~] Placing a building or road never deletes buildings, roads or towns; scenery cleared only from the exact footprint
+- [x] Placing a building or road never deletes buildings, roads or towns (tested in placement.test.ts: buildings only on free ground, roads never over buildings or district lots, nothing standing moves); roads keep off the ground a town will grow over, except its future streets; scenery cleared only from the exact footprint
 - [x] District buildings (Farmers Market, Restaurant Row, Heating Depot, Coffee House and the rest) get a permanent lot reserved in the town layout, sized for level 3; building one removes nothing; upgrading adds neighbouring buildings onto the lot (like a shopping centre gaining shops) and never replaces the original; homes and towers are laid out around the reserved lot and never overlap it; test levels every district to max and checks nothing standing before is lost
 - [x] Bigger, more spread-out map: Large 384 wide (about 4x the tiles) in 0.14, world-size choice at new game (Small 192, Medium 288, Large 384), frame-time readout to measure on Chris's machine; Huge 576, Giant 768, Enormous 1,152 later with chunking, worker and the .exe (size table in 05-desktop-version.md)
 - [x] Tests: generator over many seeds, placement never touches other objects, growth to max with a built-up map loses nothing; Map 1 re-checked

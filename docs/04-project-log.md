@@ -568,3 +568,12 @@ Every node is at least `NODE_DRY` + 1 (3) tiles from water (`dry` in features.ts
 - Districts: the town model now counts a district's lot as taken (townmodel.ts), so homes and towers never build over it. Lots a town has not opened yet are staked out instead of showing houses that vanish when the lot opens.
 - Fixed: the minimap image kept a dead texture when the world changed size (imui.ts).
 - Known gaps: Map 1's hand-placed island goods (coffee, mango, oil) still sit beside island towns; rivers, lakes, mountain passes and road corridors are not in the generator yet; the pacing bot has not been re-run on the new worlds; old saves keep their world.
+
+## 0.14: the rest of the world foundation
+- Towns blend (Chris asked for towns and cities to grow into each other where possible, never swallowed): blendPartner in townlayout.ts. Each town has at most one partner (its nearest, mutual, close, 40% of pairs); their main streets meet in the middle; world.blend is set on new worlds only.
+- Rivers and lakes: mapgen.ts carveRivers cuts one-tile rivers from the coast through lowland (no more than 22 above sea level), each ending in a small lake, before towns and nodes are placed. Seen in the render as winding water with sandy banks.
+- Corridors: sim/corridors.ts finds the cheapest route between each town and its two nearest neighbours (Dijkstra over the land, a range crossed at its lowest point). Nodes and trees keep off them. Fixed a bug on the way: distances stored as Float32 made the search loop for ever (17 s on Map 1); Float64 fixes it.
+- Placement: roads are no longer allowed over ground a town will grow over (homes, lots, districts), only along its future streets. A new test (placement.test.ts) places many buildings on several worlds and lays roads: every placement uses free ground and nothing standing is moved.
+- Nodes: every world gets every kind of node (a fallback finds clay, rock, ore, coal or orchards near a town if the buffers left none), and the start town has forest, fields and meadow close.
+- Map 1: island goods keep 8 tiles clear of island towns (the tiny twin island excepted); map rebaked.
+- Pacing bot on seed 11 after all this: Tier 1 at 7.7 minutes, Tier 2 at 32.2 minutes, as before.
