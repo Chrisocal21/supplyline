@@ -6,16 +6,16 @@ export const FONT = "'Segoe UI', 'Inter', system-ui, -apple-system, Roboto, sans
 const TEXT_RES = Math.max(2, Math.ceil(window.devicePixelRatio || 1));
 
 export const COLORS = {
-  panel: 0x10151c,
-  panelAlt: 0x161d27,
-  line: 0x2b3542,
-  text: 0xe8edf2,
-  muted: 0x8f9bab,
-  accent: 0xe8a23a,
-  good: 0x4cc38a,
-  warn: 0xe0a93e,
-  bad: 0xe5604f,
-  info: 0x58a6e8,
+  panel: 0x111a20,
+  panelAlt: 0x1c282e,
+  line: 0x3b4b51,
+  text: 0xeeeae1,
+  muted: 0xa5b0b3,
+  accent: 0xd2b478,
+  good: 0x81b79a,
+  warn: 0xdfb66d,
+  bad: 0xe68b7c,
+  info: 0x8cbace,
 };
 export const css = (n: number): string => '#' + n.toString(16).padStart(6, '0');
 
@@ -108,6 +108,10 @@ export class Im {
 
   rect(layer: number, x: number, y: number, w: number, h: number, fill: number, alpha = 1, radius = 0, line?: number, lineAlpha = 1, lineWidth = 1): void {
     const g = this.gfx[this.L(layer)];
+    if ((fill === COLORS.panel || fill === COLORS.panelAlt) && w > 80 && h > 36 && alpha > 0.5) {
+      g.fillStyle(0x03080b, alpha * 0.28);
+      g.fillRoundedRect(x, y + 4, w, h, radius);
+    }
     g.fillStyle(fill, alpha);
     if (radius > 0) g.fillRoundedRect(x, y, w, h, radius);
     else g.fillRect(x, y, w, h);

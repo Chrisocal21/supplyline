@@ -64,6 +64,7 @@ function detailTexture(): THREE.Texture {
 
 export interface Globe {
   terrain: THREE.Mesh;
+  update(seconds: number): void;
   /** Re-sample the height of these tiles (and refresh normals), after roads regrade the ground. */
   regrade(tiles: Iterable<number>): void;
   atmosphere: THREE.Mesh;
@@ -142,14 +143,48 @@ export function buildGlobe(world: World, hf: HeightField, color: Pixels, rough: 
 
   const material = new THREE.MeshStandardMaterial({ map, roughnessMap: roughMap, roughness: 1, metalness: 0.0 });
   const repeat = new THREE.Vector2(world.width * 4, rows * 4);
+  const time = { value: 0 };
   material.onBeforeCompile = (shader) => {
     shader.uniforms.detailMap = { value: detail };
     shader.uniforms.detailRepeat = { value: repeat };
+    shader.uniforms.surfaceTime = time;
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nvarying vec3 vSurfacePosition;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvSurfacePosition = position;');
     shader.fragmentShader = shader.fragmentShader
-      .replace('#include <common>', '#include <common>\nuniform sampler2D detailMap;\nuniform vec2 detailRepeat;')
+      .replace('#include <common>', `#include <common>
+uniform sampler2D detailMap;
+uniform vec2 detailRepeat;
+uniform float surfaceTime;
+varying vec3 vSurfacePosition;`)
       .replace(
         '#include <map_fragment>',
-        '#include <map_fragment>\n  diffuseColor.rgb *= 0.64 + 0.72 * texture2D( detailMap, vMapUv * detailRepeat ).g;',
+        `#include <map_fragment>
+  float surfaceWater = 1.0 - smoothstep(0.46, 0.57, texture2D(roughnessMap, vRoughnessMapUv).g);
+  float grain = texture2D(detailMap, vMapUv * detailRepeat).g;
+  diffuseColor.rgb *= mix(0.86 + 0.28 * grain, 1.0, surfaceWater);`,
+      )
+      .replace(
+        '#include <normal_fragment_maps>',
+        `#include <normal_fragment_maps>
+  // World-space waves avoid a moving texture seam at the globe's meridian.
+  vec3 p = vSurfacePosition;
+  float waveA = dot(p, vec3(2.1, 0.7, 1.3));
+  float waveB = dot(p, vec3(-1.2, 2.3, 0.8));
+  float footprint = max(length(dFdx(p)), length(dFdy(p)));
+  float waveFade = 1.0 - smoothstep(0.2, 1.4, footprint);
+  float height = surfaceWater * waveFade * (
+    sin(waveA + surfaceTime * 0.8) * 0.035 +
+    sin(waveB - surfaceTime * 0.55) * 0.025);
+  height += (1.0 - surfaceWater) * (grain - 0.5) * 0.018;
+  vec3 surfaceDx = dFdx(-vViewPosition);
+  vec3 surfaceDy = dFdy(-vViewPosition);
+  vec3 crossX = cross(surfaceDy, normal);
+  vec3 crossY = cross(normal, surfaceDx);
+  float determinant = dot(surfaceDx, crossX);
+  vec3 gradient = sign(determinant) * (dFdx(height) * crossX + dFdy(height) * crossY);
+  normal = normalize(max(abs(determinant), 1e-8) * normal - gradient);
+  roughnessFactor = mix(roughnessFactor, 0.26 + 0.06 * (1.0 - waveFade), surfaceWater);`,
       );
   };
 
@@ -236,6 +271,9 @@ export function buildGlobe(world: World, hf: HeightField, color: Pixels, rough: 
 
   return {
     terrain,
+    update(seconds) {
+      time.value = seconds;
+    },
     regrade,
     atmosphere,
     stars,

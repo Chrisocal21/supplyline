@@ -5,9 +5,12 @@ import { type DistrictId, type TownStyle } from '../sim/defs';
 import { R as GLOBE_R } from './geo';
 import { districtLandmark, type Setting } from './districts';
 import { Parts } from './parts';
+import { addCityBlock, addResidence } from './architecture';
+import { addTree } from './vegetation';
+import { sportsCampus } from './sports';
+import { STREET, TILE_UNITS, type LightAnchor } from '../scale';
 
-const TILE = 3.27;
-const GLASS = 0x6f93ad;
+const TILE = TILE_UNITS;
 const ASPHALT = 0x4a4b4f;
 
 function rng(seed: number): () => number {
@@ -37,7 +40,7 @@ const STYLE_LOOKS: Record<TownStyle, StyleLook> = {
 };
 const BLOCKS = [0xc9c3b6, 0xd8cfc0, 0xb9b2a4, 0xcfd2d4, 0xe0d6c4, 0xb8a894];
 const TOWERS = [0x9fb4c8, 0xb4c4d2, 0x8ea6ba, 0xc2cbd2, 0x7f9ab0, 0xa8b8a8];
-const TREE_GREEN = [0x4f8a3f, 0x5d9a48, 0x3f7a4a];
+const TREE_GREEN = [0x526747, 0x63764e, 0x405a41];
 
 const YAW: Record<'N' | 'S' | 'E' | 'W', number> = { S: 0, N: Math.PI, E: Math.PI / 2, W: -Math.PI / 2 };
 
@@ -66,7 +69,7 @@ export interface TownModelOptions {
   /** The tiles beside the streets where homes stand (as far as the town has grown), and whether each can be built on. */
   homes: { x: number; y: number; ok: boolean }[];
   /** Districts the town has built, each a building on its own lot beside a street: the lot, and the street tile its door meets. */
-  districts?: { id: DistrictId; level: number; x: number; y: number; ex: number; ey: number; setting?: Setting }[];
+  districts?: { id: DistrictId; level: number; x: number; y: number; ex: number; ey: number; setting?: Setting; campus?: boolean }[];
 }
 
 export function townGeometry(o: TownModelOptions): THREE.BufferGeometry {
@@ -77,6 +80,7 @@ export function townGeometry(o: TownModelOptions): THREE.BufferGeometry {
   const sq = o.squeeze;
   const pick = <T,>(list: T[]): T => list[Math.floor(r() * list.length)];
   const level = o.level;
+  const lights: LightAnchor[] = [];
 
   /** A point in a frame centred at (cx, cz) and turned by yaw. */
   const at = (cx: number, cz: number, yaw: number, lx: number, lz: number): [number, number] => [
@@ -87,51 +91,36 @@ export function townGeometry(o: TownModelOptions): THREE.BufferGeometry {
   const home = (cx: number, cz: number, yaw: number, w: number, d: number, h: number): void => {
     p.anchor = [cx, cz];
     const wall = pick(look.walls);
-    p.tex = look.wallTex;
-    p.box(w, h, d, wall, { x: cx, y: 0.04, z: cz, ry: yaw });
-    p.box(w * 0.98, 1.2, d * 0.98, 0x6d6b66, { x: cx, y: -1.2, z: cz, ry: yaw });
-    p.tex = 0;
     const roof = pick(look.roofs);
-    if (look.roof === 'flat') {
-      p.box(w * 1.06, 0.07, d * 1.06, roof, { x: cx, y: 0.04 + h, z: cz, ry: yaw, t: 6 });
-    } else {
-      const rh = look.roof === 'steep' ? 0.5 : look.roof === 'mid' ? 0.3 : 0.17;
-      p.gable(w * 1.1, rh, d * 1.1, roof, { x: cx, y: 0.04 + h, z: cz, ry: yaw + (r() < 0.7 ? Math.PI / 2 : 0) });
-      if (r() < 0.35) {
-        const [kx, kz] = at(cx, cz, yaw, w * 0.25, -d * 0.2);
-        p.box(0.08, 0.3, 0.08, 0x5a4a40, { x: kx, y: 0.04 + h + 0.12, z: kz, t: 1 });
-      }
+    // Keep the layout RNG sequence stable; appearance must not move later houses or gardens.
+    if (look.roof !== 'flat') {
+      r();
+      r();
     }
-    const [dx, dz] = at(cx, cz, yaw, (r() - 0.5) * w * 0.3, d / 2 + 0.005);
-    p.box(0.15, 0.26, 0.02, 0x4a3828, { x: dx, y: 0.04, z: dz, ry: yaw });
-    for (const s of [-1, 1]) {
-      const [wx, wz] = at(cx, cz, yaw, s * w * 0.3, d / 2 + 0.005);
-      p.box(0.14, 0.14, 0.02, GLASS, { x: wx, y: 0.04 + h * 0.5, z: wz, ry: yaw });
-      const [sx, sz] = at(cx, cz, yaw, s * (w / 2 + 0.005), 0);
-      p.box(0.02, 0.14, 0.14, GLASS, { x: sx, y: 0.04 + h * 0.5, z: sz, ry: yaw });
-    }
+    r();
+    const variant = Math.abs(Math.round(cx * 31 + cz * 73 + o.seed)) % 4;
+    addResidence(p, { x: cx, z: cz, yaw, w, d, h, wall, roof, wallTex: look.wallTex, roofShape: look.roof, variant });
+    p.tex = 0;
     p.anchor = null;
   };
 
   const tall = (cx: number, cz: number, yaw: number, w: number, d: number, h: number, kind: 'block' | 'tower'): void => {
     p.anchor = [cx, cz];
-    p.tex = kind === 'tower' ? 7 : 6;
-    p.box(w, h, d, kind === 'tower' ? pick(TOWERS) : pick(BLOCKS), { x: cx, y: 0.04, z: cz, ry: yaw });
-    p.box(w * 0.98, 1.6, d * 0.98, 0x6d6b66, { x: cx, y: -1.6, z: cz, ry: yaw });
-    p.tex = 6;
-    p.box(w * 1.03, 0.07, d * 1.03, 0x6a6e73, { x: cx, y: 0.04 + h, z: cz, ry: yaw });
-    if (kind === 'tower' && h > 3) {
-      p.box(w * 0.5, 0.35, d * 0.5, 0x7a7e84, { x: cx, y: 0.11 + h, z: cz, ry: yaw });
-      p.box(0.05, 0.6 + h * 0.05, 0.05, 0x5a5e64, { x: cx, y: 0.46 + h, z: cz });
-    }
+    addCityBlock(p, {
+      x: cx, z: cz, yaw, w, d, h, tower: kind === 'tower',
+      wall: kind === 'tower' ? pick(TOWERS) : pick(BLOCKS),
+      variant: Math.abs(Math.round(cx * 31 + cz * 73 + o.seed)) % 3,
+    });
     p.tex = 0;
     p.anchor = null;
   };
 
   const tree = (x: number, z: number): void => {
     p.anchor = [x, z];
-    p.cyl(0.05, 0.07, 0.9, 0x6a4a30, { x, y: -0.5, z }, 6);
-    p.sphere(0.4 + r() * 0.22, pick(TREE_GREEN), { x, y: 0.5, z }, 1);
+    const radius = 0.4 + r() * 0.22;
+    const color = pick(TREE_GREEN);
+    const variant = Math.abs(Math.round(x * 13 + z * 7));
+    addTree(p, variant % 4 === 0 ? 'birch' : 'oak', x, -0.18, z, radius * 2.2, variant, color);
     p.anchor = null;
   };
 
@@ -251,9 +240,20 @@ export function townGeometry(o: TownModelOptions): THREE.BufferGeometry {
     const cz = Z(d.y);
     marks.push({ id: d.id, level: d.level, tx: d.x, ty: d.y, x: cx, z: cz });
     p.anchor = [cx, cz];
-    districtLandmark(p, d.id, d.level, cx, cz, yawToward(fx, fz), d.setting);
+    if (d.campus && (d.id === 'stadium' || d.id === 'ballpark' || d.id === 'arena')) {
+      lights.push(...sportsCampus(p, d.id, d.level, cx, cz, yawToward(fx, fz)));
+      const front = d.id === 'stadium' ? 5.7 : d.id === 'ballpark' ? 7.7 : 4.16;
+      const startX = cx + fx * front;
+      const startZ = cz + fz * front;
+      const endX = X(d.ex);
+      const endZ = Z(d.ey);
+      p.box(fx ? Math.abs(endX - startX) : STREET.lane * 2, 0.018, fz ? Math.abs(endZ - startZ) : STREET.lane * 2, ASPHALT,
+        { x: (startX + endX) / 2, y: 0.043, z: (startZ + endZ) / 2 });
+    } else {
+      districtLandmark(p, d.id, d.level, cx, cz, yawToward(fx, fz), d.setting);
+    }
     p.tex = 6;
-    p.box(fx === 0 ? 0.6 : 0.5, 0.012, fz === 0 ? 0.6 : 0.5, 0xa39e92, { x: cx + fx * 1.2 * sq, y: 0.03, z: cz + fz * 1.2 });
+    if (!d.campus) p.box(fx === 0 ? 0.6 : 0.5, 0.012, fz === 0 ? 0.6 : 0.5, 0xa39e92, { x: cx + fx * 1.2 * sq, y: 0.03, z: cz + fz * 1.2 });
     p.tex = 0;
     p.anchor = null;
   }
@@ -344,16 +344,16 @@ export function townGeometry(o: TownModelOptions): THREE.BufferGeometry {
       for (const sz of [-1, 1]) {
         const x = sx * 0.62 * sq;
         const z = sz * 0.62;
-        p.cyl(0.03, 0.04, 1.05, 0x2d3034, { x, y: 0.04, z }, 6);
-        p.box(0.13, 0.34, 0.13, 0x1d2024, { x, y: 1.0, z });
+        p.cyl(0.009, 0.014, STREET.signalHeight, 0x2d3034, { x, y: 0.04, z }, 8);
+        p.box(0.038, 0.11, 0.038, 0x1d2024, { x, y: STREET.signalHeight - 0.07, z });
         const nsGreen = sx * sz > 0;
         for (const [face, green] of [['z', nsGreen], ['x', !nsGreen]] as ['x' | 'z', boolean][]) {
-          const off = 0.07;
+          const off = 0.02;
           const colors = [green ? 0x2b3a30 : 0xe04a3a, 0x3a3524, green ? 0x4cd08a : 0x3a2b2b];
           colors.forEach((c, i) => {
-            p.box(face === 'z' ? 0.07 : 0.02, 0.07, face === 'z' ? 0.02 : 0.07, c, {
+            p.box(face === 'z' ? 0.025 : 0.006, 0.025, face === 'z' ? 0.006 : 0.025, c, {
               x: x + (face === 'x' ? off * sx : 0),
-              y: 1.2 - i * 0.1,
+              y: STREET.signalHeight + 0.003 - i * 0.033,
               z: z + (face === 'z' ? off * sz : 0),
             });
           });
@@ -369,13 +369,16 @@ export function townGeometry(o: TownModelOptions): THREE.BufferGeometry {
     const side = (s.x + s.y) % 2 === 0 ? 1 : -1;
     const x = X(s.x) + (ns ? side * 0.62 : 0);
     const z = Z(s.y) + (ew ? side * 0.62 : 0);
-    p.cyl(0.025, 0.035, 0.75, 0x3a3d40, { x, y: 0.04, z }, 6);
-    p.box(0.12, 0.05, 0.12, 0xfff0b8, { x, y: 0.79, z });
+    p.cyl(0.009, 0.016, STREET.lampHeight, 0x515c60, { x, y: 0.04, z, t: 5 }, 8);
+    p.box(0.16, 0.02, 0.035, 0x515c60, { x: x + (ns ? -side * 0.06 : 0), y: STREET.lampHeight + 0.04, z, t: 5 });
+    p.box(0.065, 0.012, 0.035, 0xffeed0, { x, y: STREET.lampHeight + 0.025, z, t: 9 });
+    lights.push({ x, y: STREET.lampHeight + 0.02, z, range: 2.5, power: 1.8 });
   }
 
   if (p.count === 0) p.box(0.1, 0.02, 0.1, ASPHALT, { y: 0 });
   const geo = bendToGlobe(p.build());
   geo.userData.landmarks = marks;
+  geo.userData.lights = lights.map(light => ({ ...light, y: light.y - (light.x * light.x + light.z * light.z) / (2 * (GLOBE_R + 0.3)) }));
   return geo;
 }
 

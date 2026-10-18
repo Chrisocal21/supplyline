@@ -4,8 +4,10 @@ import * as THREE from 'three';
 import { coffeeFarmGeometry, mangoGroveGeometry, oilWellGeometry } from './specialty';
 import type { SiteKind } from '../sim/defs';
 import { Parts } from './parts';
+import { addTree } from './vegetation';
+import { framedWindow, loadingBay } from './architecture';
+import { addCow } from './livestock';
 
-const GLASS = 0x6f93ad;
 const DARK = 0x24272b;
 const PAD = 0x8a8a86;
 const BRICK = 0x8a5646;
@@ -53,20 +55,35 @@ function factory(l: Look): THREE.BufferGeometry {
   p.box(hw, hh, hd, l.wall, { x: -0.2, y: 0.04, z: -0.4 });
   if (l.saw) {
     const n = l.saw;
-    for (let i = 0; i < n; i++) p.gable(hw / n, 0.24, hd + 0.04, l.roof, { x: -0.2 - hw / 2 + (hw / n) * (i + 0.5), y: 0.04 + hh, z: -0.4 });
+    for (let i = 0; i < n; i++) {
+      const x = -0.2 - hw / 2 + (hw / n) * (i + 0.5);
+      p.gable(hw / n, 0.24, hd + 0.04, l.roof, { x, y: 0.04 + hh, z: -0.4 });
+      framedWindow(p, x, hh + 0.065, -0.4 + hd / 2 + 0.028, hw / n * 0.65, 0.11);
+    }
   } else if (l.flat) {
     p.box(hw + 0.08, 0.06, hd + 0.08, l.roof, { x: -0.2, y: 0.04 + hh, z: -0.4 });
+    for (const side of [-1, 1]) {
+      p.box(hw + 0.08, 0.1, 0.04, METAL_DARK, { x: -0.2, y: 0.1 + hh, z: -0.4 + side * hd / 2, t: 5 });
+    }
+    for (let i = 0; i < 3; i++) {
+      p.box(hw * 0.22, 0.035, hd * 0.5, 0x304c60, { x: -0.2 + (i - 1) * hw * 0.29, y: 0.16 + hh, z: -0.4, rx: 0.12, t: 8 });
+    }
   } else {
     p.gable(hw + 0.12, 0.3, hd + 0.1, l.roof, { x: -0.2, y: 0.04 + hh, z: -0.4 });
   }
   // Facade: accent band, door, windows.
   const fz = -0.4 + hd / 2 + 0.01;
   p.box(hw, 0.08, 0.02, l.accent, { x: -0.2, y: 0.04 + hh * 0.72, z: fz });
-  p.box(0.4, hh * 0.52, 0.02, DARK, { x: -0.65, y: 0.04, z: fz });
+  loadingBay(p, -0.65, 0.04, fz, 0.4, hh * 0.52);
   const wins = l.glassy ? 5 : 2;
   for (let i = 0; i < wins; i++) {
     const wx = l.glassy ? -0.2 + (i - 2) * 0.22 : 0.05 + i * 0.45;
-    p.box(l.glassy ? 0.18 : 0.34, hh * 0.3, 0.02, GLASS, { x: wx, y: 0.04 + hh * 0.3, z: fz });
+    framedWindow(p, wx, 0.04 + hh * 0.3, fz + 0.01, l.glassy ? 0.18 : 0.34, hh * 0.3);
+  }
+  for (const side of [-1, 1]) {
+    const x = -0.2 + side * hw / 2;
+    p.cyl(0.018, 0.018, hh, METAL_DARK, { x, y: 0.04, z: fz, t: 5 }, 6);
+    framedWindow(p, x + side * 0.014, hh * 0.45, -0.4, hd * 0.55, hh * 0.25, side * Math.PI / 2);
   }
   p.tex = 1;
   for (let i = 0; i < (l.chimneys ?? 0); i++) {
@@ -79,6 +96,12 @@ function factory(l: Look): THREE.BufferGeometry {
       const h = l.silos.tall ?? 1.3;
       p.cyl(0.24, 0.24, h, l.silos.color, { x: 0.78 + (i % 2) * 0.5, y: 0.04, z: -0.55 + Math.floor(i / 2) * 0.55 });
       p.dome(0.24, METAL_DARK, { x: 0.78 + (i % 2) * 0.5, y: 0.04 + h, z: -0.55 + Math.floor(i / 2) * 0.55 });
+      for (let band = 1; band <= 3; band++) {
+        p.cyl(0.245, 0.245, 0.024, METAL_DARK, {
+          x: 0.78 + (i % 2) * 0.5, y: 0.04 + h * band / 4,
+          z: -0.55 + Math.floor(i / 2) * 0.55, t: 0,
+        }, 16);
+      }
     }
   }
   if (l.tank) p.cyl(0.26, 0.26, 1.2 * l.tank, 0xb9bec2, { x: -0.2, y: 0.34, z: 0.1, rz: Math.PI / 2 }, 14);
@@ -96,6 +119,11 @@ function factory(l: Look): THREE.BufferGeometry {
   if (l.crane) {
     for (const x of [-0.85, 0.65]) p.box(0.06, 0.9, 0.06, YELLOW, { x, y: 0.04, z: 0.65 });
     p.box(1.6, 0.07, 0.1, YELLOW, { x: -0.1, y: 0.94, z: 0.65 });
+    p.box(0.18, 0.12, 0.16, METAL_DARK, { x: -0.1, y: 0.81, z: 0.65, t: 5 });
+    p.cyl(0.012, 0.012, 0.32, METAL_DARK, { x: -0.1, y: 0.49, z: 0.65 }, 5);
+    for (const x of [-0.85, 0.65]) {
+      p.box(0.2, 0.035, 0.2, METAL_DARK, { x, y: 0.04, z: 0.65, t: 5 });
+    }
   }
   (l.yard ?? []).forEach((c, i) => {
     p.box(0.4, 0.14, 0.28, c, { x: -0.05 + (i % 3) * 0.46, y: 0.04 + Math.floor(i / 3) * 0.15, z: 0.72 });
@@ -160,24 +188,27 @@ function ranch(): THREE.BufferGeometry {
   const p = new Parts();
   p.box(2.5, 0.03, 2.1, 0x7aa05a);
   p.box(2.45, 1.5, 2.05, 0x5f7a46, { y: -1.5 });
-  p.box(1.1, 0.7, 0.8, 0xa83a30, { x: -0.5, y: 0.03, z: -0.6 });
-  p.gable(1.2, 0.4, 0.9, 0xe9e6dc, { x: -0.5, y: 0.73, z: -0.6 });
-  p.box(0.4, 0.5, 0.02, 0xe9e6dc, { x: -0.5, y: 0.03, z: -0.19 });
+  p.box(1.1, 0.7, 0.8, 0x795046, { x: -0.5, y: 0.03, z: -0.6, t: 2 });
+  p.gable(1.2, 0.4, 0.9, 0xa2a99e, { x: -0.5, y: 0.73, z: -0.6, t: 5 });
+  loadingBay(p, -0.5, 0.03, -0.19, 0.32, 0.32);
+  for (const x of [-1.02, 0.02]) p.box(0.024, 0.7, 0.025, 0xb9bba9, { x, y: 0.03, z: -0.19, t: 5 });
+  for (const z of [-0.96, -0.24]) {
+    p.box(1.14, 0.025, 0.025, METAL_DARK, { x: -0.5, y: 0.73, z, t: 5 });
+  }
   p.cyl(0.2, 0.2, 1.1, 0xc7c9cb, { x: 0.45, y: 0.03, z: -0.7 });
   p.dome(0.2, METAL_DARK, { x: 0.45, y: 1.13, z: -0.7 });
   // Paddock fence and cows.
   for (let i = 0; i <= 6; i++) {
-    p.box(0.05, 0.22, 0.05, 0x7a5a3c, { x: -1.1 + i * 0.37, y: 0.03, z: 0.95 });
-    p.box(0.05, 0.22, 0.05, 0x7a5a3c, { x: -1.1 + i * 0.37, y: 0.03, z: 0.12 });
+    p.box(0.014, 0.14, 0.014, 0x7a5a3c, { x: -1.1 + i * 0.37, y: 0.03, z: 0.95, t: 2 });
+    p.box(0.014, 0.14, 0.014, 0x7a5a3c, { x: -1.1 + i * 0.37, y: 0.03, z: 0.12, t: 2 });
   }
-  for (const z of [0.12, 0.95]) p.box(2.3, 0.04, 0.03, 0x9a7a52, { x: 0.0, y: 0.16, z });
-  for (const [x, z] of [[-0.6, 0.45], [0.1, 0.7], [0.6, 0.4]]) {
-    p.box(0.3, 0.16, 0.14, 0xf2f0ec, { x, y: 0.1, z });
-    p.box(0.08, 0.08, 0.08, 0x2a2a2a, { x: x + 0.18, y: 0.2, z });
-    p.box(0.1, 0.05, 0.1, 0x2a2a2a, { x: x - 0.05, y: 0.26, z });
-    for (const [dx, dz] of [[-0.1, -0.05], [0.1, -0.05], [-0.1, 0.05], [0.1, 0.05]]) p.box(0.03, 0.1, 0.03, 0x2a2a2a, { x: x + dx, y: 0.0, z: z + dz });
+  for (const y of [0.09, 0.15]) {
+    for (const z of [0.12, 0.95]) p.box(2.23, 0.012, 0.012, 0x9a7a52, { x: 0.01, y, z, t: 2 });
+    for (const x of [-1.1, 1.12]) p.box(0.012, 0.012, 0.83, 0x9a7a52, { x, y, z: 0.535, t: 2 });
   }
-  p.cyl(0.16, 0.16, 0.22, 0xd0b050, { x: 1.0, y: 0.03, z: 0.55, rz: Math.PI / 2 }, 12);
+  [[-0.65, 0.35], [-0.15, 0.4], [0.42, 0.32], [-0.55, 0.75], [0.05, 0.7], [0.64, 0.74]].forEach(([x, z], i) =>
+    addCow(p, x, 0.03, z, i, i % 2 ? Math.PI - 0.25 : 0.2));
+  p.cyl(0.075, 0.075, 0.12, 0xb4a16d, { x: 1.0, y: 0.105, z: 0.55, rz: Math.PI / 2 }, 16);
   return p.build();
 }
 
@@ -185,12 +216,11 @@ function orchard(): THREE.BufferGeometry {
   const p = new Parts();
   p.box(2.6, 0.03, 2.2, 0x6f9a52);
   p.box(2.55, 1.5, 2.15, 0x587a42, { y: -1.5 });
-  for (let i = 0; i < 4; i++) {
-    for (let j = 0; j < 3; j++) {
-      const x = -0.95 + i * 0.62;
-      const z = -0.6 + j * 0.62;
-      p.cyl(0.04, 0.05, 0.22, 0x6a4a30, { x, y: 0.03, z }, 6);
-      p.sphere(0.26, 0x4f8a3f, { x, y: 0.4, z }, 1);
+  for (let i = 0; i < 5; i++) {
+    for (let j = 0; j < 4; j++) {
+      const x = -0.95 + i * 0.475;
+      const z = -0.85 + j * 0.45;
+      addTree(p, 'orchard', x, 0.03, z, 0.64, i * 4 + j);
       p.sphere(0.04, 0xc8453b, { x: x + 0.14, y: 0.42, z: z + 0.15 }, 0);
       p.sphere(0.04, 0xc8453b, { x: x - 0.12, y: 0.5, z: z + 0.12 }, 0);
     }
@@ -205,7 +235,16 @@ function cottonFarm(): THREE.BufferGeometry {
   const p = new Parts();
   p.box(2.5, 0.03, 2.1, 0xb9b58a);
   p.box(2.45, 1.5, 2.05, 0x948f6a, { y: -1.5 });
-  for (let i = 0; i < 6; i++) p.box(1.5, 0.12, 0.1, 0xf4f2ea, { x: -0.3, y: 0.03, z: -0.85 + i * 0.22 });
+  for (let i = 0; i < 6; i++) {
+    const z = -0.85 + i * 0.22;
+    p.box(1.5, 0.018, 0.12, 0x857650, { x: -0.3, y: 0.03, z });
+    for (let j = 0; j < 10; j++) {
+      const x = -0.98 + j * 0.15;
+      p.cyl(0.003, 0.005, 0.1, 0x6e7048, { x, y: 0.045, z }, 5);
+      p.ellipsoid(0.06, 0.055, 0.05, 0x637249, { x, y: 0.105, z }, 0);
+      for (const dx of [-0.017, 0.018]) p.sphere(0.016, 0xdedbcf, { x: x + dx, y: 0.14 + dx * 0.25, z: z + dx }, 1);
+    }
+  }
   p.box(0.7, 0.45, 0.6, 0xe9e6dc, { x: 0.8, y: 0.03, z: 0.4 });
   p.gable(0.8, 0.28, 0.7, 0x6a4a3a, { x: 0.8, y: 0.48, z: 0.4 });
   for (let i = 0; i < 4; i++) p.box(0.3, 0.18, 0.22, 0xf8f6ee, { x: -0.9 + (i % 2) * 0.34, y: 0.03 + Math.floor(i / 2) * 0.18, z: 0.8 });

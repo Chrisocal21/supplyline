@@ -46,7 +46,7 @@ import {
   type VehicleKind,
 } from './defs';
 import { generateFeatures, type FixedPlace, type Place, type Region, type ResourceNode, type Tile } from './features';
-import { footprint, plotCount, streetReach, townLayout, type TownLayout } from './townlayout';
+import { civicFootprint, footprint, plotCount, streetReach, townLayout, type TownLayout } from './townlayout';
 import { generateLand } from './mapgen';
 import { checkQuests } from './quests';
 import { stepBank, type BankState } from './bank';
@@ -247,6 +247,8 @@ export interface TruckOffer {
 
 export interface World {
   version: 4;
+  /** New worlds reserve measured, multi-tile sports campuses. Missing means the legacy layout. */
+  realisticLots?: boolean;
   /** Trucks buildings are asking for. Not saved: they come back on their own if the need is still there. */
   offers?: TruckOffer[];
   seed: number;
@@ -452,8 +454,48 @@ export function relayoutNodes(world: World): void {
     if (siteAt(world, n.x, n.y) || roads.has(n.y * world.width + n.x)) continue;
     kept.push({ ...n, id: nextId++ });
   }
+
   world.nodes = kept;
   world.layout = NODE_LAYOUT;
+}
+
+/** New-world-only layout preparation. Resources are retained outside reserved campuses. */
+export function prepareRealisticWorld(world: World): void {
+    if (world.sites.some(s => !SITE_DEFS[s.kind].dock)) throw new Error('Realistic layouts must be prepared before construction begins.');
+    world.realisticLots = true;
+    const reserved = new Set<number>();
+    for (const place of world.places) {
+      const layout = layoutOf(world, place);
+      for (const t of layout.streets) reserved.add((place.y + t.y) * world.width + wrapX(world, place.x + t.x));
+      for (const c of layout.civic) if (c.campus) {
+        for (const t of civicFootprint(c)) reserved.add((place.y + t.y) * world.width + wrapX(world, place.x + t.x));
+      }
+    }
+    const occupied = new Set(world.nodes.filter(n => !reserved.has(n.y * world.width + n.x)).map(n => n.y * world.width + n.x));
+    for (const node of world.nodes) {
+      if (!reserved.has(node.y * world.width + node.x)) continue;
+      const terrain = terrainAt(world, node.x, node.y);
+      let destination: Tile | undefined;
+      for (let radius = 1; radius < Math.max(world.width, world.height) && !destination; radius++) {
+        for (let dy = -radius; dy <= radius && !destination; dy++) {
+          for (let dx = -radius; dx <= radius; dx++) {
+            if (Math.max(Math.abs(dx), Math.abs(dy)) !== radius) continue;
+            const x = wrapX(world, node.x + dx);
+            const y = node.y + dy;
+            const key = y * world.width + x;
+            if (reserved.has(key) || occupied.has(key) || terrainAt(world, x, y) !== terrain || placeAt(world, x, y)) continue;
+            if (world.nodes.some(n => n !== node && Math.abs(wrapDx(world, n.x, x)) < 2 && Math.abs(n.y - y) < 2)) continue;
+            destination = { x, y };
+            break;
+          }
+        }
+      }
+      if (!destination) throw new Error(`No safe location for ${node.kind} after reserving sports campuses.`);
+      node.x = destination.x;
+      node.y = destination.y;
+      node.regionId = world.regionMap[node.y * world.width + node.x];
+      occupied.add(node.y * world.width + node.x);
+    }
 }
 
 function addLog(world: World, text: string): void {
@@ -572,7 +614,17 @@ export function slopeAt(world: World, x: number, y: number): number {
 
 export function siteAt(world: World, x: number, y: number): Site | undefined {
   const wx = wrapX(world, x);
-  return world.sites.find((s) => s.x === wx && s.y === y);
+  const exact = world.sites.find((s) => s.x === wx && s.y === y);
+  if (exact || !world.realisticLots) return exact;
+  for (const site of world.sites) {
+    if (!site.districtId) continue;
+    const place = world.places.find(p => p.id === site.placeId);
+    const index = place?.districtLots?.[site.districtId];
+    if (!place || index === undefined) continue;
+    const c = layoutOf(world, place).civic[index];
+    if (c?.campus && Math.abs(wrapDx(world, place.x + c.x, wx)) <= c.campus.halfX && Math.abs(place.y + c.y - y) <= c.campus.halfY) return site;
+  }
+  return undefined;
 }
 
 export function nodeAt(world: World, x: number, y: number): ResourceNode | undefined {
@@ -592,7 +644,7 @@ export function placeAt(world: World, x: number, y: number): Place | undefined {
     const dx = wrapDx(world, p.x, wx);
     const dy = y - p.y;
     const reach = streetReach(radiusOf(p), 5) + 2;
-    if (Math.abs(dx) > reach || Math.abs(dy) > reach) continue;
+    if (!world.realisticLots && (Math.abs(dx) > reach || Math.abs(dy) > reach)) continue;
     if (coverOf(world, p).has(dx + ',' + dy)) return p;
   }
   return undefined;
@@ -622,7 +674,7 @@ const streetCache = new WeakMap<Place, { key: string; tiles: Set<number> }>();
  * with any dead end that is left (say past a building that stands in the way) trimmed.
  */
 export function townStreets(world: World, place: Place): Set<number> {
-  const key = `${world.routes.length}:${world.sites.length}:${place.level}`;
+  const key = `${world.routes.length}:${world.sites.length}:${place.level}:${!!world.realisticLots}`;
   const hit = streetCache.get(place);
   if (hit && hit.key === key) return hit.tiles;
   const W = world.width;
@@ -671,15 +723,23 @@ export function plotAt(world: World, x: number, y: number): { place: Place; inde
 
 /** The tiles of a town's district lots, wrapped. */
 export function civicTiles(world: World, place: Place): Tile[] {
-  return layoutOf(world, place).civic.map((c) => ({ x: wrapX(world, place.x + c.x), y: place.y + c.y }));
+  return layoutOf(world, place).civic.map((c) => {
+    const gate = c.campus?.gate ?? c;
+    return { x: wrapX(world, place.x + gate.x), y: place.y + gate.y };
+  });
 }
 
 /** The district lot on this tile, if it is one. */
 export function civicAt(world: World, x: number, y: number): { place: Place; index: number } | null {
   const wx = wrapX(world, x);
   for (const place of world.places) {
-    const lots = civicTiles(world, place);
-    for (let i = 0; i < lots.length; i++) if (lots[i].x === wx && lots[i].y === y) return { place, index: i };
+    const lots = layoutOf(world, place).civic;
+    for (let i = 0; i < lots.length; i++) {
+      const c = lots[i];
+      const dx = Math.abs(wrapDx(world, place.x + c.x, wx));
+      const dy = Math.abs(place.y + c.y - y);
+      if (dx <= (c.campus?.halfX ?? 0) && dy <= (c.campus?.halfY ?? 0)) return { place, index: i };
+    }
   }
   return null;
 }
@@ -690,15 +750,15 @@ export function districtSite(world: World, place: Place, id: DistrictId): Site |
 }
 
 /** The next free district lot: one beside a street the town has built, nearest the centre. Null when there is none. */
-export function freeCivicLot(world: World, place: Place): number | null {
+export function freeCivicLot(world: World, place: Place, district?: DistrictId): number | null {
   const layout = layoutOf(world, place);
   const used = new Set(Object.values(place.districtLots ?? {}));
   for (let i = 0; i < layout.civic.length; i++) {
     const c = layout.civic[i];
+    const needsCampus = world.realisticLots && (district === 'stadium' || district === 'ballpark' || district === 'arena');
+    if (c.campus ? c.campus.district !== district : needsCampus) continue;
     if (used.has(i) || c.level > place.level) continue;
-    const x = wrapX(world, place.x + c.x);
-    const y = place.y + c.y;
-    if (siteAt(world, x, y) || routeAt(world, x, y)) continue;
+    if (civicFootprint(c).some(t => siteAt(world, wrapX(world, place.x + t.x), place.y + t.y) || routeAt(world, wrapX(world, place.x + t.x), place.y + t.y))) continue;
     return i;
   }
   return null;
@@ -716,9 +776,10 @@ export function syncDistrictSite(world: World, place: Place, id: DistrictId): st
     have.level = level;
     return null;
   }
-  const lot = place.districtLots?.[id] ?? freeCivicLot(world, place);
+  const lot = place.districtLots?.[id] ?? freeCivicLot(world, place, id);
   if (lot === null || lot === undefined) return 'No free lot for it beside the streets';
   const c = layoutOf(world, place).civic[lot];
+  const gate = c.campus?.gate ?? c;
   place.districtLots ??= {};
   place.districtLots[id] = lot;
   world.sites.push({
@@ -726,8 +787,8 @@ export function syncDistrictSite(world: World, place: Place, id: DistrictId): st
     kind: 'district',
     districtId: id,
     name: `${place.name} ${DISTRICTS[id].label}`,
-    x: wrapX(world, place.x + c.x),
-    y: place.y + c.y,
+    x: wrapX(world, place.x + gate.x),
+    y: place.y + gate.y,
     stock: {},
     timer: 0,
     level,
@@ -780,7 +841,8 @@ export function linkTown(world: World, place: Place): void {
       // Run the link from the supplier to its customer.
       const [src, dst] = supplies(world, a, b) || !supplies(world, b, a) ? [a, b] : [b, a];
       const path = findPath(world, src, dst, 6000);
-      if (!path || path.length > 2 * streetReach(radiusOf(place), place.level) + 8 || planRoute(world, path).error) continue;
+      const reach = world.realisticLots ? Math.max(streetReach(radiusOf(place), place.level), ...layoutOf(world, place).streets.map(s => Math.abs(s.x) + Math.abs(s.y))) : streetReach(radiusOf(place), place.level);
+      if (!path || path.length > 2 * reach + 8 || planRoute(world, path).error) continue;
       const route: Route = { id: world.nextId++, mode: 'road', fromSiteId: src.id, toSiteId: dst.id, path };
       world.routes.push(route);
     }

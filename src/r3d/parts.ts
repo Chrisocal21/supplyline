@@ -9,7 +9,7 @@ export interface Place {
   rx?: number;
   ry?: number;
   rz?: number;
-  /** Surface pattern id for the building shader (0 plain, 1 brick, 2 siding, 3 stucco, 4 roof tiles, 5 corrugated metal, 6 concrete, 7 curtain wall). */
+  /** Surface pattern id (0 plain, 1 brick, 2 siding, 3 stucco, 4 roof tiles, 5 metal, 6 concrete, 7 curtain wall, 8 glazing). */
   t?: number;
 }
 
@@ -120,6 +120,12 @@ export class Parts {
 
   sphere(r: number, color: number, o: Place = {}, detail = 1): this {
     return this.add(new THREE.IcosahedronGeometry(r, detail), color, o);
+  }
+
+  ellipsoid(w: number, h: number, d: number, color: number, o: Place = {}, detail = 1): this {
+    const g = new THREE.IcosahedronGeometry(1, detail);
+    g.scale(w / 2, h / 2, d / 2);
+    return this.add(g, color, o);
   }
 
   /**

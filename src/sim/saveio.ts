@@ -27,6 +27,7 @@ export function unpackSave(text: string): { world: World } | { error: string } {
   const w = (obj && obj.game === MARK ? obj.world : data) as Partial<World> | null;
   if (!w || typeof w !== 'object') return { error: 'That file is not a Supplyline save.' };
   if (w.version !== 4) return { error: 'That save is from a different version of the game.' };
+  if (w.realisticLots !== undefined && typeof w.realisticLots !== 'boolean') return { error: 'That save has an invalid town layout setting.' };
   if (!Array.isArray(w.terrain) || !Array.isArray(w.sites) || !Array.isArray(w.places) || !Array.isArray(w.routes) || !Array.isArray(w.vehicles) || typeof w.width !== 'number' || typeof w.height !== 'number') {
     return { error: 'That save is missing parts of the world.' };
   }

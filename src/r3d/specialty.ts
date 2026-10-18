@@ -2,6 +2,7 @@
 // Units as in models.ts: one tile is about 3.3 units, a building about 2.5 across. The front (+z) of a port faces the water.
 import * as THREE from 'three';
 import { Parts } from './parts';
+import { addTree } from './vegetation';
 
 const CONCRETE = 0xb4b2ab;
 const CONCRETE_DARK = 0x8a8a86;
@@ -109,8 +110,7 @@ export function coffeeFarmGeometry(): THREE.BufferGeometry {
   }
   // Shade trees between the terraces.
   for (const [x, z] of [[-1.15, -0.4], [1.15, 0.0], [-1.15, 0.2]]) {
-    p.cyl(0.04, 0.05, 0.5, 0x6a4a30, { x, y: 0.03, z }, 6);
-    p.sphere(0.28, 0x3f7a45, { x, y: 0.72, z }, 1);
+    addTree(p, 'oak', x, 0.03, z, 0.95, x + z);
   }
   // Drying patio of beans, a sorting shed with a tin roof, and a house with a red roof.
   p.box(0.9, 0.025, 0.55, 0xb08a60, { x: -0.5, y: 0.03, z: 0.75 });
@@ -132,23 +132,17 @@ export function mangoGroveGeometry(): THREE.BufferGeometry {
   const p = new Parts();
   p.box(2.6, 0.03, 2.3, 0x7ba04e);
   p.box(2.55, 1.5, 2.25, 0x5f7f40, { y: -1.5 });
-  for (let r = 0; r < 3; r++) {
-    for (let c = 0; c < 4; c++) {
-      const x = -0.9 + c * 0.6 + (r % 2) * 0.15;
-      const z = -0.7 + r * 0.55;
-      p.cyl(0.05, 0.06, 0.34, 0x5a3f28, { x, y: 0.03, z }, 6);
-      p.sphere(0.3, 0x2f6a35, { x, y: 0.52, z }, 1);
-      p.sphere(0.2, 0x3f7f40, { x: x + 0.1, y: 0.7, z: z - 0.05 }, 1);
+  for (let r = 0; r < 4; r++) {
+    for (let c = 0; c < 5; c++) {
+      const x = -0.95 + c * 0.45 + (r % 2) * 0.1;
+      const z = -0.8 + r * 0.4;
+      addTree(p, 'orchard', x, 0.03, z, 0.85, r * 5 + c, 0x486844);
       for (const [dx, dy, dz] of [[0.15, 0.42, 0.2], [-0.16, 0.5, 0.15], [0.05, 0.62, 0.22]]) p.sphere(0.045, 0xf0a630, { x: x + dx, y: dy, z: z + dz }, 0);
     }
   }
   // Palms at the edge.
   for (const [x, z] of [[-1.15, 0.8], [1.2, -0.9]]) {
-    p.cyl(0.035, 0.05, 0.9, 0x8a6a48, { x, y: 0.03, z, rz: 0.08 }, 6);
-    for (let i = 0; i < 6; i++) {
-      const a = (i / 6) * Math.PI * 2;
-      p.box(0.5, 0.025, 0.08, 0x3f8a40, { x: x + Math.cos(a) * 0.2, y: 0.9, z: z + Math.sin(a) * 0.2, ry: -a, rz: -0.25 });
-    }
+    addTree(p, 'palm', x, 0.03, z, 1.1, x + z);
   }
   // Packing shed with a thatched roof, and crates of mangoes.
   p.tex = 2;
@@ -208,16 +202,14 @@ export function specialtyNodeProps(p: Parts, kind: 'coffee' | 'mango' | 'oil'): 
       }
     }
     for (const [x, z] of [[-1.1, 0.9], [1.1, -0.9]]) {
-      p.cyl(0.04, 0.05, 0.5, 0x6a4a30, { x, y: 0.02, z }, 6);
-      p.sphere(0.26, 0x3f7a45, { x, y: 0.7, z }, 1);
+      addTree(p, 'oak', x, 0.02, z, 0.9, x + z);
     }
   } else if (kind === 'mango') {
-    for (let r = 0; r < 2; r++) {
-      for (let c = 0; c < 3; c++) {
-        const x = -0.8 + c * 0.8;
-        const z = -0.5 + r * 0.9;
-        p.cyl(0.05, 0.06, 0.3, 0x5a3f28, { x, y: 0.02, z }, 6);
-        p.sphere(0.3, 0x2f6a35, { x, y: 0.5, z }, 1);
+    for (let r = 0; r < 4; r++) {
+      for (let c = 0; c < 5; c++) {
+        const x = -0.95 + c * 0.475;
+        const z = -0.8 + r * 0.5;
+        addTree(p, 'orchard', x, 0.02, z, 0.78, r * 5 + c, 0x486844);
         p.sphere(0.045, 0xf0a630, { x: x + 0.15, y: 0.46, z: z + 0.2 }, 0);
         p.sphere(0.045, 0xf0a630, { x: x - 0.16, y: 0.55, z: z + 0.14 }, 0);
       }

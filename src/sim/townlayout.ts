@@ -3,8 +3,9 @@
 // them, and grows a few tiles longer with each town level, so neighbours reach toward each other. A short cross street
 // makes the centre, side lanes branch off now and then, and lots and homes line both sides. Pure and deterministic:
 // the same land and the same towns always give the same layout, so it is never saved.
-import type { Terrain } from './defs';
+import type { DistrictId, Terrain } from './defs';
 import type { Place, Tile } from './features';
+import { meters, TILE_UNITS } from '../scale';
 
 export interface LayoutEnv {
   width: number;
@@ -12,6 +13,8 @@ export interface LayoutEnv {
   terrain: Terrain[];
   elev?: number[];
   places: Place[];
+  realisticLots?: boolean;
+  nodes?: (Tile & { kind?: string })[];
 }
 
 /** Offsets from the town centre (x not wrapped). */
@@ -32,6 +35,7 @@ export interface LayoutHome extends Tile {
 export interface LayoutCivic extends LayoutPlot {
   /** Town level at which its street is built. */
   level: number;
+  campus?: { district: DistrictId; halfX: number; halfY: number; gate: Tile };
 }
 export interface TownLayout {
   streets: LayoutStreet[];
@@ -69,13 +73,13 @@ function hash(a: number, b: number, c: number): number {
   return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
 }
 
-const cache = new WeakMap<Place, { env: LayoutEnv; n: number; layout: TownLayout }>();
+const cache = new WeakMap<Place, { env: LayoutEnv; n: number; realistic: boolean; layout: TownLayout }>();
 
 export function townLayout(env: LayoutEnv, place: Place): TownLayout {
   const hit = cache.get(place);
-  if (hit && hit.env === env && hit.n === env.places.length) return hit.layout;
+  if (hit && hit.env === env && hit.n === env.places.length && hit.realistic === !!env.realisticLots) return hit.layout;
   const layout = build(env, place);
-  cache.set(place, { env, n: env.places.length, layout });
+  cache.set(place, { env, n: env.places.length, realistic: !!env.realisticLots, layout });
   return layout;
 }
 
@@ -232,7 +236,62 @@ function build(env: LayoutEnv, place: Place): TownLayout {
   }
   const civicKeys = new Set(civic.map(key));
   const homes: LayoutHome[] = ordered.filter((c) => !plotKeys.has(key(c)) && !civicKeys.has(key(c))).map((c) => ({ x: c.x, y: c.y, level: c.entry.level }));
+  if (env.realisticLots) {
+    const used = new Set([...list, ...plots.slice(0, 2)].map(key));
+    const tips = list.filter(s => neighbours(s).filter(n => streets.has(key(n))).length === 1);
+    const cosLat = Math.max(0.15, Math.cos((0.5 - (place.y + 0.5) / H) * Math.PI * 2 * H / W));
+    const campuses: [DistrictId, number, number][] = [['stadium', 180, 125], ['ballpark', 180, 180], ['arena', 105, 85]];
+    const clear = (t: Tile): boolean => {
+      if (used.has(key(t)) || !buildable(t.x, t.y)) return false;
+      const x = place.x + t.x;
+      const y = place.y + t.y;
+      if (env.nodes?.some(n => ['coffee', 'mango', 'oil'].includes(n.kind ?? '') && Math.abs(wdx(n.x - x)) <= 1 && Math.abs(n.y - y) <= 1)) return false;
+      const ownDistance = t.x * t.x + t.y * t.y;
+      return !others.some(p => {
+        const distance = wdx(p.x - x) ** 2 + (p.y - y) ** 2;
+        return distance < ownDistance || (distance === ownDistance && p.id < place.id);
+      });
+    };
+    for (const [district, width, depth] of campuses) {
+      let placed = false;
+      for (const tip of tips) {
+        if (placed) break;
+        const previous = neighbours(tip).find(n => streets.has(key(n)))!;
+        const dx = tip.x - previous.x;
+        const dy = tip.y - previous.y;
+        const halfX = Math.ceil(meters((dx ? depth : width) + 6) / (TILE_UNITS * cosLat) / 2 - 0.5);
+        const halfY = Math.ceil(meters((dx ? width : depth) + 6) / TILE_UNITS / 2 - 0.5);
+        for (let extension = 1; extension <= 5 && !placed; extension++) {
+          const entry = { x: tip.x + dx * extension, y: tip.y + dy * extension };
+          const distance = (dx ? halfX : halfY) + 1;
+          const centre = { x: entry.x + dx * distance, y: entry.y + dy * distance };
+          const ground: Tile[] = [];
+          for (let y = -halfY; y <= halfY; y++) for (let x = -halfX; x <= halfX; x++) ground.push({ x: centre.x + x, y: centre.y + y });
+          const approach = Array.from({ length: extension }, (_, i) => ({ x: tip.x + dx * (i + 1), y: tip.y + dy * (i + 1) }));
+          if (![...ground, ...approach].every(clear)) continue;
+          const gate = { x: entry.x + dx, y: entry.y + dy };
+          const reserved = new Set([...ground, ...approach].map(key));
+          for (const collection of [plots, civic, homes]) {
+            for (let i = collection.length - 1; i >= 0; i--) if (reserved.has(key(collection[i]))) collection.splice(i, 1);
+          }
+          civic.push({ ...centre, entry, level: 4, campus: { district, halfX, halfY, gate } });
+          for (const t of approach) list.push({ ...t, level: 4, main: false });
+          for (const t of [...ground, ...approach]) used.add(key(t));
+          placed = true;
+        }
+      }
+    }
+  }
   return { streets: list, plots, civic, homes, axis };
+}
+
+export function civicFootprint(c: LayoutCivic): Tile[] {
+  if (!c.campus) return [{ x: c.x, y: c.y }];
+  const tiles: Tile[] = [];
+  for (let y = -c.campus.halfY; y <= c.campus.halfY; y++) {
+    for (let x = -c.campus.halfX; x <= c.campus.halfX; x++) tiles.push({ x: c.x + x, y: c.y + y });
+  }
+  return tiles;
 }
 
 /** Every tile the town covers at a level: its streets and homes so far, and all its lots. Offsets from the centre. */
@@ -240,7 +299,7 @@ export function footprint(layout: TownLayout, level: number): Tile[] {
   return [
     ...layout.streets.filter((s) => s.level <= level),
     ...layout.plots,
-    ...layout.civic.filter((c) => c.level <= level),
+    ...layout.civic.filter((c) => c.campus || c.level <= level).flatMap(civicFootprint),
     ...layout.homes.filter((h) => h.level <= level),
   ];
 }

@@ -1,0 +1,43 @@
+/** One local world unit represents 10 metres. */
+export const METERS_PER_UNIT = 10;
+export const meters = (value: number): number => value / METERS_PER_UNIT;
+export const TILE_UNITS = Math.PI * 200 / 192;
+
+export const STREET = {
+  lane: meters(3.5),
+  shoulder: meters(0.6),
+  marking: meters(0.12),
+  curbHeight: meters(0.15),
+  sidewalk: meters(1.8),
+  lampHeight: meters(8),
+  signalHeight: meters(4.2),
+};
+
+export const HUMAN = {
+  height: meters(1.8),
+  doorHeight: meters(2.1),
+  doorWidth: meters(0.95),
+  floorHeight: meters(3.2),
+};
+
+export const ROAD_VEHICLE = {
+  width: meters(2.55),
+  height: meters(4),
+  boxLength: meters(8),
+  rigidLength: meters(10),
+  semiLength: meters(18),
+};
+
+export interface LightAnchor {
+  x: number;
+  y: number;
+  z: number;
+  range: number;
+  power: number;
+}
+
+export const SPORTS = {
+  football: { length: 109.728, width: 48.768 },
+  hockey: { length: 60.96, width: 25.908 },
+  baseball: { basePath: 27.432, mound: 18.4404 },
+};

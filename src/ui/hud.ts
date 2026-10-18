@@ -1,6 +1,7 @@
 // The HUD: a transparent Phaser scene over the 3D view. Everything is drawn with the immediate-mode helper in imui.ts.
 import { diagnose, diagnoseAll, shortOf } from '../sim/diagnose';
 import Phaser from 'phaser';
+import { GRAPHICS, type GraphicsQuality, type LightingMode } from '../r3d/graphics';
 import {
   GOODS,
   GOOD_LIST,
@@ -72,7 +73,7 @@ import { COLORS, Im } from './imui';
 import { VERSION, VERSION_NOTE } from '../version';
 import { Rates, Sheets, type SheetId } from './sheets';
 import { Title, type TitleChoice } from './title';
-import { byInput, inputMode, isTouch, onInputChange } from './inputmode';
+import { byInput, isTouch, onInputChange } from './inputmode';
 
 let TOP = 72;
 const DOCK_TAB_W = 96;
@@ -138,6 +139,7 @@ export class HudScene extends Phaser.Scene {
   private income = 0;
   private sheet: SheetId | null = null;
   private menuOpen = false;
+  private graphicsOpen = false;
   /** The opening screen, while it is up; and when the game started, for the fade up from black. */
   private title: Title | null = null;
   private fadeIn = -1;
@@ -309,6 +311,7 @@ export class HudScene extends Phaser.Scene {
 
   /** Open the Towns sheet on one town's path and districts. */
   private openManage(id: number): void {
+    this.graphicsOpen = false;
     this.sheets.manage = id;
     this.sheets.scroll = 0;
     this.sheet = 'towns';
@@ -316,6 +319,7 @@ export class HudScene extends Phaser.Scene {
   }
 
   private toggleSheet(id: SheetId): void {
+    this.graphicsOpen = false;
     this.sheet = this.sheet === id ? null : id;
     this.sheets.scroll = 0;
     this.menuOpen = false;
@@ -326,6 +330,7 @@ export class HudScene extends Phaser.Scene {
   private escape(): void {
     const g = this.game3d;
     this.menuOpen = false;
+    this.graphicsOpen = false;
     g.removal = null;
     this.saves = null;
     this.sheet = null;
@@ -350,6 +355,7 @@ export class HudScene extends Phaser.Scene {
   }
 
   private openTab(id: string): void {
+    this.graphicsOpen = false;
     this.activeTab = id;
     this.game3d.setTool('select');
   }
@@ -401,8 +407,13 @@ export class HudScene extends Phaser.Scene {
     TOP = this.topBarHeight(W);
     this.topBar(W);
     const growing = !this.sheet && !g.draft && !this.saves ? this.pendingGrowth() : undefined;
-    if (g.canGoBack && !this.sheet && !this.saves && this.dash === null) this.backButton(W, H);
-    if (this.saves) {
+    if (g.canGoBack && !this.sheet && !this.saves && !this.graphicsOpen && this.dash === null) this.backButton(W, H);
+    if (this.graphicsOpen) {
+      g.setKeys(0, 0, 0);
+      this.panelRect = null;
+      this.sheetCam.setVisible(false);
+      this.graphicsPanel(W, H);
+    } else if (this.saves) {
       this.panelRect = null;
       this.sheetCam.setVisible(false);
       this.savesModal(W, H);
@@ -680,31 +691,65 @@ export class HudScene extends Phaser.Scene {
 
   private menuPanel(W: number, y: number): void {
     const im = this.im;
-    const w = 236;
+    const w = Math.min(300, W - 24);
     const x = W - w - 12;
     const items: [string, string, () => void][] = [
       ['Quests', 'G', () => this.toggleSheet('quests')],
       ['How to play', 'H', () => this.toggleSheet('guide')],
       ['Save / Load', 'S', () => this.openSaves('manage')],
       ['New world', 'N', () => this.openSaves('new')],
+      ['Graphics and lighting', '', () => { this.graphicsOpen = true; }],
     ];
-    const noteLines = Math.ceil((`What is new: ${VERSION_NOTE}`.length * 5.6) / (w - 32));
-    const ph = items.length * 54 + 20 + 92 + 70 + noteLines * 13;
+    const compact = this.scale.height - y < 500;
+    const row = compact ? 42 : 50;
+    const ph = items.length * row + 20 + (compact ? 48 : 160);
     im.rect(3, x, y, w, ph, COLORS.panel, 0.98, 18, COLORS.line, 1);
     im.block({ x, y, w, h: ph });
     items.forEach(([label, , fn], i) => {
-      const by = y + 10 + i * 54;
-      const hov = im.hit(`menu${label}`, x + 10, by, w - 20, 46, () => { fn(); this.menuOpen = false; }, 3);
-      im.rect(3, x + 10, by, w - 20, 46, hov ? 0x243142 : 0x172130, 1, 12, COLORS.line, 1);
-      im.text(`menuT${label}`, label, x + w / 2, by + 13, { size: 15, bold: true, align: 'center', layer: 4 });
+      const by = y + 10 + i * row;
+      const hov = im.hit(`menu${label}`, x + 10, by, w - 20, row - 6, () => { fn(); this.menuOpen = false; }, 3);
+      im.rect(3, x + 10, by, w - 20, row - 6, hov ? 0x243142 : 0x172130, 1, 8, COLORS.line, 1);
+      im.text(`menuT${label}`, label, x + w / 2, by + 10, { size: 14, bold: true, align: 'center', layer: 4 });
     });
-    const cy = y + 10 + items.length * 54 + 6;
+    const cy = y + 10 + items.length * row + 6;
     im.line(3, x + 14, cy, x + w - 14, cy, COLORS.line, 1, 1);
-    im.text('menuHelp', byInput('Drag to move. Right-drag to turn and tilt. Wheel to zoom. P, T, G and H open the sheets. Space pauses.', 'Drag to move. Pinch to zoom. Twist two fingers to turn, drag them up or down to tilt.'), x + 16, cy + 10, { size: 11, color: COLORS.muted, wrap: w - 32, layer: 4 });
-    im.line(3, x + 14, y + ph - 88 - noteLines * 13, x + w - 14, y + ph - 88 - noteLines * 13, COLORS.line, 1, 1);
-    im.text('menuVer', `Early build  ·  v${VERSION}`, x + 16, y + ph - 80 - noteLines * 13, { size: 12, bold: true, color: COLORS.muted, layer: 4 });
-    im.text('menuNote', `What is new: ${VERSION_NOTE}`, x + 16, y + ph - 62 - noteLines * 13, { size: 10, color: COLORS.muted, wrap: w - 32, layer: 4 });
-    im.text('menuInput', `Controls: ${inputMode() === 'touch' ? 'touch' : 'mouse and keyboard'}`, x + 16, y + ph - 22, { size: 11, color: COLORS.accent, layer: 4 });
+    im.text('menuVer', `Early build  ·  v${VERSION}`, x + 16, cy + 10, { size: 12, bold: true, color: COLORS.muted, layer: 4 });
+    if (!compact) {
+      im.text('menuHelp', byInput('Drag to move. Right-drag to turn and tilt. Wheel to zoom. Space pauses.', 'Drag to move. Pinch to zoom. Twist two fingers to turn, drag them up or down to tilt.'), x + 16, cy + 34, { size: 11, color: COLORS.muted, wrap: w - 32, layer: 4 });
+      im.text('menuNote', `What is new: ${VERSION_NOTE}`, x + 16, cy + 82, { size: 10, color: COLORS.muted, wrap: w - 32, layer: 4 });
+    }
+  }
+
+  private graphicsPanel(W: number, H: number): void {
+    const im = this.im;
+    const w = Math.min(620, W - 24);
+    const x = (W - w) / 2;
+    const y = TOP + 12;
+    const h = Math.min(360, H - y - 12);
+    const g = this.game3d;
+    im.block({ x: 0, y: TOP, w: W, h: H - TOP });
+    im.rect(3, x, y, w, h, COLORS.panel, 0.99, 12, COLORS.line);
+    im.text('gfxTitle', 'GRAPHICS AND LIGHTING', x + 18, y + 18, { size: 16, bold: true, layer: 4 });
+    const close = im.hit('gfxClose', x + w - 50, y + 8, 40, 36, () => this.graphicsOpen = false, 4);
+    im.text('gfxCloseT', 'X', x + w - 30, y + 17, { size: 16, color: close ? COLORS.accent : COLORS.muted, align: 'center', layer: 4 });
+    const bw = (w - 48) / 3;
+    const choice = (id: string, label: string, index: number, cy: number, selected: boolean, run: () => void) => {
+      const bx = x + 16 + index * (bw + 8);
+      const hover = im.hit(id, bx, cy, bw, 40, run, 4);
+      im.rect(3, bx, cy, bw, 40, selected ? COLORS.accent : COLORS.panelAlt, 1, 6, hover ? COLORS.accent : COLORS.line);
+      im.text(`${id}T`, label, bx + bw / 2, cy + 12, { size: 13, bold: true, color: selected ? 0x182126 : COLORS.text, align: 'center', layer: 4 });
+    };
+    im.text('gfxQualityLabel', 'QUALITY', x + 18, y + 58, { size: 11, color: COLORS.muted, layer: 4 });
+    (['balanced', 'high', 'ultra'] as GraphicsQuality[]).forEach((quality, i) =>
+      choice(`gfx${quality}`, GRAPHICS[quality].label, i, y + 80, g.graphicsQuality === quality, () => g.setGraphics(quality)));
+    const detail = g.graphicsQuality === 'ultra' ? 'High-end PC: 4K shadows, 32-sample contact shading, bloom, 16 local lights.'
+      : g.graphicsQuality === 'high' ? 'Desktop: 2K shadows, contact shading, bloom, 8 local lights.'
+      : 'Reduced GPU load: 1K shadows, native resolution, 4 local lights, no post-processing.';
+    im.text('gfxDescription', detail, x + 18, y + 130, { size: 11, color: COLORS.muted, wrap: w - 36, layer: 4 });
+    im.text('gfxLightLabel', 'LIGHTING', x + 18, y + 180, { size: 11, color: COLORS.muted, layer: 4 });
+    (['day', 'dusk', 'night'] as LightingMode[]).forEach((light, i) =>
+      choice(`gfx${light}`, light[0].toUpperCase() + light.slice(1), i, y + 202, g.lightingMode === light, () => g.setGraphics(g.graphicsQuality, light)));
+    im.text('gfxCredits', 'Scanned materials: Poly Haven / CC0. Settings are saved on this device.', x + 18, y + h - 42, { size: 10, color: COLORS.muted, wrap: w - 36, layer: 4 });
   }
 
   /** The production and towns sheets. */
@@ -725,6 +770,7 @@ export class HudScene extends Phaser.Scene {
   private confirm: { id: string; until: number } | null = null;
 
   private openSaves(mode: 'new' | 'manage'): void {
+    this.graphicsOpen = false;
     this.saves = mode;
     this.confirm = null;
     this.sheet = null;
@@ -1641,6 +1687,7 @@ export class HudScene extends Phaser.Scene {
   private dashPageFor = -1;
 
   private openDash(id: number): void {
+    this.graphicsOpen = false;
     this.dash = id;
     this.dashScroll = 0;
     this.dashPage = 'overview';

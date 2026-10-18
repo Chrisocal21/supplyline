@@ -6,23 +6,25 @@ import type { RouteMode } from '../sim/defs';
 import { placeAt, plotTiles, townStreets, wrapDx, type Tile, type World } from '../sim/world';
 import { HeightField, R, basisMatrix, lonLatToVec } from './geo';
 import { Parts } from './parts';
+import { roadSurfaces } from './surfaces';
+import { STREET } from '../scale';
 
 const LIFT = 0.07;
 const DECK = 0.55;
-const ROAD_HALF = 0.32;
-const ROAD_SHOULDER = 0.4;
+const ROAD_HALF = STREET.lane;
+const ROAD_SHOULDER = STREET.lane + STREET.shoulder;
 const RAIL_HALF = 0.2;
 const RAIL_SHOULDER = 0.3;
 /** A four-lane highway is nearly twice as wide as a street. */
-export const HW_HALF = 0.58;
-const HW_SHOULDER = 0.68;
+export const HW_HALF = STREET.lane * 2;
+const HW_SHOULDER = HW_HALF + STREET.shoulder;
 const DASH = 1.6;
 /** Share of the road texture's width that is the road itself; the rest is plain asphalt for junction pads. */
 /** Corner-cutting passes for smooth runs: three turns a quarter-turn into a gentle bend and a staircase into a diagonal. */
 const SMOOTH_PASSES = 3;
 const ROAD_U = 0.8;
 /** How far right of the centre line a vehicle drives. */
-const LANE = 0.16;
+const LANE = STREET.lane / 2;
 
 export type Structure = 'road' | 'bridge' | 'tunnel';
 
@@ -60,9 +62,10 @@ export interface PathPoint {
 
 export function makeRoadTexture(): THREE.Texture {
   const c = document.createElement('canvas');
-  c.width = 128;
-  c.height = 128;
+  c.width = 512;
+  c.height = 512;
   const ctx = c.getContext('2d')!;
+  ctx.scale(4, 4);
   ctx.fillStyle = '#54565b';
   ctx.fillRect(0, 0, 128, 128);
   // Asphalt grain.
@@ -89,9 +92,10 @@ export function makeRoadTexture(): THREE.Texture {
 /** Four lanes: white edge lines, dashed lane lines and a double yellow median. */
 export function makeHighwayTexture(): THREE.Texture {
   const c = document.createElement('canvas');
-  c.width = 128;
-  c.height = 128;
+  c.width = 512;
+  c.height = 512;
   const ctx = c.getContext('2d')!;
+  ctx.scale(4, 4);
   ctx.fillStyle = '#505257';
   ctx.fillRect(0, 0, 128, 128);
   for (let i = 0; i < 1600; i++) {
@@ -180,6 +184,10 @@ export class RoadNet {
       polygonOffsetFactor: rail ? -3 : -2,
       polygonOffsetUnits: rail ? -3 : -2,
     });
+    if (!rail) {
+      roadSurfaces(this.roadMat, ROAD_HALF * 2 / ROAD_U, DASH);
+      roadSurfaces(this.highwayMat, HW_HALF * 2 / ROAD_U, DASH);
+    }
     if (rail) this.shoulderMat.color.set(0x77706a);
     this.shoulderMat.polygonOffset = true;
     this.shoulderMat.polygonOffsetFactor = rail ? -0.6 : -1;
@@ -368,7 +376,7 @@ export class RoadNet {
     if (dir < 0) forward.negate();
     const right = new THREE.Vector3().crossVectors(here.n, forward).normalize();
     // Keep to the right-hand lane: further out on a highway, which has two lanes each way.
-    const off = lane ?? LANE * (1 + 0.9 * this.wide(a, b, t));
+    const off = lane ?? LANE * (1 + 2 * this.wide(a, b, t));
     const pos = here.p.clone().addScaledVector(right, off);
     // Inside a tunnel the hill hides the vehicle. It is only switched off where the ground above dips too low to do that.
     const hidden = this.structure(a, b) === 'tunnel' && (this.hf.edgeProfile(a, b)?.hidden.some(([h0, h1]) => t > h0 && t < h1) ?? false);

@@ -5,6 +5,7 @@ import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { GTAOPass } from 'three/examples/jsm/postprocessing/GTAOPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
+import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import {
   GOODS,
   SITE_DEFS,
@@ -28,6 +29,7 @@ import {
   buyVehicle,
   buildRoadTo,
   relayoutNodes,
+  prepareRealisticWorld,
   homesNow,
   upgradeVehicle,
   duplicateVehicle,
@@ -103,6 +105,9 @@ import { buildDistrict } from '../sim/town';
 import map1 from '../maps/map1.json';
 import { paintGlobe, paintRoughness } from './paint';
 import { Smoke } from './smoke';
+import { buildingSurfaces, loadSurfaces } from './surfaces';
+import { GRAPHICS, nightLight, readGraphics, saveGraphics, type GraphicsQuality, type LightingMode } from './graphics';
+import type { LightAnchor } from '../scale';
 import { RoadNet, makeHighwayTexture, makeRailTexture, makeRoadTexture } from './roads';
 import { Scenery } from './scenery';
 import { buildDemo, demoSpots } from './demo';
@@ -128,10 +133,10 @@ const TICK_MS = 1000 / TICKS_PER_SECOND;
 
 /** Where the load shows on each vehicle: height and distance along its length. */
 const CARGO_AT: Record<VehicleKind, [number, number]> = {
-  boxtruck: [0.58, -0.14],
-  bigtruck: [0.62, -0.2],
-  rig: [0.62, -0.3],
-  convoy: [0.62, -0.1],
+  boxtruck: [0.42, -0.14],
+  bigtruck: [0.42, -0.2],
+  rig: [0.42, -0.3],
+  convoy: [0.42, -0.1],
   train: [0.58, -0.14],
   heavytrain: [0.58, 0.2],
   plane: [0.58, -0.14],
@@ -168,6 +173,7 @@ export interface OverlayItem {
 
 export const siteMaterial = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.82, metalness: 0.05 });
 siteMaterial.onBeforeCompile = (sh) => {
+  sh.uniforms.nightLight = nightLight;
   sh.vertexShader = sh.vertexShader
     .replace('#include <common>', '#include <common>\nattribute float mid;\nvarying float vMid;\nvarying vec3 vOP;\nvarying vec3 vON;')
     .replace('#include <begin_vertex>', '#include <begin_vertex>\nvMid = mid; vOP = position; vON = normal;');
@@ -175,6 +181,7 @@ siteMaterial.onBeforeCompile = (sh) => {
     .replace(
       '#include <common>',
       `#include <common>
+uniform float nightLight;
 varying float vMid;
 varying vec3 vOP;
 varying vec3 vON;
@@ -223,17 +230,47 @@ float vn(vec2 p) {
     vec2 f = fract(p);
     vec2 cell = floor(p);
     float win = step(0.14, f.x) * step(f.x, 0.86) * step(0.2, f.y) * step(f.y, 0.8);
-    float lit = step(0.78, h21(cell));
-    vec3 glass = mix(vec3(0.15, 0.23, 0.31), vec3(0.96, 0.84, 0.52), lit) * (0.85 + 0.35 * h21(cell + 7.0));
-    diffuseColor.rgb = mix(diffuseColor.rgb * 0.82, glass, win);
+    float blinds = step(0.88, h21(cell));
+    vec3 glass = mix(vec3(0.12, 0.2, 0.25), vec3(0.28, 0.3, 0.28), blinds);
+    glass *= 0.92 + 0.12 * h21(vec2(cell.x, 7.0));
+    diffuseColor.rgb = mix(diffuseColor.rgb * 0.68, glass, win);
     shade = 1.0;
+  } else if (m == 10.0) {
+    shade *= 0.8 + 0.3 * vn(uvw * 150.0);
+  } else if (m == 11.0) {
+    shade *= mix(0.45, 1.0, step(0.09, fract(along * 20.0)));
   }
   // Dirt and damp collect where a wall meets the ground, and the sun bleaches the top of it.
   if (!top) shade *= mix(0.74, 1.0, smoothstep(0.0, 0.32, vOP.y)) * (0.96 + 0.08 * vn(vec2(along * 5.0, vOP.y * 2.0)));
   else shade *= 0.97 + 0.05 * vn(uvw * 7.0);
   diffuseColor.rgb *= shade;
 }`,
+    )
+    .replace(
+      '#include <roughnessmap_fragment>',
+      `#include <roughnessmap_fragment>
+  float surfaceKind = floor(vMid + 0.5);
+  if (surfaceKind == 5.0) roughnessFactor = 0.48;
+  else if (surfaceKind == 7.0) roughnessFactor = 0.3;
+  else if (surfaceKind == 8.0) roughnessFactor = 0.18;
+  else if (surfaceKind == 3.0 || surfaceKind == 6.0) roughnessFactor = 0.94;`,
+    )
+    .replace(
+      '#include <metalnessmap_fragment>',
+      `#include <metalnessmap_fragment>
+  if (floor(vMid + 0.5) == 5.0) metalnessFactor = 0.45;`,
+    )
+    .replace(
+      '#include <emissivemap_fragment>',
+      `#include <emissivemap_fragment>
+      float fixture = floor(vMid + 0.5);
+      if (fixture == 9.0) totalEmissiveRadiance += diffuseColor.rgb * (0.15 + nightLight * 3.0);
+      if (fixture == 8.0 || fixture == 7.0) {
+        float occupied = step(0.55, h21(floor(vOP.xz * 2.0) + floor(vOP.y * 3.0)));
+        totalEmissiveRadiance += vec3(1.0, 0.72, 0.4) * nightLight * occupied * 0.35;
+      }`,
     );
+  buildingSurfaces(sh);
 };
 
 /** What the caption says for a stretch of the opening, and whether a camera flash marks its start. */
@@ -286,6 +323,10 @@ export class Game3D {
   private draftHistory: number[] = [];
   /** 0 paused, then 1, 2 or 4 times speed. */
   speed = 1;
+  graphicsQuality: GraphicsQuality = 'ultra';
+  lightingMode: LightingMode = 'day';
+  private readonly localLights: THREE.PointLight[] = [];
+  private nextLights = 0;
   onToast: (text: string) => void = () => {};
   /** How long the last world took to build, for performance checks. */
   loadStats = { paintMs: 0, totalMs: 0 };
@@ -374,7 +415,7 @@ export class Game3D {
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.12;
+    this.renderer.toneMappingExposure = 1.0;
     const el = this.renderer.domElement;
     el.style.position = 'absolute';
     el.style.left = '0';
@@ -382,6 +423,14 @@ export class Game3D {
     host.appendChild(el);
 
     this.scene.background = new THREE.Color(0x03060b);
+    const environment = this.skyTexture.clone();
+    environment.mapping = THREE.EquirectangularReflectionMapping;
+    this.scene.environment = environment;
+    this.scene.environmentIntensity = 0.28;
+    void loadSurfaces(this.renderer.capabilities.getMaxAnisotropy()).catch(error => {
+      console.error('PBR materials failed to load', error);
+      this.onToast('Detailed materials could not load. Reload to retry.');
+    });
     this.scene.add(this.hemi, this.sun, this.sun.target);
     this.sun.castShadow = true;
     this.sun.shadow.mapSize.set(2048, 2048);
@@ -405,6 +454,47 @@ export class Game3D {
     this.scene.add(this.ring, this.selRing);
 
     window.addEventListener('resize', () => this.resize());
+    const preferences = readGraphics();
+    this.lightingMode = preferences.lighting;
+    this.applyGraphics(preferences.quality);
+    this.resize();
+  }
+
+  setGraphics(quality: GraphicsQuality, lighting = this.lightingMode): void {
+    this.lightingMode = lighting;
+    this.applyGraphics(quality);
+    try {
+      saveGraphics(quality, lighting);
+    } catch (error) {
+      console.warn('Graphics preferences could not be saved.', error);
+      this.onToast('Graphics changed, but preferences could not be saved.');
+    }
+  }
+
+  private applyGraphics(quality: GraphicsQuality): void {
+    this.graphicsQuality = quality;
+    const settings = GRAPHICS[quality];
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, settings.pixelRatio));
+    this.sun.shadow.mapSize.set(settings.shadows, settings.shadows);
+    this.sun.shadow.map?.dispose();
+    this.sun.shadow.map = null;
+    if (this.composer) {
+      for (const pass of this.composer.passes) pass.dispose();
+      this.composer.dispose();
+      this.composer = null;
+      this.ao = null;
+    }
+    for (const light of this.localLights) {
+      this.scene.remove(light);
+      light.dispose();
+    }
+    this.localLights.length = 0;
+    for (let i = 0; i < settings.lights; i++) {
+      const light = new THREE.PointLight(0xffdfac, 0, 2.5, 2);
+      this.localLights.push(light);
+      this.scene.add(light);
+    }
+    this.nextLights = 0;
     this.resize();
   }
 
@@ -494,7 +584,9 @@ export class Game3D {
 
   /** A new game on Map 1, or (given a seed, for tests and screenshots) on a generated world. */
   newWorld(seed?: number): void {
-    this.loadWorld(seed === undefined ? createWorldFromMap(map1 as MapData) : createWorld(seed));
+    const world = seed === undefined ? createWorldFromMap(map1 as MapData) : createWorld(seed);
+    prepareRealisticWorld(world);
+    this.loadWorld(world);
   }
 
   save(): boolean {
@@ -640,6 +732,7 @@ export class Game3D {
     this.updateSmoke(dt, dust);
     this.updateLighting();
     this.scenery.update(now / 1000);
+    this.globe?.update(now / 1000);
     this.updateRings();
     this.updateSpots();
     this.drainLog();
@@ -803,12 +896,13 @@ export class Game3D {
 
   /** Draw the frame: with ambient occlusion when close to the ground, straight to the screen from space. */
   private draw(): void {
-    if (this.cam.dist > 150) {
+    const settings = GRAPHICS[this.graphicsQuality];
+    if (this.cam.dist > 150 || !settings.aoSamples) {
       this.renderer.render(this.scene, this.camera);
       return;
     }
     if (!this.composer) {
-      const target = new THREE.WebGLRenderTarget(this.w, this.h, { type: THREE.HalfFloatType, samples: 4 });
+      const target = new THREE.WebGLRenderTarget(this.w, this.h, { type: THREE.HalfFloatType, samples: settings.msaa });
       const c = new EffectComposer(this.renderer, target);
       c.setPixelRatio(this.renderer.getPixelRatio());
       c.setSize(this.w, this.h);
@@ -816,15 +910,16 @@ export class Game3D {
       const ao = new GTAOPass(this.scene, this.camera, this.w, this.h);
       ao.output = GTAOPass.OUTPUT.Default;
       ao.blendIntensity = 1;
-      ao.updateGtaoMaterial({ radius: 1.1, distanceExponent: 1.4, thickness: 1.5, scale: 1.3, samples: 12, distanceFallOff: 1, screenSpaceRadius: false });
+      ao.updateGtaoMaterial({ radius: 0.2, distanceExponent: 1.4, thickness: 0.3, scale: 1.1, samples: settings.aoSamples, distanceFallOff: 1, screenSpaceRadius: false });
       ao.updatePdMaterial({ lumaPhi: 10, depthPhi: 2, normalPhi: 3, radius: 5, radiusExponent: 1, rings: 2, samples: 12 });
       c.addPass(ao);
+      if (settings.bloom) c.addPass(new UnrealBloomPass(new THREE.Vector2(this.w, this.h), 0.18, 0.4, 1.0));
       c.addPass(new OutputPass());
       this.composer = c;
       this.ao = ao;
     }
     // Reach and strength follow the view height, so a wide view is not smeared dark.
-    this.ao!.updateGtaoMaterial({ radius: THREE.MathUtils.clamp(this.cam.dist * 0.05, 0.7, 3) });
+    this.ao!.updateGtaoMaterial({ radius: THREE.MathUtils.clamp(this.cam.dist * 0.012, 0.12, 0.5) });
     this.composer.render();
   }
 
@@ -1047,7 +1142,7 @@ export class Game3D {
       }));
       // A district lot no district has taken yet is homes like the rest.
       const taken = new Set(Object.values(p.districtLots ?? {}));
-      const wanted = [...layout.homes, ...layout.civic.filter((_, i) => !taken.has(i))].filter((h) => h.level <= p.level);
+      const wanted = [...layout.homes, ...layout.civic.filter((c, i) => !c.campus && !taken.has(i))].filter((h) => h.level <= p.level);
       const clear = (x: number, y: number): boolean => landOk(p.x + x, p.y + y) && !routeAt(w, p.x + x, p.y + y) && !siteAt(w, p.x + x, p.y + y);
       // A home whose ground a road or building has taken is not lost: it shifts to the nearest free tile on a street.
       const used = new Set<string>([...wanted, ...layout.plots, ...layout.streets, ...layout.civic].map((t) => `${t.x},${t.y}`));
@@ -1091,7 +1186,7 @@ export class Game3D {
             }
           }
           const setting: Setting = rock >= 7 ? 'rock' : wet >= 6 ? 'water' : wood >= 10 ? 'forest' : 'plain';
-          return { id: id as DistrictId, level: level as number, x: lot.x, y: lot.y, ex: lot.entry.x, ey: lot.entry.y, setting };
+          return { id: id as DistrictId, level: level as number, x: lot.x, y: lot.y, ex: lot.entry.x, ey: lot.entry.y, setting, campus: !!lot.campus };
         });
       const bits = (list: boolean[]): string => list.map((o) => (o ? 1 : 0)).join('');
       const sig = `${streets.length}.${p.level}.${p.path ?? ''}.${bits(plots.map((t) => t.occupied))}.${bits(plots.map((t) => t.home))}.${homes.map((h) => (h.ok ? `${h.x}_${h.y}` : "x")).join("")}.${districts.map((d) => `${d.id}${d.level}`).join(',')}`;
@@ -1109,7 +1204,7 @@ export class Game3D {
         have.mesh.geometry.dispose();
       }
       const { lat } = tileLonLat(w.width, w.height, p.x, p.y);
-      const squeeze = THREE.MathUtils.clamp(Math.cos(lat), 0.55, 1);
+      const squeeze = THREE.MathUtils.clamp(Math.cos(lat), w.realisticLots ? 0.15 : 0.55, 1);
       const mesh = new THREE.Mesh(
         townGeometry({ level: p.level, seed: p.id + w.seed, squeeze, city: radiusOf(p) > 3, style: p.style, streets, plots, homes, districts }),
         siteMaterial,
@@ -1454,7 +1549,7 @@ export class Game3D {
       // Ships ride the swell a little.
       if (sea) pt.pos.addScaledVector(pt.up, 0.05 * Math.sin(this.nowMs / 650 + v.id));
       m.visible = !pt.hidden;
-      const sc = air ? 2.1 : sea ? 1.7 : 1.35;
+      const sc = air ? 2.1 : sea ? 1.7 : 1;
       const units = m.userData.units as { z: number; len: number }[] | null;
       if (units && route.mode === 'rail') {
         // Each unit sits where its own centre falls along the track and points along the chord between its ends, so
@@ -1512,13 +1607,19 @@ export class Game3D {
     const east = new THREE.Vector3(Math.cos(this.cam.lon), 0, -Math.sin(this.cam.lon));
     const north = new THREE.Vector3().crossVectors(n, east).normalize();
     // Up close the sun is a high afternoon sun from the west, relative to where you are looking; from space it is fixed.
-    const local = n.clone().multiplyScalar(0.78).addScaledVector(east, -0.5).addScaledVector(north, 0.28).normalize();
+    const dusk = this.lightingMode === 'dusk';
+    const night = this.lightingMode === 'night';
+    nightLight.value = night ? 1 : dusk ? 0.6 : 0;
+    const local = n.clone().multiplyScalar(dusk ? 0.22 : 0.65).addScaledVector(east, -0.65).addScaledVector(north, 0.28).normalize();
     const world = new THREE.Vector3(0.55, 0.3, 0.78).normalize();
     const k = R / 100;
     const t = THREE.MathUtils.smoothstep(dist, 170 * k, 360 * k);
     const dir = local.lerp(world, t).normalize();
     this.sun.position.copy(F).addScaledVector(dir, 300);
     this.sun.target.position.copy(F);
+    this.sun.intensity = night ? 0.16 : dusk ? 1.3 : 2.6;
+    this.sun.color.set(night ? 0x9cb8df : dusk ? 0xffb576 : 0xffe8c2);
+    this.scene.environmentIntensity = night ? 0.05 : dusk ? 0.18 : 0.28;
     this.sun.castShadow = dist < 190;
     const ext = THREE.MathUtils.clamp(dist * 0.95, 22, 150);
     const sc = this.sun.shadow.camera;
@@ -1531,7 +1632,9 @@ export class Game3D {
     }
 
     const close = 1 - THREE.MathUtils.smoothstep(dist, 70, 260 * k);
-    if (close > 0.3) {
+    if (night || dusk) {
+      this.scene.background = new THREE.Color(night ? 0x080f1e : 0x61545a);
+    } else if (close > 0.3) {
       this.scene.background = this.skyTexture;
       this.scene.backgroundIntensity = Math.min(1, close * 1.1);
     } else {
@@ -1540,7 +1643,7 @@ export class Game3D {
     }
     if (dist < 230) {
       const fog = this.scene.fog as THREE.Fog | null;
-      const color = new THREE.Color(0xc4d3e0);
+      const color = new THREE.Color(night ? 0x101c30 : dusk ? 0xa18b7b : 0xc4d3e0);
       if (!fog) this.scene.fog = new THREE.Fog(color, 10, 400);
       const f = this.scene.fog as THREE.Fog;
       f.color.copy(color);
@@ -1549,8 +1652,33 @@ export class Game3D {
     } else {
       this.scene.fog = null;
     }
-    if (this.globe) (this.globe.stars.material as THREE.PointsMaterial).opacity = THREE.MathUtils.smoothstep(dist, 120 * k, 300 * k) * 0.9;
-    this.hemi.intensity = 1.15 + 0.3 * t;
+    if (this.globe) (this.globe.stars.material as THREE.PointsMaterial).opacity = night ? 0.75 : THREE.MathUtils.smoothstep(dist, 120 * k, 300 * k) * 0.9;
+    this.hemi.intensity = night ? 0.18 : dusk ? 0.55 : 0.85 + 0.3 * t;
+    if (nightLight.value === 0) {
+      for (const light of this.localLights) light.intensity = 0;
+      this.nextLights = 0;
+    } else if (this.nowMs >= this.nextLights) {
+      this.nextLights = this.nowMs + 500;
+      const nearby: { position: THREE.Vector3; light: LightAnchor; distance: number }[] = [];
+      for (const [id, town] of this.townMeshes) {
+        if (this.growing.has(id)) continue;
+        const anchors: LightAnchor[] = town.mesh.geometry.userData.lights ?? [];
+        for (const light of anchors) {
+          const position = new THREE.Vector3(light.x, light.y, light.z).applyMatrix4(town.mesh.matrix);
+          const distance = position.distanceToSquared(F);
+          if (distance < 1600) nearby.push({ position, light, distance });
+        }
+      }
+      nearby.sort((a, b) => a.distance - b.distance);
+      this.localLights.forEach((light, i) => {
+        const source = nearby[i];
+        light.intensity = source ? source.light.power * nightLight.value : 0;
+        if (source) {
+          light.position.copy(source.position);
+          light.distance = source.light.range;
+        }
+      });
+    }
   }
 
   // ---- picking ----
@@ -2311,7 +2439,7 @@ export class Game3D {
       out.set(key, c);
       scene.remove(mesh);
     };
-    for (const kind of BUILD_ORDER) shoot(kind, siteGeometry(kind), 0);
+    for (const kind of BUILD_ORDER) shoot(kind, SITE_DEFS[kind].produce ? siteGeometryAt(kind, 1) : siteGeometry(kind), 0);
     for (const kind of VEHICLE_ORDER) shoot(kind, vehicleGeometry(kind), 0.9);
     r.dispose();
     r.forceContextLoss();

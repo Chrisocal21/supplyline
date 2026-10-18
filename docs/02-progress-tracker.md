@@ -5,8 +5,10 @@
 ## Supplyline
 
 **Overall progress:** about 72% (by checklist count; all of it runs, most of it is playtested only through automated clicks)
-**Last updated:** October 17, 2026
+**Last updated:** October 18, 2026
 **Status:** Active
+
+**Current release:** [0.11 - A fuller, more detailed world](release-0.11.md)
 
 ---
 
@@ -17,7 +19,7 @@
 | Step Zero | Prove the loop | 100% |
 | Phase 1 | MVP as a 3D globe | 95% |
 | Phase 2 | Core loop: rail, air, goods, highways | 90% |
-| Phase 3 | The world, polished (graphics, sound) | 33% |
+| Phase 3 | The world, polished (graphics, sound) | 58% |
 | Phase 4 | Depth: districts, paths, vehicle ladder | 90% |
 | Phase 5 | Living towns, bank, rail yard, joined roads | 100% |
 | Phase 6 | Later: sea transport, real-money cash, events | 30% |
@@ -95,20 +97,77 @@ Overall: about 72%.
 
 ### Phase 3 — The World, polished
 
-**Phase progress:** 33% (4/12)
+**Phase progress:** 58% (7/12)
 
 - [x] Richer sky and light, ambient occlusion and smoother edges close up
 - [x] Opening screen with a cinematic flythrough
 - [x] Smaller polar ice caps
-- [ ] Ground and grass detail
-- [ ] Trees with real shape
-- [x] Buildings: a distinct signboard per site, wall grime and sun fade (more detail still to do)
-- [ ] Water: reflections and moving ripples
+- [ ] Ground and grass detail (fine surface shading added; grass geometry still to do)
+- [x] Trees with branching conifer silhouettes and clustered broadleaf crowns, including town trees
+- [x] Buildings: distinct signboards, wall weathering, varied homes and skyline forms, framed glazing, loading bays and rooftop equipment
+- [x] Water: sky-environment reflections and animated surface normals, fading ripples at distance (not reflections of nearby buildings)
 - [ ] Clouds
-- [ ] Day and night, seasons
+- [ ] Day and night, seasons (manual Day/Dusk/Night lighting implemented; automatic cycle and seasons outstanding)
 - [ ] Sound and music
 - [ ] Phone performance check
-- [ ] Quality switch for slower machines
+- [x] Balanced, High and Ultra graphics presets, saved per device
+
+#### Measured realism foundation (October 18, 2026)
+
+- Local geometry now has an explicit convention: one world unit is 10 metres. Road lanes are 3.5m; newly authored road trucks use 2.55m bodies, with cab glazing, mirrors, steps, tires, loading doors and ribbed cargo bodies. Removed the road vehicles' display-only enlargement.
+- Vendored nine 2K brick, concrete and asphalt texture maps from Poly Haven under CC0, with source attribution in `public/assets/materials/NOTICE.txt`. The running game serves these locally. Building and road shaders use scanned albedo, roughness and normal detail with physical repeat sizes.
+- Full-size football, baseball and hockey campuses have three geometry tiers, stands, roof structures, support buildings and floodlights. The football playing surface measures 109.728 by 48.768m; the hockey rink is inside a roofed arena. Campus entrance drives connect to town streets.
+- New worlds reserve suitable land for these campuses and relocate ordinary resource nodes without dropping their identities, types or qualities. Existing saves keep their compact lot layout. Sports availability depends on clear terrain: the current authored map fits stadiums and arenas, but no full-size ballpark was found. Suitable flat-land regression worlds fit all three.
+- Traffic signals and streetlights use measured pole heights. Bounded local lights illuminate streets and sports grounds at dusk/night; window and fixture emission complements the main lighting.
+- Menu > Graphics and lighting provides Balanced / High / Ultra and Day / Dusk / Night. Ultra uses 4096px shadows, 32-sample contact shading, bloom and up to 16 local lights; Balanced disables post-processing and reduces shadows, pixel density and local lights. The 2K material download remains shared across presets.
+- Verified: production build; 209 tests passed, two existing tests skipped; nine local texture requests; no detected shader failures while switching graphics/lighting presets; a built full-size stadium and completed town growth; desktop and 390px mobile graphics panel, preset selection and close button. Automated Escape-key delivery did not close the panel in the browser check; its existing keyboard-handler integration still needs a manual keyboard check.
+- **Still outstanding:** comprehensive human-scale redesign of every industrial/civic building and tier, airports/aircraft/ships/rail scale reconciliation, further terrain and vegetation realism, broader campus availability, and real-device GPU/memory profiling. This is not yet Farming Simulator / American Truck Simulator / Satisfactory asset fidelity.
+
+#### Resource-site polish (October 18, 2026)
+
+- All 13 built resource sites now receive purpose-specific detail at levels 1–3: forestry, grain farm, dairy ranch, orchard, cotton, coffee, mango, quarry, clay, sand, coal, iron and oil.
+- Resource upgrades retain the original core geometry at a fixed size, replacing the generic scaled-up buildings, piles and barns with site-specific additions. Production-menu thumbnails also use the polished level-one models. Production rules, resource placement and saves are unchanged.
+- Farms gain detailed loading doors, silo ladders/bands, roof fittings, crop stalks, smaller rolled hay bales, trailer wheels and tiered grain storage. Dairy ranches gain shaped cattle with markings, ears and hooves, finer paddock fencing, a water trough, feed area, milk tanks and collection pipes.
+- Plantation/orchard sites gain irrigation runs, strapped produce pallets, packing shelters, water storage and a detailed tractor. Cotton rows now contain individual stems, foliage and cotton bolls rather than white bars.
+- Forestry gains cabin battens, log-end detail, machinery wheels, lumber storage and a tractor. Extraction sites gain layered rock faces, excavator tracks/glazing, ladders, sorting conveyors and storage. Oil upgrades add pipework, valve assemblies, tank access and control equipment.
+- Shared tractors, pallets, shelters, fences and ladders are merged into each site's existing geometry, not separate objects per detail. Resource signboards are reduced to roadside scale.
+- Verified: production build and 110 graphics tests, including all 13 sites at every tier, unchanged core dimensions, deterministic geometry, explicit vertex budgets and bounded footprints. Level-three farm and dairy-ranch close-ups rendered without detected runtime/shader failures. These remain procedural models; bare undeveloped resource-node scenery is unchanged.
+
+#### Quick vegetation density pass (October 18, 2026)
+
+- Forest tiles now attempt 8–14 trees instead of 3–6; grassland groves are more frequent and contain 3–6 trees. Existing town, resource-yard and road clearance logic remains in place, and map trees remain instanced.
+- Undeveloped forest nodes gain eight standing trees. Orchard and mango scenes now contain 20 trees each, including the undeveloped groves; packing areas remain at the front.
+- Undeveloped farmland gains 144 visible crop plants in nine rows. Built grain farms gain another planted strip beside the buildings. Plants mix green and ripe colors/heights; this is static scenery, not a new growth/harvest simulation.
+- This is a quick fill-in pass; density tuning and real-device performance profiling remain follow-up work.
+
+#### Release 0.11 finishing pass
+
+- Increased forests again to 16–26 placement attempts per forest tile and grassland groves to 6–10. The demo now contains 24,603 instanced map trees, compared with 11,999 after the first density pass; node and town trees are additional.
+- Farmland now contains 240 plants per undeveloped node.
+- Replaced both dairy-ranch and pasture-node cattle with shared, more detailed adult-scale models. Six cows per herd have varied coats, standing/grazing poses, muzzles, eyes, ear tags, jointed legs, hooves, udders and tails.
+- Version metadata updated to 0.11 / package 0.11.0. Release notes cover the complete graphics overhaul.
+- Release validation: production build and 226 passing tests, with two existing tests skipped. The demo loaded version 0.11 with the denser vegetation and upgraded ranch, without detected runtime or shader failures.
+
+#### Grounded visual pass (October 17, 2026)
+
+- Muted olive, stone and coastal blue terrain palette; finer ground shading instead of strong mottling.
+- Multi-tier conifer branches and irregular broadleaf crowns, retaining instanced forest rendering.
+- Water highlights animate independently of simulation speed, with land and ice excluded by the surface mask.
+- Sky environment lighting, lower exposure and a lower afternoon sun; separate roughness for concrete, glass facades and metal cladding.
+- Shared slate-and-brass interface palette, brighter secondary text and subtle panel shadows; controls and save formats unchanged.
+- Verified: production build, 17 targeted simulation/map tests, desktop and 390px mobile browser rendering, no detected runtime or shader errors, and advancing water animation uniforms.
+- Still needs a real-device performance pass. This is a procedural art-direction upgrade, not a replacement with photorealistic assets; clouds, seasons, sound and quality presets remain outstanding.
+
+#### Buildings and vegetation overhaul (October 17, 2026)
+
+- Shared pine, oak, birch, orchard and palm models replace simple cone and ball trees across forests, town gardens, forestry sites, orchards, plantations and forest amphitheatres.
+- Four residential variants: cottages, cross-gabled or rooftop-pavilion homes, stepped terrace homes and shop-houses. Regional wall colors and roof styles remain distinct.
+- Three city-block silhouettes: floor-banded apartments/offices, setback towers and split-volume buildings, with storefronts, roof equipment and more restrained curtain-wall glazing.
+- Framed windows with separate glazing material, sills and mullions; industrial loading-bay shutters, bollards, canopies, silo bands, roof lights and rooftop solar panels on flat-roof factories.
+- Freight warehouses and rail-yard offices gain loading and roof detail. Community centres and retail districts gain richer facades; their windows now sit against their building walls.
+- Existing simulation types, plot allocation, town-layout random sequence, saves and growth-animation anchors are preserved. These are visual variants, not new production chains or purchases.
+- Verified: production build and 106 tests (89 graphics checks plus 17 map/simulation checks), desktop close-ups, a completed town-growth animation and 390px mobile rendering without detected runtime or shader errors.
+- Geometry budgets are checked automatically: at most 5,000 vertices per shared tree, 3,500 per tested house and 10,000 per tested city block. Forests remain instanced. Real-device frame-rate and memory profiling are still outstanding.
 
 ---
 

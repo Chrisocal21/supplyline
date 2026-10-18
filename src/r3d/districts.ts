@@ -3,8 +3,9 @@
 // Everything fits inside one tile (about 1.7 units square) so it can sit in any of the slots without touching a street.
 import type { DistrictId } from '../sim/defs';
 import type { Parts } from './parts';
+import { framedWindow, roofVent } from './architecture';
+import { addTree } from './vegetation';
 
-const GLASS = 0x6f93ad;
 const AWN = [0xb94a40, 0xe6e2d6, 0x3f7a55, 0xd7a21f];
 
 /** What a district's lot sits among, which decides how an amphitheatre is built: in the hills, on the water, in the woods, or plain. */
@@ -56,7 +57,10 @@ export function districtLandmark(p: Parts, id: DistrictId, level: number, cx: nu
   };
   p.slab(1.8, 1.8, 0x9a968c, { x: cx, z: cz, ry: yaw });
   const front = 0.82;
-  const win = (lx: number, y: number, w: number, h: number): void => box(lx, front, w, h, 0.02, GLASS, y);
+  const win = (lx: number, y: number, w: number, h: number, lz = 0.065): void => {
+    const [x, z] = at(lx, lz);
+    framedWindow(p, x, y, z, w, h, yaw);
+  };
 
   switch (id) {
     case 'farmersmarket': {
@@ -73,7 +77,7 @@ export function districtLandmark(p: Parts, id: DistrictId, level: number, cx: nu
     }
     case 'restaurants': {
       box(0, -0.35, 1.5, 0.5 * (0.8 + 0.2 * L), 0.8, 0xe4d8be, 0.04, 3);
-      box(0, front - 0.45, 1.6, 0.05, 0.14, 0xb94a40, 0.3 + 0.1 * L);
+      box(0, 0.1, 1.6, 0.05, 0.14, 0x76514a, 0.3 + 0.1 * L);
       win(-0.4, 0.14, 0.4, 0.22);
       win(0.4, 0.14, 0.4, 0.22);
       gable(0, -0.35, 1.62, 0.26, 0.92, 0x6c3a33, 0.54 * (0.8 + 0.2 * L));
@@ -94,7 +98,7 @@ export function districtLandmark(p: Parts, id: DistrictId, level: number, cx: nu
     }
     case 'hardware': {
       box(-0.1, -0.3, 1.3, 0.5, 0.7, 0xb0583f, 0.04, 1);
-      box(-0.1, front - 0.5, 1.2, 0.12, 0.04, 0xe6e2d6, 0.44);
+      box(-0.1, 0.065, 1.2, 0.12, 0.04, 0xe6e2d6, 0.44);
       win(-0.1, 0.14, 0.7, 0.26);
       gable(-0.1, -0.3, 1.42, 0.24, 0.84, 0x4f545c, 0.54);
       for (let i = 0; i < 1 + L; i++) box(0.62, 0.3 + i * 0.28, 0.5, 0.12, 0.2, 0xc7a068, 0.04 + 0.12 * (i % 2));
@@ -118,8 +122,8 @@ export function districtLandmark(p: Parts, id: DistrictId, level: number, cx: nu
     }
     case 'furniture': {
       box(0, -0.2, 1.5, 0.55 * (0.8 + 0.2 * L), 0.9, 0xe9dcc0, 0.04, 3);
-      box(0, front - 0.2, 1.3, 0.34, 0.02, GLASS, 0.1);
-      box(0, front - 0.1, 1.5, 0.05, 0.3, 0x8b5a3a, 0.5);
+      win(0, 0.1, 1.3, 0.34, 0.265);
+      box(0, 0.3, 1.5, 0.05, 0.2, 0x8b5a3a, 0.5);
       box(-0.3, 0.55, 0.22, 0.18, 0.2, 0x8b5a3a);
       box(0.1, 0.58, 0.3, 0.1, 0.18, 0xc7a068);
       gable(0, -0.2, 1.62, 0.22, 1.0, 0x6b4a38, 0.5 * (0.8 + 0.2 * L) + 0.04);
@@ -133,8 +137,10 @@ export function districtLandmark(p: Parts, id: DistrictId, level: number, cx: nu
         const lx = -0.75 + w * (i + 0.5);
         const h = (0.55 + 0.18 * L) * (0.9 + 0.1 * (i % 2));
         box(lx, -0.2, w - 0.04, h, 0.9, cols[i % cols.length], 0.04, 3);
-        box(lx, front - 0.2, w - 0.1, 0.05, 0.26, AWN[(i + 1) % AWN.length], 0.34);
-        box(lx, front - 0.19, w - 0.14, 0.22, 0.02, GLASS, 0.08);
+        box(lx, 0.3, w - 0.1, 0.05, 0.16, AWN[(i + 1) % AWN.length], 0.34);
+        win(lx, 0.08, w - 0.14, 0.22, 0.265);
+        box(lx, -0.2, w, 0.05, 0.94, 0x60676a, h + 0.04, 5);
+        win(lx, 0.48, w * 0.5, 0.18, 0.265);
       }
       break;
     }
@@ -219,10 +225,13 @@ export function districtLandmark(p: Parts, id: DistrictId, level: number, cx: nu
     }
     case 'community': {
       box(0, -0.25, 1.3 + 0.1 * L, 0.5, 0.8, 0xd9c9a3, 0.04, 3);
-      gable(0, -0.25, 1.42 + 0.1 * L, 0.3, 0.92, 0x7a4a3c, 0.54);
-      box(0, front - 0.42, 0.3, 0.3, 0.06, 0x5a3b2a, 0.04);
-      win(-0.45, 0.14, 0.3, 0.22);
-      win(0.45, 0.14, 0.3, 0.22);
+      box(0, -0.25, 1.42 + 0.1 * L, 0.06, 0.92, 0x566467, 0.54, 5);
+      box(0, 0.2, 0.44, 0.04, 0.25, 0x8c7757, 0.42, 2);
+      box(0, 0.165, 0.3, 0.3, 0.035, 0x526f7b, 0.04, 8);
+      win(-0.45, 0.14, 0.3, 0.22, 0.165);
+      win(0.45, 0.14, 0.3, 0.22, 0.165);
+      const [vx, vz] = at(0.25, -0.35);
+      roofVent(p, vx, 0.6, vz, 0.75);
       if (L >= 2) {
         box(-0.66, 0.3, 0.4, 0.32, 0.5, 0xd9c9a3, 0.04, 3);
         gable(-0.66, 0.3, 0.5, 0.2, 0.6, 0x7a4a3c, 0.36);
@@ -297,9 +306,13 @@ export function districtLandmark(p: Parts, id: DistrictId, level: number, cx: nu
           const a = (i / 11) * Math.PI;
           const lx = Math.cos(a) * 0.82;
           const lz = 0.1 - Math.sin(a) * 0.72;
-          cone(lx, lz, 0.2 + (i % 3) * 0.03, 0.55 + (i % 4) * 0.1, i % 2 ? 0x2f5a3c : 0x3d6a46, 0.04);
+          const [x, z] = at(lx, lz);
+          addTree(p, 'pine', x, 0.04, z, 0.65 + (i % 4) * 0.1, i);
         }
-        for (const [lx, lz] of [[-0.85, 0.45], [0.85, 0.45], [-0.7, -0.7], [0.7, -0.7]]) cone(lx, lz, 0.2, 0.7, 0x2f5a3c, 0.04);
+        for (const [lx, lz] of [[-0.85, 0.45], [0.85, 0.45], [-0.7, -0.7], [0.7, -0.7]]) {
+          const [x, z] = at(lx, lz);
+          addTree(p, 'pine', x, 0.04, z, 0.8, lx + lz);
+        }
         seats(0.18, 0.34, 0.12, tiers, [0x8a5e3f, 0x7a5233], 0.04, 0.05, 0.3);
         box(0, 0.5, 0.86, 0.06, 0.36, 0x9a7448, 0.04, 2);
         for (const lx of [-0.36, 0.36]) for (const lz of [0.36, 0.64]) box(lx, lz, 0.04, 0.4, 0.04, 0x6a4a30, 0.1);

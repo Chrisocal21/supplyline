@@ -6,6 +6,8 @@ import { plotTiles, townTiles, type World } from '../sim/world';
 import { HeightField, LAT_SPAN, R, basisMatrix, lonLatToVec } from './geo';
 import { Parts } from './parts';
 import { specialtyNodeProps } from './specialty';
+import { addCropRows, addTree, treeGeometry } from './vegetation';
+import { addCow } from './livestock';
 
 function rng(seed: number): () => number {
   let a = seed >>> 0;
@@ -42,6 +44,7 @@ function nodeProps(kind: NodeKind): THREE.BufferGeometry {
   const GREEN = 0x4a7a3c;
   switch (kind) {
     case 'farmland':
+      addCropRows(p, 0, -0.35, 2.2, 1.5, 12, 20);
       // Hay bales at the field corner, a hedge along one side and a tractor parked at the gate.
       for (const [x, z] of [[0.7, 0.62], [0.98, 0.7], [0.82, 0.9]]) p.cyl(0.16, 0.16, 0.3, 0xd0b050, { x, y: 0.16, z, rz: Math.PI / 2 }, 10);
       for (let i = 0; i < 7; i++) p.sphere(0.13 + (i % 2) * 0.03, i % 3 ? 0x3f6a38 : GREEN, { x: -1.0 + i * 0.32, y: 0.12, z: -1.75 }, 0);
@@ -69,20 +72,16 @@ function nodeProps(kind: NodeKind): THREE.BufferGeometry {
           p.box(0.05, 0.3, 0.05, 0x7a5a3c, { x, y: 0.05, z: t * hz });
         }
       }
-      for (const [x, z, c] of [[-0.4, 0.1, 0xf2f0ea], [0.25, -0.3, 0x6b4a32], [0.55, 0.25, 0xe6dfd0], [-0.2, -0.45, 0x8a6a48]]) {
-        p.box(0.34, 0.2, 0.16, c, { x, y: 0.12, z });
-        p.box(0.12, 0.12, 0.12, c, { x: x + 0.22, y: 0.2, z });
-        for (const [lx, lz] of [[-0.12, -0.05], [0.12, -0.05], [-0.12, 0.05], [0.12, 0.05]]) p.box(0.04, 0.12, 0.04, 0x3a3a3a, { x: x + lx, y: 0.02, z: z + lz });
-      }
+      [[-0.6, 0.25], [0.15, -0.35], [0.6, 0.35], [-0.55, -0.5], [0.1, 0.55], [0.6, -0.4]].forEach(([x, z], i) =>
+        addCow(p, x, 0.03, z, i, i * 0.8));
       break;
     }
     case 'orchard':
-      for (let r = 0; r < 3; r++) {
-        for (let c = 0; c < 3; c++) {
-          const x = -0.7 + c * 0.7;
-          const z = -0.55 + r * 0.55;
-          p.cyl(0.04, 0.05, 0.28, 0x5b4630, { x, y: 0.04, z }, 6);
-          p.sphere(0.27, 0x5f8a45, { x, y: 0.42, z }, 1);
+      for (let r = 0; r < 4; r++) {
+        for (let c = 0; c < 5; c++) {
+          const x = -0.95 + c * 0.475;
+          const z = -0.8 + r * 0.5;
+          addTree(p, 'orchard', x, 0.04, z, 0.65, r * 5 + c);
           p.sphere(0.04, 0xc8453b, { x: x + 0.12, y: 0.5, z: z + 0.16 }, 0);
           p.sphere(0.04, 0xd9a02a, { x: x - 0.14, y: 0.4, z: z + 0.14 }, 0);
         }
@@ -98,6 +97,10 @@ function nodeProps(kind: NodeKind): THREE.BufferGeometry {
       for (const [x, z, w] of [[0.6, 0.4, 0.34], [0.9, 0.5, 0.28], [0.72, 0.7, 0.3]]) p.box(w, 0.16, 0.22, 0xb0603f, { x, y: 0.03, z });
       break;
     case 'forest':
+      for (let row = 0; row < 3; row++) for (let col = 0; col < 3; col++) {
+        if (row === 2 && col === 1) continue;
+        addTree(p, col % 2 ? 'oak' : 'pine', -0.85 + col * 0.85, 0.025, -0.85 + row * 0.7, 0.95 + ((row + col) % 3) * 0.17, row * 3 + col);
+      }
       p.cyl(0.1, 0.12, 0.12, 0x6a4a30, { x: -0.6, y: 0.02, z: 0.5 }, 8);
       p.cyl(0.09, 0.11, 0.1, 0x6a4a30, { x: 0.9, y: 0.02, z: -0.3 }, 8);
       for (const [x, y, z] of [[0.3, 0.02, 0.8], [0.3, 0.02, 1.0], [0.3, 0.17, 0.9]]) p.cyl(0.08, 0.08, 0.7, 0xc7a068, { x, y, z, rz: Math.PI / 2 }, 8);
@@ -137,23 +140,6 @@ function nodeProps(kind: NodeKind): THREE.BufferGeometry {
   return p.build();
 }
 
-function pineGeometry(): THREE.BufferGeometry {
-  const p = new Parts();
-  p.cyl(0.04, 0.06, 0.32, 0x5b4630, {}, 6);
-  p.cone(0.46, 0.85, 0x3d6a46, { y: 0.2 }, 8);
-  p.cone(0.36, 0.72, 0x44744d, { y: 0.55 }, 8);
-  p.cone(0.25, 0.6, 0x4c7f55, { y: 0.88 }, 8);
-  return p.build();
-}
-
-function broadleafGeometry(): THREE.BufferGeometry {
-  const p = new Parts();
-  p.cyl(0.05, 0.07, 0.55, 0x5b4630, {}, 6);
-  p.sphere(0.42, 0x4f7a3d, { y: 0.85 }, 1);
-  p.sphere(0.3, 0x5d8c47, { x: 0.18, y: 1.02, z: 0.06 }, 1);
-  return p.build();
-}
-
 function rockGeometry(): THREE.BufferGeometry {
   const g = new THREE.IcosahedronGeometry(0.5, 0);
   const pos = g.getAttribute('position');
@@ -167,7 +153,7 @@ interface Spot {
   tile: number;
   lon: number;
   lat: number;
-  kind: 'pine' | 'round' | 'rock';
+  kind: 'pine' | 'round' | 'birch' | 'rock';
   scale: number;
   yaw: number;
   shade: number;
@@ -271,7 +257,7 @@ export class Scenery {
         const { lon, lat } = tileLonLat(w.width, w.height, x, y);
         // Forests thicken and thin, and grassland has groves and open meadow instead of an even sprinkle.
         const gv = grove(w.seed, x * 0.33, y * 0.33);
-        const count = t === 'forest' ? 3 + Math.round(gv * 3) : t === 'mountain' ? 2 : r() < 0.015 + 0.2 * Math.max(0, gv - 0.58) * 2 ? 1 + (gv > 0.72 ? 1 : 0) : 0;
+        const count = t === 'forest' ? 16 + Math.round(gv * 10) : t === 'mountain' ? 2 : r() < 0.12 + 0.8 * Math.max(0, gv - 0.35) ? 6 + Math.round(gv * 4) : 0;
         for (let k = 0; k < count; k++) {
           const jx = r();
           const jy = r();
@@ -282,7 +268,7 @@ export class Scenery {
             tile: this.tileIndex(x, y),
             lon: lon + (jx - 0.5) * dLon * 0.92,
             lat: lat + (jy - 0.5) * dLat * 0.92,
-            kind: t === 'mountain' ? 'rock' : t === 'grass' || r() < 0.28 ? 'round' : 'pine',
+            kind: t === 'mountain' ? 'rock' : t === 'grass' || r() < 0.28 ? (k % 3 === 0 ? 'birch' : 'round') : 'pine',
             scale: t === 'mountain' ? 0.22 + r() * 0.5 : t === 'grass' ? 0.55 + r() * 0.35 : 0.85 + r() * 0.6,
             yaw: r() * Math.PI * 2,
             shade: r(),
@@ -313,8 +299,9 @@ export class Scenery {
     };
 
     const treeMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9 });
-    make('pine', pineGeometry(), treeMat);
-    make('round', broadleafGeometry(), treeMat);
+    make('pine', treeGeometry('pine'), treeMat);
+    make('round', treeGeometry('oak'), treeMat);
+    make('birch', treeGeometry('birch', 1), treeMat);
     make('rock', rockGeometry(), new THREE.MeshStandardMaterial({ color: 0x8f8d88, roughness: 1, flatShading: true }));
   }
 

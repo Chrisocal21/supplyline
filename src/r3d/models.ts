@@ -7,6 +7,10 @@ import { industryGeometry } from './industry';
 import { cargoShipGeometry, coasterGeometry, containerShipGeometry } from './opening';
 import { portGeometry } from './specialty';
 import { Parts } from './parts';
+import { addTree } from './vegetation';
+import { framedWindow, loadingBay, roofVent } from './architecture';
+import { truckGeometry } from './trucks';
+import { resourceDetails } from './resourceDetails';
 
 const C = {
   concrete: 0xb4b2ab,
@@ -50,7 +54,7 @@ function forestry(): THREE.BufferGeometry {
   p.gable(1.36, 0.32, 0.96, C.roofDark, { x: -0.45, y: 0.55, z: -0.25 });
   p.box(0.12, 0.4, 0.12, C.concreteDark, { x: -0.1, y: 0.7, z: -0.45 });
   p.box(0.22, 0.34, 0.02, C.timberDark, { x: -0.45, y: 0.05, z: 0.16 });
-  p.box(0.22, 0.2, 0.02, 0xcfd8dc, { x: -0.8, y: 0.2, z: 0.16 });
+  framedWindow(p, -0.8, 0.2, 0.17, 0.22, 0.2);
   // Log pile
   log(p, 0.55, 0.05, 0.45);
   log(p, 0.55, 0.05, 0.66);
@@ -60,13 +64,15 @@ function forestry(): THREE.BufferGeometry {
   p.box(0.6, 0.26, 0.38, C.yellow, { x: 0.45, y: 0.13, z: -0.5 });
   p.box(0.26, 0.24, 0.3, C.yellow, { x: 0.6, y: 0.39, z: -0.5 });
   p.box(0.2, 0.14, 0.02, 0x9fc3d6, { x: 0.6, y: 0.5, z: -0.34 });
-  for (const [x, z] of [[0.25, -0.3], [0.65, -0.3], [0.25, -0.7], [0.65, -0.7]]) wheel(p, x, 0.02, z, 0.13);
+  for (const [x, z] of [[0.25, -0.3], [0.65, -0.3], [0.25, -0.7], [0.65, -0.7]]) {
+    p.cyl(0.1, 0.1, 0.065, C.black, { x, y: 0.15, z, rx: Math.PI / 2 }, 16);
+    p.cyl(0.05, 0.05, 0.069, C.metal, { x, y: 0.15, z, rx: Math.PI / 2 }, 12);
+  }
   // Stumps and a couple of standing trees behind
   p.cyl(0.07, 0.08, 0.1, C.timberDark, { x: -1.0, y: 0.04, z: 0.55 }, 8);
   p.cyl(0.06, 0.07, 0.08, C.timberDark, { x: 1.0, y: 0.04, z: 0.1 }, 8);
   for (const [x, z, h] of [[-1.1, -0.95, 1.2], [1.0, -0.95, 1.0]]) {
-    p.cyl(0.04, 0.06, 0.3, C.timberDark, { x, y: 0.05, z }, 6);
-    p.cone(0.34, h, 0x2c4a33, { x, y: 0.3, z }, 8);
+    addTree(p, 'pine', x, 0.05, z, h, x > 0 ? 1 : 0);
   }
   return p.build();
 }
@@ -77,8 +83,14 @@ function farm(): THREE.BufferGeometry {
   p.tex = 2;
   p.box(1.3, 0.7, 0.9, 0x7a3a2e, { x: -0.5, y: 0, z: -0.3 });
   p.gable(1.46, 0.45, 1.04, C.roofDark, { x: -0.5, y: 0.7, z: -0.3 });
-  p.box(0.42, 0.46, 0.02, 0xe6e2d6, { x: -0.5, y: 0, z: 0.16 });
+  loadingBay(p, -0.5, 0.02, 0.16, 0.38, 0.38);
   p.box(0.5, 0.1, 0.02, 0xe6e2d6, { x: -0.5, y: 0.55, z: 0.16 });
+  for (const side of [-1, 1]) {
+    p.box(0.025, 0.55, 0.025, C.white, { x: -0.5 + side * 0.19, y: 0.02, z: 0.18, rz: side * 0.62, t: 0 });
+    p.box(0.03, 0.7, 0.03, C.white, { x: -0.5 + side * 0.63, y: 0, z: 0.17, t: 0 });
+  }
+  for (const z of [-0.76, 0.16]) p.box(1.35, 0.022, 0.028, C.metalDark, { x: -0.5, y: 0.69, z, t: 5 });
+  for (let i = 0; i < 5; i++) p.box(0.11, 0.045, 0.055, C.metalDark, { x: -1.02 + i * 0.26, y: 1.125, z: -0.3, t: 5 });
   // Silos
   p.cyl(0.22, 0.22, 1.3, 0xc9cdcf, { x: 0.35, y: 0, z: -0.55 });
   p.dome(0.22, 0x9aa1a6, { x: 0.35, y: 1.3, z: -0.55 });
@@ -87,9 +99,16 @@ function farm(): THREE.BufferGeometry {
   // Farmhouse
   p.box(0.6, 0.4, 0.5, 0xe9e6dc, { x: 0.55, y: 0, z: 0.5 });
   p.gable(0.72, 0.28, 0.62, C.roofRed, { x: 0.55, y: 0.4, z: 0.5 });
+  framedWindow(p, 0.4, 0.15, 0.76, 0.14, 0.14);
+  framedWindow(p, 0.7, 0.15, 0.76, 0.14, 0.14);
   // Hay bales and a trailer
-  for (const [x, z] of [[-0.2, 0.7], [0.05, 0.72], [-0.07, 0.95]]) p.cyl(0.16, 0.16, 0.24, 0xd0b050, { x, y: 0.16, z, rz: Math.PI / 2 }, 12);
+  for (const [x, z] of [[-0.2, 0.7], [0.05, 0.72], [-0.07, 0.95]]) {
+    p.cyl(0.075, 0.075, 0.12, 0xb4a16d, { x, y: 0.08, z, rz: Math.PI / 2 }, 16);
+    p.cyl(0.05, 0.05, 0.123, 0x9c8956, { x, y: 0.08, z, rz: Math.PI / 2 }, 16);
+    p.cyl(0.025, 0.025, 0.125, 0xc4b47f, { x, y: 0.08, z, rz: Math.PI / 2 }, 12);
+  }
   p.box(0.5, 0.14, 0.3, C.green, { x: -1.0, y: 0.08, z: 0.6 });
+  for (const x of [-1.16, -0.84]) for (const z of [0.45, 0.78]) p.cyl(0.055, 0.055, 0.035, C.black, { x, y: 0.06, z, rx: Math.PI / 2 }, 12);
   return p.build();
 }
 
@@ -119,6 +138,11 @@ function quarry(): THREE.BufferGeometry {
   // Haul truck
   p.box(0.5, 0.2, 0.3, 0xe08a2e, { x: -0.3, y: 0.1, z: 0.85 });
   p.box(0.18, 0.2, 0.28, 0xe08a2e, { x: -0.62, y: 0.14, z: 0.85 });
+  framedWindow(p, -0.62, 0.23, 0.996, 0.15, 0.085);
+  for (const x of [-0.6, -0.15]) for (const z of [0.69, 1.035]) {
+    p.cyl(0.075, 0.075, 0.04, C.black, { x, y: 0.125, z, rx: Math.PI / 2 }, 16);
+    p.cyl(0.035, 0.035, 0.044, C.metal, { x, y: 0.125, z, rx: Math.PI / 2 }, 12);
+  }
   return p.build();
 }
 
@@ -128,8 +152,8 @@ function sawmill(): THREE.BufferGeometry {
   p.tex = 5;
   p.box(1.7, 0.62, 0.85, C.metal, { x: -0.2, y: 0.04, z: -0.35 });
   p.gable(1.86, 0.3, 1.0, C.metalDark, { x: -0.2, y: 0.66, z: -0.35 });
-  p.box(0.4, 0.34, 0.02, 0x24272b, { x: -0.5, y: 0.04, z: 0.08 });
-  p.box(0.7, 0.2, 0.02, 0x9fc3d6, { x: 0.15, y: 0.3, z: 0.08 });
+  loadingBay(p, -0.5, 0.04, 0.09, 0.4, 0.34);
+  framedWindow(p, 0.15, 0.3, 0.09, 0.7, 0.2);
   p.cyl(0.09, 0.11, 1.1, C.brick, { x: 0.45, y: 0.04, z: -0.6 });
   p.box(0.5, 0.2, 0.3, C.white, { x: 0.9, y: 0.04, z: -0.35 });
   // Lumber stacks and log deck
@@ -154,8 +178,9 @@ function mill(): THREE.BufferGeometry {
   p.box(1.8, 0.14, 0.3, 0xbab6aa, { x: -0.02, y: 1.72, z: -0.45 });
   p.box(1.3, 0.55, 0.8, C.concrete, { x: 0.3, y: 0.04, z: 0.45 });
   p.box(1.4, 0.06, 0.9, C.concreteDark, { x: 0.3, y: 0.59, z: 0.45 });
-  p.box(0.45, 0.35, 0.02, 0x24272b, { x: 0.0, y: 0.04, z: 0.86 });
-  p.box(0.5, 0.2, 0.02, 0x9fc3d6, { x: 0.7, y: 0.3, z: 0.86 });
+  loadingBay(p, 0, 0.04, 0.86, 0.45, 0.35);
+  framedWindow(p, 0.7, 0.3, 0.86, 0.5, 0.2);
+  roofVent(p, 0.6, 0.65, 0.45);
   for (const [x, z] of [[-0.8, 0.5], [-0.65, 0.7]]) p.cyl(0.11, 0.11, 0.26, 0xf4efe3, { x, y: 0.04, z }, 10);
   return p.build();
 }
@@ -166,8 +191,8 @@ function papermill(): THREE.BufferGeometry {
   p.tex = 5;
   p.box(2.0, 0.85, 1.0, 0xb8bab9, { x: -0.2, y: 0.04, z: -0.3 });
   for (let i = 0; i < 4; i++) p.gable(0.5, 0.22, 1.0, C.metalDark, { x: -0.8 + i * 0.5, y: 0.89, z: -0.3 });
-  p.box(0.9, 0.22, 0.02, 0x9fc3d6, { x: -0.3, y: 0.5, z: 0.21 });
-  p.box(0.4, 0.4, 0.02, 0x24272b, { x: 0.45, y: 0.04, z: 0.21 });
+  framedWindow(p, -0.3, 0.5, 0.21, 0.9, 0.22);
+  loadingBay(p, 0.45, 0.04, 0.21, 0.4, 0.4);
   for (const x of [0.75, 1.05]) {
     p.cyl(0.1, 0.13, 1.7, C.brick, { x, y: 0.04, z: -0.65 });
     p.cyl(0.11, 0.11, 0.1, 0xe9eced, { x, y: 1.5, z: -0.65 });
@@ -283,11 +308,13 @@ function hub(): THREE.BufferGeometry {
   p.box(2.38, 0.05, 1.23, 0x4a5058, { x: 0, y: 0.74, z: -0.4 });
   p.box(2.3, 0.09, 0.02, C.orange, { x: 0, y: 0.5, z: 0.18 });
   for (let i = 0; i < 4; i++) {
-    p.box(0.4, 0.4, 0.02, 0x23262a, { x: -0.85 + i * 0.57, y: 0.04, z: 0.18 });
-    p.box(0.44, 0.04, 0.03, C.yellow, { x: -0.85 + i * 0.57, y: 0.44, z: 0.19 });
+    loadingBay(p, -0.85 + i * 0.57, 0.04, 0.18, 0.4, 0.4);
   }
+  for (const x of [-0.7, 0.7]) roofVent(p, x, 0.79, -0.5, 1.2);
+  for (const z of [-0.99, 0.19]) p.box(2.38, 0.09, 0.03, C.metalDark, { y: 0.79, z, t: 5 });
   p.box(0.55, 0.38, 0.45, 0xe3e1da, { x: -1.05, y: 0.04, z: 0.75 });
   p.box(0.6, 0.04, 0.5, 0x6a6e73, { x: -1.05, y: 0.42, z: 0.75 });
+  framedWindow(p, -1.05, 0.16, 0.985, 0.36, 0.17);
   const cols = [C.orange, C.blue, C.green, C.red, 0xd9d6cc, C.blue];
   [[0.9, 0.04, 0.8], [0.9, 0.3, 0.8], [0.3, 0.04, 0.85], [-0.3, 0.04, 0.9], [0.3, 0.3, 0.85], [0.95, 0.04, 0.45]].forEach(([x, y, z], i) => {
     p.box(0.56, 0.26, 0.24, cols[i % cols.length], { x, y, z });
@@ -305,11 +332,12 @@ function depot(): THREE.BufferGeometry {
   p.box(1.58, 0.05, 1.23, 0x4a5058, { x: -0.8, y: 0.74, z: -0.6 });
   p.box(1.5, 0.09, 0.02, C.orange, { x: -0.8, y: 0.5, z: -0.02 });
   for (let i = 0; i < 3; i++) {
-    p.box(0.4, 0.4, 0.02, 0x23262a, { x: -1.25 + i * 0.45, y: 0.04, z: -0.02 });
-    p.box(0.44, 0.04, 0.03, C.yellow, { x: -1.25 + i * 0.45, y: 0.44, z: -0.01 });
+    loadingBay(p, -1.25 + i * 0.45, 0.04, -0.02, 0.34, 0.4);
   }
+  roofVent(p, -0.8, 0.79, -0.6, 1.25);
   p.box(0.55, 0.36, 0.4, 0xe3e1da, { x: -1.1, y: 0.04, z: 0.8 });
   p.box(0.6, 0.04, 0.45, 0x6a6e73, { x: -1.1, y: 0.4, z: 0.8 });
+  framedWindow(p, -1.1, 0.14, 1.01, 0.36, 0.17);
   // The rail yard: two tracks with a loading platform between them.
   p.tex = 6;
   p.box(0.34, 0.11, 2.7, C.concrete, { x: 0.95, y: 0.04, z: 0 });
@@ -773,17 +801,17 @@ function signGeometry(kind: SiteKind, level = 1): THREE.BufferGeometry {
   const edge = def.airport ? [0, 1.55, 1.95, 2.45][Math.max(1, Math.min(3, level))] : def.port ? [0, 1.55, 1.85, 2.2][Math.max(1, Math.min(3, level))] : 1.5;
   const x = -edge;
   const z = -edge;
-  const top = 2.05;
+  const top = def.produce ? 0.48 : 2.05;
   const raw = good ? GOODS[good].color : def.airport ? 0x4aa3d8 : def.port ? 0x3a86c8 : def.railyard ? 0xd0702f : 0x2f6fb0;
   // Good colours are earthy; a sign has to read from afar, so pull them toward bright and saturated.
   const hsl = { h: 0, s: 0, l: 0 };
   new THREE.Color(raw).getHSL(hsl);
   const color = new THREE.Color().setHSL(hsl.h, Math.max(0.85, hsl.s), 0.6).getHex();
-  p.cyl(0.03, 0.04, top, C.metal, { x, y: 0, z }, 6);
+  p.cyl(def.produce ? 0.009 : 0.03, def.produce ? 0.014 : 0.04, top, C.metal, { x, y: 0, z }, 8);
   if (def.produce) {
-    p.cyl(0.36, 0.36, 0.07, C.white, { x, y: top - 0.05, z, rx: Math.PI / 2 }, 20);
-    p.cyl(0.3, 0.3, 0.09, color, { x, y: top - 0.05, z, rx: Math.PI / 2 }, 20);
-    p.cyl(0.1, 0.1, 0.1, C.white, { x, y: top - 0.05, z, rx: Math.PI / 2 }, 12);
+    p.cyl(0.12, 0.12, 0.012, C.white, { x, y: top - 0.05, z, rx: Math.PI / 2 }, 20);
+    p.cyl(0.1, 0.1, 0.016, color, { x, y: top - 0.05, z, rx: Math.PI / 2 }, 20);
+    p.cyl(0.035, 0.035, 0.02, C.white, { x, y: top - 0.05, z, rx: Math.PI / 2 }, 12);
   } else if (def.recipe) {
     p.box(0.74, 0.74, 0.07, C.white, { x, y: top - 0.37, z });
     p.box(0.64, 0.64, 0.09, color, { x, y: top - 0.32, z });
@@ -803,6 +831,15 @@ export function siteGeometryAt(kind: SiteKind, level: number, withDepot = false)
   const grow = LEVEL_GROW[level];
   if (def.dock || def.station) return base;
   const sign = signGeometry(kind, level);
+  if (def.produce) {
+    const details = resourceDetails(kind, level);
+    const whole = mergeGeometries([base, details, sign], false)!;
+    base.dispose();
+    details.dispose();
+    sign.dispose();
+    whole.computeBoundingSphere();
+    return whole;
+  }
   if (def.port) {
     base.dispose();
     const quay = portGeometry(level);
@@ -956,41 +993,10 @@ export function vehicleGeometry(kind: VehicleKind): THREE.BufferGeometry {
   const p = new Parts();
   switch (kind) {
     case 'boxtruck':
-      p.box(0.32, 0.07, 0.92, 0x2b2d30, { y: 0.1 });
-      p.box(0.32, 0.3, 0.28, 0x3b6ea5, { y: 0.14, z: 0.33 });
-      p.box(0.3, 0.12, 0.02, 0xbcd6e6, { y: 0.28, z: 0.475 });
-      p.box(0.35, 0.36, 0.58, 0xe4e5e6, { y: 0.14, z: -0.14 });
-      for (const [x, z] of [[-0.17, 0.3], [0.17, 0.3], [-0.17, -0.26], [0.17, -0.26]]) wheel(p, x, 0.0, z);
-      break;
     case 'rig':
-      p.box(0.34, 0.07, 1.6, 0x2b2d30, { y: 0.1 });
-      p.box(0.34, 0.36, 0.36, 0xa83a30, { y: 0.14, z: 0.62 });
-      p.box(0.32, 0.12, 0.02, 0xbcd6e6, { y: 0.32, z: 0.805 });
-      p.box(0.18, 0.1, 0.18, 0x2b2d30, { y: 0.5, z: 0.62 });
-      p.box(0.38, 0.44, 1.05, 0xdfe1e3, { y: 0.14, z: -0.3 });
-      p.box(0.39, 0.06, 1.05, 0x2f5f8a, { y: 0.34, z: -0.3 });
-      for (const [x, z] of [[-0.18, 0.6], [0.18, 0.6], [-0.18, -0.55], [0.18, -0.55], [-0.18, -0.78], [0.18, -0.78]]) wheel(p, x, 0.0, z, 0.1);
-      break;
     case 'bigtruck':
-      p.box(0.36, 0.07, 1.2, 0x2b2d30, { y: 0.1 });
-      p.box(0.36, 0.36, 0.3, 0x2f7a6a, { y: 0.14, z: 0.44 });
-      p.box(0.34, 0.13, 0.02, 0xbcd6e6, { y: 0.32, z: 0.595 });
-      p.box(0.4, 0.46, 0.78, 0xe9eaeb, { y: 0.14, z: -0.2 });
-      p.box(0.41, 0.06, 0.78, 0x2f7a6a, { y: 0.36, z: -0.2 });
-      for (const [x, z] of [[-0.19, 0.42], [0.19, 0.42], [-0.19, -0.3], [0.19, -0.3], [-0.19, -0.5], [0.19, -0.5]]) wheel(p, x, 0.0, z, 0.1);
-      break;
     case 'convoy':
-      // Three rigs nose to tail, as one unit.
-      for (let i = 0; i < 3; i++) {
-        const z = 1.1 - i * 1.25;
-        p.box(0.34, 0.07, 1.1, 0x2b2d30, { y: 0.1, z });
-        p.box(0.34, 0.36, 0.32, [0xa83a30, 0x2f5f8a, 0xd7a21f][i], { y: 0.14, z: z + 0.4 });
-        p.box(0.32, 0.12, 0.02, 0xbcd6e6, { y: 0.32, z: z + 0.565 });
-        p.box(0.38, 0.44, 0.76, 0xdfe1e3, { y: 0.14, z: z - 0.2 });
-        p.box(0.39, 0.06, 0.76, [0xa83a30, 0x2f5f8a, 0xd7a21f][i], { y: 0.34, z: z - 0.2 });
-        for (const [x, dz] of [[-0.18, 0.4], [0.18, 0.4], [-0.18, -0.4], [0.18, -0.4]]) wheel(p, x, 0.0, z + dz, 0.1);
-      }
-      break;
+      return truckGeometry(kind);
     case 'heavytrain':
     case 'train':
       return mergeUnits(trainUnits(kind));

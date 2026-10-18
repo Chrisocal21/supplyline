@@ -79,7 +79,9 @@ export function districtError(world: World, place: Place, id: DistrictId): strin
   if (level >= districtCap(place, id)) return `Needs a ${TOWN_LEVELS[Math.min(TOWN_LEVELS.length, def.minLevel + level) - 1].name}`;
   const cost = districtCost(place, id);
   if (world.money < cost) return `Need $${cost.toLocaleString('en-US')}`;
-  if (level === 0 && freeCivicLot(world, place) === null) return `${place.name} has no free lot left for it`;
+  if (level === 0 && freeCivicLot(world, place, id) === null) return world.realisticLots && ['stadium', 'ballpark', 'arena'].includes(id)
+    ? `${place.name} has no clear, full-size sports campus available`
+    : `${place.name} has no free lot left for it`;
   return null;
 }
 
