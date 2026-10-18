@@ -48,6 +48,7 @@ import {
 } from './defs';
 import { generateFeatures, type FixedPlace, type Place, type Region, type ResourceNode, type Tile } from './features';
 import { corridorTiles } from './corridors';
+import { landError } from './land';
 import { blendPartner, civicFootprint, footprint, plotCount, streetReach, townLayout, type TownLayout } from './townlayout';
 import { generateLand } from './mapgen';
 import { checkQuests } from './quests';
@@ -322,6 +323,10 @@ export interface World {
   version: 4;
   /** New worlds reserve measured, multi-tile sports campuses. Missing means the legacy layout. */
   realisticLots?: boolean;
+  /** New games: a building outside a town needs its land plot bought first (see land.ts). Missing means build anywhere. */
+  landRules?: boolean;
+  /** Land plots the player owns, by plot id. */
+  owned?: number[];
   /** Trucks buildings are asking for. Not saved: they come back on their own if the need is still there. */
   offers?: TruckOffer[];
   seed: number;
@@ -2166,6 +2171,12 @@ export function placeError(world: World, kind: SiteKind, x: number, y: number, r
       return t === 'forest' ? 'Forests are reserved for forestry nodes' : `Cannot build on ${t}`;
     } else if (!def.port && slopeAt(world, x, y) > BUILD_SLOPE) {
       return 'Too steep to build on';
+    }
+    if (world.landRules) {
+      // Outside a town the ground has to be bought: an airport needs all nine of its tiles, anything else the one it stands on.
+      const tiles = def.airport ? Array.from({ length: 9 }, (_, i) => ({ x: x + (i % 3) - 1, y: y + Math.floor(i / 3) - 1 })) : [{ x, y }];
+      const e = landError(world, tiles);
+      if (e) return e;
     }
     if (def.airport) {
       const e = airfieldError(world, x, y, rot);

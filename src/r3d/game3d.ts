@@ -119,6 +119,7 @@ import { Smoke } from './smoke';
 import { buildingSurfaces, loadSurfaces } from './surfaces';
 import { GRAPHICS, nightLight, readGraphics, saveGraphics, type GraphicsQuality, type LightingMode } from './graphics';
 import { TILE_UNITS, type LightAnchor } from '../scale';
+import { LAND_PREFIX, buyParcel, enableLandRules, parcelAt, parcelPrice } from '../sim/land';
 import { RoadNet, makeHighwayTexture, makeRailTexture, makeRoadTexture } from './roads';
 import { Scenery } from './scenery';
 import { buildDemo, demoSpots } from './demo';
@@ -606,12 +607,14 @@ export class Game3D {
     const def = [...WORLD_SIZES, ...RANDOM_SIZES].find((q) => q.id === size);
     const world = def?.id === 'map2' ? createWorldFromMap(map2 as MapData) : def && !def.made ? createWorld(seed ?? Math.floor(Math.random() * 1e9), def.width, def.height) : seed === undefined ? createWorldFromMap(map1 as MapData) : createWorld(seed);
     prepareRealisticWorld(world);
+    enableLandRules(world);
     this.loadWorld(world);
   }
 
   /** Take a world that has been made elsewhere (in steps, with a progress bar) and show it. */
   adoptWorld(world: World): void {
     prepareRealisticWorld(world);
+    enableLandRules(world);
     this.loadWorld(world);
   }
 
@@ -1077,6 +1080,7 @@ export class Game3D {
     const usedNodes = new Set(w.sites.map((s) => s.nodeId).filter((n): n is number => n !== null));
     this.scenery.showMarkers(this.activeNodeKind(), usedNodes);
     this.scenery.showGates(this.isRouteTool());
+    this.scenery.setParcels(this.isBuildTool() && !!w.landRules, String((w.owned ?? []).length));
     this.scenery.setReserved(this.isRouteTool() || this.isBuildTool(), w.places.map((p) => `${p.level}.${Object.values(p.districtLots ?? {}).join('_')}`).join(',') + (this.growing.size > 0 ? 'g' : ''));
     this.scenery.setNodesUsed(usedNodes);
   }
@@ -2216,6 +2220,16 @@ export class Game3D {
           this.onToast(err ?? `Removed for $${refund.toLocaleString('en-US')} back`);
         },
       };
+      return;
+    }
+    // A plot for sale is bought with a click; the next click builds on it.
+    const landMsg = placeError(w, this.tool as SiteKind, tile.x, tile.y, this.placeRot ?? undefined);
+    if (landMsg?.startsWith(LAND_PREFIX)) {
+      const plot = parcelAt(w, tile.x, tile.y);
+      const price = plot ? parcelPrice(plot) : 0;
+      const bought = plot ? buyParcel(w, plot.id) : 'No plot here';
+      this.onToast(bought ?? `Plot bought for ${price.toLocaleString('en-US')}. Click again to build`);
+      if (!bought) this.setHover(tile);
       return;
     }
     const err = placeSite(w, this.tool as SiteKind, tile.x, tile.y, this.placeRot ?? undefined);

@@ -3,6 +3,7 @@ import { corridorTiles } from '../sim/corridors';
 import * as THREE from 'three';
 import type { NodeKind } from '../sim/defs';
 import { tileLonLat } from '../sim/mapgen';
+import { parcelState, parcelsOf } from '../sim/land';
 import { layoutOf, plotTiles, reservedGround, townGates, townGround, type World } from '../sim/world';
 import { HeightField, LAT_SPAN, R, basisMatrix, lonLatToVec } from './geo';
 import { Parts } from './parts';
@@ -545,9 +546,104 @@ export class Scenery {
     this.reserveShade.children.forEach((m, i) => ((m as THREE.Mesh).material as THREE.MeshBasicMaterial).opacity = (strong ? bold : soft)[i]);
   }
 
+  private parcelGroup: THREE.Group | null = null;
+  private parcelSig = '';
+
+  /**
+   * The land plots, shown while a building tool is active: white outlines round the plots for sale, gold round (and washed
+   * over) the ones the player owns. Remade when a plot is bought.
+   */
+  setParcels(active: boolean, sig: string): void {
+    const w = this.world;
+    if (!w.landRules) return;
+    if (active && sig !== this.parcelSig) {
+      this.parcelSig = sig;
+      if (this.parcelGroup) {
+        this.group.remove(this.parcelGroup);
+        this.parcelGroup.traverse((o) => {
+          const m = o as THREE.Mesh;
+          if (m.geometry) m.geometry.dispose();
+          if (m.material) (m.material as THREE.Material).dispose();
+        });
+      }
+      this.parcelGroup = this.buildParcels();
+    }
+    if (this.parcelGroup) this.parcelGroup.visible = active;
+  }
+
+  private buildParcels(): THREE.Group {
+    const w = this.world;
+    const group = new THREE.Group();
+    const dLon = (Math.PI * 2) / w.width;
+    const a = tileLonLat(w.width, w.height, 0, 0);
+    const b = tileLonLat(w.width, w.height, 0, 1);
+    const dLat = b.lat - a.lat;
+    const v = new THREE.Vector3();
+    const at = (u: number, t: number, lift: number, out: number[]): void => {
+      const lon = a.lon + (u - 0.5) * dLon;
+      const lat = a.lat + (t - 0.5) * dLat;
+      lonLatToVec(lon, lat, R + this.hf.surface(lon, lat) + lift, v);
+      out.push(v.x, v.y, v.z);
+    };
+    const sale: number[] = [];
+    const mine: number[] = [];
+    const wash: number[] = [];
+    const washIdx: number[] = [];
+    for (const p of parcelsOf(w).parcels) {
+      const state = parcelState(w, p);
+      if (state !== 'sale' && state !== 'owned') continue;
+      const out = state === 'owned' ? mine : sale;
+      for (let i = 0; i < p.w; i++) {
+        at(p.x + i, p.y, 0.11, out);
+        at(p.x + i + 1, p.y, 0.11, out);
+        at(p.x + i, p.y + p.h, 0.11, out);
+        at(p.x + i + 1, p.y + p.h, 0.11, out);
+      }
+      for (let j = 0; j < p.h; j++) {
+        at(p.x, p.y + j, 0.11, out);
+        at(p.x, p.y + j + 1, 0.11, out);
+        at(p.x + p.w, p.y + j, 0.11, out);
+        at(p.x + p.w, p.y + j + 1, 0.11, out);
+      }
+      if (state === 'owned') {
+        for (let j = 0; j < p.h; j++) {
+          for (let i = 0; i < p.w; i++) {
+            const base = wash.length / 3;
+            at(p.x + i, p.y + j, 0.09, wash);
+            at(p.x + i + 1, p.y + j, 0.09, wash);
+            at(p.x + i + 1, p.y + j + 1, 0.09, wash);
+            at(p.x + i, p.y + j + 1, 0.09, wash);
+            washIdx.push(base, base + 1, base + 2, base, base + 2, base + 3);
+          }
+        }
+      }
+    }
+    const lines = (pos: number[], color: number, opacity: number): THREE.LineSegments => {
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+      const l = new THREE.LineSegments(geo, new THREE.LineBasicMaterial({ color, transparent: true, opacity, depthWrite: false, fog: false }));
+      l.frustumCulled = false;
+      return l;
+    };
+    group.add(lines(sale, 0xffffff, 0.55));
+    group.add(lines(mine, 0xf2c14e, 0.95));
+    if (washIdx.length > 0) {
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.Float32BufferAttribute(wash, 3));
+      geo.setIndex(washIdx);
+      const m = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: 0xf2c14e, transparent: true, opacity: 0.16, depthWrite: false, side: THREE.DoubleSide, fog: false }));
+      m.frustumCulled = false;
+      m.renderOrder = 3;
+      group.add(m);
+    }
+    this.group.add(group);
+    return group;
+  }
+
   /** Overlays that are drawn blended over the ground are left out of the ambient-occlusion pass, which would read them as solid. */
   hideOverlays(hide: boolean): void {
     if (this.reserveShade) this.reserveShade.visible = !hide;
+    if (this.parcelGroup) this.parcelGroup.children.forEach((c) => ((c as THREE.Mesh).isMesh ? (c.visible = !hide) : undefined));
   }
 
   private buildReserveShade(): THREE.Group {
