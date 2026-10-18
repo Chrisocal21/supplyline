@@ -2,7 +2,7 @@
 // and town ground. The 3D lighting does the shading; this supplies realistic, muted albedo.
 import { corridorTiles } from '../sim/corridors';
 import { SEA_LEVEL } from '../sim/defs';
-import { townTiles, type World } from '../sim/world';
+import { townGround, townTiles, type World } from '../sim/world';
 import { CAP_ROWS, LAT_SPAN, textureRows } from './geo';
 
 export interface Pixels {
@@ -316,7 +316,7 @@ function overlays(world: World, data: Uint8ClampedArray, width: number, height: 
   // Towns: worn ground along the strip they cover. Each tile paints its own square, and the edge of the strip fades out
   // into the grass with a ragged margin.
   for (const pl of world.places) {
-    const tiles = townTiles(world, pl, pl.level);
+    const tiles = townGround(world, pl);
     const has = new Set(tiles.map((t) => t.x + ',' + t.y));
     const wrapT = (x: number): number => ((x % world.width) + world.width) % world.width;
     for (const t of tiles) {

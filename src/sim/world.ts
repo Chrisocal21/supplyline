@@ -67,6 +67,25 @@ export function townTiles(world: World, place: Place, level = 5): Tile[] {
 }
 
 /**
+ * The ground a town covers now: streets, plots and homes built so far, and the district lots a district has taken. Offsets
+ * wrapped to the world. The rest of its footprint (the ring it will grow into, and campus lots no district has claimed) is
+ * reserved: see reservedGround.
+ */
+export function townGround(world: World, place: Place, level = place.level): Tile[] {
+  const layout = layoutOf(world, place);
+  const used = new Set(Object.values(place.districtLots ?? {}));
+  const civic = layout.civic.filter((c, i) => (c.campus ? used.has(i) : c.level <= level));
+  const tiles = [...layout.streets.filter((s) => s.level <= level), ...layout.plots, ...civic.flatMap(civicFootprint), ...layout.homes.filter((h) => h.level <= level)];
+  return tiles.map((t) => ({ x: wrapX(world, place.x + t.x), y: place.y + t.y }));
+}
+
+/** Ground set aside for a town but not built on yet: where it grows next, and the lots for stadiums and the like. */
+export function reservedGround(world: World, place: Place): Tile[] {
+  const built = new Set(townGround(world, place).map((t) => t.y * world.width + t.x));
+  return townTiles(world, place).filter((t) => !built.has(t.y * world.width + t.x));
+}
+
+/**
  * Where a road enters a town: the outer end of its street in each of the four directions. They are on the town's permanent
  * streets, so a road laid to one joins the street that is already planned there.
  */

@@ -3,7 +3,7 @@ import { corridorTiles } from '../sim/corridors';
 import * as THREE from 'three';
 import type { NodeKind } from '../sim/defs';
 import { tileLonLat } from '../sim/mapgen';
-import { plotTiles, townGates, townTiles, type World } from '../sim/world';
+import { plotTiles, reservedGround, townGates, townGround, type World } from '../sim/world';
 import { HeightField, LAT_SPAN, R, basisMatrix, lonLatToVec } from './geo';
 import { Parts } from './parts';
 import { specialtyNodeProps } from './specialty';
@@ -286,16 +286,37 @@ export class Scenery {
     const town = new Set<number>();
     const later = new Set<number>();
     for (const p of w.places) {
-      for (const t of townTiles(w, p, p.level)) town.add(this.tileIndex(t.x, t.y));
-      for (const t of townTiles(w, p)) if (!town.has(this.tileIndex(t.x, t.y))) later.add(this.tileIndex(t.x, t.y));
+      for (const t of townGround(w, p)) town.add(this.tileIndex(t.x, t.y));
+      for (const t of reservedGround(w, p)) if (!town.has(this.tileIndex(t.x, t.y))) later.add(this.tileIndex(t.x, t.y));
     }
+    // Reserved ground looks like the country around it: in a wooded region it is wooded, elsewhere it keeps the usual
+    // groves and open meadow. Towns were cut out of the forest when the map was made, so the woods are read from the
+    // land around the town.
+    const woodedAround = (x: number, y: number): boolean => {
+      let wood = 0;
+      let land = 0;
+      for (let dy = -7; dy <= 7; dy += 2) {
+        for (let dx = -7; dx <= 7; dx += 2) {
+          const ny = y + dy;
+          if (ny < 0 || ny >= w.height) continue;
+          const k = this.tileIndex(x + dx, ny);
+          if (town.has(k) || later.has(k)) continue;
+          const tt = w.terrain[k];
+          if (tt === 'water' || tt === 'ice') continue;
+          land += 1;
+          if (tt === 'forest') wood += 1;
+        }
+      }
+      return land > 0 && wood / land > 0.35;
+    };
     // And off the natural routes between towns, so a road laid along one fells nothing.
     const corridor = corridorTiles(w);
 
     for (let y = 0; y < w.height; y++) {
       for (let x = 0; x < w.width; x++) {
-        const t = w.terrain[this.tileIndex(x, y)];
+        let t = w.terrain[this.tileIndex(x, y)];
         if (t !== 'forest' && t !== 'grass' && t !== 'mountain') continue;
+        if (t === 'grass' && later.has(this.tileIndex(x, y)) && woodedAround(x, y)) t = 'forest';
         const { lon, lat } = tileLonLat(w.width, w.height, x, y);
         // Forests thicken and thin, and grassland has groves and open meadow instead of an even sprinkle.
         const gv = grove(w.seed, x * 0.33, y * 0.33);
@@ -307,7 +328,7 @@ export class Scenery {
           if (t === 'forest' && nearNode(x, y, jx, jy)) continue;
           if (nearQuarry(x, y)) continue;
           if (town.has(this.tileIndex(x, y))) continue;
-          if (later.has(this.tileIndex(x, y)) && r() < 0.4) continue;
+          if (later.has(this.tileIndex(x, y)) && r() < 0.25) continue;
           if (t !== 'mountain' && corridor.has(this.tileIndex(x, y))) continue;
           spots.push({
             tile: this.tileIndex(x, y),
@@ -327,7 +348,7 @@ export class Scenery {
             const jx = r();
             const jy = r();
             if (t === 'forest' && nearNode(x, y, jx, jy)) continue;
-            if (later.has(this.tileIndex(x, y)) && r() < 0.4) continue;
+            if (later.has(this.tileIndex(x, y)) && r() < 0.25) continue;
             spots.push({
               tile: this.tileIndex(x, y),
               lon: lon + (jx - 0.5) * dLon * 0.94,
@@ -495,6 +516,48 @@ export class Scenery {
     }
   }
 
+  private reserveShade: THREE.Mesh | null = null;
+
+  /**
+   * A soft amber wash over ground that is set aside for a town or a district, shown while a building or road tool is active so
+   * the player can see where they cannot build. It is made the first time it is wanted.
+   */
+  showReserved(active: boolean): void {
+    if (active && !this.reserveShade) this.reserveShade = this.buildReserveShade();
+    if (this.reserveShade) this.reserveShade.visible = active;
+  }
+
+  private buildReserveShade(): THREE.Mesh {
+    const w = this.world;
+    const dLon = (Math.PI * 2) / w.width;
+    const dLat = (2 * LAT_SPAN) / w.height;
+    const pos: number[] = [];
+    const idx: number[] = [];
+    const v = new THREE.Vector3();
+    for (const p of w.places) {
+      for (const t of reservedGround(w, p)) {
+        const { lon, lat } = tileLonLat(w.width, w.height, ((t.x % w.width) + w.width) % w.width, t.y);
+        const base = pos.length / 3;
+        for (const [a, b] of [[-0.5, -0.5], [0.5, -0.5], [0.5, 0.5], [-0.5, 0.5]]) {
+          const lo = lon + a * dLon;
+          const la = lat + b * dLat;
+          lonLatToVec(lo, la, R + this.hf.surface(lo, la) + 0.07, v);
+          pos.push(v.x, v.y, v.z);
+        }
+        idx.push(base, base + 1, base + 2, base, base + 2, base + 3);
+      }
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    geo.setIndex(idx);
+    const mat = new THREE.MeshBasicMaterial({ color: 0xe0883a, transparent: true, opacity: 0.22, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.frustumCulled = false;
+    mesh.visible = false;
+    this.group.add(mesh);
+    return mesh;
+  }
+
   private readonly gateMarkers: THREE.Group[] = [];
 
   /** Gold markers at the four gates of every town, shown while a road tool is active. */
@@ -537,7 +600,7 @@ export class Scenery {
     const spots: THREE.Matrix4[] = [];
     for (const pl of w.places) {
       if (pl.level >= 5) continue;
-      const full = townTiles(w, pl);
+      const full = [...townGround(w, pl), ...reservedGround(w, pl)];
       let x0 = Infinity;
       let x1 = -Infinity;
       let y0 = Infinity;

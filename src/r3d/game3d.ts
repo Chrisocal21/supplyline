@@ -65,7 +65,7 @@ import {
   plotFacing,
   layoutOf,
   plotTiles,
-  townTiles,
+  townGround,
   terrainAt,
   elevAt,
   placeAt,
@@ -1069,6 +1069,7 @@ export class Game3D {
     const usedNodes = new Set(w.sites.map((s) => s.nodeId).filter((n): n is number => n !== null));
     this.scenery.showMarkers(this.activeNodeKind(), usedNodes);
     this.scenery.showGates(this.isRouteTool());
+    this.scenery.showReserved(this.isRouteTool() || this.isBuildTool());
     this.scenery.setNodesUsed(usedNodes);
   }
 
@@ -1287,6 +1288,7 @@ export class Game3D {
       mesh.matrixWorldNeedsUpdate = true;
       this.scene.add(mesh);
       this.townMeshes.set(p.id, { mesh, sig, level: p.level, districts: dist, path: p.path ?? '' });
+      if (!grew) this.scenery.clearTiles(townGround(w, p).map((t) => t.y * w.width + wrapX(w, t.x)));
       if (play) this.startGrowth(p, have!.mesh, mesh, streets, grew);
       else if (fresh.length > 0) this.startDistrictWork(p, have!.mesh, mesh, fresh.map((d) => d.id));
     }
@@ -1348,14 +1350,14 @@ export class Game3D {
     // The trees and bushes on ground the town is growing over come down as the wave reaches them.
     const fell: { tile: number; d: number }[] = [];
     if (withRoads) {
-      const before = new Set(townTiles(w, p, p.level - 1).map((t) => t.y * w.width + wrapX(w, t.x)));
-      for (const t of townTiles(w, p, p.level)) {
+      const before = new Set(townGround(w, p, p.level - 1).map((t) => t.y * w.width + wrapX(w, t.x)));
+      for (const t of townGround(w, p)) {
         const k = t.y * w.width + wrapX(w, t.x);
         if (before.has(k)) continue;
         const dx = ((t.x - p.x + w.width * 1.5) % w.width) - w.width / 2;
         fell.push({ tile: k, d: Math.hypot(dx, t.y - p.y) * TILE_UNITS });
       }
-    } else this.scenery.clearTiles(townTiles(w, p, p.level).map((t) => t.y * w.width + wrapX(w, t.x)));
+    } else this.scenery.clearTiles(townGround(w, p).map((t) => t.y * w.width + wrapX(w, t.x)));
     this.growing.set(p.id, { start: this.nowMs, old, mesh, reach: reach + 3, fell });
     // Rollers lay each new stretch of street, starting from the street it grows out of.
     const key = (t: { x: number; y: number }): string => t.x + ',' + t.y;

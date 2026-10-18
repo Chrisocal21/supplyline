@@ -605,3 +605,5 @@ Ocean animation removed (plain blue with depth shading, no foam). Dirt tracks dr
 ## 2026-10-18 0.17 start: natural town reserve and gates
 
 The flat dark rectangle around each town is gone. Ground a town will grow over now keeps its trees, bushes and rocks (thinned by 40%), with survey stakes at the corners. When a town levels up, the wave of growth fells the trees on the new ground as it passes. Each town has up to four gates (the outer ends of its main streets); they glow gold while a road tool is active, and planned streets count as cheap road so routes join them. The Back button moved above the hint chip and now glides home, and keeps the first view when two towns grow in a row.
+
+Reserved land (same day): the big dark flat rectangles were stadium, ballpark and arena campus lots, painted as worn ground. Reserved ground (growth ring and unclaimed campus lots) now keeps the look of the country around it, wooded where the land around is wooded, and is only cleared when a district takes the lot or the town grows over it. With a road or building tool active it is washed amber and the gates glow gold, and the hint line says so.
