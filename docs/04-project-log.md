@@ -545,3 +545,15 @@ Every node is at least `NODE_DRY` + 1 (3) tiles from water (`dry` in features.ts
 - Bank menu: each account says how it works in plain words, with a Today and an All time line (dollars and percent) and what it earns or costs per minute right now. Loans show interest added and paid; savings show interest earned; the market fund shows its price move on your units today, and all-time profit counting both what was sold and what is held. Net worth shows how it moved today. A bank day is ten minutes of play (bank.ts bankReport, DAY_TICKS, marks every ten seconds).
 - Upgrading a vehicle changes nothing but the vehicle: the menu stays open, nothing is deselected, the camera does not move and there is no toast unless it fails.
 
+
+## Oct 18, 2026: desktop version planned
+- Chris wants a downloadable game with patches, saves and settings all handled in one place, plus a higher graphics ceiling. Decision: Electron app from the same code, GitHub download first, Steam later; browser version stays.
+- Honest finding: wrapping alone changes little (same Chromium and WebGL). The big gains are WebGPU, lighting and post-processing, real textured animated art, and streamed worlds. A native engine rewrite is the only higher ceiling and is not planned.
+- Written up in docs/05-desktop-version.md (ceiling ladder, all-in-one features, wish list, build order). Added as Phase 7 in the tracker, a section in the feature map, three open questions, and two answered decisions.
+- Ground rules added to docs/05-desktop-version.md before any build: truck capacity per building by level (none exists today, buyError in sim/world.ts has no cap check), the outskirts node rule, code and release rules, and an order of work. Tracker Phase 7.0 holds the checklist.
+- Truck cap decided: 2 / 4 / 6 slots at levels 1 to 3, one pool per product line (lumber and sawdust separate). At airports trucks and planes share a pool and a plane takes 2 slots. Levels 1 to 3 only add more trucks; level 4 unlocks trade-up to bigger trucks (needs a new building level 4). Docs updated; open questions hold the unset numbers.
+- Decided: a bigger truck is still 1 slot; buildings get 8 levels (code has MAX_LEVEL 3). Slot and unlock numbers for levels 4 to 8 are proposals in 05-desktop-version.md.
+- Idea added: customizable trains. Add wagons as an upgrade within a train; wagon cap set by rail yard level; wagon type follows cargo. Written in 05-desktop-version.md and tracker 7.3.
+- Decided: ships and planes do not copy the train wagon idea. Each mode gets its own edge and quality-of-life perks, and mixing modes earns bonuses (containers, hub bonus, first mile, shared dispatch). Written in 05-desktop-version.md and tracker 7.3.
+- Research pass added to 05-desktop-version.md: twelve candidates from OpenTTD, Factorio, Cities: Skylines, Transport Fever and Railroad Tycoon, tech foundations (sim in a Web Worker first), and a release order: 0.14 sim rules, 0.15 foundations, 0.16 the .exe.
+- QoL master list and a revised release plan (0.14 to 0.24+) added to 05-desktop-version.md; QoL batches ship between the big pieces. Tracker 7.3c holds the checklist.

@@ -33,6 +33,10 @@
 | When is a mountain crossing a tunnel? | Only where the hill really stands above the road. Low ground is cut through as open road | Oct 12, 2026 |
 | Do towns just grow, or do you build them up? | Both: districts you build and level, landmarks in the 3D town, and a permanent specialisation path per town | Oct 12, 2026 |
 | Do vehicles level up? | A ladder of classes with Trade up, from box truck through truck fleet, train and plane to jet | Oct 12, 2026 |
+| How many truck slots per building level, and how do products and airports count? | 2 / 4 / 6 at levels 1 to 3; each product line has its own slots (lumber and sawdust separate); at an airport a plane takes 2 slots (2 trucks or 1 plane); bigger trucks unlock at level 4 | Oct 18, 2026 |
+| Does a bigger truck take more slots? How many building levels? | No, a bigger truck is still 1 slot. Buildings get 8 levels | Oct 18, 2026 |
+| Browser only or downloadable? | Both. A downloadable Windows app (Electron) with auto-updates, and the browser version stays. Same code | Oct 18, 2026 |
+| Steam or GitHub? | Steam is the goal; a GitHub download comes first for ease. Code kept behind a platform layer so Steam swaps in | Oct 18, 2026 |
 
 ---
 
@@ -47,6 +51,15 @@
 | Do running costs bite at the right moment? | Vehicles cost 5% of their price a minute. Bigger classes only pay for themselves when there is enough to carry |
 | What do towns want at levels 3 to 5? | Districts now add some of this, but a few more goods and chains would help |
 | Should paths have their own quests and mastery levels? | It would reward committing to one path for a whole game |
+| How many wagons can a train have, and what does each cost? | Proposed Freight Train 4 to 8, Heavy Haul 8 to 16, capped by rail yard level; cost and upkeep per wagon to tune with the pacing bot |
+| Which quality-of-life perks does each mode get, and how big is the cross-mode bonus? | Decided: ships and planes do not copy the wagon idea; each mode has its own edge and mixing modes pays more (see 05-desktop-version.md). The perk list and bonus sizes are proposals |
+| Slots and unlocks for levels 4 to 8 | Proposed 8, 10, 12, 14, 16 slots; road classes unlock at levels 4, 5 and 6. Each new level needs speed, storage, cost and art |
+| How many slots does a train, ship or jet take at a terminal? | Plane = 2 is decided; the others and the bigger plane classes are still to set |
+| Do warehouses and terminals get more slots per level than a factory? | They relay many goods; the pacing bot has to confirm it does not stall Tier 1 to 3 |
+| How big should the new map be, and should the node-placement rule come first? | The outskirts rule fixes crowding on today's map and is cheap; the bigger map needs chunk streaming and is a larger job |
+| Desktop: how far to push art before touching the renderer? | Art is the biggest visible jump but costs the most time; WebGPU is the biggest engine jump (see 05-desktop-version.md) |
+| Desktop: should the web version match the .exe or be a lighter demo? | Decides how much WebGPU and asset weight the browser build carries |
+| Desktop: when to pay for code signing and the Steam fee? | Signing removes the "unknown publisher" warning; Steam needs a one-time fee and a store page |
 | Should there be a one-click auto-road tool next to hand-drawn roads? | The path finder exists; it changes how much of the game is route drawing |
 | Art direction beyond the current procedural models | Real assets (Kenney, hand-modelled) versus staying procedural |
 

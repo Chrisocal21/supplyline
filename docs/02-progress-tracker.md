@@ -35,6 +35,7 @@
 | Phase 4 | Depth: districts, paths, vehicle ladder | 90% |
 | Phase 5 | Living towns, bank, rail yard, joined roads | 100% |
 | Phase 6 | Later: sea transport, real-money cash, events | 30% |
+| Phase 7 | Desktop version: .exe, auto-updates, WebGPU, Steam (plan in [05-desktop-version.md](05-desktop-version.md)) | 0% |
 
 Overall: about 72%.
 
@@ -304,6 +305,99 @@ Money
 - [x] Export and import of saves: any slot or the current game to a file, and back in from a file
 - [x] Highlight valid spots for airports, rail yards and ports while placing (green tiles)
 - [ ] Bigger, more realistic airports and rail yards (tabled)
+
+---
+
+### Phase 7 — Desktop version and beyond (planned Oct 18, 2026)
+
+**Phase progress:** 0%. Full detail, tables and reasoning: [05-desktop-version.md](05-desktop-version.md). Distribution: GitHub download first, Steam later. The browser version stays alive from the same code.
+
+#### 7.0 Ground rules and sim changes (before the .exe)
+- [x] Ground rules written down in [05-desktop-version.md](05-desktop-version.md)
+- [ ] Truck capacity per building: 2 / 4 / 6 slots at levels 1 to 3, counted separately per product line (lumber and sawdust each have their own), shown as "Trucks 3 / 4", Upgrade button says "+2 truck slots", buying at the cap is blocked with the fix, old oversized fleets grandfathered
+- [ ] Airports, rail yards and ports: trucks and planes share one pool and a plane takes 2 slots (2 trucks or 1 plane); trains and ships likewise
+- [ ] Buildings go to 8 levels (today 3): speed, storage, upgrade cost and art for levels 4 to 8; level 4 unlocks trade-up to bigger trucks, next levels unlock the next class (levels 1 to 3 can only add more trucks of the starting class); a bigger truck still takes 1 slot
+- [ ] Re-run the pacing bot after the truck cap and retune
+- [ ] Node placement rule (outskirts, outside growth zones) on new maps and seeds
+- [ ] Save versioning and migration check before saves move to disk
+
+#### 7.1 The .exe and the all-in-one launcher
+- [ ] Electron shell around the existing build
+- [ ] Saves as real files in Documents/Supplyline, with a one-time import of old localStorage saves
+- [ ] Autosave on a timer and on quit, many slots with screenshot, date and play time, automatic backups, save migration across versions
+- [ ] Auto-updater (electron-updater on GitHub Releases), "Update ready - restart", "What's new" screen
+- [ ] GitHub Action that builds the installer on a version tag
+- [ ] Stable and Beta channels, one-click rollback, "Repair game" button
+- [ ] Settings that survive updates: graphics presets chosen from the GPU, resolution, fullscreen, vsync, frame cap, UI scale, key rebinding, volume
+- [ ] Crash reports (opt in) and a "Report a bug" button that attaches log and screenshot
+- [ ] Platform layer (saves, updates, achievements behind one interface) so Steam swaps in without a rewrite
+- [ ] Code signing (before a public release)
+
+#### 7.2 Graphics ceiling
+- [ ] WebGPU renderer with WebGL fallback for the browser build
+- [ ] Post-processing: bloom, ambient occlusion, colour grading, tilt-shift
+- [ ] Day and night cycle matched to the globe, lit windows, headlights, street lamps
+- [ ] Real-time shadows, water reflections and foam, volumetric fog, clouds, smoke
+- [ ] Compute-shader crowds and traffic (tens of thousands of objects)
+- [ ] Textured models with normal maps and animation (wheels, cranes, smoke, workers), one family at a time: vehicles, industry, towns
+- [ ] Much bigger map: chunked terrain streamed from disk, far chunks drawn simple, sim ticks only the active area
+- [ ] Node placement rule: resource nodes only in the outskirts, outside every town's level 5 growth zone plus a buffer, clustered as a hinterland per town, clear of each other; map baker flags violations
+- [ ] Soundtrack and positional audio
+
+#### 7.3 World and play depth (wish list)
+- [ ] Seasons, weather, storms, droughts, floods; events and a news ticker
+- [ ] Space-to-street unbroken zoom, cinematic follow-cam
+- [ ] Visible people, traffic, construction
+- [ ] Campaign across the 5 maps, sandbox and scenario modes
+- [ ] AI rival companies, contracts and a moving market, tech tree
+- [ ] Fleet management screens and route graphs
+- [ ] Customizable trains: add wagons as an upgrade (Wagons 6 / 8), capacity per wagon, wagon cap set by rail yard level, wagon type follows the cargo, longer trains load slower and cost more upkeep
+- [ ] Each mode gets its own edge and quality-of-life perks (truck: anywhere and first mile; train: wagons, mixed cargo, timetables; ship: biggest volume, containers, islands; plane: express and fresh premium, ignores terrain)
+- [ ] Mode synergies: containers pass between modes untouched, hub bonus where two or more modes meet, trucks feeding a terminal fill the big vehicle faster, one shared dispatch sheet, each bonus explained in plain words in the building menu
+
+#### 7.3b Researched candidates (details in 05-desktop-version.md)
+- [ ] Data views / map overlays and a bottleneck view
+- [ ] Throughput and utilisation stats per building and line
+- [ ] Transit-time pay, vehicle reliability, depots and servicing
+- [ ] Passengers as a second cargo
+- [ ] Power and fuel chains
+- [ ] Town reputation, contracts and trade deals
+- [ ] Rival companies and a stock market
+- [ ] Rail signals and road priority, congestion
+- [ ] Environment: pollution and noise
+- [ ] Difficulty and start conditions; scenario and challenge editor
+- [ ] Tech foundations: sim in a Web Worker, instancing and LOD, deterministic sim, automated performance tests, asset pipeline
+- [ ] Release order: 0.14 sim rules, 0.15 QoL select and act, 0.16 QoL see and understand, 0.17 QoL build faster, 0.18 foundations, 0.19 the .exe, 0.20 fleets and mode perks, 0.21 graphics, 0.22 data views, 0.23 bigger world, 0.24+ depth
+
+#### 7.3c Quality-of-life backlog (details in 05-desktop-version.md)
+- [ ] Select and act: box-select, bulk actions, copy settings, rename, upgrade all affordable and upgrade queue, search anywhere, favourites bar
+- [ ] Vehicles: fleet sheet with filters, auto-renew and auto trade-up, per-building defaults, group and pause lines, follow-cam, payback calculator
+- [ ] Building: drag and ghost preview with cost, auto-road tool, undo and redo, bulldoze area, upgrade a road in place, copy a route
+- [ ] Information: tooltips everywhere, notification log and alert choices, profit per building and line, net worth graph, price history and demand hints, best-place-to-sell hint, "why?" explainers, event timeline
+- [ ] Camera: bookmarks with hotkeys, jump to town or last alert, snap-rotate, reset north, edge scrolling, smooth zoom
+- [ ] Flow: speed steps and fast-forward to next event, quick save and load, named saves with notes, confirmation toggles
+- [ ] Settings and help: UI scale, text size, colour-blind modes, reduced motion, key rebinding and hotkey sheet, glossary and searchable help, one-time contextual tips
+
+#### 7.4 Player tools and sharing
+- [ ] Map editor (also speeds up maps 2 to 5)
+- [ ] Photo mode and time-lapse recorder
+- [ ] Blueprints (save and paste a layout)
+- [ ] Statistics dashboards
+- [ ] Mod support (vehicles, maps, textures), Steam Workshop later
+- [ ] Share a save or map by link or code
+
+#### 7.5 Online and Steam (later)
+- [ ] Steam store page early for wishlists, Steamworks SDK, achievements, cloud saves
+- [ ] Daily challenge map and leaderboards (small server)
+- [ ] Co-op, two players one world
+- [ ] Controller and Steam Deck support
+
+#### 7.6 Polish
+- [ ] Accessibility: colour-blind modes, UI scale, subtitles, reduced motion
+- [ ] Several languages
+- [ ] Adaptive tutorial, trailer-ready intro scene
+- [ ] Discord rich presence
+- [ ] Opt-in anonymous stats, automatic quality by performance monitor
 
 ---
 

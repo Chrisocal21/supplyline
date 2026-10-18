@@ -189,13 +189,27 @@ No backend, no AI, no accounts.
 
 ---
 
+## Desktop Version (planned, Phase 7)
+
+The same game as a downloadable Windows app, with the browser version kept. Full plan, graphics ceiling and wish list: [05-desktop-version.md](05-desktop-version.md); checklist in the tracker's Phase 7.
+
+- Ground rules first: every building gets a max truck count that grows with its level (2 / 4 / 6 slots, one pool per product so lumber and sawdust are separate; at an airport a plane takes 2 slots; levels 1 to 3 add trucks, level 4 unlocks bigger trucks); resource nodes sit in the outskirts, away from towns and their growth room; a much bigger map streamed in chunks
+- Electron shell, saves as files, auto-updater on GitHub Releases, Steam later
+- All-in-one: updates, autosave and backups, settings, crash reports, repair button
+- Graphics: WebGPU, bloom and ambient occlusion, day and night, weather, animated textured models
+- Tools: map editor, photo mode, time-lapse, blueprints, mods
+- Depth: campaign, AI rivals, tech tree, seasons
+- Online later: daily challenge, shared maps, co-op
+
+---
+
 ## Ideas in the Backlog
 
 - A one-click auto-road tool using the existing path finder
-- Seasons and weather
+- Seasons and weather (now part of Phase 7)
 - Contracts from towns (deliver X by a date for a bonus)
-- Multiplayer or shared maps
-- Other renderers or art styles
+- Multiplayer or shared maps (now part of Phase 7)
+- Other renderers or art styles (WebGPU and real art are in Phase 7)
 
 ---
 
