@@ -9,7 +9,7 @@
 import { terrainAt, townTiles, wrapX, type World } from './world';
 
 export const CELL = 4;
-export const LAND_PREFIX = 'Buy this plot first';
+export const LAND_PREFIX = 'Plot for sale';
 
 export interface Parcel {
   id: number;
@@ -153,7 +153,7 @@ export function landError(world: World, tiles: { x: number; y: number }[]): stri
     const state = parcelState(world, p);
     if (state === 'owned' || state === 'none') continue;
     if (state === 'town') return 'That ground belongs to the town';
-    return `${LAND_PREFIX}: $${parcelPrice(p).toLocaleString('en-US')} (click to buy)`;
+    return `${LAND_PREFIX}: $${parcelPrice(p).toLocaleString('en-US')} (click to buy it, then click again to build)`;
   }
   return null;
 }

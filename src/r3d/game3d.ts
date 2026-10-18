@@ -323,7 +323,7 @@ export class Game3D {
   /** The tile a touch player has tapped to build or demolish on, waiting for the confirm button. */
   pending: Tile | null = null;
   /** A demolish waiting for the player to confirm it in a pop-up. */
-  removal: { title: string; detail: string; verb: string; run: () => void } | null = null;
+  removal: { title: string; detail: string; verb: string; keep?: string; buy?: boolean; run: () => void } | null = null;
   /** The airport picked first while drawing an air route. */
   airFrom: number | null = null;
   private airGroup: THREE.Group | null = null;
@@ -2012,12 +2012,14 @@ export class Game3D {
     this.ring.visible = true;
     const buildTool = this.isBuildTool();
     const ok = !buildTool && this.tool !== 'demolish' ? true : !this.hover.error;
-    (this.ring.material as THREE.MeshBasicMaterial).color.set(ok ? 0xffffff : 0xff6b5e);
-    if (buildTool) this.showGhost(this.tool as SiteKind, tile, ok);
+    // A plot for sale is neither free nor blocked: gold says it can be had for a price.
+    const forSale = buildTool && !!this.hover.error?.startsWith(LAND_PREFIX);
+    (this.ring.material as THREE.MeshBasicMaterial).color.set(ok ? 0xffffff : forSale ? 0xf4b84f : 0xff6b5e);
+    if (buildTool) this.showGhost(this.tool as SiteKind, tile, ok, forSale);
     else if (this.ghost) this.ghost.visible = false;
   }
 
-  private showGhost(kind: SiteKind, tile: Tile, ok: boolean): void {
+  private showGhost(kind: SiteKind, tile: Tile, ok: boolean, forSale = false): void {
     if (!this.ghost || this.ghostKind !== kind) {
       if (this.ghost) this.scene.remove(this.ghost);
       const mat = new THREE.MeshStandardMaterial({ vertexColors: true, transparent: true, opacity: 0.7, roughness: 0.9, depthWrite: false });
@@ -2026,7 +2028,7 @@ export class Game3D {
       this.scene.add(this.ghost);
       this.ghostKind = kind;
     }
-    (this.ghost.material as THREE.MeshStandardMaterial).color.set(ok ? 0xb8ffc8 : 0xff9a90);
+    (this.ghost.material as THREE.MeshStandardMaterial).color.set(ok ? 0xb8ffc8 : forSale ? 0xffd98a : 0xff9a90);
     this.ghost.matrix.copy(this.tileMatrix(tile, 0.02)).multiply(new THREE.Matrix4().makeRotationY((this.ghostRot(kind, tile) * Math.PI) / 2));
     this.ghost.matrixWorldNeedsUpdate = true;
     this.ghost.visible = true;
@@ -2229,10 +2231,25 @@ export class Game3D {
     const landMsg = placeError(w, this.tool as SiteKind, tile.x, tile.y, this.placeRot ?? undefined);
     if (landMsg?.startsWith(LAND_PREFIX)) {
       const plot = parcelAt(w, tile.x, tile.y);
-      const price = plot ? parcelPrice(plot) : 0;
-      const bought = plot ? buyParcel(w, plot.id) : 'No plot here';
-      this.onToast(bought ?? `Plot bought for ${price.toLocaleString('en-US')}. Click again to build`);
-      if (!bought) this.setHover(tile);
+      if (!plot) return;
+      const price = parcelPrice(plot);
+      if (w.money < price) {
+        this.onToast(`Need $${price.toLocaleString('en-US')} to buy this plot`);
+        return;
+      }
+      // Buying is a real spend, so it asks first.
+      this.removal = {
+        title: 'Buy this plot?',
+        detail: `${plot.w} by ${plot.h} tiles for $${price.toLocaleString('en-US')}. It is yours for good, and you can build on it as soon as you buy it. Roads can cross any land.`,
+        verb: `Buy for $${price.toLocaleString('en-US')}`,
+        keep: 'Not now',
+        buy: true,
+        run: () => {
+          const bought = buyParcel(w, plot.id);
+          this.onToast(bought ?? `Plot bought for $${price.toLocaleString('en-US')}. Click again to build`);
+          if (!bought) this.setHover(tile);
+        },
+      };
       return;
     }
     const err = placeSite(w, this.tool as SiteKind, tile.x, tile.y, this.placeRot ?? undefined);
