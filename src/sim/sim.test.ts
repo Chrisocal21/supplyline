@@ -333,7 +333,7 @@ describe('world generation', () => {
   it('builds a named, populated world for any seed', () => {
     for (const seed of [1, 7, 42, 99, 12345]) {
       const w = createWorld(seed);
-      expect(w.places.length).toBeGreaterThanOrEqual(8);
+      expect(w.places.length).toBeGreaterThanOrEqual(6);
       expect(w.nodes.filter((n) => n.kind === 'forest').length).toBeGreaterThan(3);
       expect(w.nodes.filter((n) => n.kind === 'farmland').length).toBeGreaterThan(3);
       expect(w.regions.some((r) => r.kind === 'ocean')).toBe(true);

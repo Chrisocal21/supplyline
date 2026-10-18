@@ -68,6 +68,10 @@ const REACH_BRIDGE = 4;
 /** Nodes this close to a town are preferred. */
 const NODE_TOWN_REACH = 22;
 export const CITY_RADIUS = 5;
+/** Clear tiles kept between one town's fully grown footprint and the next, so towns never grow into each other. */
+const TOWN_GAP = 1;
+/** Resource nodes keep this many tiles from any town's fully grown footprint: the outskirts, clear of growth. */
+const NODE_TOWN_BUFFER = 3;
 
 export interface ResourceNode {
   id: number;
@@ -334,48 +338,98 @@ export function generateFeatures(terrain: Terrain[], width: number, height: numb
     };
   };
 
+  // Lay the towns out along their main streets and report which ones crowd a neighbour. A town's fully grown footprint
+  // is its claim: no other town may touch it (TOWN_GAP clear tiles between), so growth never runs into a neighbour.
+  // Layouts are tried on a list of towns before they are accepted, since a street aims at the towns around it.
+  let townTiles = new Set<number>();
+  const settle = (list: Place[]): Place[] => {
+    list.forEach((p, i) => (p.id = i + 1));
+    const env = { width, height, terrain, elev, places: list };
+    const owner = new Map<number, Place>();
+    const crowded: Place[] = [];
+    const tiles = new Set<number>();
+    for (const p of list) {
+      const layout = townLayout(env, p);
+      if (layout.plots[0]) p.marketTile = wrapTile({ x: p.x + layout.plots[0].x, y: p.y + layout.plots[0].y });
+      if (layout.plots[1]) p.freightTile = wrapTile({ x: p.x + layout.plots[1].x, y: p.y + layout.plots[1].y });
+      for (const t of footprint(layout, 5)) {
+        const k = idx(p.x + t.x, p.y + t.y);
+        tiles.add(k);
+        const other = owner.get(k);
+        if (other && other !== p && !crowded.includes(p)) crowded.push(p);
+        owner.set(k, p);
+      }
+    }
+    if (!fixedPlaces) {
+      for (const p of list) {
+        if (crowded.includes(p)) continue;
+        let hit = false;
+        for (const t of footprint(townLayout(env, p), 5)) {
+          for (let dy = -TOWN_GAP; dy <= TOWN_GAP && !hit; dy++) {
+            for (let dx = -TOWN_GAP; dx <= TOWN_GAP && !hit; dx++) {
+              const other = owner.get(idx(p.x + t.x + dx, p.y + t.y + dy));
+              if (other && other !== p) hit = true;
+            }
+          }
+          if (hit) break;
+        }
+        if (hit) crowded.push(p);
+      }
+    }
+    townTiles = tiles;
+    return crowded;
+  };
+
   let places: Place[];
   if (fixedPlaces) {
     places = fixedPlaces.map((fp) => makePlace(idx(fp.x, fp.y), fp.radius, fp));
+    settle(places);
   } else {
-  // Major cities first, while there is still room for them.
-  const cityTarget = Math.max(2, Math.min(3, Math.round((width * height) / 3600)));
-  for (const cand of shuffle(findCandidates(CITY_RADIUS, CITY_FLATNESS, 3))) {
-    if (made.filter((p) => p.radius === CITY_RADIUS).length >= cityTarget) break;
-    if (tooClose(cand.c, CITY_RADIUS) || made.some((p) => dist2(p.y * width + p.x, cand.c) < 20 * 20)) continue;
-    made.push(makePlace(cand.c, CITY_RADIUS));
-  }
-  const cities = made.slice();
-  const townCandidates = findCandidates(TOWN_RADIUS, TOWN_FLATNESS, 2);
-  townCandidates.sort((a, b) => dist2(centre, a.c) - dist2(centre, b.c));
-  const firstTown = townCandidates.shift();
-  const ordered = firstTown ? [firstTown, ...shuffle(townCandidates)] : [];
-  const target = Math.max(6, Math.round((width * height) / 480));
-  const towns: Place[] = [];
-  for (const cand of ordered) {
-    if (towns.length >= target) break;
-    if (tooClose(cand.c, TOWN_RADIUS)) continue;
-    const p = makePlace(cand.c, TOWN_RADIUS);
-    made.push(p);
-    towns.push(p);
-  }
-  places = [...towns, ...cities];
-  }
-  places.forEach((p, i) => (p.id = i + 1));
-  // Lay each town out along its main street, now that the towns it reaches toward are all known.
-  const env = { width, height, terrain, elev, places };
-  const townTiles = new Set<number>();
-  for (const p of places) {
-    const layout = townLayout(env, p);
-    if (layout.plots[0]) p.marketTile = wrapTile({ x: p.x + layout.plots[0].x, y: p.y + layout.plots[0].y });
-    if (layout.plots[1]) p.freightTile = wrapTile({ x: p.x + layout.plots[1].x, y: p.y + layout.plots[1].y });
-    for (const t of footprint(layout, 5)) townTiles.add(idx(p.x + t.x, p.y + t.y));
+    // Major cities first, while there is still room for them. A town is only kept if the whole set still has room to grow.
+    places = [];
+    const cityTarget = Math.max(2, Math.min(3, Math.round((width * height) / 3600)));
+    for (const cand of shuffle(findCandidates(CITY_RADIUS, CITY_FLATNESS, 3))) {
+      if (places.length >= cityTarget) break;
+      if (tooClose(cand.c, CITY_RADIUS) || made.some((p) => dist2(p.y * width + p.x, cand.c) < 20 * 20)) continue;
+      const p = makePlace(cand.c, CITY_RADIUS);
+      if (settle([...places, p]).length > 0) continue;
+      made.push(p);
+      places.push(p);
+    }
+    const cities = places.slice();
+    const townCandidates = findCandidates(TOWN_RADIUS, TOWN_FLATNESS, 2);
+    townCandidates.sort((a, b) => dist2(centre, a.c) - dist2(centre, b.c));
+    const firstTown = townCandidates.shift();
+    const ordered = firstTown ? [firstTown, ...shuffle(townCandidates)] : [];
+    const target = Math.max(6, Math.round((width * height) / 480));
+    const towns: Place[] = [];
+    for (const cand of ordered) {
+      if (towns.length >= target) break;
+      if (tooClose(cand.c, TOWN_RADIUS)) continue;
+      const p = makePlace(cand.c, TOWN_RADIUS);
+      if (settle([...towns, p, ...cities]).length > 0) continue;
+      made.push(p);
+      towns.push(p);
+    }
+    places = [...towns, ...cities];
+    settle(places);
   }
 
   // Resource nodes: spread out within each region, never inside or beside a town, always on low, level ground.
   const nodes: ResourceNode[] = [];
+  // The ground within NODE_TOWN_BUFFER of any town's fully grown footprint is kept for the town.
+  const blocked = new Uint8Array(width * height);
+  for (const k of townTiles) {
+    const kx = k % width;
+    const ky = (k - kx) / width;
+    for (let dy = -NODE_TOWN_BUFFER; dy <= NODE_TOWN_BUFFER; dy++) {
+      const ny = ky + dy;
+      if (ny < 0 || ny >= height) continue;
+      for (let dx = -NODE_TOWN_BUFFER; dx <= NODE_TOWN_BUFFER; dx++) blocked[idx(kx + dx, ny)] = 1;
+    }
+  }
   const nearTown = (t: number, r: number): boolean =>
-    townTiles.has(t) || places.some((p) => Math.abs(wrapDelta(p.x, t % width, width)) <= r + p.radius - 3 && Math.abs(p.y - Math.floor(t / width)) <= r + p.radius - 3);
+    blocked[t] === 1 || townTiles.has(t) || places.some((p) => Math.abs(wrapDelta(p.x, t % width, width)) <= r + p.radius - 3 && Math.abs(p.y - Math.floor(t / width)) <= r + p.radius - 3);
   /** Steepest step to a neighbouring tile. */
   const slopeOf = (t: number): number => {
     if (!elev) return 0;
@@ -504,7 +558,7 @@ export function generateFeatures(terrain: Terrain[], width: number, height: numb
   }
 
   // Every town has a forest, farmland and pasture within reach, so a first game never starts far from its first chain.
-  const reach = 15;
+  const reach = 16;
   const near = (p: Place, t: number): number => Math.hypot(wrapDelta(p.x, t % width, width), p.y - Math.floor(t / width));
   const openAny: number[] = [];
   for (let t = 0; t < width * height; t++) {

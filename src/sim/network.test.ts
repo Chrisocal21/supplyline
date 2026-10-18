@@ -42,7 +42,11 @@ describe('roads that join a network', () => {
     const { w, farm, mill, street } = setup();
     // The farm road stops short of the town on plain ground; the highway then carries it the rest of the way.
     const full = findPath(w, { x: farm.x, y: farm.y }, street)!;
-    const cut = Math.max(2, Math.floor(full.length / 2));
+    // Cut on plain ground: a road may not start or end on a bridge.
+    const mid = Math.max(2, Math.floor(full.length / 2));
+    const cut = [...Array(full.length).keys()]
+      .filter((i) => i >= 2 && i < full.length - 1 && terrainAt(w, full[i].x, full[i].y) === 'grass')
+      .sort((a, b) => Math.abs(a - mid) - Math.abs(b - mid))[0] ?? mid;
     expect(createRoute(w, full.slice(0, cut + 1), 'road', 'street')).toBeNull();
     expect(w.routes.some((r) => r.over && !r.free)).toBe(false);
     expect(createRoute(w, full.slice(cut), 'road', 'highway')).toBeNull();

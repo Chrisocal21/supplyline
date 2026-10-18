@@ -2173,7 +2173,7 @@ export function airportRot(world: World, x: number, y: number, want?: Rot): Rot 
     const t = terrainAt(world, ax, ay);
     if (t === null || t === 'water' || t === 'ice') return false;
     if (routeAt(world, ax, ay, 'road') || streetAt(world, ax, ay)) return true;
-    return t !== 'mountain' && !siteAt(world, ax, ay) && slopeAt(world, ax, ay) <= BUILD_SLOPE;
+    return t !== 'mountain' && !siteAt(world, ax, ay) && !nodeAt(world, ax, ay) && slopeAt(world, ax, ay) <= BUILD_SLOPE;
   };
   if (want !== undefined) return ok(want) ? want : null;
   const town = nearestPlace(world, { x, y });

@@ -18,7 +18,7 @@ describe('made maps', () => {
     }
     const home = w.places[0];
     for (const kind of ['forest', 'farmland', 'pasture'] as const) {
-      expect(w.nodes.some((n) => n.kind === kind && Math.hypot(n.x - home.x, n.y - home.y) <= 16)).toBe(true);
+      expect(w.nodes.some((n) => n.kind === kind && Math.hypot(n.x - home.x, n.y - home.y) <= 18)).toBe(true);
     }
     // The same map always makes the same world.
     expect(createWorldFromMap(map1 as MapData).nodes).toEqual(w.nodes);
