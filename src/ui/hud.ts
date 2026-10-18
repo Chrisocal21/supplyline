@@ -561,6 +561,87 @@ export class HudScene extends Phaser.Scene {
 
   // ---- frame ----
 
+  /** Whether the minimap, with its speed buttons and compass, was drawn last frame. */
+  private miniShown = false;
+  /** Easing the camera round to face north. */
+  private northTween: { from: number; at: number } | null = null;
+
+  private faceNorth(): void {
+    this.northTween = { from: this.game3d.cam.heading, at: this.time.now };
+  }
+
+  private stepNorth(now: number): void {
+    const t = this.northTween;
+    if (!t) return;
+    const cam = this.game3d.cam;
+    const k = Math.min(1, (now - t.at) / 380);
+    const ease = 1 - (1 - k) ** 3;
+    const wrap = (a: number): number => Math.atan2(Math.sin(a), Math.cos(a));
+    const want = wrap(t.from) * (1 - ease);
+    cam.rotate(wrap(want - cam.heading), 0);
+    if (k >= 1) this.northTween = null;
+  }
+
+  /**
+   * A compass: the ring turns with the camera so the red N always points at true north, and a press turns the view to face it.
+   */
+  private compass(id: string, cx: number, cy: number, r: number, layer: number): void {
+    const im = this.im;
+    const heading = this.game3d.cam.heading;
+    const hov = im.hit(id, cx - r, cy - r, r * 2, r * 2, () => this.faceNorth(), layer);
+    const north = Math.abs(Math.atan2(Math.sin(heading), Math.cos(heading))) < 0.02;
+    im.circle(layer, cx, cy, r, hov ? 0x223040 : 0x131b25);
+    im.rect(layer, cx - r, cy - r, r * 2, r * 2, 0x000000, 0, r, north ? COLORS.good : hov ? COLORS.accent : COLORS.line, 1, 1.5);
+    // The four points, turning with the world: E, S and W as small ticks, N as the red letter.
+    for (let i = 0; i < 4; i++) {
+      const a = -heading + (i * Math.PI) / 2;
+      const sx = Math.sin(a);
+      const sy = -Math.cos(a);
+      if (i === 0) continue;
+      im.line(layer + 1, cx + sx * (r - 6), cy + sy * (r - 6), cx + sx * (r - 2), cy + sy * (r - 2), COLORS.muted, 1, 2);
+    }
+    const na = -heading;
+    const nx = Math.sin(na);
+    const ny = -Math.cos(na);
+    im.line(layer + 1, cx - nx * (r * 0.55), cy - ny * (r * 0.55), cx + nx * (r * 0.62), cy + ny * (r * 0.62), 0xe0655a, 1, 3);
+    im.line(layer + 1, cx - nx * (r * 0.55), cy - ny * (r * 0.55), cx, cy, 0xcfd8e3, 1, 3);
+    im.text(`${id}N`, 'N', cx + nx * (r - 8) , cy + ny * (r - 8) - 6, { size: 11, bold: true, color: 0xe0655a, align: 'center', layer: layer + 2 });
+  }
+
+  /** The newest version the server has, once it differs from the one running: the menu offers to sync to it. */
+  private latest: string | null = null;
+  private versionAt = 0;
+
+  /** Look for a newer build once a minute. */
+  private checkVersion(now: number): void {
+    if (now - this.versionAt < 60000 || location.hash.includes('shot')) return;
+    this.versionAt = now;
+    fetch(`/version.json?t=${Date.now()}`, { cache: 'no-store' })
+      .then((r) => r.json())
+      .then((j: { version?: string }) => {
+        if (!j.version || j.version === VERSION || j.version === this.latest) return;
+        this.latest = j.version;
+        this.toasts.push({ text: `Update ${j.version} is ready. Menu, then Sync update, keeps you where you are`, until: this.time.now + 7000 });
+      })
+      .catch(() => undefined);
+  }
+
+  /** Save, reload on the newest build, and carry on from the same place with no title screen. */
+  private syncUpdate(): void {
+    const g = this.game3d;
+    if (!g.demo && !g.showcase && !g.save()) {
+      this.toasts.push({ text: 'Could not save here, so the update was not applied', until: this.time.now + 3000 });
+      return;
+    }
+    try {
+      const c = g.cam;
+      sessionStorage.setItem('sl-sync', JSON.stringify({ lon: c.lon, lat: c.lat, dist: c.dist, heading: c.heading, pitch: c.pitchManual }));
+    } catch {
+      // No session storage: the game still comes back from its autosave, at the default view.
+    }
+    location.href = `${location.pathname}?u=${Date.now()}${location.hash}`;
+  }
+
   update(): void {
     const g = this.game3d;
     const w = g.world;
@@ -569,6 +650,8 @@ export class HudScene extends Phaser.Scene {
     const W = this.scale.width;
     const H = this.scale.height;
     const now = this.time.now;
+    this.checkVersion(now);
+    this.stepNorth(now);
 
     if (this.title) {
       this.hideSearch();
@@ -819,13 +902,15 @@ export class HudScene extends Phaser.Scene {
 
     const sp = [0, 1, 2, 4];
     const sStep = narrow ? 36 : 44;
-    const spW = sp.length * sStep + 10;
+    // On a wide screen the speed buttons live on the minimap; the top bar keeps them only when there is no minimap.
+    const speedUp = narrow || !this.miniShown;
+    const spW = speedUp ? sp.length * sStep + 10 : 0;
     const spX = narrow ? 12 : menuX - 10 - spW;
     const sy = narrow ? y + h + 6 : y;
     const sh = narrow ? 40 : h;
     const smid = sy + sh / 2;
-    this.pill(spX, sy, spW, sh);
-    sp.forEach((v, i) => {
+    if (speedUp) this.pill(spX, sy, spW, sh);
+    if (speedUp) sp.forEach((v, i) => {
       const cx = spX + 5 + sStep / 2 + i * sStep;
       const on = g.speed === v;
       this.roundButton(`speed${v}`, cx, smid, narrow ? 15 : 18, on, () => (g.speed = v));
@@ -888,7 +973,7 @@ export class HudScene extends Phaser.Scene {
     im.rect(layer, cx + 7, cy + 2, 7, 9, c, 1, 2);
   }
 
-  /** The menu: every sheet and setting in one place, as big tiles with their keys, and the full list of keys below. */
+  /** The menu: sheets and settings in three tidy groups, the update strip on top, and the keys below. */
   private menuPanel(W: number, H: number): void {
     const im = this.im;
     const close = (): void => {
@@ -898,84 +983,126 @@ export class HudScene extends Phaser.Scene {
     im.hit('menuBack', 0, 0, W, H, close, 3);
 
     const narrow = W < 640;
-    const cols = narrow ? 2 : 3;
-    const w = Math.min(760, W - 24);
+    const cols = narrow ? 2 : 4;
+    const w = Math.min(780, W - 24);
     const x = Math.round((W - w) / 2);
-    const pad = 18;
+    const pad = 20;
     const gap = 10;
     const tileW = (w - pad * 2 - gap * (cols - 1)) / cols;
-    const tileH = narrow ? 64 : 76;
-    type Item = { id: string; label: string; key: string; note: string; on: boolean; icon: (cx: number, cy: number, c: number) => void; act: () => void };
-    const glyph = (s: string) => (cx: number, cy: number, c: number) => im.text(`menuG${s}`, s, cx, cy - 13, { size: 22, bold: true, color: c, align: 'center', layer: 4 });
-    const items: Item[] = [
-      { id: 'prod', label: 'Production', key: 'P', note: 'What every building makes and uses', on: this.sheet === 'production', icon: (cx, cy, c) => this.factoryIcon(cx, cy, c, 4), act: () => this.toggleSheet('production') },
-      { id: 'towns', label: 'Towns', key: 'T', note: 'Towns, their needs and districts', on: this.sheet === 'towns', icon: (cx, cy, c) => this.townIcon(cx, cy, c, 4), act: () => this.toggleSheet('towns') },
-      { id: 'bank', label: 'Bank', key: 'B', note: 'Loans, savings and the market fund', on: this.sheet === 'bank', icon: (cx, cy, c) => this.bankIcon(cx, cy, c, 4), act: () => this.toggleSheet('bank') },
-      { id: 'quests', label: 'Quests', key: 'G', note: 'Tiers, goals and rewards', on: this.sheet === 'quests', icon: glyph('!'), act: () => this.toggleSheet('quests') },
-      { id: 'guide', label: 'How to play', key: 'H', note: 'The guide to every building', on: this.sheet === 'guide', icon: glyph('?'), act: () => this.toggleSheet('guide') },
-      { id: 'saves', label: 'Save / Load', key: 'L', note: 'Save slots and files', on: this.saves === 'manage', icon: glyph('S'), act: () => this.openSavesFromKey() },
-      { id: 'gfx', label: 'Graphics', key: 'O', note: 'Quality and lighting', on: this.graphicsOpen, icon: glyph('O'), act: () => this.openGraphics() },
-      { id: 'perf', label: this.perfOn ? 'Frame readout: on' : 'Frame readout: off', key: 'F3', note: 'Frames a second and frame time', on: this.perfOn, icon: glyph('F'), act: () => this.togglePerf() },
-      { id: 'mini', label: this.minimapOn ? 'Minimap: on' : 'Minimap: off', key: 'M', note: 'The world map in the corner', on: this.minimapOn, icon: glyph('M'), act: () => this.toggleMinimap() },
-      { id: 'new', label: 'New world', key: '', note: 'Start again on a fresh map', on: false, icon: glyph('+'), act: () => this.openSaves('new') },
+    const tileH = narrow ? 56 : 64;
+    type Item = { id: string; label: string; key: string; on: boolean; toggle?: boolean; icon: (cx: number, cy: number, c: number) => void; act: () => void };
+    const glyph = (s: string) => (cx: number, cy: number, c: number) => im.text(`menuG${s}`, s, cx, cy - 12, { size: 20, bold: true, color: c, align: 'center', layer: 4 });
+    const groups: { title: string; items: Item[] }[] = [
+      {
+        title: 'RUN YOUR BUSINESS',
+        items: [
+          { id: 'prod', label: 'Production', key: 'P', on: this.sheet === 'production', icon: (cx, cy, c) => this.factoryIcon(cx, cy, c, 4), act: () => this.toggleSheet('production') },
+          { id: 'towns', label: 'Towns', key: 'T', on: this.sheet === 'towns', icon: (cx, cy, c) => this.townIcon(cx, cy, c, 4), act: () => this.toggleSheet('towns') },
+          { id: 'bank', label: 'Bank', key: 'B', on: this.sheet === 'bank', icon: (cx, cy, c) => this.bankIcon(cx, cy, c, 4), act: () => this.toggleSheet('bank') },
+          { id: 'quests', label: 'Quests', key: 'G', on: this.sheet === 'quests', icon: glyph('!'), act: () => this.toggleSheet('quests') },
+        ],
+      },
+      {
+        title: 'GAME',
+        items: [
+          { id: 'guide', label: 'How to play', key: 'H', on: this.sheet === 'guide', icon: glyph('?'), act: () => this.toggleSheet('guide') },
+          { id: 'saves', label: 'Save / Load', key: 'L', on: this.saves === 'manage', icon: glyph('S'), act: () => this.openSavesFromKey() },
+          { id: 'gfx', label: 'Graphics', key: 'O', on: this.graphicsOpen, icon: glyph('O'), act: () => this.openGraphics() },
+          { id: 'new', label: 'New world', key: '', on: false, icon: glyph('+'), act: () => this.openSaves('new') },
+        ],
+      },
+      {
+        title: 'ON SCREEN',
+        items: [
+          { id: 'mini', label: 'Minimap', key: 'M', on: this.minimapOn, toggle: true, icon: glyph('M'), act: () => this.toggleMinimap() },
+          { id: 'perf', label: 'Frame readout', key: 'F3', on: this.perfOn, toggle: true, icon: glyph('F'), act: () => this.togglePerf() },
+        ],
+      },
     ];
-    const rows = Math.ceil(items.length / cols);
     const showKeys = !isTouch() && !narrow;
-    const keysH = showKeys ? 150 : 0;
-    const ph = Math.min(H - 24, 56 + rows * tileH + (rows - 1) * gap + pad + (showKeys ? 20 + keysH : 0) + 44);
+    const keysH = showKeys ? 130 : 0;
+    const updH = narrow ? 92 : 66;
+    let bodyH = updH + 14;
+    for (const grp of groups) bodyH += 24 + Math.ceil(grp.items.length / cols) * (tileH + gap) - gap + 12;
+    const ph = Math.min(H - 24, 56 + bodyH + pad + (showKeys ? 16 + keysH : 0));
     const y = Math.max(12, Math.round((H - ph) / 2));
     im.rect(3, x, y, w, ph, 0x0d141b, 0.98, 16, COLORS.accent, 0.6, 1.5);
     im.rect(3, x, y, w, 4, COLORS.accent, 0.9, 2);
     im.hit('menuPanel', x, y, w, ph, () => undefined, 3);
     im.text('menuTitle', 'MENU', x + pad, y + 18, { size: 20, bold: true, layer: 4 });
-    im.text('menuVer', `Supplyline  ·  v${VERSION}`, x + pad + 76, y + 24, { size: 12, color: COLORS.muted, layer: 4 });
+    im.rect(4, x + pad + 74, y + 20, 78, 22, 0x17202b, 1, 11, COLORS.line, 1);
+    im.text('menuVer', `v${VERSION}`, x + pad + 74 + 39, y + 25, { size: 12, bold: true, color: COLORS.muted, align: 'center', layer: 5 });
     const xh = im.hit('menuX', x + w - 48, y + 12, 34, 34, close, 4);
     im.rect(4, x + w - 48, y + 12, 34, 34, xh ? 0x2a3646 : 0x17202b, 1, 8, COLORS.line, 1);
-    im.text('menuXT', 'x', x + w - 31, y + 19, { size: 16, bold: true, align: 'center', layer: 4 });
+    im.text('menuXT', 'x', x + w - 31, y + 19, { size: 16, bold: true, align: 'center', layer: 5 });
 
-    const ty = y + 56;
-    items.forEach((it, i) => {
-      const tx = x + pad + (i % cols) * (tileW + gap);
-      const tyy = ty + Math.floor(i / cols) * (tileH + gap);
-      const hov = im.hit(`menu${it.id}`, tx, tyy, tileW, tileH, () => {
-        this.menuOpen = false;
-        it.act();
-      }, 4);
-      im.rect(4, tx, tyy, tileW, tileH, hov ? 0x223040 : 0x151e28, 1, 12, it.on ? COLORS.accent : hov ? 0x3d5066 : COLORS.line, 1, it.on ? 2 : 1);
-      const ic = narrow ? 22 : 30;
-      im.rect(4, tx + 10, tyy + (tileH - ic * 2) / 2, ic * 2, ic * 2, it.on ? COLORS.accent : 0x0c1218, 1, 10);
-      it.icon(tx + 10 + ic, tyy + tileH / 2, it.on ? 0x1b1204 : COLORS.accent);
-      const lx = tx + 20 + ic * 2;
-      im.text(`menuT${it.id}`, it.label, lx, tyy + (narrow ? 12 : 16), { size: narrow ? 13 : 15, bold: true, layer: 4 });
-      if (!narrow) im.text(`menuN${it.id}`, it.note, lx, tyy + 40, { size: 11, color: COLORS.muted, wrap: tileW - (lx - tx) - 40, layer: 4 });
-      if (it.key && !isTouch()) {
-        im.rect(4, tx + tileW - 32, tyy + 8, 24, 22, 0x0c1218, 1, 5, COLORS.line, 1);
-        im.text(`menuK${it.id}`, it.key, tx + tileW - 20, tyy + 11, { size: 12, bold: true, color: COLORS.accent, align: 'center', layer: 4 });
-      }
-    });
+    // The update strip: what is new, and the one button that fetches the newest build and keeps the player's place.
+    let cy = y + 56;
+    const ready = !!this.latest;
+    im.rect(4, x + pad, cy, w - pad * 2, updH, ready ? 0x2a2312 : 0x111a22, 1, 12, ready ? COLORS.accent : COLORS.line, 1, ready ? 2 : 1);
+    const btnW = narrow ? w - pad * 2 - 24 : 176;
+    const btnH = 38;
+    const btnX = narrow ? x + pad + 12 : x + w - pad - 12 - btnW;
+    const btnY = narrow ? cy + updH - btnH - 10 : cy + (updH - btnH) / 2;
+    const textW = narrow ? w - pad * 2 - 24 : w - pad * 2 - btnW - 36;
+    im.text('menuUpdT', ready ? `Update ${this.latest} is ready` : 'What is new in this build', x + pad + 14, cy + 10, { size: 13, bold: true, color: ready ? COLORS.accent : COLORS.text, layer: 5 });
+    im.text('menuUpdN', VERSION_NOTE, x + pad + 14, cy + 30, { size: 11, color: COLORS.muted, wrap: textW, layer: 5 });
+    const sh = im.hit('menuSync', btnX, btnY, btnW, btnH, () => {
+      this.menuOpen = false;
+      this.syncUpdate();
+    }, 5);
+    im.rect(5, btnX, btnY, btnW, btnH, ready ? (sh ? 0xf4b84f : COLORS.accent) : sh ? 0x2a3646 : 0x1b2430, 1, 10, ready ? COLORS.accent : COLORS.line, 1);
+    im.text('menuSyncT', ready ? 'Sync update now' : 'Sync update', btnX + btnW / 2, btnY + 11, { size: 14, bold: true, color: ready ? 0x1b1204 : COLORS.text, align: 'center', layer: 6 });
+    cy += updH + 14;
 
-    let by = ty + rows * tileH + (rows - 1) * gap + pad;
+    for (const grp of groups) {
+      im.text(`menuS${grp.title}`, grp.title, x + pad, cy + 2, { size: 10, bold: true, color: COLORS.accent, layer: 4 });
+      cy += 22;
+      grp.items.forEach((it, i) => {
+        const tx = x + pad + (i % cols) * (tileW + gap);
+        const ty = cy + Math.floor(i / cols) * (tileH + gap);
+        const hov = im.hit(`menu${it.id}`, tx, ty, tileW, tileH, () => {
+          this.menuOpen = false;
+          it.act();
+        }, 4);
+        const lit = it.on && !it.toggle;
+        im.rect(4, tx, ty, tileW, tileH, hov ? 0x223040 : 0x151e28, 1, 12, lit ? COLORS.accent : hov ? 0x3d5066 : COLORS.line, 1, lit ? 2 : 1);
+        const ic = narrow ? 17 : 20;
+        im.rect(4, tx + 10, ty + (tileH - ic * 2) / 2, ic * 2, ic * 2, lit ? COLORS.accent : 0x0c1218, 1, 10);
+        it.icon(tx + 10 + ic, ty + tileH / 2, lit ? 0x1b1204 : COLORS.accent);
+        const lx = tx + 20 + ic * 2;
+        im.text(`menuT${it.id}`, it.label, lx, ty + (it.toggle ? 12 : (tileH - 18) / 2), { size: narrow ? 12 : 14, bold: true, wrap: tileW - (lx - tx) - (it.key && !isTouch() ? 36 : 8), layer: 5 });
+        if (it.toggle) {
+          im.rect(5, lx, ty + tileH - 24, 38, 16, it.on ? COLORS.good : 0x0c1218, 1, 8, it.on ? COLORS.good : COLORS.line, 1);
+          im.text(`menuO${it.id}`, it.on ? 'ON' : 'OFF', lx + 19, ty + tileH - 22, { size: 10, bold: true, color: it.on ? 0x0b1a14 : COLORS.muted, align: 'center', layer: 6 });
+        }
+        if (it.key && !isTouch()) {
+          im.rect(5, tx + tileW - 30, ty + 7, 22, 18, 0x0c1218, 1, 5, COLORS.line, 1);
+          im.text(`menuK${it.id}`, it.key, tx + tileW - 19, ty + 9, { size: 10, bold: true, color: COLORS.accent, align: 'center', layer: 6 });
+        }
+      });
+      cy += Math.ceil(grp.items.length / cols) * (tileH + gap) - gap + 12;
+    }
+
     if (showKeys) {
-      im.line(4, x + pad, by, x + w - pad, by, COLORS.line, 1, 1);
-      im.text('menuKeysT', 'KEYBOARD', x + pad, by + 10, { size: 11, bold: true, color: COLORS.accent, layer: 4 });
-      const groups: [string, [string, string][]][] = [
-        ['Camera', [['W A S D', 'Move'], ['Q / E', 'Turn'], ['Wheel', 'Zoom'], ['Right-drag', 'Tilt and turn'], ['M', 'Minimap'], ['F3', 'Frame readout']]],
+      im.line(4, x + pad, cy, x + w - pad, cy, COLORS.line, 1, 1);
+      im.text('menuKeysT', 'KEYBOARD', x + pad, cy + 10, { size: 10, bold: true, color: COLORS.accent, layer: 4 });
+      const keyGroups: [string, [string, string][]][] = [
+        ['Camera', [['W A S D', 'Move'], ['Q / E', 'Turn'], ['Wheel', 'Zoom'], ['Right-drag', 'Tilt and turn'], ['Compass', 'Face north']]],
         ['Build', [['Tab', 'Next category'], ['1 - 9', 'Pick a card'], ['R', 'Rotate building'], ['C / X', 'Road / Demolish'], ['Enter / Bksp', 'Finish / undo bend']]],
         ['Game', [['Space', 'Pause'], ['- / +', 'Slower / faster'], ['U', 'Upgrade selected'], ['N', 'Next problem'], ['Esc', 'Close / menu']]],
       ];
-      const gw = (w - pad * 2) / groups.length;
-      groups.forEach(([title, list], gi) => {
+      const gw = (w - pad * 2) / keyGroups.length;
+      keyGroups.forEach(([title, list], gi) => {
         const gx = x + pad + gi * gw;
-        im.text(`menuKG${gi}`, title, gx, by + 30, { size: 12, bold: true, layer: 4 });
+        im.text(`menuKG${gi}`, title, gx, cy + 28, { size: 12, bold: true, layer: 4 });
         list.forEach(([k, what], ki) => {
-          const ly = by + 52 + ki * 19;
+          const ly = cy + 48 + ki * 18;
           im.text(`menuKK${gi}-${ki}`, k, gx, ly, { size: 11, bold: true, color: COLORS.warn, layer: 4 });
-          im.text(`menuKW${gi}-${ki}`, what, gx + 88, ly, { size: 11, color: COLORS.muted, layer: 4 });
+          im.text(`menuKW${gi}-${ki}`, what, gx + 90, ly, { size: 11, color: COLORS.muted, layer: 4 });
         });
       });
-      by += 20 + keysH;
     }
-    im.text('menuNote', `What is new: ${VERSION_NOTE}`, x + pad, by - 4, { size: 10, color: COLORS.muted, wrap: w - pad * 2, layer: 4, alpha: 0.8 });
   }
 
   private graphicsPanel(W: number, H: number): void {
@@ -1402,7 +1529,13 @@ export class HudScene extends Phaser.Scene {
 
     // The minimap sits in the footer's right corner and rises above it.
     const mini = this.minimapBox(W, H, dx + dockW + 12);
+    this.miniShown = !!mini;
     if (mini) this.drawMinimap(mini);
+    else if (!this.title) {
+      // No minimap here (switched off, a phone, a small window): the compass stands alone above the footer.
+      const cr = 20;
+      this.compass('looseCompass', W - 12 - cr - 4, footY - cr - 14, cr, 2);
+    }
 
     // Key hints at the left of the footer, in as much detail as there is room for.
     const room = dx - 28;
@@ -1471,7 +1604,7 @@ export class HudScene extends Phaser.Scene {
     const mw = Math.min(300, Math.max(200, Math.round(W * 0.19)));
     const mh = Math.round((mw * world.height) / world.width);
     const w = mw + 16;
-    const h = mh + 38;
+    const h = mh + 28 + 56;
     const x = W - w - 10;
     if (x < minX) return null;
     const y = H - h - 8;
@@ -1486,18 +1619,44 @@ export class HudScene extends Phaser.Scene {
     const aspect = this.scale.width / Math.max(1, this.scale.height);
     const key = this.minimap.draw(world, { x: at.x, y: at.y, span: viewSpan(world, g.cam.dist, aspect), heading: g.cam.heading }, b.mw, this.time.now);
     im.rect(1, b.x, b.y, b.w, b.h, 0x0a0f14, 0.97, 12, COLORS.accent, 0.55, 1.5);
-    im.text('miniT', 'WORLD MAP', b.x + 10, b.y + 8, { size: 11, bold: true, color: COLORS.accent, layer: 2 });
+    im.rect(1, b.x, b.y, b.w, 3, COLORS.accent, 0.85, 1);
+    im.text('miniT', 'WORLD MAP', b.x + 10, b.y + 9, { size: 11, bold: true, color: COLORS.accent, layer: 2 });
     const mx = b.x + 8;
     const my = b.y + 28;
     im.image('miniImg', key, mx, my, b.mw, b.mh, 1, 2);
     im.rect(2, mx - 1, my - 1, b.mw + 2, b.mh + 2, 0x000000, 0, 2, COLORS.line, 1);
-    const offH = im.hit('miniOff', b.x + b.w - 30, b.y + 4, 22, 20, () => this.toggleMinimap(), 2);
-    im.text('miniOffT', 'M', b.x + b.w - 19, b.y + 7, { size: 11, bold: true, color: offH ? COLORS.text : COLORS.muted, align: 'center', layer: 3 });
+    // Corner brackets over the picture, the way a game's radar is framed.
+    for (const [cx0, cy0, sx, sy] of [[mx, my, 1, 1], [mx + b.mw, my, -1, 1], [mx, my + b.mh, 1, -1], [mx + b.mw, my + b.mh, -1, -1]] as [number, number, number, number][]) {
+      im.line(3, cx0, cy0, cx0 + sx * 10, cy0, COLORS.accent, 0.9, 2);
+      im.line(3, cx0, cy0, cx0, cy0 + sy * 10, COLORS.accent, 0.9, 2);
+    }
+    const coord = this.minimap.tileAt(world, 0.5, at.y / world.height);
+    im.text('miniXY', `${coord.x}, ${Math.round(at.y)}`, b.x + b.w / 2, b.y + 9, { size: 10, color: COLORS.muted, align: 'center', layer: 2 });
+    const offH = im.hit('miniOff', b.x + b.w - 30, b.y + 6, 22, 18, () => this.toggleMinimap(), 2);
+    im.text('miniOffT', 'M', b.x + b.w - 19, b.y + 8, { size: 11, bold: true, color: offH ? COLORS.text : COLORS.muted, align: 'center', layer: 3 });
     im.hit('miniMap', mx, my, b.mw, b.mh, () => {
       const p = this.input.activePointer;
       const t = this.minimap.tileAt(world, (p.x - mx) / b.mw, (p.y - my) / b.mh);
       g.lookAt(t.x, t.y, g.cam.dist, g.cam.heading, g.cam.pitchManual);
     }, 2);
+    // Under the map: the compass, and the game speed beside it.
+    const fy = my + b.mh + 10;
+    const cr = 20;
+    this.compass('miniCompass', b.x + 14 + cr, fy + cr + 2, cr, 2);
+    const bx0 = b.x + 14 + cr * 2 + 14;
+    const bw = (b.x + b.w - 10 - bx0 - 3 * 6) / 4;
+    [0, 1, 2, 4].forEach((v, i) => {
+      const bx = bx0 + i * (bw + 6);
+      const on = g.speed === v;
+      const hov = im.hit(`miniSpeed${v}`, bx, fy + 4, bw, 36, () => (g.speed = v), 2);
+      im.rect(2, bx, fy + 4, bw, 36, on ? COLORS.accent : hov ? 0x243142 : 0x172130, 1, 9, on ? COLORS.accent : COLORS.line, 1);
+      const col = on ? 0x1b1204 : COLORS.text;
+      if (v === 0) {
+        im.rect(3, bx + bw / 2 - 6, fy + 14, 4, 16, col, 1, 1);
+        im.rect(3, bx + bw / 2 + 2, fy + 14, 4, 16, col, 1, 1);
+      } else im.text(`miniSpeedT${v}`, `${v}x`, bx + bw / 2, fy + 14, { size: 14, bold: true, color: col, align: 'center', layer: 3 });
+    });
+    im.text('miniSpeedL', g.speed === 0 ? 'PAUSED' : 'SPEED', bx0, fy - 3, { size: 8, bold: true, color: g.speed === 0 ? COLORS.warn : COLORS.muted, layer: 3 });
     im.block({ x: b.x, y: b.y, w: b.w, h: b.h });
     this.miniRect = { x: b.x, y: b.y, w: b.w, h: b.h };
     this.rightInset = this.scale.height - b.y;

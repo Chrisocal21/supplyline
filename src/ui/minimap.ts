@@ -166,7 +166,7 @@ export class Minimap {
     const bh = Math.max(4, bw * 0.62);
     ctx.save();
     ctx.translate(cx, cy);
-    ctx.rotate(-view.heading);
+    ctx.rotate(view.heading);
     ctx.strokeStyle = 'rgba(0,0,0,0.55)';
     ctx.lineWidth = 3;
     ctx.strokeRect(-bw / 2, -bh / 2, bw, bh);

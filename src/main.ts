@@ -9,7 +9,21 @@ import { HudScene } from './ui/hud';
 const game = new Game3D(document.body);
 const hash = location.hash;
 const seed = /seed=(\d+)/.exec(hash);
-if (hash.includes('demo')) {
+// A tester who pressed Sync update comes back to their game, where they were, with no title screen.
+let synced: { lon: number; lat: number; dist: number; heading: number; pitch: number } | null = null;
+try {
+  const raw = sessionStorage.getItem('sl-sync');
+  if (raw) {
+    sessionStorage.removeItem('sl-sync');
+    synced = JSON.parse(raw);
+  }
+} catch {
+  // No session storage: nothing to resume.
+}
+if (synced) {
+  if (!game.load()) game.newWorld();
+  game.cam.set(synced.lon, synced.lat, synced.dist, synced.heading, synced.pitch);
+} else if (hash.includes('demo')) {
   game.newWorld(seed ? +seed[1] : 11);
   game.buildDemoBase();
 } else if (hash.includes('map')) {
