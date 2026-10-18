@@ -311,16 +311,16 @@ Each is a 0.X release; QoL batches ship between the big pieces so there is alway
 | 0.14 | THE WORLD (first, everything builds on it) | Layered world generation, claim map, placement validator, bigger and better spread map, rivers and lakes, outskirts nodes, towns with reserved growth room, nothing ever deleted by building |
 | 0.15 | Custom maps and placement rules | Node rules engine, land shaper (about 85% land), custom Map 2, distinct town streets, dirt tracks that upgrade to roads |
 | 0.16 | Sim rules | Truck cap per product line, 8 building levels (slots and cost now, art later), pacing bot re-run |
-| 0.16 | QoL 1: select and act | Box-select, bulk actions, copy settings, rename, upgrade all affordable, search anywhere |
-| 0.17 | QoL 2: see and understand | Notification log, tooltips, why explainers, price history, per-building profit, payback calculator, hotkey sheet |
-| 0.18 | QoL 3: build faster | Drag and ghost preview, auto-road, undo and redo, bulldoze area, camera bookmarks, quick save |
-| 0.19 | Foundations | Sim in a Web Worker, save versioning and migration, platform layer, deterministic seeds |
-| 0.20 | The .exe | Electron shell, disk saves, auto-updater, GitHub release workflow, settings that persist |
-| 0.21 | QoL 4: fleets and modes | Fleet sheet, auto-renew, train wagons, mode perks and synergies |
-| 0.22 | Graphics 1 | WebGPU, bloom, ambient occlusion, day and night |
-| 0.23 | Data | Map overlays, bottleneck view, throughput stats |
-| 0.24 | Huge worlds | Chunk streaming from disk, much larger maps |
-| 0.25+ | Depth and polish | Passengers, power and fuel, contracts, reputation, rivals, weather, art, audio, tools, Steam |
+| 0.17 | QoL 1: select and act | Box-select, bulk actions, copy settings, rename, upgrade all affordable, search anywhere |
+| 0.18 | QoL 2: see and understand | Notification log, tooltips, why explainers, price history, per-building profit, payback calculator, hotkey sheet |
+| 0.19 | QoL 3: build faster | Drag and ghost preview, auto-road, undo and redo, bulldoze area, camera bookmarks, quick save |
+| 0.20 | Foundations | Sim in a Web Worker, save versioning and migration, platform layer, deterministic seeds |
+| 0.21 | The .exe | Electron shell, disk saves, auto-updater, GitHub release workflow, settings that persist |
+| 0.22 | QoL 4: fleets and modes | Fleet sheet, auto-renew, train wagons, mode perks and synergies |
+| 0.23 | Graphics 1 | WebGPU, bloom, ambient occlusion, day and night |
+| 0.24 | Data | Map overlays, bottleneck view, throughput stats |
+| 0.25 | Huge worlds | Chunk streaming from disk, much larger maps |
+| 0.26+ | Depth and polish | Passengers, power and fuel, contracts, reputation, rivals, weather, art, audio, tools, Steam |
 
 The order can change; the rule is that 0.14 (the world) comes first because towns, nodes, roads and every later feature are placed on it.
 
