@@ -318,6 +318,7 @@ Money
 - [ ] Towns reserve their full growth footprint and buffer on day one; cities, towns, harbours, canals sited on good land
 - [ ] Nodes in the outskirts as a hinterland per town, outside growth zones, clear of rivers and passes
 - [ ] Placing a building or road never deletes buildings, roads or towns; scenery cleared only from the exact footprint
+- [ ] District buildings (Farmers Market, Restaurant Row, Heating Depot, Coffee House and the rest) get a permanent lot reserved in the town layout, sized for level 3; building one removes nothing; upgrading adds neighbouring buildings onto the lot (like a shopping centre gaining shops) and never replaces the original; homes and towers are laid out around the reserved lot and never overlap it; test levels every district to max and checks nothing standing before is lost
 - [ ] Bigger, more spread-out map (target about 576x192; step down if the browser cannot hold it)
 - [ ] Tests: generator over many seeds, placement never touches other objects, growth to max with a built-up map loses nothing; Map 1 re-checked
 - [ ] World generator version stored in saves; old saves keep their map

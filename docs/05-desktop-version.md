@@ -347,7 +347,17 @@ Biggest problem today: towns grow into nodes and roads, and placing a building o
 - **Placing never removes anything.** Scenery is the only soft layer: it is cleared only from the exact tiles a build covers, and only scenery. Buildings, roads and towns are never overwritten, shifted or deleted by another placement.
 - Towns grow only inside their reserved zone, so they can never collide with a node, a road, a river or another town, however far the player expands.
 
+### District buildings are permanent parts of the town (Chris, 2026-10-18)
+Farmers Market, Restaurant Row, Heating Depot, Coffee House, Hardware Store and the rest are not dropped between buildings.
+- Every district has a **permanent lot reserved at town layout time**, sized for its level 3 footprint, sitting inside the town's growth zone. Nothing else is ever built on it: not homes, not towers, not trees.
+- Building a district does not remove a single existing building. It takes the lot that was held for it, and homes and towers around it are laid out with that lot already counted.
+- **Upgrading grows the district outward.** Like a shopping centre gaining shops: the level 1 building keeps standing, and level 2 and 3 add neighbouring buildings (stalls, a terrace, a second hall, car park, signage) onto the same lot. The original is never replaced.
+- A district also lifts the buildings near it (nicer fronts, lights, awnings) without removing any.
+- Homes, blocks and towers fill the remaining frontage and never overlap a district lot; overlap is tested.
+- Districts of one town never overlap each other. Campuses (stadium, ballpark, arena) keep their own larger reserved ground.
+
 ### Tests that guard it (written with the generator)
+- District test: build every district in every town and level it to the maximum; the count of homes and towers that were standing before never drops, and no district footprint overlaps a home, a tower, a street or another district.
 - Generator test over many seeds: no two permanent layers overlap; every town can reach its max footprint; every node is outside every zone.
 - Placement test: placing any building or road changes no other object's tiles; scenery loss is limited to the footprint.
 - Growth test: grow every town to max level with a heavily built-up player map; nothing moves or disappears.
