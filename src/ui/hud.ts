@@ -1,5 +1,6 @@
 // The HUD: a transparent Phaser scene over the 3D view. Everything is drawn with the immediate-mode helper in imui.ts.
 import { diagnose, diagnoseAll, shortOf } from '../sim/diagnose';
+import { LAND_PREFIX, parcelAt, parcelPrice, parcelState } from '../sim/land';
 import Phaser from 'phaser';
 import { GRAPHICS, type GraphicsQuality, type LightingMode } from '../r3d/graphics';
 import {
@@ -1792,14 +1793,26 @@ export class HudScene extends Phaser.Scene {
       const used = w.sites.some((s) => s.nodeId === h.node!.id);
       out.push({ text: `${h.node.kind[0].toUpperCase()}${h.node.kind.slice(1)} node`, bold: true, size: 14 });
       out.push({ text: `${q.label} · ${q.mult >= 1 ? '+' : ''}${Math.round((q.mult - 1) * 100)}% output`, color: h.node.quality === 2 ? COLORS.good : h.node.quality === 0 ? COLORS.warn : COLORS.text });
-      out.push({ text: used ? 'In use' : 'Free to build on', color: used ? COLORS.muted : COLORS.good });
+      if (used) out.push({ text: 'In use', color: COLORS.muted });
+      else {
+        // What the land under it costs, so the price is there before any tool is picked.
+        const plot = w.landRules ? parcelAt(w, h.node.x, h.node.y) : null;
+        const state = plot ? parcelState(w, plot) : 'free';
+        if (plot && state === 'sale') out.push({ text: `Plot for sale: ${fmt(parcelPrice(plot))}`, color: COLORS.warn });
+        else if (plot && state === 'owned') out.push({ text: 'Your land: free to build on', color: COLORS.good });
+        else if (plot && state === 'town') out.push({ text: 'Town ground: not for sale', color: COLORS.muted });
+        else out.push({ text: 'Free to build on', color: COLORS.good });
+      }
     } else if (h.route) {
       const n = w.vehicles.filter((v) => v.routeId === h.route!.id).length;
       out.push({ text: h.route.mode === 'rail' ? 'Rail line' : h.route.grade === 'highway' ? 'Highway' : 'Road', bold: true, size: 14 }, { text: `${n} vehicle${n === 1 ? '' : 's'} on this route`, color: COLORS.muted });
     } else if (h.region && g.tool === 'select') {
       out.push({ text: h.region.name, bold: true, size: 14 }, { text: h.region.kind === 'land' ? 'Region' : h.region.kind[0].toUpperCase() + h.region.kind.slice(1), color: COLORS.muted });
     }
-    if (h.error && g.tool !== 'select') out.push({ text: h.error, color: COLORS.bad });
+    // A node already says what its plot costs; the rest is told here.
+    const plotNote = !!h.node && !!h.error?.startsWith(LAND_PREFIX);
+    if (h.error && g.tool !== 'select' && !plotNote) out.push({ text: h.error, color: COLORS.bad });
+    else if (plotNote) out.push({ text: `${byInput('Click', 'Tap')} to buy it, then ${byInput('click', 'tap')} again to build`, color: COLORS.muted });
     return out;
   }
 
