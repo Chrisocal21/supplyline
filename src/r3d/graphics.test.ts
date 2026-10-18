@@ -6,11 +6,13 @@ import { districtLandmark } from './districts';
 import { siteGeometry, siteGeometryAt } from './models';
 import { Parts } from './parts';
 import { townGeometry } from './townmodel';
-import { addCropRows, addTree, treeGeometry, type TreeKind } from './vegetation';
+import { addCropRows, addTree, treeGeometry, treeLodGeometry, type TreeKind } from './vegetation';
 import { truckGeometry } from './trucks';
 import { sportsCampus } from './sports';
 import { STREET, meters } from '../scale';
 import { addCow } from './livestock';
+import { airportGeometry } from './airport';
+import { TILE_UNITS } from '../scale';
 
 function checkGeometry(g: BufferGeometry, budget: number): void {
   const position = g.getAttribute('position');
@@ -121,6 +123,18 @@ describe('shared vegetation', () => {
     expect(g.boundingBox!.max.z).toBeLessThan(0.76);
     g.dispose();
     repeat.dispose();
+  });
+  it.each(['pine', 'oak', 'birch'] as const)('%s distant stand-in keeps the silhouette at a fraction of the cost', (kind) => {
+    const full = treeGeometry(kind, kind === 'birch' ? 1 : 0);
+    const lod = treeLodGeometry(kind);
+    checkGeometry(lod, 400);
+    expect(lod.getAttribute('position').count * 4).toBeLessThan(full.getAttribute('position').count);
+    full.computeBoundingBox();
+    const fb = full.boundingBox!, lb = lod.boundingBox!;
+    expect(Math.abs(lb.max.y - fb.max.y)).toBeLessThan(0.25);
+    expect(Math.abs((lb.max.x - lb.min.x) - (fb.max.x - fb.min.x))).toBeLessThan(0.3);
+    full.dispose();
+    lod.dispose();
   });
   it.each(trees)('%s has finite, repeatable geometry within a 5,000-vertex budget', (kind) => {
     const a = treeGeometry(kind, 3);
@@ -236,5 +250,30 @@ describe('building integration', () => {
     checkGeometry(g, 80000);
     expect(Array.from(g.getAttribute('anc').array).every((v, i) => v === (i % 2 ? 3 : 2))).toBe(true);
     g.dispose();
+  });
+});
+
+describe('airport', () => {
+  it('fills its 3x3 field at every level, keeps the full runway, and stays a reasonable size', () => {
+    const half = 1.5 * TILE_UNITS;
+    let prev = 0;
+    for (const level of [1, 2, 3]) {
+      const g = airportGeometry(level);
+      g.computeBoundingBox();
+      const b = g.boundingBox!;
+      expect(b.min.x).toBeGreaterThanOrEqual(-half - 0.01);
+      expect(b.max.x).toBeLessThanOrEqual(half + 0.01);
+      expect(b.min.z).toBeGreaterThanOrEqual(-half - 0.01);
+      expect(b.max.z).toBeLessThanOrEqual(half + 0.01);
+      // The runway runs nearly the whole width of the field.
+      expect(b.max.x - b.min.x).toBeGreaterThan(2 * half - 0.2);
+      const verts = g.getAttribute('position').count;
+      expect(verts).toBeLessThan(400_000);
+      // Each upgrade adds terminal, not just paint.
+      expect(verts).toBeGreaterThan(prev);
+      prev = verts;
+      const again = airportGeometry(level);
+      expect(again.getAttribute('position').count).toBe(verts);
+    }
   });
 });

@@ -80,6 +80,11 @@ import {
   setHubPull,
   siteAt,
   siteById,
+  siteCenter,
+  siteReach,
+  siteTiles,
+  airportRot,
+  type Rot,
   step,
   wrapDx,
   wrapX,
@@ -731,7 +736,8 @@ export class Game3D {
     this.updateLeaving();
     this.updateSmoke(dt, dust);
     this.updateLighting();
-    this.scenery.update(now / 1000);
+    this.scenery.treeDetailDistance = GRAPHICS[this.graphicsQuality].treeDetail;
+    this.scenery.update(now / 1000, this.camera);
     this.globe?.update(now / 1000);
     this.updateRings();
     this.updateSpots();
@@ -908,6 +914,10 @@ export class Game3D {
       c.setSize(this.w, this.h);
       c.addPass(new RenderPass(this.scene, this.camera));
       const ao = new GTAOPass(this.scene, this.camera, this.w, this.h);
+      // Ambient occlusion is soft, so it is worked out on a smaller buffer measured in CSS pixels, never in device
+      // pixels: a high-DPI screen would otherwise multiply its cost by four.
+      const fullSize = ao.setSize.bind(ao);
+      ao.setSize = () => fullSize(Math.max(1, Math.round(this.w * settings.aoScale)), Math.max(1, Math.round(this.h * settings.aoScale)));
       ao.output = GTAOPass.OUTPUT.Default;
       ao.blendIntensity = 1;
       ao.updateGtaoMaterial({ radius: 0.2, distanceExponent: 1.4, thickness: 0.3, scale: 1.1, samples: settings.aoSamples, distanceFallOff: 1, screenSpaceRadius: false });
@@ -975,9 +985,12 @@ export class Game3D {
     if (sig !== this.signature) {
       const routesChanged = !this.signature || this.signature.split('|')[1] !== roadSig;
       this.signature = sig;
-      if (routesChanged) {
-        // Roads regrade the ground first, so everything else is placed on the ground as it will be.
+      const levelled = this.hf.levelAirfields();
+      if (routesChanged || levelled.size) {
+        // Roads regrade the ground first, so everything else is placed on the ground as it will be. A new airport levels
+        // its field first, and the roads are then graded over that.
         const regraded = this.hf.setRoads();
+        for (const t of levelled) regraded.add(t);
         this.globe?.regrade(regraded);
         this.scenery.reseat(regraded);
       }
@@ -991,7 +1004,7 @@ export class Game3D {
         this.scenery.clearTiles(this.roads.tiles);
         this.scenery.clearTiles(this.rails.tiles);
       }
-      this.scenery.clearTiles(w.sites.map((s) => s.y * w.width + s.x));
+      this.scenery.clearTiles(w.sites.flatMap((s) => siteTiles(w, s)).map((t) => t.y * w.width + t.x));
     }
     const townTool = this.isBuildTool() && !SITE_DEFS[this.tool as SiteKind].node;
     this.scenery.showPlots(townTool, (placeId, index) => {
@@ -1081,7 +1094,11 @@ export class Game3D {
       // Buildings in a town face the street they front.
       let yaw = 0;
       const plot = plotAt(this.world, s.x, s.y);
-      if (plot) {
+      const def = SITE_DEFS[s.kind];
+      if (s.rot !== undefined && !def.port && !def.station) {
+        // The player turned it while placing it.
+        yaw = (s.rot * Math.PI) / 2;
+      } else if (plot) {
         const face = plotFacing(this.world, plot.place, plot.index);
         yaw = face === 'N' ? Math.PI : face === 'W' ? -Math.PI / 2 : face === 'E' ? Math.PI / 2 : 0;
       } else if (SITE_DEFS[s.kind].port) {
@@ -1108,7 +1125,7 @@ export class Game3D {
           if (side) yaw = side[2];
         }
       }
-      m.matrix.copy(this.tileMatrix(s)).multiply(new THREE.Matrix4().makeRotationY(yaw));
+      m.matrix.copy(this.tileMatrix(siteCenter(this.world, s))).multiply(new THREE.Matrix4().makeRotationY(yaw));
       m.userData.base = m.matrix.clone();
       m.matrixWorldNeedsUpdate = true;
     }
@@ -1703,7 +1720,7 @@ export class Game3D {
     info.node = nodeAt(w, tile.x, tile.y);
     info.route = routeAt(w, tile.x, tile.y, this.tool === 'rail' ? 'rail' : undefined);
     info.region = w.regions.find((r) => r.id === w.regionMap[tile.y * w.width + tile.x]);
-    if (this.isBuildTool()) info.error = placeError(w, this.tool as SiteKind, tile.x, tile.y);
+    if (this.isBuildTool()) info.error = placeError(w, this.tool as SiteKind, tile.x, tile.y, this.placeRot ?? undefined);
     if (this.tool === 'demolish') {
       info.route = routeAt(w, tile.x, tile.y, undefined, { newest: true });
       info.error = info.site ? null : info.route ? removeRouteError(w, info.route.id) : 'Click a building or a road to remove it';
@@ -1733,13 +1750,34 @@ export class Game3D {
     this.updateDraftMesh();
     this.signature += '!'; // refresh node markers on the next frame
     this.ghostKind = null;
+    this.placeRot = null;
     if (this.ghost) this.ghost.visible = false;
     if (this.hover) this.setHover(this.hover.tile);
   }
 
+  /** Which way the building being placed will face, as the player turned it; null lets the game pick. */
+  private placeRot: Rot | null = null;
+
+  /** Turn the building being placed a quarter turn clockwise (as seen from above, north up). */
+  rotatePlacement(): void {
+    if (!this.isBuildTool()) return;
+    const kind = this.tool as SiteKind;
+    const from = this.placeRot ?? (siteReach(kind) && this.hover ? (airportRot(this.world, this.hover.tile.x, this.hover.tile.y) ?? 0) : 0);
+    // South, west, north, east: clockwise seen from above.
+    this.placeRot = ((from + 3) % 4) as Rot;
+    if (this.hover) this.setHover(this.hover.tile);
+  }
+
+  /** The facing the ghost shows and placing will use, for a building on this tile. */
+  private ghostRot(kind: SiteKind, tile: Tile): Rot {
+    if (this.placeRot !== null) return this.placeRot;
+    return siteReach(kind) ? (airportRot(this.world, tile.x, tile.y) ?? 0) : 0;
+  }
+
   select(sel: Selection): void {
     this.selection = sel;
-    const tile = sel ? (sel.kind === 'site' ? siteById(this.world, sel.id) : this.world.places.find((p) => p.id === sel.id)) : null;
+    const site = sel?.kind === 'site' ? siteById(this.world, sel.id) : undefined;
+    const tile = sel ? (site ? siteCenter(this.world, site) : this.world.places.find((p) => p.id === sel.id)) : null;
     if (tile) {
       this.selRing.matrix.copy(this.tileMatrix(tile, 0.15));
       this.selRing.matrixWorldNeedsUpdate = true;
@@ -1873,7 +1911,7 @@ export class Game3D {
       this.ghostKind = kind;
     }
     (this.ghost.material as THREE.MeshStandardMaterial).color.set(ok ? 0xb8ffc8 : 0xff9a90);
-    this.ghost.matrix.copy(this.tileMatrix(tile, 0.02));
+    this.ghost.matrix.copy(this.tileMatrix(tile, 0.02)).multiply(new THREE.Matrix4().makeRotationY((this.ghostRot(kind, tile) * Math.PI) / 2));
     this.ghost.matrixWorldNeedsUpdate = true;
     this.ghost.visible = true;
   }
@@ -2071,7 +2109,7 @@ export class Game3D {
       };
       return;
     }
-    const err = placeSite(w, this.tool as SiteKind, tile.x, tile.y);
+    const err = placeSite(w, this.tool as SiteKind, tile.x, tile.y, this.placeRot ?? undefined);
     if (err) this.onToast(err);
     else {
       const s = w.sites[w.sites.length - 1];
@@ -2177,10 +2215,14 @@ export class Game3D {
   // ---- route drawing ----
 
   /** The draft follows the cheapest buildable road from the end of the fixed part to the tile under the cursor. */
-  /** With the rail tool, pointing at a town's Market or Supply Yard means its Rail Station. */
+  /**
+   * With the rail tool, pointing at a town's Market or Supply Yard means its Rail Station; with any route tool, pointing
+   * anywhere on an airport means its gate, where roads join it.
+   */
   private railTarget(t: Tile): Tile {
-    if (this.tool !== 'rail') return t;
     const here = siteAt(this.world, t.x, t.y);
+    if (here && siteReach(here.kind) && this.isRouteTool()) return { x: here.x, y: here.y };
+    if (this.tool !== 'rail') return t;
     if (!here || !SITE_DEFS[here.kind].dock) return t;
     const st = this.world.sites.find((s) => s.placeId === here.placeId && SITE_DEFS[s.kind].station);
     return st ? { x: st.x, y: st.y } : t;

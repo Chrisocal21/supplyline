@@ -2,6 +2,7 @@
 // a windmill. They are separate meshes riding on the building's own, so the building stays one draw call.
 import * as THREE from 'three';
 import type { SiteKind } from '../sim/defs';
+import { AIRPORT_RADAR } from './airport';
 import { Parts } from './parts';
 
 export interface AnimPart {
@@ -90,7 +91,7 @@ export function siteAnimParts(kind: SiteKind, level: number): AnimPart[] {
       tick: (t, o, b) => o.copy(b).multiply(rotZ(0.14 * Math.sin(t * 2.3) + 0.04)),
     });
   } else if (kind === 'airport') {
-    const mast = [null, [-1.2, 0.93, -0.1], [-1.6, 1.38, 0.2], [-2.0, 1.92, 0.0]][L] as [number, number, number];
+    const mast = AIRPORT_RADAR[L as 1 | 2 | 3];
     out.push({ geo: geo('radar', radarGeometry), base: at(mast[0], mast[1], mast[2]), tick: (t, o, b) => o.copy(b).multiply(rotY(t * 2.6)) });
   } else if (kind === 'port') {
     const half = [0, 1.5, 1.8, 2.15][L];

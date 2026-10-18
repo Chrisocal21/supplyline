@@ -126,6 +126,40 @@ export interface Site {
   sales?: Record<number, { units: number; money: number }>;
   /** The last jobs that went out and were paid for, newest last: what, how much, to whom, and what it paid. */
   history?: SaleJob[];
+  /**
+   * Which way the front faces, as the player turned it while placing: 0 south, 1 east, 2 north, 3 west. Unset means the
+   * game turns it to face its road. An airport always has one: its road comes in at the middle of that side.
+   */
+  rot?: Rot;
+}
+
+export type Rot = 0 | 1 | 2 | 3;
+/** One tile step toward the front, for each `Rot`. */
+export const FRONT: readonly Tile[] = [{ x: 0, y: 1 }, { x: 1, y: 0 }, { x: 0, y: -1 }, { x: -1, y: 0 }];
+
+/** How many tiles a building reaches out from its middle: an airport covers 3x3 tiles, everything else one. */
+export function siteReach(kind: SiteKind): number {
+  return SITE_DEFS[kind].airport ? 1 : 0;
+}
+
+/**
+ * The middle of the ground a building covers. A big building's site tile is its gate, in the middle of its front edge, where
+ * roads join it; the rest of it lies behind.
+ */
+export function siteCenter(world: World, s: Pick<Site, 'kind' | 'x' | 'y' | 'rot'>): Tile {
+  const reach = siteReach(s.kind);
+  if (!reach) return { x: s.x, y: s.y };
+  const f = FRONT[s.rot ?? 0];
+  return { x: wrapX(world, s.x - f.x * reach), y: s.y - f.y * reach };
+}
+
+/** Every tile a building covers. */
+export function siteTiles(world: World, s: Pick<Site, 'kind' | 'x' | 'y' | 'rot'>): Tile[] {
+  const reach = siteReach(s.kind);
+  const c = siteCenter(world, s);
+  const out: Tile[] = [];
+  for (let dy = -reach; dy <= reach; dy++) for (let dx = -reach; dx <= reach; dx++) out.push({ x: wrapX(world, c.x + dx), y: c.y + dy });
+  return out;
 }
 
 /** One delivery that was sold. */
@@ -615,7 +649,14 @@ export function slopeAt(world: World, x: number, y: number): number {
 export function siteAt(world: World, x: number, y: number): Site | undefined {
   const wx = wrapX(world, x);
   const exact = world.sites.find((s) => s.x === wx && s.y === y);
-  if (exact || !world.realisticLots) return exact;
+  if (exact) return exact;
+  for (const s of world.sites) {
+    const reach = siteReach(s.kind);
+    if (!reach) continue;
+    const c = siteCenter(world, s);
+    if (Math.abs(wrapDx(world, c.x, wx)) <= reach && Math.abs(c.y - y) <= reach) return s;
+  }
+  if (!world.realisticLots) return undefined;
   for (const site of world.sites) {
     if (!site.districtId) continue;
     const place = world.places.find(p => p.id === site.placeId);
@@ -1899,7 +1940,7 @@ export function setAutoBuy(world: World, siteId: number, on: boolean): void {
 // ---- player actions. Each returns an error string, or null on success. ----
 
 /** Why a site cannot be placed here, or null if it can. Does not change the world. */
-export function placeError(world: World, kind: SiteKind, x: number, y: number): string | null {
+export function placeError(world: World, kind: SiteKind, x: number, y: number, rot?: Rot): string | null {
   const def = SITE_DEFS[kind];
   if (def.dock || def.station) return 'Towns build their own docks and stations';
   const t = terrainAt(world, x, y);
@@ -1931,7 +1972,7 @@ export function placeError(world: World, kind: SiteKind, x: number, y: number): 
       return 'Too steep to build on';
     }
     if (def.airport) {
-      const e = airfieldError(world, x, y);
+      const e = airfieldError(world, x, y, rot);
       if (e) return e;
     }
     if (def.railyard) {
@@ -1948,14 +1989,49 @@ export function placeError(world: World, kind: SiteKind, x: number, y: number): 
 }
 
 /**
- * An airport needs room for its runway and a way in: nearly all the ground around it flat, dry and unbuilt, clear of any
- * town, with at least one side open for the road or track that serves it.
+ * An airport covers 3x3 tiles round (x, y): every one flat, dry, unbuilt and clear of any town, with the runway at the back
+ * and the terminal at the front, where a road can come in. With `rot` the front must be that side; without it, any side.
  */
-function airfieldError(world: World, x: number, y: number): string | null {
+function airfieldError(world: World, x: number, y: number, rot?: Rot): string | null {
   for (const p of world.places) {
-    if (Math.abs(wrapDx(world, p.x, x)) <= (p.radius ?? 3) + 1 && Math.abs(p.y - y) <= (p.radius ?? 3) + 1) return `Too close to ${p.name} for an airport`;
+    if (Math.abs(wrapDx(world, p.x, x)) <= (p.radius ?? 3) + 2 && Math.abs(p.y - y) <= (p.radius ?? 3) + 2) return `Too close to ${p.name} for an airport`;
   }
-  return openGround(world, x, y, 7) ? null : 'Airports need flat, open ground with room beside them for a road';
+  for (let dy = -1; dy <= 1; dy++) {
+    for (let dx = -1; dx <= 1; dx++) {
+      const tx = wrapX(world, x + dx);
+      const ty = y + dy;
+      const t = terrainAt(world, tx, ty);
+      if (t !== 'grass' && t !== 'forest') return 'An airport needs 3x3 tiles of open, dry land';
+      if (siteAt(world, tx, ty) || nodeAt(world, tx, ty)) return 'An airport needs 3x3 tiles clear of other buildings and resources';
+      if (routeAt(world, tx, ty)) return 'A road or track crosses where the runway would go';
+      if (placeAt(world, tx, ty) || plotAt(world, tx, ty)) return 'Airports need open ground outside a town';
+      if (slopeAt(world, tx, ty) > BUILD_SLOPE) return 'Too steep for a runway: an airport needs 3x3 tiles of flat ground';
+    }
+  }
+  return airportRot(world, x, y, rot) === null ? (rot === undefined ? 'An airport needs a side open for its road' : 'No room for a road at the front: turn it (R) to face open ground') : null;
+}
+
+/**
+ * Which way an airport at (x, y) can face: `want` if a road can reach that side, otherwise (when `want` is unset) the open
+ * side closest to a town. Null when no side will do.
+ */
+export function airportRot(world: World, x: number, y: number, want?: Rot): Rot | null {
+  const ok = (r: Rot): boolean => {
+    const ax = wrapX(world, x + FRONT[r].x * 2);
+    const ay = y + FRONT[r].y * 2;
+    const t = terrainAt(world, ax, ay);
+    if (t === null || t === 'water' || t === 'ice') return false;
+    if (routeAt(world, ax, ay, 'road') || streetAt(world, ax, ay)) return true;
+    return t !== 'mountain' && !siteAt(world, ax, ay) && slopeAt(world, ax, ay) <= BUILD_SLOPE;
+  };
+  if (want !== undefined) return ok(want) ? want : null;
+  const town = nearestPlace(world, { x, y });
+  const order = ([0, 1, 2, 3] as Rot[]).sort((a, b) => {
+    if (!town) return a - b;
+    const score = (r: Rot): number => -(FRONT[r].x * wrapDx(world, x, town.x) + FRONT[r].y * (town.y - y));
+    return score(a) - score(b);
+  });
+  return order.find(ok) ?? null;
 }
 
 /** Nearly all the ground around a tile is flat, dry and unbuilt (at least `minFlat` of its 8 neighbours), with a free side for a road. */
@@ -2137,11 +2213,17 @@ function siteName(world: World, kind: SiteKind, x: number, y: number): string {
   return same === 0 ? base : `${base} ${same + 1}`;
 }
 
-export function placeSite(world: World, kind: SiteKind, x: number, y: number): string | null {
-  const err = placeError(world, kind, x, y);
+export function placeSite(world: World, kind: SiteKind, x: number, y: number, rot?: Rot): string | null {
+  const err = placeError(world, kind, x, y, rot);
   if (err) return err;
-  const wx = wrapX(world, x);
   const def = SITE_DEFS[kind];
+  // An airport is placed by its middle, and stored by its gate at the middle of its front edge.
+  const turn = def.airport ? airportRot(world, wrapX(world, x), y, rot)! : rot;
+  if (def.airport) {
+    x += FRONT[turn!].x;
+    y += FRONT[turn!].y;
+  }
+  const wx = wrapX(world, x);
   const node = def.node ? nodeAt(world, wx, y) : undefined;
   world.money -= def.cost;
   world.sites.push({
@@ -2158,6 +2240,7 @@ export function placeSite(world: World, kind: SiteKind, x: number, y: number): s
     pull: def.hub ? [...GOOD_LIST] : [],
     making: def.recipe ? false : undefined,
     sendTo: [],
+    ...(turn !== undefined ? { rot: turn } : {}),
   });
   for (const d of world.sites) if (SITE_DEFS[d.kind].store) refreshFed(world, d);
   const home = plotAt(world, wx, y);
@@ -2535,10 +2618,17 @@ export function linkNetwork(world: World, mode: RouteMode): void {
           const nk = ny * world.width + nx;
           if (prev.has(nk)) continue;
           if (k === from && door.has(from) && nk !== door.get(from)) continue;
+          // A building whose own tile is on the laid road (a yard the road runs into and out of) does not end the line:
+          // the network carries on through it, so everything joined by road is joined, however many stops in between.
+          const through = bySpot.has(nk) && ground.has(nk) && !door.has(nk);
           if (want.has(nk)) {
             if (door.has(nk) && door.get(nk) !== k) continue;
             prev.set(nk, k);
             found += 1;
+            if (through) nextFrontier.push(nk);
+          } else if (through) {
+            prev.set(nk, k);
+            nextFrontier.push(nk);
           } else if (!bySpot.has(nk) && open(nx, ny)) {
             prev.set(nk, k);
             nextFrontier.push(nk);
@@ -2579,7 +2669,7 @@ export function airError(world: World, aId: number, bId: number): string | null 
   if (!a || !b || !SITE_DEFS[a.kind].airport || !SITE_DEFS[b.kind].airport) return 'Air routes join two airports';
   if (a.id === b.id) return 'Pick a different airport to fly to';
   if (world.routes.some((r) => r.mode === 'air' && ((r.fromSiteId === a.id && r.toSiteId === b.id) || (r.fromSiteId === b.id && r.toSiteId === a.id)))) return 'Those airports are already linked';
-  const cost = airPath(world, a, b).length * AIR_COST_PER_TILE;
+  const cost = airPath(world, siteCenter(world, a), siteCenter(world, b)).length * AIR_COST_PER_TILE;
   return world.money < cost ? `Need $${cost}` : null;
 }
 
@@ -2589,7 +2679,7 @@ export function createAirRoute(world: World, aId: number, bId: number): string |
   if (err) return err;
   const a = siteById(world, aId)!;
   const b = siteById(world, bId)!;
-  const path = airPath(world, a, b);
+  const path = airPath(world, siteCenter(world, a), siteCenter(world, b));
   world.money -= path.length * AIR_COST_PER_TILE;
   const route: Route = { id: world.nextId++, mode: 'air', fromSiteId: a.id, toSiteId: b.id, path };
   world.routes.push(route);

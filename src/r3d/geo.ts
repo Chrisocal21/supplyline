@@ -1,8 +1,8 @@
 // Mapping between the sim's tile grid and the 3D globe, and the terrain height field.
 import * as THREE from 'three';
-import { SEA_LEVEL } from '../sim/defs';
+import { SEA_LEVEL, SITE_DEFS } from '../sim/defs';
 import { fbm3, tileLonLat } from '../sim/mapgen';
-import { townTiles, type Tile, type World } from '../sim/world';
+import { siteCenter, siteTiles, townTiles, type Tile, type World } from '../sim/world';
 
 /** Globe radius in world units. One tile is about 3.3 units wide at the equator. */
 export let R = 100;
@@ -167,6 +167,41 @@ export class HeightField {
         this.addPad({ x: n.x + 0.5, y: n.y + 0.5, height: here, core: 0.9, outer: 1.7 });
       }
     }
+    this.levelAirfields();
+  }
+
+  /** Airports already given level ground, by site id. */
+  private readonly airfields = new Set<number>();
+
+  /**
+   * Grade a level field under every airport that does not have one yet: the height of the ground across its 3x3 tiles,
+   * flat to the edge and blended back into the land round it. Returns the tiles whose height changed.
+   */
+  levelAirfields(): Set<number> {
+    const { width: W, height: H } = this.world;
+    const touched = new Set<number>();
+    for (const s of this.world.sites) {
+      if (!SITE_DEFS[s.kind].airport || this.airfields.has(s.id)) continue;
+      this.airfields.add(s.id);
+      const c = siteCenter(this.world, s);
+      let sum = 0;
+      let cnt = 0;
+      for (const t of siteTiles(this.world, s)) {
+        const r = this.relief[Math.min(H - 1, Math.max(0, t.y)) * W + t.x];
+        if (r <= 0) continue;
+        sum += r;
+        cnt += 1;
+      }
+      if (!cnt) continue;
+      const pad: Pad = { x: c.x + 0.5, y: c.y + 0.5, height: sum / cnt, core: 2.2, outer: 3.6 };
+      this.addPad(pad);
+      for (let dy = -5; dy <= 5; dy++) {
+        const y = c.y + dy;
+        if (y < 0 || y >= H) continue;
+        for (let dx = -5; dx <= 5; dx++) touched.add(y * W + (((c.x + dx) % W) + W) % W);
+      }
+    }
+    return touched;
   }
 
   private addPad(pad: Pad): void {

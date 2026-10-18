@@ -175,7 +175,7 @@ const GUIDE: GuideSection[] = [
       {
         title: 'Warehouse',
         sum: 'A big shelf for your goods.',
-        body: 'Goods wait here until someone wants them.\nWhen buyers are full, the extra goes here instead of being wasted.\nFactories next to it grab what they need.\nIt is like a real warehouse.',
+        body: 'Goods wait here until someone wants them.\nWhen buyers are full, the extra goes here instead of being wasted.\nFactories next to it grab what they need.\nOpen it to pick which businesses send goods in, and who it sells to.\nIt is like a real warehouse.',
         todo: 'Build one next to your factories.',
         icon: 'thumb-hub',
       },

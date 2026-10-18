@@ -2,8 +2,9 @@ import { describe, expect, it } from 'vitest';
 import map1 from '../maps/map1.json';
 import { findPath } from './path';
 import { runChores } from './bot';
+import { put } from './testutil';
 import { HIGHWAY_TIER } from './defs';
-import { buyVehicle, createBlankWorld, createRoute, createSeaRoute, portSpot, portWater, seaPath, setSendTo, createWorldFromMap, layoutOf, placeError, placeSite, plotTiles, siteAt, yardSpot, siteById, step, streetAt, terrainAt, type MapData, type World } from './world';
+import { buyVehicle, createBlankWorld, createRoute, createSeaRoute, portSpot, portWater, seaPath, setSendTo, createWorldFromMap, layoutOf, placeError, placeSite, plotTiles, siteAt, siteCenter, siteTiles, yardSpot, siteById, step, streetAt, terrainAt, type MapData, type World } from './world';
 
 /** A farm on the nearest farmland to the first town, and a free spot on that town's main street to join. */
 function setup(): { w: World; farm: NonNullable<ReturnType<typeof siteAt>>; mill: NonNullable<ReturnType<typeof siteAt>>; street: { x: number; y: number } } {
@@ -60,6 +61,28 @@ describe('keeping a network joined', () => {
     for (let i = 0; i < 100; i++) step(w);
     expect(w.routes.some((r) => r.over && pair(r))).toBe(true);
   });
+
+  it('joins buildings through the yards in between, so a chain of roads joins every stop on it', () => {
+    const w = createBlankWorld(60, 16, new Array(60 * 16).fill('grass'));
+    w.money = 1e6;
+    w.tier = 3;
+    const row = (a: number, b: number, y: number) => Array.from({ length: b - a + 1 }, (_, i) => ({ x: a + i, y }));
+    // Two farms and a mill, strung along one road: farm A, then farm B, then the mill. Each road runs yard to yard.
+    for (const x of [5, 15]) w.nodes.push({ id: w.nextId++, kind: 'farmland', x, y: 8, quality: 1, regionId: 0 });
+    expect(placeSite(w, 'farm', 5, 8)).toBeNull();
+    expect(placeSite(w, 'farm', 15, 8)).toBeNull();
+    put(w, 'mill', 25, 8);
+    const [a, b, m] = [siteAt(w, 5, 8)!, siteAt(w, 15, 8)!, siteAt(w, 25, 8)!];
+    expect(createRoute(w, row(5, 15, 8))).toBeNull();
+    expect(createRoute(w, row(15, 25, 8))).toBeNull();
+    const joined = (x: number, y: number) => w.routes.some((r) => r.over && !r.free && [r.fromSiteId, r.toSiteId].sort().join() === [x, y].sort().join());
+    expect(joined(b.id, m.id)).toBe(true);
+    // Farm A reaches the mill past farm B's yard: grain is grain, wherever it is grown.
+    expect(joined(a.id, m.id)).toBe(true);
+    const lane = w.routes.find((r) => r.over && r.fromSiteId === a.id && r.toSiteId === m.id)!;
+    expect(lane.path[0]).toEqual({ x: 5, y: 8 });
+    expect(lane.path[lane.path.length - 1]).toEqual({ x: 25, y: 8 });
+  });
 });
 
 describe('automatic roads', () => {
@@ -109,12 +132,41 @@ describe('places for airports and rail yards', () => {
     // A spit of land with sea on three sides is no place for a runway.
     for (let y = 10; y <= 20; y++) for (let x = 28; x <= 40; x++) w.terrain[y * 60 + x] = 'water';
     w.terrain[15 * 60 + 27] = 'grass';
-    expect(placeError(w, 'airport', 27, 15)).toMatch(/flat, open ground/);
+    expect(placeError(w, 'airport', 27, 15)).toMatch(/3x3 tiles of open/);
     // Hard against a mountain is no better.
     for (let dx = -1; dx <= 1; dx++) w.terrain[10 * 60 + 8 + dx] = 'mountain';
-    expect(placeError(w, 'airport', 8, 11)).toMatch(/flat, open ground/);
+    expect(placeError(w, 'airport', 8, 11)).toMatch(/3x3 tiles of open/);
     w.places.push({ id: 1, name: 'Midton', x: 45, y: 25, level: 1, growth: 0, delivered: {}, marketTile: { x: 46, y: 25 }, freightTile: { x: 44, y: 25 }, style: 'temperate', taste: {}, radius: 3, homePlots: [] });
     expect(placeError(w, 'airport', 45, 21)).toMatch(/Too close|town/);
+  });
+
+  it('an airport covers 3x3 tiles, faces the way it was turned, and takes its road at the middle of its front', () => {
+    const w = createBlankWorld(60, 30, new Array(60 * 30).fill('grass'));
+    w.money = 1e6;
+    w.tier = 3;
+    expect(placeSite(w, 'airport', 20, 15, 1)).toBeNull();
+    const a = w.sites[w.sites.length - 1];
+    // Placed by its middle, facing east: its gate is the middle of the east side.
+    expect(a.rot).toBe(1);
+    expect({ x: a.x, y: a.y }).toEqual({ x: 21, y: 15 });
+    expect(siteCenter(w, a)).toEqual({ x: 20, y: 15 });
+    expect(siteTiles(w, a)).toHaveLength(9);
+    for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) expect(siteAt(w, 20 + dx, 15 + dy)?.id).toBe(a.id);
+    expect(siteAt(w, 22, 15)).toBeUndefined();
+    // Nothing else can be built on its field, and another airport needs ground of its own.
+    expect(placeError(w, 'sawmill', 19, 14)).toBeTruthy();
+    expect(placeError(w, 'airport', 22, 15)).toMatch(/3x3/);
+    expect(placeError(w, 'airport', 23, 15)).toBeNull();
+    // A road to the gate joins it to the network.
+    expect(createRoute(w, [{ x: 21, y: 15 }, { x: 22, y: 15 }, { x: 23, y: 15 }, { x: 24, y: 15 }])).toBeNull();
+    // Facing water, it cannot be turned that way; left to itself it finds a side that works.
+    for (let y = 0; y < 30; y++) w.terrain[y * 60 + 42] = 'water';
+    expect(placeError(w, 'airport', 40, 15, 1)).toMatch(/turn it/);
+    expect(placeError(w, 'airport', 40, 15)).toBeNull();
+    // The facing is kept as turned.
+    expect(placeSite(w, 'airport', 10, 5, 2)).toBeNull();
+    expect(w.sites[w.sites.length - 1].rot).toBe(2);
+    expect({ x: w.sites[w.sites.length - 1].x, y: w.sites[w.sites.length - 1].y }).toEqual({ x: 10, y: 4 });
   });
 
   it('puts a Rail Yard just outside a town, never in its streets or lots, and gives it track and trucks', () => {

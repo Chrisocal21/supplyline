@@ -11,6 +11,7 @@ import { addTree } from './vegetation';
 import { framedWindow, loadingBay, roofVent } from './architecture';
 import { truckGeometry } from './trucks';
 import { resourceDetails } from './resourceDetails';
+import { airportGeometry } from './airport';
 
 const C = {
   concrete: 0xb4b2ab,
@@ -485,142 +486,6 @@ function airliner(p: Parts, x: number, z: number, yaw: number, size: number, liv
   p.tex = prevTex;
 }
 
-const LIVERY = [0x2f5f8a, 0xb23a30, 0x2f7a55, 0xd7a21f, 0x7a4a9a];
-
-/** A short block of parked cars, for scale. */
-function carPark(p: Parts, x: number, z: number, cols: number, rows: number): void {
-  p.tex = 0;
-  p.box(cols * 0.17 + 0.1, 0.02, rows * 0.3 + 0.1, 0x55575b, { x, y: 0.035, z });
-  const colors = [0xb23a30, 0x2f5f8a, 0xe6e6e1, 0x2a2d31, 0xd7a21f, 0x3f7a55];
-  for (let r = 0; r < rows; r++) {
-    for (let k = 0; k < cols; k++) {
-      if ((r * 7 + k * 3) % 5 === 0) continue;
-      const cx = x - (cols * 0.17) / 2 + 0.085 + k * 0.17;
-      const cz = z - (rows * 0.3) / 2 + 0.15 + r * 0.3;
-      p.box(0.1, 0.045, 0.2, colors[(r + k * 2) % colors.length], { x: cx, y: 0.055, z: cz });
-      p.box(0.08, 0.025, 0.1, 0x25333f, { x: cx, y: 0.1, z: cz });
-    }
-  }
-}
-
-/** A runway along z: surface, edge lines, threshold bars at both ends and dashes down the centre. */
-function runway(p: Parts, x: number, z0: number, z1: number, w: number): void {
-  const len = z1 - z0;
-  const mid = (z0 + z1) / 2;
-  p.tex = 0;
-  p.box(w, 0.03, len, 0x35373b, { x, y: 0.04, z: mid });
-  p.box(0.015, 0.012, len, 0xdcdcd6, { x: x - w / 2 + 0.03, y: 0.07, z: mid });
-  p.box(0.015, 0.012, len, 0xdcdcd6, { x: x + w / 2 - 0.03, y: 0.07, z: mid });
-  for (const end of [z0 + 0.16, z1 - 0.16]) {
-    for (let i = 0; i < 5; i++) p.box(0.04, 0.012, 0.16, 0xe6e6e1, { x: x - w / 2 + 0.07 + (i * (w - 0.14)) / 4, y: 0.07, z: end });
-  }
-  const n = Math.max(3, Math.floor(len / 0.34));
-  for (let i = 0; i < n; i++) p.box(0.04, 0.012, 0.15, 0xe6e6e1, { x, y: 0.07, z: z0 + 0.5 + (i * (len - 1)) / Math.max(1, n - 1) });
-}
-
-function hangar(p: Parts, x: number, z: number, w: number, d: number, h: number): void {
-  p.tex = 5;
-  p.box(w, h, d, 0xaab2b9, { x, y: 0.04, z });
-  p.gable(w * 1.04, h * 0.35, d * 1.04, 0x58606a, { x, y: 0.04 + h, z, ry: Math.PI / 2 });
-  p.tex = 0;
-  p.box(w * 0.7, h * 0.8, 0.02, 0x2a2e33, { x, y: 0.04, z: z + d / 2 + 0.01 });
-}
-
-function controlTower(p: Parts, x: number, z: number, h: number, big: boolean): void {
-  p.tex = 6;
-  p.cyl(big ? 0.1 : 0.08, big ? 0.14 : 0.11, h, C.concrete, { x, y: 0.04, z }, 12);
-  p.tex = 0;
-  const cab = big ? 0.42 : 0.3;
-  p.cyl(cab * 0.62, cab * 0.5, 0.06, C.concreteDark, { x, y: 0.04 + h, z }, 12);
-  p.cyl(cab * 0.7, cab * 0.62, cab * 0.4, 0x5f8aa3, { x, y: 0.1 + h, z }, 12);
-  p.cyl(cab * 0.75, cab * 0.75, 0.03, C.roofDark, { x, y: 0.1 + h + cab * 0.4, z }, 12);
-  p.cyl(0.012, 0.012, 0.22, 0x555a60, { x, y: 0.13 + h + cab * 0.4, z }, 6);
-  p.sphere(0.025, 0xd64a3a, { x, y: 0.36 + h + cab * 0.4, z }, 1);
-}
-
-/** An airport as it grows: an airstrip with one small plane, a regional field with a taxiway and jets, an international hub. */
-function airportAt(level: number): THREE.BufferGeometry {
-  const p = new Parts();
-  const L = Math.max(1, Math.min(3, level));
-  const half = [0, 1.5, 1.9, 2.4][L];
-  p.slab(half * 2, half * 2, 0x8d8f91);
-  p.tex = 0;
-  if (L === 1) {
-    runway(p, 0.85, -1.4, 1.4, 0.5);
-    p.box(1.0, 0.02, 1.2, 0x7d8084, { x: -0.35, y: 0.04, z: 0.15 });
-    p.box(0.7, 0.015, 0.16, 0x7d8084, { x: 0.35, y: 0.04, z: 0.15 });
-    p.tex = 3;
-    p.box(0.85, 0.3, 0.42, C.white, { x: -0.85, y: 0.04, z: 0.95 });
-    p.tex = 0;
-    p.box(0.95, 0.05, 0.52, C.roofDark, { x: -0.85, y: 0.34, z: 0.95 });
-    for (let i = 0; i < 4; i++) p.box(0.14, 0.12, 0.02, C.glass, { x: -1.13 + i * 0.19, y: 0.12, z: 0.75 });
-    p.box(0.85, 0.03, 0.14, C.blue, { x: -0.85, y: 0.22, z: 0.7 });
-    controlTower(p, -1.2, -0.1, 0.62, false);
-    hangar(p, -0.65, -1.0, 0.8, 0.6, 0.34);
-    p.cyl(0.01, 0.01, 0.4, 0xdcdcd6, { x: 1.28, y: 0.04, z: -1.1 }, 6);
-    p.cone(0.06, 0.2, 0xe0722a, { x: 1.28, y: 0.3, z: -1.0, rx: Math.PI / 2 }, 8);
-    airliner(p, -0.3, 0.2, 0, 0.5, LIVERY[0], 2);
-    p.cyl(0.1, 0.1, 0.18, 0xc9cdcf, { x: -1.3, y: 0.04, z: -0.9 }, 10);
-  } else if (L === 2) {
-    runway(p, 1.2, -1.8, 1.8, 0.55);
-    p.box(0.22, 0.03, 3.1, 0x3d3f43, { x: 0.62, y: 0.04, z: 0.0 });
-    for (const z of [-1.4, 0.0, 1.4]) p.box(0.4, 0.03, 0.2, 0x3d3f43, { x: 0.9, y: 0.04, z });
-    p.box(1.3, 0.02, 2.2, 0x7d8084, { x: -0.25, y: 0.04, z: 0.3 });
-    p.tex = 3;
-    p.box(1.7, 0.36, 0.6, C.white, { x: -0.75, y: 0.04, z: 1.4 });
-    p.tex = 0;
-    p.box(1.8, 0.05, 0.7, C.roofDark, { x: -0.75, y: 0.4, z: 1.4 });
-    for (let i = 0; i < 7; i++) p.box(0.15, 0.17, 0.02, C.glass, { x: -1.4 + i * 0.22, y: 0.1, z: 1.09 });
-    p.box(0.26, 0.2, 0.9, C.white, { x: -0.55, y: 0.04, z: 0.7 });
-    p.box(0.3, 0.02, 0.94, C.roofDark, { x: -0.55, y: 0.24, z: 0.7 });
-    controlTower(p, -1.6, 0.2, 1.05, false);
-    hangar(p, -1.1, -1.5, 1.0, 0.7, 0.4);
-    hangar(p, -0.05, -1.55, 0.9, 0.7, 0.4);
-    airliner(p, -0.05, 0.1, Math.PI, 0.8, LIVERY[1], 2);
-    airliner(p, -0.95, 0.35, Math.PI, 0.8, LIVERY[2], 2);
-    p.cyl(0.12, 0.12, 0.24, 0xc9cdcf, { x: -1.7, y: 0.04, z: -0.7 }, 10);
-    p.cyl(0.12, 0.12, 0.24, 0xc9cdcf, { x: -1.7, y: 0.04, z: -1.05 }, 10);
-    carPark(p, -1.4, 1.5, 3, 2);
-    for (const z of [-1.7, -0.6, 0.5, 1.6]) {
-      p.cyl(0.012, 0.012, 0.16, 0x555a60, { x: 1.56, y: 0.04, z }, 6);
-      p.sphere(0.022, 0xf6efc8, { x: 1.56, y: 0.2, z }, 1);
-    }
-  } else {
-    runway(p, 1.6, -2.3, 2.3, 0.6);
-    p.box(2.6, 0.03, 0.5, 0x35373b, { x: 0.3, y: 0.04, z: -1.75 });
-    p.box(0.26, 0.03, 4.0, 0x3d3f43, { x: 0.95, y: 0.04, z: 0 });
-    for (const z of [-1.1, 0.2, 1.4]) p.box(0.4, 0.03, 0.22, 0x3d3f43, { x: 1.3, y: 0.04, z });
-    p.box(2.3, 0.02, 2.4, 0x7d8084, { x: -0.5, y: 0.04, z: 0.0 });
-    // The terminal: a long hall of glass with three piers reaching out to the planes.
-    p.tex = 7;
-    p.box(2.7, 0.42, 0.72, 0xbdc9d3, { x: -0.9, y: 0.04, z: 1.7 });
-    p.tex = 0;
-    p.box(2.9, 0.06, 0.92, C.white, { x: -0.9, y: 0.46, z: 1.7 });
-    p.box(2.9, 0.04, 0.2, C.blue, { x: -0.9, y: 0.52, z: 2.02 });
-    for (const px of [-1.9, -0.9, 0.1]) {
-      p.box(0.3, 0.24, 1.15, 0xdfe4e8, { x: px, y: 0.04, z: 0.95 });
-      p.box(0.34, 0.03, 1.2, C.roofDark, { x: px, y: 0.28, z: 0.95 });
-      for (let k = 0; k < 4; k++) p.box(0.32, 0.1, 0.02, C.glass, { x: px, y: 0.1, z: 0.5 + k * 0.28 });
-    }
-    controlTower(p, -2.0, 0.0, 1.55, true);
-    hangar(p, -1.4, -1.9, 1.3, 0.8, 0.5);
-    hangar(p, -0.05, -2.0, 1.2, 0.8, 0.5);
-    [-1.9, -0.9, 0.1].forEach((px, i) => airliner(p, px, -0.15, Math.PI, 1.0, LIVERY[i % LIVERY.length], 2));
-    airliner(p, -1.2, -1.0, Math.PI / 2, 1.2, LIVERY[3], 4);
-    for (let i = 0; i < 3; i++) {
-      p.box(0.22, 0.1, 0.1, [C.yellow, C.orange, C.white][i], { x: -0.4 + i * 0.35, y: 0.04, z: 0.85 });
-      p.box(0.1, 0.05, 0.08, 0x2a2e33, { x: -0.2 + i * 0.3, y: 0.04, z: 1.15 });
-    }
-    carPark(p, -0.9, 2.3, 8, 1);
-    carPark(p, -1.9, 1.0, 3, 2);
-    for (const z of [-2.1, -1.1, 0.0, 1.1, 2.0]) {
-      p.cyl(0.012, 0.012, 0.16, 0x555a60, { x: 2.0, y: 0.04, z }, 6);
-      p.sphere(0.022, 0xf6efc8, { x: 2.0, y: 0.2, z }, 1);
-    }
-  }
-  return p.build();
-}
-
 export function siteGeometry(kind: SiteKind): THREE.BufferGeometry {
   switch (kind) {
     case 'forestry':
@@ -656,7 +521,7 @@ export function siteGeometry(kind: SiteKind): THREE.BufferGeometry {
     case 'station':
       return station();
     case 'airport':
-      return airportAt(1);
+      return airportGeometry(1);
     case 'port':
       return portGeometry(1);
     case 'railyard':
@@ -798,7 +663,7 @@ function signGeometry(kind: SiteKind, level = 1): THREE.BufferGeometry {
   const def = SITE_DEFS[kind];
   const p = new Parts();
   const good = def.produce?.good ?? (Object.keys(def.recipe?.outputs ?? {})[0] as Good | undefined);
-  const edge = def.airport ? [0, 1.55, 1.95, 2.45][Math.max(1, Math.min(3, level))] : def.port ? [0, 1.55, 1.85, 2.2][Math.max(1, Math.min(3, level))] : 1.5;
+  const edge = def.airport ? 4.65 : def.port ? [0, 1.55, 1.85, 2.2][Math.max(1, Math.min(3, level))] : 1.5;
   const x = -edge;
   const z = -edge;
   const top = def.produce ? 0.48 : 2.05;
@@ -850,9 +715,9 @@ export function siteGeometryAt(kind: SiteKind, level: number, withDepot = false)
     return whole;
   }
   if (def.airport) {
-    // An airport is rebuilt, not scaled, at each level: airstrip, regional field, international hub.
+    // An airport is rebuilt, not scaled, at each level: the runway stays and the terminals grow.
     base.dispose();
-    const field = airportAt(level);
+    const field = airportGeometry(level);
     const whole = mergeGeometries([field, sign], false)!;
     field.dispose();
     sign.dispose();

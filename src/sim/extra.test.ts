@@ -4,7 +4,7 @@ import { findPath } from './path';
 import { put } from './testutil';
 import { runChores } from './bot';
 import { SITE_DEFS } from './defs';
-import { needs as needsFn, removeRoute, routeAt, addDock, yardSpot, placeError, buildRoadTo, buyersFor, setHubOptions, buyOptions, siteCap, buyVehicle, roadPlan, setMaking, setSendTo, createBlankWorld, createRoute, demolishSite, airPath, createAirRoute, dockDemand, ensureStations, townSites, onNetwork, placeAt, placeSite, planRoute, siteAt, streetAt, step, stockOf, type World } from './world';
+import { needs as needsFn, removeRoute, routeAt, addDock, yardSpot, placeError, buildRoadTo, buyersFor, setHubOptions, buyOptions, siteCap, buyVehicle, roadPlan, setMaking, setSendTo, createBlankWorld, createRoute, demolishSite, airPath, createAirRoute, siteCenter, dockDemand, ensureStations, townSites, onNetwork, placeAt, placeSite, planRoute, siteAt, streetAt, step, stockOf, type World } from './world';
 
 function open(): World {
   const w = 30;
@@ -587,12 +587,12 @@ describe('air routes and station freight', () => {
     w.tier = 3;
     w.money = 1e6;
     placeSite(w, 'airport', 5, 4);
-    placeSite(w, 'airport', 25, 9);
+    placeSite(w, 'airport', 27, 9);
     const [a, b] = w.sites.filter((s) => s.kind === 'airport');
     expect(createAirRoute(w, a.id, b.id)).toBeNull();
     expect(createAirRoute(w, a.id, b.id)).toMatch(/already linked/);
     const route = w.routes.find((r) => r.mode === 'air')!;
-    expect(route.path.length).toBe(airPath(w, a, b).length);
+    expect(route.path.length).toBe(airPath(w, siteCenter(w, a), siteCenter(w, b)).length);
     expect(w.vehicles).toHaveLength(0);
     expect(buyVehicle(w, a.id, 'plane')).toBeNull();
     a.pull = [];

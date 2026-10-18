@@ -140,6 +140,61 @@ Overall: about 72%.
 - Undeveloped farmland gains 144 visible crop plants in nine rows. Built grain farms gain another planted strip beside the buildings. Plants mix green and ripe colors/heights; this is static scenery, not a new growth/harvest simulation.
 - This is a quick fill-in pass; density tuning and real-device performance profiling remain follow-up work.
 
+#### Render performance pass (after 0.11)
+
+- Diagnosed on an integrated AMD Radeon at 1440x900, Ultra preset. The demo took 111 ms per frame (about 9 FPS). Hiding all map trees brought it to 24 ms, and tree shadows alone cost about 40 ms. Each tree kind used one globe-wide InstancedMesh, so about 38M tree vertices were drawn every frame and drawn again for shadows, with no culling. The second cost was GTAO: about 14 ms at device pixel ratio 1, and Ultra at device pixel ratio 2 reached 91 ms even after the tree fix.
+- Trees are now batched per kind in 6x6-tile chunks so frustum culling works. Chunks over the horizon are hidden. Distant chunks swap to a low-poly stand-in, `treeLodGeometry`, with the same silhouette and no shadow casting. The stand-in shares the near mesh's instance buffers, so road regrading and clearing stay in sync. The detail distance is set per preset with `treeDetail`: 20 for Balanced, 32 for High, and 45 for Ultra.
+- Ambient occlusion now runs on a smaller buffer measured in CSS pixels: 0.5 scale on High and 0.75 on Ultra. AO samples are now 12 on High and 16 on Ultra. New players on desktop default to High instead of Ultra.
+- Result on the same machine: Ultra fell from 111 ms to 21 ms per frame, High runs at 13.7 ms, and Balanced is capped at the 144 Hz refresh rate. Ultra at device pixel ratio 2 improved from 91 ms with the tree fix alone to 55 ms per frame.
+
+#### 3x3 airport and placement rotation (after 0.11)
+
+- Buildings can be rotated during placement with `R`, in 90-degree steps clockwise. The rotation is stored as `Site.rot`. Ports and stations keep their automatic facing. Rotation is keyboard-only for now; there is no touch button.
+- Airports now occupy a 3x3 tile field. All nine tiles must be open grass or forest with a gentle slope, no other features, and clearance from towns. The road gate sits in front of the field's center. `R` chooses which side the terminal and road face. Placement picks the side facing the nearest town by default, and shows "turn it (R)" when the chosen side has no room for a road. The terrain is graded into a flat pad under the field. Air routes use the center of each field.
+- New airport model in `src/r3d/airport.ts`; the airport upgrades are now terminal expansions:
+  - L1, municipal airfield: runway with markings, PAPI lights, taxiway, hangar, small terminal, tower, windsock and light aircraft.
+  - L2, regional terminal: two gates, an apron with jets, a larger tower and a car park.
+  - L3, international terminal: jet bridges, a departures deck, a multi-storey car park and a tall control tower.
+- Scale compromise: the 3x3 field is about 98 m across, so the runway is much shorter than a real runway. Aircraft are close to real size.
+- Legacy saves load with airports facing south (`rot` 0) and need no migration.
+- Validation: 231 tests passing with 2 skipped. TypeScript, the production build and in-browser checks pass: L1 and L3 render, the 3x3 ghost appears and rotates, and blocked sides show the error.
+
+#### Warehouse controls (after 0.11)
+
+- Warehouses and terminals (Rail Yard, Port and Airport) have a new Businesses page. It lists every business of yours joined to the warehouse, with its status and stock. Each card has a Sending here / Send here switch, Run / Pause for factories, and an Open button. The switch covers both the main product and any by-product. It is saved through `sendOff`.
+- The Sells to page brings back the old Distribution Hub's per-buyer Selling / Sell here switch. Trucks only go to buyers that are switched on. Producers and factories keep the existing behavior, where each truck's Settings decide its destination.
+
+#### Release 0.12
+
+0.12 collects everything done since 0.11:
+- a game-style HUD with one menu, a minimap and more keyboard shortcuts;
+- roads that join every like business on the network;
+- warehouse business controls;
+- a 3x3 airport and building rotation;
+- the render performance pass.
+
+Each has its own section in this log.
+
+#### Road networks join like goods (after 0.11)
+
+- One road now joins every building that can trade over it, not just the two at its ends. The network check used to stop at any building tile. Now it passes through a building's own yard to reach the roads beyond. A chain such as Farm, Farm, Mill joins both farms to the mill. Town lots are still only entered from their door.
+- Send menus, buyer lists and the warehouse pages all read these joined lanes, so they show every reachable base automatically. The network is checked again every 100 ticks and on load. Covered by a new test in `network.test.ts`.
+- Limitation: a truck on one of these lanes drives across the yards in between.
+
+#### Game HUD: header, footer, menu and minimap (after 0.11)
+
+- **Header:** a full-width dark strip with an accent edge. It holds the money and bank on the left, the tier and quest in the middle, and the speed control on the right. The Production, Towns, Help and menu round buttons are replaced by one MENU button.
+- **Menu:** opens as a centered overlay of tiles, each showing its key. The tiles are Production, Towns, Bank, Quests, How to play, Save / Load, Graphics, Minimap and New world. A full keyboard reference sits below the tiles. Click outside the menu, or press Esc, to close it.
+- **Footer:** a full-width strip with the category dock in the middle and key hints at the left.
+- **Minimap:** sits in the bottom-right corner and is drawn into a canvas texture (`src/ui/minimap.ts`). The terrain is painted once per world. Roads, rails, air and sea lanes, towns, buildings, and a camera box with a heading tick are redrawn four times a second. The map wraps so the camera stays in the middle. Click it to jump there. It is hidden on screens narrower than 900 px and on touch, and M toggles it. The build tray and side panel stay clear of it.
+- **New keys:**
+  - Esc opens the menu when nothing else is open.
+  - M toggles the minimap, O opens Graphics and L opens Save / Load.
+  - C picks the road tool and X picks demolish; press the same key again to put the tool away.
+  - U upgrades the selected building.
+  - The minus and plus keys change the speed.
+  - Save / Load moved from S, which is a camera key, to L.
+
 #### Release 0.11 finishing pass
 
 - Increased forests again to 16–26 placement attempts per forest tile and grassland groves to 6–10. The demo now contains 24,603 instanced map trees, compared with 11,999 after the first density pass; node and town trees are additional.

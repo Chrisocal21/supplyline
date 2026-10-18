@@ -90,3 +90,21 @@ export function treeGeometry(kind: TreeKind, variant = 0) {
   addTree(p, kind, 0, 0, 0, 1.4, variant);
   return p.build();
 }
+
+/** A distant stand-in with the same silhouette and footprint as `treeGeometry`, at a few percent of the cost. */
+export function treeLodGeometry(kind: TreeKind) {
+  const p = new Parts();
+  const bark = kind === 'birch' ? 0xc7c5b5 : 0x695847;
+  if (kind === 'pine') {
+    p.cyl(0.02, 0.06, 0.4, bark, { y: 0, t: 2 }, 4);
+    p.cone(0.42, 0.8, 0x3d5545, { y: 0.25, t: 0 }, 6);
+    p.cone(0.3, 0.85, 0x455c4b, { y: 0.72, t: 0 }, 6);
+  } else if (kind === 'birch') {
+    p.cyl(0.02, 0.038, 0.9, bark, { y: 0, t: 2 }, 4);
+    p.ellipsoid(0.66, 0.8, 0.6, 0x74825a, { y: 0.86, t: 0 }, 1);
+  } else {
+    p.cyl(0.03, 0.06, 0.7, bark, { y: 0, t: 2 }, 4);
+    p.ellipsoid(1.05, 0.75, 0.95, 0x55694a, { y: 0.86, t: 0 }, 1);
+  }
+  return p.build();
+}

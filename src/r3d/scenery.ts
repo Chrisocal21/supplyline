@@ -6,7 +6,7 @@ import { plotTiles, townTiles, type World } from '../sim/world';
 import { HeightField, LAT_SPAN, R, basisMatrix, lonLatToVec } from './geo';
 import { Parts } from './parts';
 import { specialtyNodeProps } from './specialty';
-import { addCropRows, addTree, treeGeometry } from './vegetation';
+import { addCropRows, addTree, treeGeometry, treeLodGeometry } from './vegetation';
 import { addCow } from './livestock';
 
 function rng(seed: number): () => number {
@@ -167,10 +167,23 @@ interface Slot {
 
 const ZERO = new THREE.Matrix4().makeScale(0, 0, 0);
 const QUALITY_COLOR = [0xb08a60, 0xe0b040, 0x5fd3a0];
+/** Trees are batched in square blocks of this many tiles. */
+const CHUNK = 6;
+
+/** One block of trees of one kind: the full model, the distant stand-in sharing its instances, and where it sits. */
+interface TreeChunk {
+  near: THREE.InstancedMesh;
+  far: THREE.InstancedMesh | null;
+  center: THREE.Vector3;
+  radius: number;
+}
 
 export class Scenery {
   readonly group = new THREE.Group();
   private readonly slots = new Map<number, Slot[]>();
+  private readonly chunks: TreeChunk[] = [];
+  /** Blocks of trees closer to the camera than this draw the full model and cast shadows. */
+  treeDetailDistance = 30;
   private readonly markers = new Map<number, { mesh: THREE.Group; kind: NodeKind; id: number }>();
 
   constructor(
@@ -277,13 +290,34 @@ export class Scenery {
       }
     }
 
-    const make = (kind: Spot['kind'], geo: THREE.BufferGeometry, mat: THREE.Material): void => {
-      const list = spots.filter((s) => s.kind === kind);
-      if (list.length === 0) return;
-      const mesh = new THREE.InstancedMesh(geo, mat, list.length);
+    const treeMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9 });
+    const rockMat = new THREE.MeshStandardMaterial({ color: 0x8f8d88, roughness: 1, flatShading: true });
+    const shapes: Record<Spot['kind'], { geo: THREE.BufferGeometry; lod: THREE.BufferGeometry | null; mat: THREE.Material }> = {
+      pine: { geo: treeGeometry('pine'), lod: treeLodGeometry('pine'), mat: treeMat },
+      round: { geo: treeGeometry('oak'), lod: treeLodGeometry('oak'), mat: treeMat },
+      birch: { geo: treeGeometry('birch', 1), lod: treeLodGeometry('birch'), mat: treeMat },
+      rock: { geo: rockGeometry(), lod: null, mat: rockMat },
+    };
+
+    // One mesh per kind per block of tiles, so blocks off screen or over the horizon are culled and distant blocks
+    // swap to the cheap stand-in tree.
+    const groups = new Map<string, Spot[]>();
+    for (const s of spots) {
+      const tx = s.tile % w.width;
+      const ty = Math.floor(s.tile / w.width);
+      const key = `${s.kind}:${Math.floor(tx / CHUNK)}:${Math.floor(ty / CHUNK)}`;
+      const list = groups.get(key);
+      if (list) list.push(s);
+      else groups.set(key, [s]);
+    }
+
+    const col = new THREE.Color();
+    for (const list of groups.values()) {
+      const kind = list[0].kind;
+      const shape = shapes[kind];
+      const mesh = new THREE.InstancedMesh(shape.geo, shape.mat, list.length);
       mesh.castShadow = kind !== 'rock';
       mesh.receiveShadow = true;
-      const col = new THREE.Color();
       list.forEach((s, i) => {
         mesh.setMatrixAt(i, this.seat(s));
         const base = kind === 'rock' ? 0.55 + s.shade * 0.35 : 0.8 + s.shade * 0.4;
@@ -296,13 +330,20 @@ export class Scenery {
       if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
       mesh.computeBoundingSphere();
       this.group.add(mesh);
-    };
-
-    const treeMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9 });
-    make('pine', treeGeometry('pine'), treeMat);
-    make('round', treeGeometry('oak'), treeMat);
-    make('birch', treeGeometry('birch', 1), treeMat);
-    make('rock', rockGeometry(), new THREE.MeshStandardMaterial({ color: 0x8f8d88, roughness: 1, flatShading: true }));
+      let far: THREE.InstancedMesh | null = null;
+      if (shape.lod) {
+        far = new THREE.InstancedMesh(shape.lod, shape.mat, list.length);
+        far.instanceMatrix = mesh.instanceMatrix;
+        far.instanceColor = mesh.instanceColor;
+        far.castShadow = false;
+        far.receiveShadow = true;
+        far.visible = false;
+        far.computeBoundingSphere();
+        this.group.add(far);
+      }
+      const sphere = mesh.boundingSphere ?? new THREE.Sphere();
+      this.chunks.push({ near: mesh, far, center: sphere.center.clone(), radius: sphere.radius });
+    }
   }
 
   /** Where a tree or boulder stands, on the ground as it is now. Boulders sit bedded into the slope. */
@@ -400,12 +441,27 @@ export class Scenery {
     for (const m of this.markers.values()) m.mesh.visible = kind !== null && m.kind === kind && !used.has(m.id);
   }
 
-  update(time: number): void {
+  update(time: number, camera?: THREE.Camera): void {
     const s = 1 + Math.sin(time * 3) * 0.06;
     for (const m of this.markers.values()) {
       if (!m.mesh.visible) continue;
       m.mesh.children[0].scale.set(s, 1, s);
     }
     for (const m of this.plotMarkers) if (m.mesh.visible) m.mesh.children[0].scale.set(s, 1, s);
+    if (camera) this.updateTreeLod(camera.position);
+  }
+
+  /** Hide tree blocks over the horizon, and draw distant ones with the cheap model and no shadow. */
+  private updateTreeLod(eye: THREE.Vector3): void {
+    const toEye = new THREE.Vector3();
+    const up = new THREE.Vector3();
+    for (const c of this.chunks) {
+      toEye.subVectors(eye, c.center);
+      up.copy(c.center).normalize();
+      const visible = toEye.dot(up) > -c.radius;
+      const near = visible && toEye.length() - c.radius < this.treeDetailDistance;
+      c.near.visible = visible && (near || !c.far);
+      if (c.far) c.far.visible = visible && !near;
+    }
   }
 }

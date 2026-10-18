@@ -55,6 +55,7 @@ import {
   bodyForLine,
   depotsNear,
   hasByLine,
+  sendAllowed,
   lineGoods,
   sellTargets,
   type Line,
@@ -74,6 +75,7 @@ import { VERSION, VERSION_NOTE } from '../version';
 import { Rates, Sheets, type SheetId } from './sheets';
 import { Title, type TitleChoice } from './title';
 import { byInput, isTouch, onInputChange } from './inputmode';
+import { Minimap, viewSpan, viewTile } from './minimap';
 
 let TOP = 72;
 const DOCK_TAB_W = 96;
@@ -149,6 +151,17 @@ export class HudScene extends Phaser.Scene {
   private sheetCam!: Phaser.Cameras.Scene2D.Camera;
   /** Height of the bottom UI (dock plus the open tray), so labels and hints stay clear of it. */
   private bottomInset = DOCK_H + EDGE;
+  /** Height the minimap takes up from the bottom right corner, so the side panel stops above it. */
+  private rightInset = 0;
+  private minimap!: Minimap;
+  private miniRect: { x: number; y: number; w: number; h: number } | null = null;
+  private minimapOn = (() => {
+    try {
+      return !localStorage.getItem('sl-minimap-off');
+    } catch {
+      return true;
+    }
+  })();
 
   constructor(private readonly game3d: Game3D) {
     super('hud');
@@ -200,6 +213,7 @@ export class HudScene extends Phaser.Scene {
     this.textures.addCanvas('thumb-highway', this.highwayIcon());
     this.textures.addCanvas('thumb-select', this.cursorIcon());
     this.textures.addCanvas('thumb-demolish', this.demolishIcon());
+    this.minimap = new Minimap(this);
 
     const kb = this.input.keyboard!;
     this.keys = kb.addKeys('W,A,S,D,UP,DOWN,LEFT,RIGHT,Q,E') as Record<string, Phaser.Input.Keyboard.Key>;
@@ -221,11 +235,23 @@ export class HudScene extends Phaser.Scene {
     kb.on('keydown-G', () => this.toggleSheet('quests'));
     kb.on('keydown-H', () => this.toggleSheet('guide'));
     kb.on('keydown-N', () => this.nextProblem());
+    kb.on('keydown-R', () => this.game3d.rotatePlacement());
+    kb.on('keydown-M', () => !this.title && this.toggleMinimap());
+    kb.on('keydown-O', () => !this.title && this.openGraphics());
+    kb.on('keydown-L', () => !this.title && this.openSavesFromKey());
+    kb.on('keydown-C', () => !this.title && this.pickToolKey('route'));
+    kb.on('keydown-X', () => !this.title && this.pickToolKey('demolish'));
+    kb.on('keydown-U', () => !this.title && this.upgradeKey());
     for (let i = 1; i <= 9; i++) kb.on(`keydown-${['ONE', 'TWO', 'THREE', 'FOUR', 'FIVE', 'SIX', 'SEVEN', 'EIGHT', 'NINE'][i - 1]}`, () => this.pickByNumber(i - 1));
 
     // Any other key, or a click on the picture, skips the opening film.
     kb.on('keydown', (e: KeyboardEvent) => {
-      if (this.title && e.key !== 'Enter') this.title.skip();
+      if (this.title) {
+        if (e.key !== 'Enter') this.title.skip();
+        return;
+      }
+      if (e.key === '-' || e.key === '_') this.stepSpeed(-1);
+      else if (e.key === '=' || e.key === '+') this.stepSpeed(1);
     });
     this.input.on('pointerdown', (p: Phaser.Input.Pointer) => {
       if (this.title) {
@@ -326,10 +352,19 @@ export class HudScene extends Phaser.Scene {
     if (this.sheet) this.activeTab = 'select';
   }
 
-  /** Esc: close every menu, sheet, build tool and selection at once and go back to plain play. */
+  /** Esc: close every menu, sheet, build tool and selection at once and go back to plain play. With nothing open, it opens the menu. */
   private escape(): void {
     const g = this.game3d;
-    this.menuOpen = false;
+    if (this.title) return;
+    if (this.menuOpen) {
+      this.menuOpen = false;
+      return;
+    }
+    const idle = !this.graphicsOpen && !this.saves && !this.sheet && this.dash === null && !this.confirm && !g.removal && !g.draft && g.tool === 'select' && !g.selection && this.activeTab === 'select' && !this.pendingGrowth();
+    if (idle) {
+      this.menuOpen = true;
+      return;
+    }
     this.graphicsOpen = false;
     g.removal = null;
     this.saves = null;
@@ -340,7 +375,82 @@ export class HudScene extends Phaser.Scene {
     if (grow) this.growLater.add(`${grow.id}:${grow.level}`);
     if (g.draft) g.cancelDraft();
     if (g.tool !== 'select') this.setTool('select');
+    this.activeTab = 'select';
     g.select(null);
+  }
+
+  private closeAll(): void {
+    this.menuOpen = false;
+    this.graphicsOpen = false;
+    this.saves = null;
+    this.sheet = null;
+    this.dash = null;
+  }
+
+  private toggleMinimap(): void {
+    this.minimapOn = !this.minimapOn;
+    try {
+      if (this.minimapOn) localStorage.removeItem('sl-minimap-off');
+      else localStorage.setItem('sl-minimap-off', '1');
+    } catch {
+      /* ignore */
+    }
+    this.toasts.push({ text: this.minimapOn ? 'Minimap on' : 'Minimap off', until: this.time.now + 1600 });
+  }
+
+  private openGraphics(): void {
+    const was = this.graphicsOpen;
+    this.closeAll();
+    this.graphicsOpen = !was;
+  }
+
+  private openSavesFromKey(): void {
+    const was = this.saves === 'manage';
+    this.closeAll();
+    if (!was) this.openSaves('manage');
+  }
+
+  /** A build tool from its own key: C for roads, X for demolish. Pressing it again puts it away. */
+  private pickToolKey(tool: Tool): void {
+    const g = this.game3d;
+    if (g.tool === tool) {
+      if (g.draft) g.cancelDraft();
+      this.setTool('select');
+      return;
+    }
+    const info = this.cardInfo(tool);
+    if (info.locked) {
+      this.toasts.push({ text: `${info.name}: ${info.locked}`, until: this.time.now + 2400 });
+      return;
+    }
+    this.closeAll();
+    if (g.draft) g.cancelDraft();
+    this.setTool(tool);
+  }
+
+  /** U: upgrade the building that is open or selected. */
+  private upgradeKey(): void {
+    const g = this.game3d;
+    const id = this.dash ?? (g.selection?.kind === 'site' ? g.selection.id : null);
+    if (id === null) {
+      this.toasts.push({ text: 'Select a building to upgrade it', until: this.time.now + 2000 });
+      return;
+    }
+    const s = siteById(g.world, id);
+    if (!s) return;
+    const err = s.level >= 3 ? 'Already at the top level' : upgradeError(g.world, id);
+    if (err) {
+      this.toasts.push({ text: `${s.name}: ${err}`, until: this.time.now + 2400 });
+      return;
+    }
+    g.upgrade(id);
+  }
+
+  private stepSpeed(dir: number): void {
+    const g = this.game3d;
+    const sp = [0, 1, 2, 4];
+    const i = Math.max(0, sp.indexOf(g.speed));
+    g.speed = sp[Math.max(0, Math.min(sp.length - 1, i + dir))];
   }
 
   private setTool(tool: Tool): void {
@@ -404,6 +514,8 @@ export class HudScene extends Phaser.Scene {
     this.cim.begin();
     this.cim.clipBox = null;
     this.overlay(W, H);
+    this.rightInset = 0;
+    this.miniRect = null;
     TOP = this.topBarHeight(W);
     this.topBar(W);
     const growing = !this.sheet && !g.draft && !this.saves ? this.pendingGrowth() : undefined;
@@ -439,6 +551,7 @@ export class HudScene extends Phaser.Scene {
       this.removalModal(W, H);
     }
     this.offersLayer(W, H);
+    if (this.menuOpen) this.menuPanel(W, H);
     this.toastsLayer(W, now);
     this.tooltip(W, H);
     if (this.fadeIn >= 0) {
@@ -559,7 +672,7 @@ export class HudScene extends Phaser.Scene {
   private topBarHeight(W: number): number {
     if (W >= 640) return 72;
     const badges = this.dash === null && !this.sheet && !this.saves && this.game3d.world.sites.length > 0;
-    return badges ? 146 : 106;
+    return badges ? 154 : 114;
   }
 
   private topBar(W: number): void {
@@ -567,40 +680,56 @@ export class HudScene extends Phaser.Scene {
     const g = this.game3d;
     const w = g.world;
     const narrow = W < 640;
-    const y = narrow ? 8 : 10;
-    const h = narrow ? 44 : 52;
+    const y = 8;
+    const h = 44;
     const mid = y + h / 2;
-
-    // Money, bottom left of the top edge.
     const br = narrow ? 20 : 26;
-    const mw = narrow ? W - 24 - 4 * (br * 2 + 4) - 8 : 214;
+
+    // The header: one dark strip across the top with a thin accent edge, like a game HUD.
+    const headH = narrow ? y + h + 6 + 40 + 8 : y + h + 8;
+    im.rect(1, 0, 0, W, headH, 0x0a0f14, 0.9);
+    im.rect(1, 0, headH - 2, W, 2, COLORS.accent, 0.5);
+    im.rect(1, 0, 0, W, 1, 0xffffff, 0.06);
+    im.block({ x: 0, y: 0, w: W, h: headH });
+
+    // Money, at the left. Click it for the bank.
+    const mw = narrow ? W - 24 - (br * 2 + 4) - 8 : 214;
     this.pill(12, y, mw, h);
     const bankOn = this.sheet === 'bank';
     const bankHov = im.hit('btnBank', 12, y, mw, h, () => this.toggleSheet('bank'), 1);
     if (bankOn || bankHov) im.rect(1, 12, y, mw, h, bankOn ? COLORS.accent : 0x243142, bankOn ? 0.18 : 0.6, h / 2, bankOn ? COLORS.accent : COLORS.line, 1, bankOn ? 2 : 1);
     this.bankIcon(12 + mw - 26, mid, bankOn || bankHov ? COLORS.accent : COLORS.muted);
-    im.circle(1, 40, mid, 17, 0xe8b23a);
-    im.circle(1, 40, mid, 13, 0xc9951f);
-    im.text('coin', '$', 40, mid - 9, { size: 16, bold: true, color: 0xf7e3a8, align: 'center', layer: 2 });
-    im.text('money', fmt(w.money), 66, y + 5, { size: 23, bold: true, layer: 2 });
+    im.circle(1, 36, mid, 15, 0xe8b23a);
+    im.circle(1, 36, mid, 11, 0xc9951f);
+    im.text('coin', '$', 36, mid - 8, { size: 14, bold: true, color: 0xf7e3a8, align: 'center', layer: 2 });
+    im.text('money', fmt(w.money), 60, y + 3, { size: 21, bold: true, layer: 2 });
     const inc = this.income;
-    im.text('income', `${inc >= 0 ? '+' : '-'}$${fmt(Math.abs(inc))} per min`, 66, y + 31, { size: 12, color: inc > 0 ? COLORS.good : COLORS.muted, layer: 2 });
+    im.text('income', `${inc >= 0 ? '+' : '-'}$${fmt(Math.abs(inc))} per min`, 60, y + 27, { size: 12, color: inc > 0 ? COLORS.good : COLORS.muted, layer: 2 });
 
-    // Under the money: how many buildings are stuck. Tap it to jump to the first one, again for the next.
-    if (this.dash === null && !this.sheet && !this.saves) this.stuckBadge(12, narrow ? y + h + 6 + 40 + 8 : y + h + 8, narrow ? Math.min(210, W / 2 - 18) : mw, narrow);
+    // Under the header: how many buildings are stuck. Tap it to jump to the first one, again for the next.
+    if (this.dash === null && !this.sheet && !this.saves) this.stuckBadge(12, headH + 8, narrow ? Math.min(210, W / 2 - 18) : mw, narrow);
 
-    // Right cluster: speed, then the sheets and menu.
-    const bw = narrow ? br * 2 + 4 : 54;
-    const btn = 26;
-    const rx = W - 12;
-    const menuX = rx - bw / 2;
-    const helpX = menuX - bw - 6;
-    const townX = helpX - bw - 6;
-    const prodX = townX - bw - 6;
+    // Right: the one Menu button that opens everything, with the speed control beside it.
+    const menuW = narrow ? br * 2 + 4 : 134;
+    const menuX = W - 12 - menuW;
+    const menuHov = im.hit('btnMenu', menuX, y, menuW, h, () => (this.menuOpen = !this.menuOpen), 1);
+    const menuOn = this.menuOpen;
+    im.rect(1, menuX, y, menuW, h, menuOn ? COLORS.accent : menuHov ? 0x2a3646 : 0x1a2430, 1, 10, menuOn || menuHov ? COLORS.accent : COLORS.line, 1, menuOn ? 2 : 1);
+    const mc = menuOn ? 0x1b1204 : COLORS.text;
+    const gx = narrow ? menuX + menuW / 2 - 9 : menuX + 14;
+    for (let r = 0; r < 3; r++) for (let c = 0; c < 3; c++) im.rect(2, gx + c * 7, mid - 9 + r * 7, 5, 5, mc, 1, 1);
+    if (!narrow) {
+      im.text('menuLbl', 'MENU', menuX + 40, mid - 9, { size: 15, bold: true, color: mc, layer: 2 });
+      if (!isTouch()) {
+        im.rect(2, menuX + menuW - 40, mid - 10, 30, 20, menuOn ? 0x1b1204 : 0x0d1319, menuOn ? 0.25 : 1, 5, menuOn ? 0x1b1204 : COLORS.line, 1);
+        im.text('menuKey', 'Esc', menuX + menuW - 25, mid - 7, { size: 11, bold: true, color: menuOn ? 0x1b1204 : COLORS.muted, align: 'center', layer: 2 });
+      }
+    }
+
     const sp = [0, 1, 2, 4];
-    const sStep = narrow ? 36 : 46;
+    const sStep = narrow ? 36 : 44;
     const spW = sp.length * sStep + 10;
-    const spX = narrow ? 12 : prodX - bw / 2 - 10 - spW;
+    const spX = narrow ? 12 : menuX - 10 - spW;
     const sy = narrow ? y + h + 6 : y;
     const sh = narrow ? 40 : h;
     const smid = sy + sh / 2;
@@ -608,30 +737,15 @@ export class HudScene extends Phaser.Scene {
     sp.forEach((v, i) => {
       const cx = spX + 5 + sStep / 2 + i * sStep;
       const on = g.speed === v;
-      this.roundButton(`speed${v}`, cx, smid, narrow ? 15 : 20, on, () => (g.speed = v));
+      this.roundButton(`speed${v}`, cx, smid, narrow ? 15 : 18, on, () => (g.speed = v));
       const col = on ? 0x1b1204 : COLORS.text;
       if (v === 0) {
         im.rect(2, cx - 6, smid - 7, 4, 14, col, 1, 1);
         im.rect(2, cx + 2, smid - 7, 4, 14, col, 1, 1);
       } else {
-        im.text(`speedT${v}`, `${v}x`, cx, smid - 8, { size: narrow ? 13 : 15, bold: true, color: col, align: 'center', layer: 2 });
+        im.text(`speedT${v}`, `${v}x`, cx, smid - 8, { size: narrow ? 13 : 14, bold: true, color: col, align: 'center', layer: 2 });
       }
     });
-    void btn;
-
-    this.roundButton('btnProd', prodX, mid, br, this.sheet === 'production', () => this.toggleSheet('production'));
-    this.pillRing(prodX, mid, this.sheet === 'production');
-    this.factoryIcon(prodX, mid, this.sheet === 'production' ? 0x1b1204 : COLORS.text);
-    this.roundButton('btnTown', townX, mid, br, this.sheet === 'towns', () => this.toggleSheet('towns'));
-    this.pillRing(townX, mid, this.sheet === 'towns');
-    this.townIcon(townX, mid, this.sheet === 'towns' ? 0x1b1204 : COLORS.text);
-    this.roundButton('btnHelp', helpX, mid, br, this.sheet === 'guide', () => this.toggleSheet('guide'));
-    this.pillRing(helpX, mid, this.sheet === 'guide');
-    im.text('helpQ', '?', helpX, mid - 15, { size: 25, bold: true, color: this.sheet === 'guide' ? 0x1b1204 : COLORS.text, align: 'center', layer: 2 });
-    this.roundButton('btnMenu', menuX, mid, br, this.menuOpen, () => (this.menuOpen = !this.menuOpen));
-    this.pillRing(menuX, mid, this.menuOpen);
-    const mc = this.menuOpen ? 0x1b1204 : COLORS.text;
-    for (const dy of [-8, 0, 8]) im.rect(2, menuX - 11, mid + dy - 1.5, 22, 3, mc, 1, 1.5);
 
     // The quest bar: tier and the next quest, in the space between the money and the buttons. Click it for the full list.
     const free0 = narrow ? 12 + spW + 8 : 12 + mw + 12;
@@ -659,65 +773,117 @@ export class HudScene extends Phaser.Scene {
       }
       if (hov) im.tip('questPill');
     }
-
-    if (this.menuOpen) this.menuPanel(W, y + h + 8);
   }
 
-  private pillRing(cx: number, cy: number, on: boolean): void {
-    if (!on) this.im.ring(1, cx, cy, 25, 1.5, 1, COLORS.line);
-  }
-
-  private factoryIcon(cx: number, cy: number, c: number): void {
+  private factoryIcon(cx: number, cy: number, c: number, layer = 2): void {
     const im = this.im;
-    im.rect(2, cx - 12, cy - 1, 24, 12, c, 1, 2);
-    im.rect(2, cx + 5, cy - 12, 6, 12, c, 1, 1);
-    im.rect(2, cx - 12, cy - 7, 8, 6, c, 1, 1);
-    im.rect(2, cx - 3, cy - 7, 8, 6, c, 1, 1);
+    im.rect(layer, cx - 12, cy - 1, 24, 12, c, 1, 2);
+    im.rect(layer, cx + 5, cy - 12, 6, 12, c, 1, 1);
+    im.rect(layer, cx - 12, cy - 7, 8, 6, c, 1, 1);
+    im.rect(layer, cx - 3, cy - 7, 8, 6, c, 1, 1);
   }
 
-  private bankIcon(cx: number, cy: number, c: number): void {
+  private bankIcon(cx: number, cy: number, c: number, layer = 2): void {
     const im = this.im;
-    im.rect(2, cx - 13, cy - 11, 26, 5, c, 1, 1);
-    for (const dx of [-10, -3, 4]) im.rect(2, cx + dx, cy - 5, 6, 12, c, 1, 1);
-    im.rect(2, cx - 14, cy + 8, 28, 4, c, 1, 1);
+    im.rect(layer, cx - 13, cy - 11, 26, 5, c, 1, 1);
+    for (const dx of [-10, -3, 4]) im.rect(layer, cx + dx, cy - 5, 6, 12, c, 1, 1);
+    im.rect(layer, cx - 14, cy + 8, 28, 4, c, 1, 1);
   }
 
-  private townIcon(cx: number, cy: number, c: number): void {
+  private townIcon(cx: number, cy: number, c: number, layer = 2): void {
     const im = this.im;
-    im.rect(2, cx - 13, cy - 1, 9, 12, c, 1, 2);
-    im.rect(2, cx - 4, cy - 11, 10, 22, c, 1, 2);
-    im.rect(2, cx + 7, cy + 2, 7, 9, c, 1, 2);
+    im.rect(layer, cx - 13, cy - 1, 9, 12, c, 1, 2);
+    im.rect(layer, cx - 4, cy - 11, 10, 22, c, 1, 2);
+    im.rect(layer, cx + 7, cy + 2, 7, 9, c, 1, 2);
   }
 
-  private menuPanel(W: number, y: number): void {
+  /** The menu: every sheet and setting in one place, as big tiles with their keys, and the full list of keys below. */
+  private menuPanel(W: number, H: number): void {
     const im = this.im;
-    const w = Math.min(300, W - 24);
-    const x = W - w - 12;
-    const items: [string, string, () => void][] = [
-      ['Quests', 'G', () => this.toggleSheet('quests')],
-      ['How to play', 'H', () => this.toggleSheet('guide')],
-      ['Save / Load', 'S', () => this.openSaves('manage')],
-      ['New world', 'N', () => this.openSaves('new')],
-      ['Graphics and lighting', '', () => { this.graphicsOpen = true; }],
+    const close = (): void => {
+      this.menuOpen = false;
+    };
+    im.rect(3, 0, 0, W, H, 0x04070a, 0.6);
+    im.hit('menuBack', 0, 0, W, H, close, 3);
+
+    const narrow = W < 640;
+    const cols = narrow ? 2 : 3;
+    const w = Math.min(760, W - 24);
+    const x = Math.round((W - w) / 2);
+    const pad = 18;
+    const gap = 10;
+    const tileW = (w - pad * 2 - gap * (cols - 1)) / cols;
+    const tileH = narrow ? 64 : 76;
+    type Item = { id: string; label: string; key: string; note: string; on: boolean; icon: (cx: number, cy: number, c: number) => void; act: () => void };
+    const glyph = (s: string) => (cx: number, cy: number, c: number) => im.text(`menuG${s}`, s, cx, cy - 13, { size: 22, bold: true, color: c, align: 'center', layer: 4 });
+    const items: Item[] = [
+      { id: 'prod', label: 'Production', key: 'P', note: 'What every building makes and uses', on: this.sheet === 'production', icon: (cx, cy, c) => this.factoryIcon(cx, cy, c, 4), act: () => this.toggleSheet('production') },
+      { id: 'towns', label: 'Towns', key: 'T', note: 'Towns, their needs and districts', on: this.sheet === 'towns', icon: (cx, cy, c) => this.townIcon(cx, cy, c, 4), act: () => this.toggleSheet('towns') },
+      { id: 'bank', label: 'Bank', key: 'B', note: 'Loans, savings and the market fund', on: this.sheet === 'bank', icon: (cx, cy, c) => this.bankIcon(cx, cy, c, 4), act: () => this.toggleSheet('bank') },
+      { id: 'quests', label: 'Quests', key: 'G', note: 'Tiers, goals and rewards', on: this.sheet === 'quests', icon: glyph('!'), act: () => this.toggleSheet('quests') },
+      { id: 'guide', label: 'How to play', key: 'H', note: 'The guide to every building', on: this.sheet === 'guide', icon: glyph('?'), act: () => this.toggleSheet('guide') },
+      { id: 'saves', label: 'Save / Load', key: 'L', note: 'Save slots and files', on: this.saves === 'manage', icon: glyph('S'), act: () => this.openSavesFromKey() },
+      { id: 'gfx', label: 'Graphics', key: 'O', note: 'Quality and lighting', on: this.graphicsOpen, icon: glyph('O'), act: () => this.openGraphics() },
+      { id: 'mini', label: this.minimapOn ? 'Minimap: on' : 'Minimap: off', key: 'M', note: 'The world map in the corner', on: this.minimapOn, icon: glyph('M'), act: () => this.toggleMinimap() },
+      { id: 'new', label: 'New world', key: '', note: 'Start again on a fresh map', on: false, icon: glyph('+'), act: () => this.openSaves('new') },
     ];
-    const compact = this.scale.height - y < 500;
-    const row = compact ? 42 : 50;
-    const ph = items.length * row + 20 + (compact ? 48 : 160);
-    im.rect(3, x, y, w, ph, COLORS.panel, 0.98, 18, COLORS.line, 1);
-    im.block({ x, y, w, h: ph });
-    items.forEach(([label, , fn], i) => {
-      const by = y + 10 + i * row;
-      const hov = im.hit(`menu${label}`, x + 10, by, w - 20, row - 6, () => { fn(); this.menuOpen = false; }, 3);
-      im.rect(3, x + 10, by, w - 20, row - 6, hov ? 0x243142 : 0x172130, 1, 8, COLORS.line, 1);
-      im.text(`menuT${label}`, label, x + w / 2, by + 10, { size: 14, bold: true, align: 'center', layer: 4 });
+    const rows = Math.ceil(items.length / cols);
+    const showKeys = !isTouch() && !narrow;
+    const keysH = showKeys ? 150 : 0;
+    const ph = Math.min(H - 24, 56 + rows * tileH + (rows - 1) * gap + pad + (showKeys ? 20 + keysH : 0) + 44);
+    const y = Math.max(12, Math.round((H - ph) / 2));
+    im.rect(3, x, y, w, ph, 0x0d141b, 0.98, 16, COLORS.accent, 0.6, 1.5);
+    im.rect(3, x, y, w, 4, COLORS.accent, 0.9, 2);
+    im.hit('menuPanel', x, y, w, ph, () => undefined, 3);
+    im.text('menuTitle', 'MENU', x + pad, y + 18, { size: 20, bold: true, layer: 4 });
+    im.text('menuVer', `Supplyline  ·  v${VERSION}`, x + pad + 76, y + 24, { size: 12, color: COLORS.muted, layer: 4 });
+    const xh = im.hit('menuX', x + w - 48, y + 12, 34, 34, close, 4);
+    im.rect(4, x + w - 48, y + 12, 34, 34, xh ? 0x2a3646 : 0x17202b, 1, 8, COLORS.line, 1);
+    im.text('menuXT', 'x', x + w - 31, y + 19, { size: 16, bold: true, align: 'center', layer: 4 });
+
+    const ty = y + 56;
+    items.forEach((it, i) => {
+      const tx = x + pad + (i % cols) * (tileW + gap);
+      const tyy = ty + Math.floor(i / cols) * (tileH + gap);
+      const hov = im.hit(`menu${it.id}`, tx, tyy, tileW, tileH, () => {
+        this.menuOpen = false;
+        it.act();
+      }, 4);
+      im.rect(4, tx, tyy, tileW, tileH, hov ? 0x223040 : 0x151e28, 1, 12, it.on ? COLORS.accent : hov ? 0x3d5066 : COLORS.line, 1, it.on ? 2 : 1);
+      const ic = narrow ? 22 : 30;
+      im.rect(4, tx + 10, tyy + (tileH - ic * 2) / 2, ic * 2, ic * 2, it.on ? COLORS.accent : 0x0c1218, 1, 10);
+      it.icon(tx + 10 + ic, tyy + tileH / 2, it.on ? 0x1b1204 : COLORS.accent);
+      const lx = tx + 20 + ic * 2;
+      im.text(`menuT${it.id}`, it.label, lx, tyy + (narrow ? 12 : 16), { size: narrow ? 13 : 15, bold: true, layer: 4 });
+      if (!narrow) im.text(`menuN${it.id}`, it.note, lx, tyy + 40, { size: 11, color: COLORS.muted, wrap: tileW - (lx - tx) - 40, layer: 4 });
+      if (it.key && !isTouch()) {
+        im.rect(4, tx + tileW - 32, tyy + 8, 24, 22, 0x0c1218, 1, 5, COLORS.line, 1);
+        im.text(`menuK${it.id}`, it.key, tx + tileW - 20, tyy + 11, { size: 12, bold: true, color: COLORS.accent, align: 'center', layer: 4 });
+      }
     });
-    const cy = y + 10 + items.length * row + 6;
-    im.line(3, x + 14, cy, x + w - 14, cy, COLORS.line, 1, 1);
-    im.text('menuVer', `Early build  ·  v${VERSION}`, x + 16, cy + 10, { size: 12, bold: true, color: COLORS.muted, layer: 4 });
-    if (!compact) {
-      im.text('menuHelp', byInput('Drag to move. Right-drag to turn and tilt. Wheel to zoom. Space pauses.', 'Drag to move. Pinch to zoom. Twist two fingers to turn, drag them up or down to tilt.'), x + 16, cy + 34, { size: 11, color: COLORS.muted, wrap: w - 32, layer: 4 });
-      im.text('menuNote', `What is new: ${VERSION_NOTE}`, x + 16, cy + 82, { size: 10, color: COLORS.muted, wrap: w - 32, layer: 4 });
+
+    let by = ty + rows * tileH + (rows - 1) * gap + pad;
+    if (showKeys) {
+      im.line(4, x + pad, by, x + w - pad, by, COLORS.line, 1, 1);
+      im.text('menuKeysT', 'KEYBOARD', x + pad, by + 10, { size: 11, bold: true, color: COLORS.accent, layer: 4 });
+      const groups: [string, [string, string][]][] = [
+        ['Camera', [['W A S D', 'Move'], ['Q / E', 'Turn'], ['Wheel', 'Zoom'], ['Right-drag', 'Tilt and turn'], ['M', 'Minimap']]],
+        ['Build', [['Tab', 'Next category'], ['1 - 9', 'Pick a card'], ['R', 'Rotate building'], ['C / X', 'Road / Demolish'], ['Enter / Bksp', 'Finish / undo bend']]],
+        ['Game', [['Space', 'Pause'], ['- / +', 'Slower / faster'], ['U', 'Upgrade selected'], ['N', 'Next problem'], ['Esc', 'Close / menu']]],
+      ];
+      const gw = (w - pad * 2) / groups.length;
+      groups.forEach(([title, list], gi) => {
+        const gx = x + pad + gi * gw;
+        im.text(`menuKG${gi}`, title, gx, by + 30, { size: 12, bold: true, layer: 4 });
+        list.forEach(([k, what], ki) => {
+          const ly = by + 52 + ki * 19;
+          im.text(`menuKK${gi}-${ki}`, k, gx, ly, { size: 11, bold: true, color: COLORS.warn, layer: 4 });
+          im.text(`menuKW${gi}-${ki}`, what, gx + 88, ly, { size: 11, color: COLORS.muted, layer: 4 });
+        });
+      });
+      by += 20 + keysH;
     }
+    im.text('menuNote', `What is new: ${VERSION_NOTE}`, x + pad, by - 4, { size: 10, color: COLORS.muted, wrap: w - pad * 2, layer: 4, alpha: 0.8 });
   }
 
   private graphicsPanel(W: number, H: number): void {
@@ -1022,13 +1188,16 @@ export class HudScene extends Phaser.Scene {
     const tab = TABS.find((t) => t.id === this.activeTab)!;
     const open = this.trayOpen() && !this.sheet;
 
-    // Dock: one compact floating bar of categories, centred at the bottom.
+    // Footer: a strip across the bottom with the category dock in the middle, key hints at the left and the minimap at the right.
     const tabW = Math.max(60, Math.min(DOCK_TAB_W, Math.floor((W - 24 - DOCK_PAD * 2 - (TABS.length - 1) * 6) / TABS.length)));
     const dockW = TABS.length * tabW + (TABS.length - 1) * 6 + DOCK_PAD * 2;
     const dx = Math.round(W / 2 - dockW / 2);
-    const dy = H - EDGE - DOCK_H;
-    im.rect(1, dx, dy, dockW, DOCK_H, COLORS.panel, 0.95, 18, COLORS.line, 1);
-    im.block({ x: dx, y: dy, w: dockW, h: DOCK_H });
+    const dy = H - DOCK_H - 2;
+    const footY = dy - 6;
+    im.rect(1, 0, footY, W, H - footY, 0x0a0f14, 0.9);
+    im.rect(1, 0, footY, W, 2, COLORS.accent, 0.5);
+    im.block({ x: 0, y: footY, w: W, h: H - footY });
+    im.rect(1, dx, dy, dockW, DOCK_H, 0x111a22, 1, 14, COLORS.line, 1);
     // First-time help: a pulsing ring on the exact button the current quest needs.
     const coach = this.coachTarget();
     let coachRect = { x: 0, y: 0, w: 0, h: 0 };
@@ -1048,12 +1217,29 @@ export class HudScene extends Phaser.Scene {
       if (!isTouch()) im.text(`tabK${t.id}`, String(i + 1), x + 7, y + 4, { size: 10, color: COLORS.muted, layer: 2 });
     });
     if (!open && coach) this.coachRing(coachRect.x, coachRect.y, coachRect.w, coachRect.h, coachText);
-    this.bottomInset = DOCK_H + EDGE;
+    this.bottomInset = H - footY;
 
-    // Key hints sit in the corner beside the dock, in as much detail as there is room for.
-    const room = W - 14 - (dx + dockW + 12);
-    const keys = ['Tab: category   1-9: pick   P: production   T: towns   G: quests   H: guide   Esc: cancel   Space: pause', 'P: production   T: towns   G: quests   H: guide', 'G: quests   H: guide'].find((s) => s.length * 5.7 < room);
-    if (keys && !isTouch()) im.text('keysHint', keys, W - 14, H - 22, { size: 11, color: COLORS.muted, align: 'right', alpha: 0.7 });
+    // The minimap sits in the footer's right corner and rises above it.
+    const mini = this.minimapBox(W, H, dx + dockW + 12);
+    if (mini) this.drawMinimap(mini);
+
+    // Key hints at the left of the footer, in as much detail as there is room for.
+    const room = dx - 28;
+    if (!isTouch() && room > 120) {
+      const lines = [
+        ['Esc  menu', 'Space  pause', '- / +  speed', 'Tab  category', '1-9  pick'],
+        ['R  rotate', 'C  road', 'X  demolish', 'U  upgrade', 'M  map', 'N  next problem'],
+      ];
+      lines.forEach((parts, li) => {
+        let s = '';
+        for (const p of parts) {
+          const next = s ? `${s}    ${p}` : p;
+          if (next.length * 6 > room) break;
+          s = next;
+        }
+        if (s) im.text(`keysHint${li}`, s, 16, dy + 20 + li * 22, { size: 11, color: COLORS.muted, alpha: 0.85, layer: 2 });
+      });
+    }
 
     if (!open) return;
 
@@ -1065,12 +1251,13 @@ export class HudScene extends Phaser.Scene {
     const IMG = narrow ? 50 : 68;
     const tools = narrow ? tab.tools.filter((t) => !this.cardInfo(t).locked || g.tool === t) : tab.tools;
     const n = tools.length;
-    const perRow = Math.max(1, Math.min(n, Math.floor((W - (narrow ? 24 : 48) - TRAY_PAD * 2 + 10) / (CW + 10))));
+    const avail = mini ? Math.max(CW + TRAY_PAD * 2, 2 * (mini.x - 12 - W / 2)) : W - (narrow ? 24 : 48);
+    const perRow = Math.max(1, Math.min(n, Math.floor((avail - TRAY_PAD * 2 + 10) / (CW + 10))));
     const rows = Math.ceil(n / perRow);
     const trayW = perRow * CW + (perRow - 1) * 10 + TRAY_PAD * 2;
     const trayH = 24 + TRAY_PAD * 2 + rows * CH + (rows - 1) * 10;
     const tx = Math.round(W / 2 - trayW / 2);
-    const ty = dy - DOCK_GAP - trayH;
+    const ty = footY - DOCK_GAP - trayH;
     im.rect(1, tx, ty, trayW, trayH, COLORS.panel, 0.95, 18, COLORS.line, 1);
     im.block({ x: tx, y: ty, w: trayW, h: trayH });
     im.text('trayTitle', tab.blurb, tx + TRAY_PAD + 4, ty + 9, { size: 12, color: COLORS.muted, layer: 2, wrap: narrow ? trayW - 2 * TRAY_PAD - 8 : undefined });
@@ -1093,7 +1280,46 @@ export class HudScene extends Phaser.Scene {
       if (hov) im.tip(id);
     });
     if (coach) this.coachRing(coachRect.x, coachRect.y, coachRect.w, coachRect.h, coachText);
-    this.bottomInset = DOCK_H + EDGE + DOCK_GAP + trayH;
+    this.bottomInset = H - footY + DOCK_GAP + trayH;
+  }
+
+  /** Where the minimap goes, or null when it is off or there is no room for it beside the dock. */
+  private minimapBox(W: number, H: number, minX: number): { x: number; y: number; w: number; h: number; mw: number; mh: number } | null {
+    if (!this.minimapOn || W < 900 || isTouch()) return null;
+    const world = this.game3d.world;
+    const mw = Math.min(300, Math.max(200, Math.round(W * 0.19)));
+    const mh = Math.round((mw * world.height) / world.width);
+    const w = mw + 16;
+    const h = mh + 38;
+    const x = W - w - 10;
+    if (x < minX) return null;
+    const y = H - h - 8;
+    return { x, y, w, h, mw, mh };
+  }
+
+  private drawMinimap(b: { x: number; y: number; w: number; h: number; mw: number; mh: number }): void {
+    const im = this.im;
+    const g = this.game3d;
+    const world = g.world;
+    const at = viewTile(world, g.cam.lon, g.cam.lat);
+    const aspect = this.scale.width / Math.max(1, this.scale.height);
+    const key = this.minimap.draw(world, { x: at.x, y: at.y, span: viewSpan(world, g.cam.dist, aspect), heading: g.cam.heading }, b.mw, this.time.now);
+    im.rect(1, b.x, b.y, b.w, b.h, 0x0a0f14, 0.97, 12, COLORS.accent, 0.55, 1.5);
+    im.text('miniT', 'WORLD MAP', b.x + 10, b.y + 8, { size: 11, bold: true, color: COLORS.accent, layer: 2 });
+    const mx = b.x + 8;
+    const my = b.y + 28;
+    im.image('miniImg', key, mx, my, b.mw, b.mh, 1, 2);
+    im.rect(2, mx - 1, my - 1, b.mw + 2, b.mh + 2, 0x000000, 0, 2, COLORS.line, 1);
+    const offH = im.hit('miniOff', b.x + b.w - 30, b.y + 4, 22, 20, () => this.toggleMinimap(), 2);
+    im.text('miniOffT', 'M', b.x + b.w - 19, b.y + 7, { size: 11, bold: true, color: offH ? COLORS.text : COLORS.muted, align: 'center', layer: 3 });
+    im.hit('miniMap', mx, my, b.mw, b.mh, () => {
+      const p = this.input.activePointer;
+      const t = this.minimap.tileAt(world, (p.x - mx) / b.mw, (p.y - my) / b.mh);
+      g.lookAt(t.x, t.y, g.cam.dist, g.cam.heading, g.cam.pitchManual);
+    }, 2);
+    im.block({ x: b.x, y: b.y, w: b.w, h: b.h });
+    this.miniRect = { x: b.x, y: b.y, w: b.w, h: b.h };
+    this.rightInset = this.scale.height - b.y;
   }
 
   private coachOff = (() => {
@@ -1169,7 +1395,8 @@ export class HudScene extends Phaser.Scene {
     else if (g.tool === 'demolish') text = h?.site ? `${byInput('Click', 'Tap')} to demolish ${h.site.name}` : h?.route ? (h.error ? h.error : `${byInput('Click', 'Tap')} to remove this stretch of ${h.route.mode === 'rail' ? 'track' : h.route.grade === 'highway' ? 'highway' : 'road'} for $${fmt(routeRefund(w, h.route))} back`) : `${byInput('Click', 'Tap')} a building or a road to remove it`;
     else if (g.tool !== 'select') {
       const d = SITE_DEFS[g.tool as SiteKind];
-      text = h ? (h.error ? h.error : `${byInput('Click', 'Tap')} to build ${d.label} for $${fmt(d.cost)}`) : `${d.label} $${fmt(d.cost)}${g.tool === 'railyard' || g.tool === 'airport' || g.tool === 'port' ? '  ·  green tiles show where it can go' : ''}`;
+      const turn = `  ·  R ${SITE_DEFS[g.tool as SiteKind].airport ? 'turns the runway' : 'to rotate'}`;
+      text = h ? (h.error ? h.error : `${byInput('Click', 'Tap')} to build ${d.label} for $${fmt(d.cost)}${byInput(turn, '')}`) : `${d.label} $${fmt(d.cost)}${g.tool === 'railyard' || g.tool === 'airport' || g.tool === 'port' ? '  ·  green tiles show where it can go' : ''}`;
     } else if (h) {
       text = h.site?.name ?? (h.place ? h.place.name : h.node ? `${h.node.kind} node` : (h.region?.name ?? ''));
     }
@@ -1230,7 +1457,7 @@ export class HudScene extends Phaser.Scene {
     const items = this.game3d.overlay();
     const placed: { x0: number; y0: number; x1: number; y1: number }[] = [];
     const free = (r: { x0: number; y0: number; x1: number; y1: number }): boolean =>
-      r.x0 > 8 && r.x1 < W - 8 && r.y0 > TOP + 4 && r.y1 < H - this.bottomInset - 4 && !placed.some((p) => r.x0 < p.x1 && r.x1 > p.x0 && r.y0 < p.y1 && r.y1 > p.y0);
+      r.x0 > 8 && r.x1 < W - 8 && r.y0 > TOP + 4 && r.y1 < H - this.bottomInset - 4 && !(this.miniRect && r.x1 > this.miniRect.x && r.y1 > this.miniRect.y) && !placed.some((p) => r.x0 < p.x1 && r.x1 > p.x0 && r.y0 < p.y1 && r.y1 > p.y0);
     const dist = this.game3d.cam.dist;
 
     // Status rings first: a gauge of how full each building is.
@@ -1471,7 +1698,7 @@ export class HudScene extends Phaser.Scene {
       this.panelKey = key;
       this.panelScroll = 0;
     }
-    const maxH = Math.max(180, H - this.bottomInset - y - 10);
+    const maxH = Math.max(180, H - Math.max(this.bottomInset, this.rightInset) - y - 10);
     this.cim.clipBox = { x, y, w: PANEL_W, h: maxH };
     const contentH = site ? this.sitePanel(site, px, cy - this.panelScroll, inner) : this.placePanel(place!, px, cy - this.panelScroll, inner);
     const full = contentH + 28;
@@ -1741,7 +1968,12 @@ export class HudScene extends Phaser.Scene {
     }
     const maker = !def.dock && !def.station;
     const pages: [string, string][] = maker
-      ? [['overview', 'Overview'], ['sell', `Selling  ·  ${buyersFor(world, s, 0).filter((b) => b.on).length}`], ['trucks', `Trucks  ·  ${fleetOf(world, s.id).length}`]]
+      ? [
+          ['overview', 'Overview'],
+          ...(def.hub ? [['supply', `Businesses  ·  ${this.businessCount(s)}`] as [string, string]] : []),
+          ['sell', `${def.hub ? 'Sells to' : 'Selling'}  ·  ${buyersFor(world, s, 0).filter((b) => b.on).length}`],
+          ['trucks', `Trucks  ·  ${fleetOf(world, s.id).length}`],
+        ]
       : def.dock
         ? [['buys', 'What it buys'], ['sellers', `Who sells here  ·  ${this.suppliersOf(s).length}`], ['town', 'The town']]
         : [];
@@ -1788,6 +2020,8 @@ export class HudScene extends Phaser.Scene {
         add((cx, yy, ww) => this.statStrip(s, cx, yy, ww));
         add((cx, yy, ww) => this.inventorySection(s, cx, yy, ww));
         add(info);
+      } else if (this.dashPage === 'supply') {
+        add((cx, yy, ww) => this.businessSection(s, cx, yy + 6, ww) + 6);
       } else if (this.dashPage === 'sell') {
         add(toggle);
         add((cx, yy, ww) => this.buyerSection(s, cx, yy + 6, ww) + 6);
@@ -1895,6 +2129,12 @@ export class HudScene extends Phaser.Scene {
     return world.sites.filter((o) => o.id !== s.id && buyersFor(world, o, 0).some((b) => b.site.id === s.id && b.on));
   }
 
+  /** How many of your businesses are joined to a warehouse or terminal and switched on to send it goods. */
+  private businessCount(s: Site): number {
+    const world = this.game3d.world;
+    return world.sites.filter((o) => o.id !== s.id && !SITE_DEFS[o.kind].dock && !SITE_DEFS[o.kind].station && (hasByLine(o) ? (['main', 'by'] as Line[]) : (['main'] as Line[])).some((ln) => sellTargets(world, o, ln).some((t) => t.site.id === s.id && t.on))).length;
+  }
+
   private suppliersSection(s: Site, x: number, y: number, w: number): number {
     const im = this.pim;
     let cy = this.sectionHead('suH', 'WHO SELLS HERE', x, y, w);
@@ -1916,6 +2156,64 @@ export class HudScene extends Phaser.Scene {
       this.button(`su${o.id}o`, 'Open', sx + sW - 80, sy + 9, 70, 32, true, () => this.openDash(o.id));
     });
     cy += Math.ceil(list.length / sCols) * 58;
+    return cy - y;
+  }
+
+  /**
+   * A warehouse or terminal's own suppliers: every building of yours joined to it that could send it goods. Each card says
+   * how that business is doing, and lets the player stop or start its deliveries here, run or pause a factory, or open it.
+   */
+  private businessSection(s: Site, x: number, y: number, w: number): number {
+    const im = this.pim;
+    const g = this.game3d;
+    const world = g.world;
+    let cy = this.sectionHead('bzH', 'YOUR BUSINESSES', x, y, w);
+    const lines = (o: Site): Line[] => (hasByLine(o) ? ['main', 'by'] : ['main']);
+    const list = world.sites
+      .filter((o) => o.id !== s.id && !SITE_DEFS[o.kind].dock && !SITE_DEFS[o.kind].station)
+      .map((o) => ({ o, ls: lines(o).filter((ln) => sellTargets(world, o, ln).some((t) => t.site.id === s.id)) }))
+      .filter((e) => e.ls.length > 0);
+    if (list.length === 0) {
+      im.text('bzN', `No business of yours is joined to this ${SITE_DEFS[s.kind].label.toLowerCase()} yet. Build a road from a farm, camp or factory to it, and its goods can come here.`, x, cy, { size: 11, color: COLORS.muted, wrap: w, layer: 2 });
+      return cy + 40 - y;
+    }
+    const sending = list.filter((e) => e.ls.some((ln) => sendAllowed(e.o, s, ln))).length;
+    im.text('bzS', `${sending} of ${list.length} send goods here. Switch a business off to keep its goods for your other buyers.`, x, cy, { size: 11, color: COLORS.muted, wrap: w, layer: 2 });
+    cy += 26;
+    const gap = 12;
+    const cols = Math.max(1, Math.min(3, Math.floor((w + gap) / (380 + gap))));
+    const cw = (w - gap * (cols - 1)) / cols;
+    const ch = 104;
+    list.forEach(({ o, ls }, k) => {
+      const bx = x + (k % cols) * (cw + gap);
+      const by = cy + Math.floor(k / cols) * (ch + gap);
+      const d = SITE_DEFS[o.kind];
+      const on = ls.some((ln) => sendAllowed(o, s, ln));
+      const st = this.siteStatus(o);
+      const id = `bz${o.id}`;
+      im.rect(2, bx, by, cw, ch, on ? 0x12261f : 0x131a24, 1, 10, on ? COLORS.good : COLORS.line, 1);
+      im.text(`${id}n`, o.name, bx + 10, by + 8, { size: 12, bold: true, wrap: cw - 120, layer: 3 });
+      im.text(`${id}k`, `${d.label}  ·  Level ${o.level}`, bx + cw - 10, by + 8, { size: 11, color: COLORS.muted, align: 'right', layer: 3 });
+      im.circle(3, bx + 15, by + 34, 4, st.color);
+      im.text(`${id}s`, st.text, bx + 26, by + 27, { size: 11, color: st.color, wrap: cw - 36, layer: 3 });
+      const goods = ls.flatMap((ln) => lineGoods(o, ln));
+      const held = goods.filter((gd) => stockOf(o, gd) >= 1);
+      const what = d.hub ? (held.length ? held.slice(0, 3).map((gd) => `${GOODS[gd].label.toLowerCase()} ${Math.floor(stockOf(o, gd))}`).join(', ') : 'nothing in store') : goods.slice(0, 2).map((gd) => `${GOODS[gd].label.toLowerCase()} ${Math.floor(stockOf(o, gd))}/${siteCap(world, o)}`).join(', ');
+      const rec = o.sales?.[s.id];
+      im.text(`${id}g`, `${d.hub ? 'Holds' : 'Makes'} ${what}${rec && rec.units > 0 ? `  ·  sent here ${fmt(rec.units)}` : ''}`, bx + 10, by + 46, { size: 11, color: COLORS.muted, wrap: cw - 20, layer: 3 });
+      const ry = by + ch - 40;
+      const nb = d.recipe ? 3 : 2;
+      const bw = (cw - 20 - 8 * (nb - 1)) / nb;
+      let tx = bx + 10;
+      this.button(`${id}t`, on ? 'Sending here' : 'Send here', tx, ry, bw, 32, true, () => ls.forEach((ln) => g.sendTo(o.id, s.id, !on, ln)), on ? 'on' : 'plain');
+      tx += bw + 8;
+      if (d.recipe) {
+        this.button(`${id}m`, o.making ? 'Pause' : 'Run', tx, ry, bw, 32, true, () => g.making(o.id, !o.making), o.making ? 'plain' : 'on');
+        tx += bw + 8;
+      }
+      this.button(`${id}o`, 'Open', tx, ry, bw, 32, true, () => this.openDash(o.id));
+    });
+    cy += Math.ceil(list.length / cols) * (ch + gap);
     return cy - y;
   }
 
@@ -2074,7 +2372,7 @@ export class HudScene extends Phaser.Scene {
     const g = this.game3d;
     const w = 300;
     const x = (W - w) / 2;
-    const y = H - 150;
+    const y = Math.min(H - 150, H - this.bottomInset - 60);
     const hov = im.hit('gbBack', x, y, w - 46, 48, () => g.goBack(), 6);
     im.rect(6, x, y, w - 46, 48, hov ? 0xf2b04c : COLORS.accent, 1, 24);
     im.text('gbBackT', 'Back to where you were', x + (w - 46) / 2, y + 14, { size: 16, bold: true, color: 0x1b1204, align: 'center', layer: 7 });
@@ -2415,16 +2713,21 @@ export class HudScene extends Phaser.Scene {
           : wanted ? this.demand(b.site, gd) : { label: 'Not buying right now', color: COLORS.muted, want: 0 };
         im.text(`${id}s`, dm.label, x + 10, cy + 28, { size: 11, color: dm.color, wrap: w - 130, layer: 3 });
         im.bar(3, x + 10, cy + 46, w - 140, 6, dm.want, dm.color);
-        // No switch to flip: every joined buyer is a destination, and each truck's Settings pick who it goes to.
-        im.rect(3, bx, by, 100, 32, 0x17382c, 1, 8, COLORS.good, 1);
-        im.text(`${id}b`, store ? 'Storing here' : 'Selling here', bx + 50, by + 8, { size: 12, bold: true, color: COLORS.good, align: 'center', layer: 4 });
+        if (def.hub) {
+          // A warehouse or terminal picks who it sells to, like the old Distribution Hub: tap to start or stop.
+          this.button(`${id}b`, b.on ? (store ? 'Storing' : 'Selling') : 'Sell here', bx, by, 100, 32, true, () => g.sendTo(s.id, b.site.id, !b.on), b.on ? 'on' : 'plain');
+        } else {
+          // No switch to flip: every joined buyer is a destination, and each truck's Settings pick who it goes to.
+          im.rect(3, bx, by, 100, 32, 0x17382c, 1, 8, COLORS.good, 1);
+          im.text(`${id}b`, store ? 'Storing here' : 'Selling here', bx + 50, by + 8, { size: 12, bold: true, color: COLORS.good, align: 'center', layer: 4 });
+        }
       }
       const rec = s.sales?.[b.site.id];
       if (rec && rec.units > 0) im.text(`${id}r`, store ? `Stored ${fmt(rec.units)}. Paid when it sells on` : `Sold ${fmt(rec.units)} for $${fmt(rec.money)}`, x + 10, cy + 54, { size: 10, color: COLORS.muted, layer: 3 });
       })(gx, gy, gW);
     });
     cy += Math.ceil(buyers.length / gCols) * 76;
-    im.text('byX', 'Your trucks pick the buyer. Open a truck and tap Settings to send it to one place or choose what it prefers.', x, cy, { size: 10, color: COLORS.muted, wrap: w, layer: 2 });
+    im.text('byX', def.hub ? 'Tap Sell here to start selling to a buyer, and tap again to stop. Trucks only go to buyers that are switched on.' : 'Your trucks pick the buyer. Open a truck and tap Settings to send it to one place or choose what it prefers.', x, cy, { size: 10, color: COLORS.muted, wrap: w, layer: 2 });
     return cy + 24 - y + (def.store ? feeds(cy + 24) : 0);
   }
 
