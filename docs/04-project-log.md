@@ -577,3 +577,7 @@ Every node is at least `NODE_DRY` + 1 (3) tiles from water (`dry` in features.ts
 - Nodes: every world gets every kind of node (a fallback finds clay, rock, ore, coal or orchards near a town if the buffers left none), and the start town has forest, fields and meadow close.
 - Map 1: island goods keep 8 tiles clear of island towns (the tiny twin island excepted); map rebaked.
 - Pacing bot on seed 11 after all this: Tier 1 at 7.7 minutes, Tier 2 at 32.2 minutes, as before.
+
+## 0.14: last additions before release
+- Joined towns work together (world.ts: JOIN_SHARE, JOIN_CATCH_UP, growthKinds, metroBonus, partnerOf); worldSteps generator makes a world a step at a time for the new-world progress bar; carvePasses cuts the ridge where a corridor crosses it; claims.ts is the claim map (claimAt, blockedBy) with claimmap.test.ts checking it against placeError over a whole world; frame readout on F3; more bushes and rocks in scenery.ts.
+- An old save (no blend, no partners) loads and runs unchanged.

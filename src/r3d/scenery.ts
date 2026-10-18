@@ -149,12 +149,21 @@ function rockGeometry(): THREE.BufferGeometry {
   return g;
 }
 
-/** One tree or boulder: where it stands and how it is turned and sized. */
+/** A low bush: a few overlapping lumps of leaf, in vertex colours so each one can be tinted. */
+function bushGeometry(): THREE.BufferGeometry {
+  const p = new Parts();
+  p.sphere(0.34, 0x4f6f3a, { x: 0, y: 0.2, z: 0 }, 1);
+  p.sphere(0.26, 0x5d7e45, { x: 0.28, y: 0.15, z: 0.1 }, 1);
+  p.sphere(0.24, 0x466a38, { x: -0.22, y: 0.14, z: -0.14 }, 1);
+  return p.build();
+}
+
+/** One tree, bush or boulder: where it stands and how it is turned and sized. */
 interface Spot {
   tile: number;
   lon: number;
   lat: number;
-  kind: 'pine' | 'round' | 'birch' | 'rock';
+  kind: 'pine' | 'round' | 'birch' | 'rock' | 'bush';
   scale: number;
   yaw: number;
   shade: number;
@@ -273,7 +282,7 @@ export class Scenery {
         const { lon, lat } = tileLonLat(w.width, w.height, x, y);
         // Forests thicken and thin, and grassland has groves and open meadow instead of an even sprinkle.
         const gv = grove(w.seed, x * 0.33, y * 0.33);
-        const count = t === 'forest' ? 16 + Math.round(gv * 10) : t === 'mountain' ? 2 : r() < 0.12 + 0.8 * Math.max(0, gv - 0.35) ? 6 + Math.round(gv * 4) : 0;
+        const count = t === 'forest' ? 16 + Math.round(gv * 10) : t === 'mountain' ? 4 : r() < 0.12 + 0.8 * Math.max(0, gv - 0.35) ? 6 + Math.round(gv * 4) : 0;
         for (let k = 0; k < count; k++) {
           const jx = r();
           const jy = r();
@@ -291,6 +300,36 @@ export class Scenery {
             shade: r(),
           });
         }
+        // Undergrowth and loose stone fill in between the trees, so the land looks lived in and not planted: bushes thicken
+        // with the groves, forest floors get a ragged edge of shrubs, and small rocks lie about the fields and woods.
+        if ((t === 'forest' || t === 'grass') && !town.has(this.tileIndex(x, y)) && !corridor.has(this.tileIndex(x, y)) && !nearQuarry(x, y)) {
+          const bushes = t === 'forest' ? 2 + Math.round(gv * 3) : gv > 0.3 ? 1 + Math.round(gv * 3) : r() < 0.18 ? 1 : 0;
+          for (let k = 0; k < bushes; k++) {
+            const jx = r();
+            const jy = r();
+            if (t === 'forest' && nearNode(x, y, jx, jy)) continue;
+            spots.push({
+              tile: this.tileIndex(x, y),
+              lon: lon + (jx - 0.5) * dLon * 0.94,
+              lat: lat + (jy - 0.5) * dLat * 0.94,
+              kind: 'bush',
+              scale: 0.55 + r() * 0.6,
+              yaw: r() * Math.PI * 2,
+              shade: r(),
+            });
+          }
+          if (r() < (t === 'forest' ? 0.09 : 0.08)) {
+            spots.push({
+              tile: this.tileIndex(x, y),
+              lon: lon + (r() - 0.5) * dLon * 0.9,
+              lat: lat + (r() - 0.5) * dLat * 0.9,
+              kind: 'rock',
+              scale: 0.12 + r() * 0.26,
+              yaw: r() * Math.PI * 2,
+              shade: r(),
+            });
+          }
+        }
       }
     }
 
@@ -301,6 +340,7 @@ export class Scenery {
       round: { geo: treeGeometry('oak'), lod: treeLodGeometry('oak'), mat: treeMat },
       birch: { geo: treeGeometry('birch', 1), lod: treeLodGeometry('birch'), mat: treeMat },
       rock: { geo: rockGeometry(), lod: null, mat: rockMat },
+      bush: { geo: bushGeometry(), lod: null, mat: treeMat },
     };
 
     // One mesh per kind per block of tiles, so blocks off screen or over the horizon are culled and distant blocks
@@ -320,7 +360,7 @@ export class Scenery {
       const kind = list[0].kind;
       const shape = shapes[kind];
       const mesh = new THREE.InstancedMesh(shape.geo, shape.mat, list.length);
-      mesh.castShadow = kind !== 'rock';
+      mesh.castShadow = kind !== 'rock' && kind !== 'bush';
       mesh.receiveShadow = true;
       list.forEach((s, i) => {
         mesh.setMatrixAt(i, this.seat(s));

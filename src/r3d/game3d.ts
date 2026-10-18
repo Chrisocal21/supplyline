@@ -396,6 +396,12 @@ export class Game3D {
 
   private acc = 0;
   private last = 0;
+  /** How the game is running, for the on-screen readout (F3): worked out from the last couple of seconds of frames. */
+  readonly perf = { fps: 0, avgMs: 0, p95Ms: 0, simMs: 0, drawMs: 0, workMs: 0 };
+  private perfGaps: number[] = [];
+  private perfSim = 0;
+  private perfDraw = 0;
+  private perfWork = 0;
   private running = false;
   private frames = 0;
   private lastSave = 0;
@@ -598,6 +604,12 @@ export class Game3D {
     this.loadWorld(world);
   }
 
+  /** Take a world that has been made elsewhere (in steps, with a progress bar) and show it. */
+  adoptWorld(world: World): void {
+    prepareRealisticWorld(world);
+    this.loadWorld(world);
+  }
+
   save(): boolean {
     try {
       localStorage.setItem(SAVE_KEY, JSON.stringify(this.world));
@@ -712,6 +724,11 @@ export class Game3D {
 
   private frame(now: number): void {
     if (!this.running) return;
+    const frameStart = performance.now();
+    if (this.last > 0) {
+      this.perfGaps.push(now - this.last);
+      if (this.perfGaps.length > 120) this.perfGaps.shift();
+    }
     const dt = Math.min(0.1, (now - this.last) / 1000);
     this.last = now;
     this.frames += 1;
@@ -719,11 +736,13 @@ export class Game3D {
 
     this.acc += dt * 1000 * this.speed;
     let ticks = 0;
+    const simStart = performance.now();
     while (this.acc >= TICK_MS && ticks < 40) {
       step(this.world);
       this.acc -= TICK_MS;
       ticks += 1;
     }
+    this.perfSim += performance.now() - simStart;
     if (this.speed === 0) this.acc = 0;
 
     if (this.showcase) this.updateShowcase(dt);
@@ -746,7 +765,23 @@ export class Game3D {
     this.updateRings();
     this.updateSpots();
     this.drainLog();
+    const drawStart = performance.now();
     this.draw();
+    this.perfDraw += performance.now() - drawStart;
+    this.perfWork += performance.now() - frameStart;
+    if (this.frames % 30 === 0 && this.perfGaps.length > 10) {
+      const gaps = [...this.perfGaps].sort((a, b) => a - b);
+      const avg = gaps.reduce((a, b) => a + b, 0) / gaps.length;
+      this.perf.avgMs = avg;
+      this.perf.fps = 1000 / avg;
+      this.perf.p95Ms = gaps[Math.min(gaps.length - 1, Math.floor(gaps.length * 0.95))];
+      this.perf.simMs = this.perfSim / 30;
+      this.perf.drawMs = this.perfDraw / 30;
+      this.perf.workMs = this.perfWork / 30;
+      this.perfSim = 0;
+      this.perfDraw = 0;
+      this.perfWork = 0;
+    }
 
     if (!this.demo && !this.showcase && now - this.lastSave > 20000) this.save();
 

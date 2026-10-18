@@ -315,8 +315,9 @@ Money
 #### 7.00 Release 0.14: the world first
 - [x] Layered world generator: land and ocean, mountain ranges, rivers and lakes (new: one-tile rivers from the coast through lowland, each ending in a small lake), land cover, then towns, nodes, corridors, scenery
 - [x] Natural corridors between neighbouring towns (sim/corridors.ts): the cheapest route over the land, crossing a range at its lowest point (the pass) and water where it is narrow; nodes and trees keep off them
-- [ ] Passes carved into the mountains (today a pass is a reserved route a road tunnels through)
-- [~] Claim map: every tile records what owns it; every placement checked against true footprint plus a clearance ring
+- [x] Passes carved into the mountains: where a corridor crosses a range the ridge is lowered to open ground and the shoulders eased (generated worlds; Map 1 keeps its own)
+- [x] Claim map (sim/claims.ts): one answer to what holds a tile, in order of strength; tested against placeError on every tile of a world
+- [x] Claim map (old line): every tile records what owns it; every placement checked against true footprint plus a clearance ring
 - [x] Towns reserve their full growth footprint and buffer on day one; cities, towns, harbours, canals sited on good land
 - [x] Nodes kept 3+ tiles from every town's grown footprint and clear of airport pads (hinterland clustering, rivers and passes still to do)
 - [ ] Nodes in the outskirts as a hinterland per town, outside growth zones, clear of rivers and passes
@@ -325,7 +326,8 @@ Money
 - [x] Bigger, more spread-out map: Large 384 wide (about 4x the tiles) in 0.14, world-size choice at new game (Small 192, Medium 288, Large 384), frame-time readout to measure on Chris's machine; Huge 576, Giant 768, Enormous 1,152 later with chunking, worker and the .exe (size table in 05-desktop-version.md)
 - [x] Tests: generator over many seeds, placement never touches other objects, growth to max with a built-up map loses nothing; Map 1 re-checked
 - [x] Towns blend: each town has at most one partner (nearest, mutual, close, 40% of pairs) whose streets meet in the middle; no town is ever surrounded by a city; new worlds only
-- [ ] Joined towns work together: shared variety and demand, one road network, districts that serve both
+- [x] Joined towns work together (sim/world.ts): a partner earns 20% of what the other's sales earn in growth, plus 10% for each level it is behind (up to +30%), the variety of goods sold to either counts for both, and a metro area (both level 3+) sells 2% better per level. Each stays a town: own name, market, freight dock and districts. Shown in the town menu. Tests in joined.test.ts
+- [ ] Dominance: a much bigger partner pulls the smaller one into a county-and-city arrangement (waiting on Chris's rules)
 - [ ] World generator version stored in saves; old saves keep their map
 - [x] Bump src/version.ts (it still says 0.12 although 0.13 shipped)
 

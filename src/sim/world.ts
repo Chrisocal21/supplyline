@@ -10,6 +10,7 @@ import {
   LEVEL_CAP,
   LEVEL_SPEED,
   MARKET_DEMAND,
+  MOUNTAIN_ELEV,
   MAX_LEVEL,
   NODE_QUALITY,
   BUILD_SLOPE,
@@ -46,7 +47,8 @@ import {
   type VehicleKind,
 } from './defs';
 import { generateFeatures, type FixedPlace, type Place, type Region, type ResourceNode, type Tile } from './features';
-import { civicFootprint, footprint, plotCount, streetReach, townLayout, type TownLayout } from './townlayout';
+import { corridorTiles } from './corridors';
+import { blendPartner, civicFootprint, footprint, plotCount, streetReach, townLayout, type TownLayout } from './townlayout';
 import { generateLand } from './mapgen';
 import { checkQuests } from './quests';
 import { stepBank, type BankState } from './bank';
@@ -385,9 +387,15 @@ export function wrapDx(world: World, from: number, to: number): number {
   return d;
 }
 
-export function createWorld(seed = Math.floor(Math.random() * 1e9), width = 192, height = 64): World {
+/**
+ * Make a generated world one step at a time. It yields what it is about to do, before it does it, so a screen can show
+ * progress between the steps: the land, then the towns, rivers and resources.
+ */
+export function* worldSteps(seed = Math.floor(Math.random() * 1e9), width = 192, height = 64): Generator<string, World, void> {
+  yield 'Shaping the land';
   const land = generateLand(width, height, seed);
   const world = createBlankWorld(width, height, land.terrain, seed, land.elev);
+  yield 'Placing towns, rivers and resources';
   const f = generateFeatures(land.terrain, width, height, seed, land.elev);
   world.regions = f.regions;
   world.regionMap = f.regionMap;
@@ -395,11 +403,48 @@ export function createWorld(seed = Math.floor(Math.random() * 1e9), width = 192,
   world.nodes = f.nodes;
   world.layout = NODE_LAYOUT;
   world.blend = true;
+  linkPartners(world);
+  yield 'Cutting passes through the mountains';
+  carvePasses(world);
   for (const p of world.places) {
     addDock(world, p, 'market');
     if (p.level >= 2) addDock(world, p, 'freight');
   }
   return world;
+}
+
+/**
+ * Cut a pass wherever a natural route between towns (see corridors.ts) crosses a mountain: the ridge is lowered to open
+ * ground along the route, and its shoulders are eased, so a road or railway runs through the range on the level and not
+ * only by tunnel. Returns how many tiles were opened. Done to generated worlds; a hand-made map keeps its own mountains.
+ */
+export function carvePasses(world: World): number {
+  const route = corridorTiles(world);
+  const W = world.width;
+  let opened = 0;
+  for (const k of route) {
+    if (world.terrain[k] !== 'mountain') continue;
+    world.terrain[k] = 'grass';
+    world.elev[k] = Math.min(world.elev[k], MOUNTAIN_ELEV - 12);
+    opened += 1;
+    const x = k % W;
+    const y = (k - x) / W;
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const ny = y + dy;
+      if (ny < 0 || ny >= world.height) continue;
+      const n = ny * W + ((((x + dx) % W) + W) % W);
+      if (world.terrain[n] === 'mountain' && !route.has(n)) world.elev[n] = Math.min(world.elev[n], MOUNTAIN_ELEV + 14);
+    }
+  }
+  return opened;
+}
+
+export function createWorld(seed = Math.floor(Math.random() * 1e9), width = 192, height = 64): World {
+  const steps = worldSteps(seed, width, height);
+  for (;;) {
+    const r = steps.next();
+    if (r.done) return r.value;
+  }
 }
 
 /** A world made by hand: the land, its heights, its towns and its resources, all fixed. See src/maps. */
@@ -461,6 +506,7 @@ export function createWorldFromMap(map: MapData): World {
   }
   world.layout = NODE_LAYOUT;
   world.blend = true;
+  linkPartners(world);
   world.mapId = map.id;
   for (const p of world.places) {
     addDock(world, p, 'market');
@@ -1127,7 +1173,7 @@ export function unitPrice(world: World, site: Site, good: Good): number {
   const fill = stockOf(site, good) / Math.max(1, siteCap(world, site));
   const taste = place?.taste?.[good] ?? 1;
   const swing = world.events.find((e) => e.good === good && e.until > world.tick)?.mult ?? 1;
-  return GOODS[good].price * SALE_MULT * taste * swing * (place ? townPriceMult(place, good) : 1) * (1 + 0.12 * (level - 1)) * Math.min(1.3, Math.max(0.4, 1.3 - fill));
+  return GOODS[good].price * SALE_MULT * taste * swing * (place ? townPriceMult(place, good) * metroBonus(world, place) : 1) * (1 + 0.12 * (level - 1)) * Math.min(1.3, Math.max(0.4, 1.3 - fill));
 }
 
 // ---- push / pull ----
@@ -1540,8 +1586,7 @@ function stepSite(world: World, site: Site): void {
 export function readyToGrow(place: Place): boolean {
   const next = TOWN_LEVELS[place.level];
   if (!next) return false;
-  const kinds = GOOD_LIST.filter((g) => (place.delivered[g] ?? 0) > 0).length;
-  return place.growth >= next.growth && kinds >= place.level;
+  return place.growth >= next.growth && growthKinds(place) >= place.level;
 }
 
 /** A town does not grow by itself: once it has earned it, the player is told, and finishes the upgrade with growTown. */
@@ -1616,8 +1661,37 @@ export function growTown(world: World, placeId: number): string | null {
   return null;
 }
 
+/** Share of a town's growth that its partner also earns, and how much more the smaller of a joined pair catches up. */
+export const JOIN_SHARE = 0.2;
+export const JOIN_CATCH_UP = 0.1;
+
+/** Pair each town with the one it has grown into (see blendPartner), once, when the world is made. */
+export function linkPartners(world: World): void {
+  for (const p of world.places) {
+    const q = blendPartner(world, p);
+    if (q) p.partnerId = q.id;
+    else delete p.partnerId;
+  }
+}
+
+/** The town this one has grown into, if any. Two towns that have joined stay two towns: their own names, markets and districts. */
+export function partnerOf(world: World, place: Place): Place | undefined {
+  return place.partnerId ? world.places.find((q) => q.id === place.partnerId) : undefined;
+}
+
+/** How many different goods count toward a town's growth: what was sold to it, and half of what was sold to its partner. */
+export function growthKinds(place: Place): number {
+  return GOOD_LIST.filter((g) => (place.delivered[g] ?? 0) > 0 || (place.partnerDelivered?.[g] ?? 0) > 0).length;
+}
+
+/** A joined pair is a metro area once both have reached a level 3 town: the pair sell a little better together. */
+export function metroBonus(world: World, place: Place): number {
+  const q = partnerOf(world, place);
+  return q && place.level >= 3 && q.level >= 3 ? 1 + 0.02 * Math.min(place.level, q.level) : 1;
+}
+
 /** A town dock buys `amount` of a good: money in, and the town grows. */
-function sell(world: World, dock: Site, g: Good, amount: number): number {
+export function sell(world: World, dock: Site, g: Good, amount: number): number {
   const place = placeOf(world, dock);
   addStock(dock, g, amount);
   if (!place) return 0;
@@ -1626,8 +1700,18 @@ function sell(world: World, dock: Site, g: Good, amount: number): number {
   world.earned += gain;
   world.delivered[g] = (world.delivered[g] ?? 0) + amount;
   place.delivered[g] = (place.delivered[g] ?? 0) + amount;
-  place.growth += amount * GOODS[g].price * townGrowthMult(place);
+  const earned = amount * GOODS[g].price * townGrowthMult(place);
+  place.growth += earned;
   checkTown(world, place);
+  // A town that has grown into another shares what it earns: the smaller of the two catches up faster, and the variety of
+  // goods sold to either counts for both. Each stays a town of its own.
+  const mate = partnerOf(world, place);
+  if (mate) {
+    const behind = Math.max(0, Math.min(3, place.level - mate.level));
+    mate.growth += earned * (JOIN_SHARE + JOIN_CATCH_UP * behind);
+    (mate.partnerDelivered ??= {})[g] = (mate.partnerDelivered[g] ?? 0) + amount;
+    checkTown(world, mate);
+  }
   return gain;
 }
 

@@ -38,6 +38,10 @@ import {
   buyError,
   buyOptions,
   destinationsOf,
+  growthKinds,
+  worldSteps,
+  metroBonus,
+  partnerOf,
   fleetOf,
   inboundTo,
   HISTORY_JOBS,
@@ -184,6 +188,14 @@ export class HudScene extends Phaser.Scene {
   private rightInset = 0;
   private minimap!: Minimap;
   private miniRect: { x: number; y: number; w: number; h: number } | null = null;
+  /** The frame-time readout (F3): how the game is running on this machine. */
+  private perfOn = (() => {
+    try {
+      return !!localStorage.getItem('sl-perf');
+    } catch {
+      return false;
+    }
+  })();
   private minimapOn = (() => {
     try {
       return !localStorage.getItem('sl-minimap-off');
@@ -266,6 +278,7 @@ export class HudScene extends Phaser.Scene {
     kb.on('keydown-N', () => this.nextProblem());
     kb.on('keydown-R', () => this.game3d.rotatePlacement());
     kb.on('keydown-M', () => !this.title && this.toggleMinimap());
+    kb.on('keydown-F3', () => this.togglePerf());
     kb.on('keydown-O', () => !this.title && this.openGraphics());
     kb.on('keydown-L', () => !this.title && this.openSavesFromKey());
     kb.on('keydown-C', () => !this.title && this.pickToolKey('route'));
@@ -419,6 +432,38 @@ export class HudScene extends Phaser.Scene {
     this.dash = null;
   }
 
+  private togglePerf(): void {
+    this.perfOn = !this.perfOn;
+    try {
+      if (this.perfOn) localStorage.setItem('sl-perf', '1');
+      else localStorage.removeItem('sl-perf');
+    } catch {
+      // No storage: it just resets next time.
+    }
+    this.toasts.push({ text: this.perfOn ? 'Frame readout on (F3)' : 'Frame readout off', until: this.time.now + 1600 });
+  }
+
+  /** The frame-time readout: frames a second, how long a frame takes, and what the world is. Green is smooth. */
+  private perfReadout(W: number): void {
+    if (!this.perfOn || this.title) return;
+    const im = this.im;
+    const g = this.game3d;
+    const p = g.perf;
+    const w = g.world;
+    const fps = Math.round(p.fps);
+    const color = fps >= 55 ? COLORS.good : fps >= 30 ? COLORS.warn : COLORS.bad;
+    const lines = [
+      `${fps} fps   ${p.avgMs.toFixed(1)} ms a frame   worst 1 in 20: ${p.p95Ms.toFixed(1)} ms`,
+      `sim ${p.simMs.toFixed(1)} ms   draw ${p.drawMs.toFixed(1)} ms   busy ${p.workMs.toFixed(1)} ms`,
+      `world ${w.width} x ${w.height}   ${w.places.length} towns   ${w.sites.length} buildings   ${w.vehicles.length} vehicles`,
+    ];
+    const bw = 330;
+    const x = W - bw - 12;
+    const y = TOP + 8;
+    im.rect(2, x, y, bw, 62, 0x0b1118, 0.82, 10, color, 0.8);
+    lines.forEach((t, i) => im.text(`pf${i}`, t, x + 10, y + 8 + i * 17, { size: 11, bold: i === 0, color: i === 0 ? color : COLORS.muted, layer: 3 }));
+  }
+
   private toggleMinimap(): void {
     this.minimapOn = !this.minimapOn;
     try {
@@ -551,6 +596,7 @@ export class HudScene extends Phaser.Scene {
     this.miniRect = null;
     TOP = this.topBarHeight(W);
     this.topBar(W);
+    this.perfReadout(W);
     const growing = !this.sheet && !g.draft && !this.saves ? this.pendingGrowth() : undefined;
     if (g.canGoBack && !this.sheet && !this.saves && !this.graphicsOpen && this.dash === null) this.backButton(W, H);
     if (this.graphicsOpen) {
@@ -863,6 +909,7 @@ export class HudScene extends Phaser.Scene {
       { id: 'guide', label: 'How to play', key: 'H', note: 'The guide to every building', on: this.sheet === 'guide', icon: glyph('?'), act: () => this.toggleSheet('guide') },
       { id: 'saves', label: 'Save / Load', key: 'L', note: 'Save slots and files', on: this.saves === 'manage', icon: glyph('S'), act: () => this.openSavesFromKey() },
       { id: 'gfx', label: 'Graphics', key: 'O', note: 'Quality and lighting', on: this.graphicsOpen, icon: glyph('O'), act: () => this.openGraphics() },
+      { id: 'perf', label: this.perfOn ? 'Frame readout: on' : 'Frame readout: off', key: 'F3', note: 'Frames a second and frame time', on: this.perfOn, icon: glyph('F'), act: () => this.togglePerf() },
       { id: 'mini', label: this.minimapOn ? 'Minimap: on' : 'Minimap: off', key: 'M', note: 'The world map in the corner', on: this.minimapOn, icon: glyph('M'), act: () => this.toggleMinimap() },
       { id: 'new', label: 'New world', key: '', note: 'Start again on a fresh map', on: false, icon: glyph('+'), act: () => this.openSaves('new') },
     ];
@@ -906,7 +953,7 @@ export class HudScene extends Phaser.Scene {
       im.line(4, x + pad, by, x + w - pad, by, COLORS.line, 1, 1);
       im.text('menuKeysT', 'KEYBOARD', x + pad, by + 10, { size: 11, bold: true, color: COLORS.accent, layer: 4 });
       const groups: [string, [string, string][]][] = [
-        ['Camera', [['W A S D', 'Move'], ['Q / E', 'Turn'], ['Wheel', 'Zoom'], ['Right-drag', 'Tilt and turn'], ['M', 'Minimap']]],
+        ['Camera', [['W A S D', 'Move'], ['Q / E', 'Turn'], ['Wheel', 'Zoom'], ['Right-drag', 'Tilt and turn'], ['M', 'Minimap'], ['F3', 'Frame readout']]],
         ['Build', [['Tab', 'Next category'], ['1 - 9', 'Pick a card'], ['R', 'Rotate building'], ['C / X', 'Road / Demolish'], ['Enter / Bksp', 'Finish / undo bend']]],
         ['Game', [['Space', 'Pause'], ['- / +', 'Slower / faster'], ['U', 'Upgrade selected'], ['N', 'Next problem'], ['Esc', 'Close / menu']]],
       ];
@@ -999,8 +1046,8 @@ export class HudScene extends Phaser.Scene {
 
   /** The world size window: which kind of world a new game starts on. 'start' follows the title screen and cannot be cancelled. */
   private sizePick: 'start' | 'menu' | null = null;
-  /** The size being built: the window shows a message for a moment so the screen does not look frozen. */
-  private building: string | null = null;
+  /** The world being built, step by step, with what it is doing now. The screen repaints between steps so the bar moves. */
+  private building: { name: string; step: number; total: number; label: string } | null = null;
 
   /** A new game: ask which world first. */
   private startNewWorld(): void {
@@ -1009,17 +1056,43 @@ export class HudScene extends Phaser.Scene {
   }
 
   private beginWorld(id: WorldSizeId): void {
+    if (this.building) return;
     const def = WORLD_SIZES.find((q) => q.id === id)!;
-    this.building = def.label;
-    // Let one frame show the message before the world is built, which takes a moment on the bigger sizes.
-    setTimeout(() => {
-      this.game3d.newWorld(undefined, id);
+    const g = this.game3d;
+    const done = (): void => {
       this.sizePick = null;
       this.building = null;
       this.activeTab = 'select';
-      this.game3d.speed = 1;
+      g.speed = 1;
       this.toasts.push({ text: `New ${def.label} world started`, until: this.time.now + 2500 });
-    }, 60);
+    };
+    if (id === 'map1') {
+      this.building = { name: def.label, step: 0, total: 1, label: 'Building the terrain, roads and trees' };
+      setTimeout(() => {
+        g.newWorld(undefined, 'map1');
+        done();
+      }, 60);
+      return;
+    }
+    const total = 4;
+    const steps = worldSteps(Math.floor(Math.random() * 1e9), def.width, def.height);
+    let step = 0;
+    const next = (): void => {
+      const r = steps.next();
+      if (r.done) {
+        this.building = { name: def.label, step: 3, total, label: 'Painting the ground, raising the terrain and planting trees (the longest step)' };
+        setTimeout(() => {
+          g.adoptWorld(r.value);
+          done();
+        }, 60);
+        return;
+      }
+      this.building = { name: def.label, step, total, label: r.value };
+      step += 1;
+      setTimeout(next, 60);
+    };
+    this.building = { name: def.label, step: 0, total, label: 'Starting' };
+    setTimeout(next, 30);
   }
 
   private sizeModal(W: number, H: number): void {
@@ -1032,14 +1105,25 @@ export class HudScene extends Phaser.Scene {
     const inner = w - pad * 2;
     const rowH = 74;
     const cancel = this.sizePick === 'menu' && !this.building;
-    const h = 96 + WORLD_SIZES.length * (rowH + 8) + (cancel ? 56 : 14) + pad;
+    const h = this.building ? 96 + 130 + pad : 96 + WORLD_SIZES.length * (rowH + 8) + (cancel ? 56 : 14) + pad;
     const y = Math.max(TOP + 6, (H - h) / 2);
     im.rect(4, x, y, w, h, COLORS.panel, 1, 18, COLORS.accent, 1, 2);
     let cy = y + pad;
-    im.text('szT', this.building ? `Building a ${this.building} world...` : 'Choose your world', x + w / 2, cy, { size: 21, bold: true, align: 'center', layer: 4 });
+    im.text('szT', this.building ? `Building a ${this.building.name} world` : 'Choose your world', x + w / 2, cy, { size: 21, bold: true, align: 'center', layer: 4 });
     cy += 32;
-    im.text('szS', this.building ? 'Laying the land, the towns and the resources. One moment.' : 'A bigger world has more land, more towns and longer hauls. You can start another any time.', x + w / 2, cy, { size: 12, color: COLORS.muted, align: 'center', wrap: inner, layer: 4 });
+    im.text('szS', this.building ? 'This takes a few seconds. The picture may pause on the last step.' : 'A bigger world has more land, more towns and longer hauls. You can start another any time. Bigger worlds take a few seconds to build.', x + w / 2, cy, { size: 12, color: COLORS.muted, align: 'center', wrap: inner, layer: 4 });
     cy += 42;
+    if (this.building) {
+      const b = this.building;
+      const bx = x + pad;
+      const by = cy + 20;
+      im.text('szStep', `Step ${Math.min(b.total, b.step + 1)} of ${b.total}`, bx, by, { size: 12, bold: true, color: COLORS.accent, layer: 4 });
+      im.text('szLabel', b.label, bx, by + 20, { size: 14, wrap: inner, layer: 4 });
+      im.rect(4, bx, by + 58, inner, 14, 0x0b1118, 1, 7, COLORS.line, 1);
+      im.rect(4, bx, by + 58, Math.max(14, inner * Math.min(1, (b.step + 0.5) / b.total)), 14, COLORS.accent, 1, 7);
+      im.text('szHint', 'Larger worlds have more land to lay out, so they take longer.', bx, by + 84, { size: 11, color: COLORS.muted, wrap: inner, layer: 4 });
+      return;
+    }
     for (const def of WORLD_SIZES) {
       const tiles = Math.round((def.width * (def.width / 2)) / 1000);
       const hov = !this.building && im.hit(`sz${def.id}`, x + pad, cy, inner, rowH, () => this.beginWorld(def.id), 4);
@@ -2490,8 +2574,13 @@ export class HudScene extends Phaser.Scene {
     cy += 22;
     im.text('twL', `${lv.name}  ·  population ${fmt(lv.pop)}`, x, cy, { size: 12, color: COLORS.muted, layer: 2 });
     cy += 24;
+    const mate = partnerOf(world, p);
+    if (mate) {
+      im.text('twJ', `Joined with ${mate.name}${metroBonus(world, p) > 1 ? '  ·  metro area' : ''}: they share growth and what is sold to either`, x, cy, { size: 11, color: COLORS.good, wrap: w, layer: 2 });
+      cy += 30;
+    }
     if (next) {
-      const kinds = GOOD_LIST.filter((gd) => (p.delivered[gd] ?? 0) > 0).length;
+      const kinds = growthKinds(p);
       im.text('twG', `Growing into a ${next.name}`, x, cy, { size: 12, layer: 2 });
       cy += 20;
       im.bar(2, x, cy + 2, w - 90, 8, p.growth / next.growth, COLORS.good);
@@ -3328,7 +3417,7 @@ export class HudScene extends Phaser.Scene {
     im.line(2, x, cy, x + w, cy, COLORS.line, 1);
     cy += 10;
     if (next) {
-      const kinds = GOOD_LIST.filter((gd) => (p.delivered[gd] ?? 0) > 0).length;
+      const kinds = growthKinds(p);
       im.text('ppGrowH', `GROWING INTO A ${next.name.toUpperCase()}`, x, cy, { size: 11, bold: true, color: COLORS.muted, layer: 2 });
       cy += 20;
       im.bar(2, x, cy + 2, w - 90, 8, p.growth / next.growth, COLORS.good);

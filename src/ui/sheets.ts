@@ -21,7 +21,7 @@ import {
 import { BANK_TIER, DAY_TICKS, bankReport, FUND_FEE, LOAN_RATE, REAL_MONEY_ENABLED, SAVINGS_RATE, bankOf, borrow, creditLimit, deposit, divest, fundValue, invest, netWorth, repay, withdraw } from '../sim/bank';
 import { pathMastered, pathQuestState, questState, tierUnlocks } from '../sim/quests';
 import { buildDistrict, choosePath, districtBoost, districtCost, districtError, districtLevel, districtRevenue, districtSatisfaction, pathError, townUpkeep } from '../sim/town';
-import { dockDemand, isHomePlot, plotTiles, radiusOf, produces, siteCap, stockOf, unitPrice, wants, type Place, type Site, type World } from '../sim/world';
+import { dockDemand, growthKinds, isHomePlot, metroBonus, partnerOf, plotTiles, radiusOf, produces, siteCap, stockOf, unitPrice, wants, type Place, type Site, type World } from '../sim/world';
 import { COLORS, Im } from './imui';
 import { isTouch } from './inputmode';
 
@@ -532,7 +532,7 @@ export class Sheets {
     im.text(`tw-s-${p.id}`, `${radiusOf(p) > 3 ? 'Major city' : lv.name}  ·  ${STYLE_LABEL[p.style]}  ·  population ${fmt(lv.pop * (radiusOf(p) > 3 ? 4 : 1))}`, x + 16, y + 38, { size: 12, color: COLORS.muted, layer: 3 });
 
     const next = TOWN_LEVELS[p.level];
-    const kinds = GOOD_LIST.filter((g) => (p.delivered[g] ?? 0) > 0).length;
+    const kinds = growthKinds(p);
     if (next) {
       im.bar(3, x + 16, y + 64, w - 160, 8, p.growth / next.growth, COLORS.good);
       im.text(`tw-g-${p.id}`, `${fmt(p.growth)} / ${fmt(next.growth)}`, x + w - 16, y + 59, { size: 12, color: COLORS.muted, align: 'right', layer: 3 });
@@ -604,7 +604,7 @@ export class Sheets {
     const price = (g: Good): number => (market ? unitPrice(world, market, g) : 0);
     const newKind = (g: Good): number => ((p.delivered[g] ?? 0) === 0 ? 1 : 0);
     const bring = wanted.filter(low).sort((a, b) => newKind(b) - newKind(a) || price(b) - price(a));
-    const kinds = GOOD_LIST.filter((g) => (p.delivered[g] ?? 0) > 0).length;
+    const kinds = growthKinds(p);
     return {
       market,
       bring,
@@ -650,13 +650,15 @@ export class Sheets {
       im.rect(3, x, y, 132, 36, bhov ? 0x243142 : 0x172130, 1, 18, COLORS.line, 1);
       im.text('td-back-t', '‹  All towns', x + 66, y + 9, { size: 14, bold: true, align: 'center', layer: 4 });
       im.text('td-name', p.name, x + 150, y + 4, { size: 24, bold: true, layer: 3 });
-      im.text('td-sub', `${radiusOf(p) > 3 ? 'Major city' : lv.name}  ·  ${STYLE_LABEL[p.style]}  ·  level ${p.level}`, x + 150 + 12 + p.name.length * 13, y + 12, { size: 13, color: COLORS.muted, layer: 3 });
+      const mate = partnerOf(world, p);
+      const joined = mate ? `  ·  joined with ${mate.name}${metroBonus(world, p) > 1 ? ' (metro area)' : ''}` : '';
+      im.text('td-sub', `${radiusOf(p) > 3 ? 'Major city' : lv.name}  ·  ${STYLE_LABEL[p.style]}  ·  level ${p.level}${joined}`, x + 150 + 12 + p.name.length * 13, y + 12, { size: 13, color: COLORS.muted, layer: 3 });
     }
     y += 50;
 
     // Summary: growth, and what the districts earn and cost.
     const next = TOWN_LEVELS[p.level];
-    const kinds = GOOD_LIST.filter((g) => (p.delivered[g] ?? 0) > 0).length;
+    const kinds = growthKinds(p);
     const earn = districtRevenue(world, p);
     const cost = townUpkeep(p);
     if (vis(y, 84)) {

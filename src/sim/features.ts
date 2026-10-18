@@ -50,6 +50,10 @@ export interface Place {
   districts?: Partial<Record<DistrictId, number>>;
   /** Which of the town's district lots (see TownLayout.civic) each district stands on. */
   districtLots?: Partial<Record<DistrictId, number>>;
+  /** The town this one has grown into (see blendPartner): they share growth and variety, but stay two towns. */
+  partnerId?: number;
+  /** Goods delivered to the partner, counted toward this town's variety at half weight (not saved elsewhere). */
+  partnerDelivered?: Stock;
   /** The level at which "ready to grow" was last announced, so it is said once. */
   readyAt?: number;
   /** The ground kept clear for this town's airport (its middle and facing), until the town has one. */
