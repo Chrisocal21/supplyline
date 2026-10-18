@@ -250,6 +250,8 @@ export interface Route {
   seg?: boolean;
   /** A lane between two buildings that runs along stretches laid separately. It owns no ground: only its stretches do. */
   over?: boolean;
+  /** Sea routes only: the biggest ship class the narrowest water on the path takes (0 barge, 1 boat, 2 any). Older saves have none, which means any. */
+  draft?: number;
   /** Tiles from one site to the other, inclusive. */
   path: Tile[];
 }
@@ -1833,6 +1835,7 @@ function homeEnd(route: Route, v: Vehicle): 0 | -1 {
 /** Whether this vehicle may work this route: the right kind of route, its home on it, and its home selling to the other end. */
 export function laneOk(world: World, v: Vehicle, route: Route): boolean {
   if (route.free || route.mode !== VEHICLE_DEFS[v.kind].mode) return false;
+  if (route.mode === 'sea' && (VEHICLE_DEFS[v.kind].draft ?? 0) > (route.draft ?? 2)) return false;
   if (route.fromSiteId !== v.homeId && route.toSiteId !== v.homeId) return false;
   const home = siteById(world, v.homeId);
   const other = siteById(world, route.fromSiteId === v.homeId ? route.toSiteId : route.fromSiteId);
@@ -2383,11 +2386,11 @@ export function yardSpot(world: World, place: Place): Tile | null {
 const ORTHO: [number, number][] = [[1, 0], [-1, 0], [0, 1], [0, -1]];
 const SEA_STEPS: [number, number][] = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]];
 
-/** Whether a water tile belongs to open sea, not a pond: it opens out to at least 150 water tiles. */
-function openSea(world: World, x: number, y: number): boolean {
+/** Whether a water tile belongs to a body of water of at least this many tiles: a river, lake or sea, not a pond. */
+function waterBody(world: World, x: number, y: number, size: number): boolean {
   const seen = new Set<number>([y * world.width + x]);
   const queue: Tile[] = [{ x, y }];
-  for (let q = 0; q < queue.length && queue.length < 150; q++) {
+  for (let q = 0; q < queue.length && queue.length < size; q++) {
     const c = queue[q];
     for (const [dx, dy] of ORTHO) {
       const nx = wrapX(world, c.x + dx);
@@ -2398,22 +2401,60 @@ function openSea(world: World, x: number, y: number): boolean {
       queue.push({ x: nx, y: ny });
     }
   }
-  return queue.length >= 150;
+  return queue.length >= size;
 }
 
-/** The water tile a port's ships use: open sea right beside it, or null when the port is not on the coast. */
+const PORT_WATER = 40;
+
+const clearances = new WeakMap<object, Uint8Array>();
+
+/** How wide the water is around a tile: 0 beside land, 1 with a tile of water all round, 2 with two. A ship needs at least its draft. */
+function clearance(world: World, x: number, y: number): number {
+  let grid = clearances.get(world.terrain);
+  if (!grid) {
+    grid = new Uint8Array(world.width * world.height).fill(255);
+    clearances.set(world.terrain, grid);
+  }
+  const k = y * world.width + x;
+  if (grid[k] !== 255) return grid[k];
+  let c = 0;
+  for (let r = 1; r <= 2; r++) {
+    let all = true;
+    for (let dy = -r; dy <= r && all; dy++) {
+      for (let dx = -r; dx <= r; dx++) {
+        if (terrainAt(world, wrapX(world, x + dx), y + dy) !== 'water') {
+          all = false;
+          break;
+        }
+      }
+    }
+    if (!all) break;
+    c = r;
+  }
+  grid[k] = c;
+  return c;
+}
+
+/** The water tile a port's ships use: the widest water right beside it (sea, lake or river), or null when the port is not at the water's edge. */
 export function portWater(world: World, x: number, y: number): Tile | null {
+  let best: Tile | null = null;
+  let bc = -1;
   for (const [dx, dy] of ORTHO) {
     const nx = wrapX(world, x + dx);
     const ny = y + dy;
-    if (terrainAt(world, nx, ny) === 'water' && openSea(world, nx, ny)) return { x: nx, y: ny };
+    if (terrainAt(world, nx, ny) !== 'water' || !waterBody(world, nx, ny, PORT_WATER)) continue;
+    const c = clearance(world, nx, ny);
+    if (c > bc) {
+      bc = c;
+      best = { x: nx, y: ny };
+    }
   }
-  return null;
+  return best;
 }
 
 /** A Port stands on flat dry ground at the water's edge, away from any town street. */
 function portError(world: World, x: number, y: number): string | null {
-  if (!portWater(world, x, y)) return 'A Port goes on the coast, right at the edge of open sea';
+  if (!portWater(world, x, y)) return 'A Port goes at the water\'s edge: sea, lake or river';
   // The quay is level: only the land beside it counts, not the drop into the water.
   const e = elevAt(world, x, y);
   for (const [dx, dy] of ORTHO) {
@@ -2440,7 +2481,7 @@ export function portSpot(world: World, near: Tile, reach = 30): Tile | null {
 }
 
 /** The tiles a ship sails: out of one port, across open water the short way, and in to the other. Null when the seas do not join. */
-export function seaPath(world: World, a: Tile, b: Tile): Tile[] | null {
+export function seaPath(world: World, a: Tile, b: Tile, draft = 0): Tile[] | null {
   const start = portWater(world, a.x, a.y);
   const goal = portWater(world, b.x, b.y);
   if (!start || !goal) return null;
@@ -2457,6 +2498,8 @@ export function seaPath(world: World, a: Tile, b: Tile): Tile[] | null {
       const nx = wrapX(world, cx + dx);
       const ny = cy + dy;
       if (terrainAt(world, nx, ny) !== 'water') continue;
+      // A deep-draft ship keeps to wide water, except in the harbours at either end.
+      if (draft > 0 && clearance(world, nx, ny) < draft && Math.max(Math.abs(nx - start.x), Math.abs(ny - start.y)) > 3 && Math.max(Math.abs(nx - goal.x), Math.abs(ny - goal.y)) > 3) continue;
       // Cutting a corner of land is not allowed: both tiles beside a diagonal step must be water.
       if (dx && dy && (terrainAt(world, wrapX(world, cx + dx), cy) !== 'water' || terrainAt(world, cx, ny) !== 'water')) continue;
       const nk = key(nx, ny);
@@ -2472,6 +2515,15 @@ export function seaPath(world: World, a: Tile, b: Tile): Tile[] | null {
   return [{ x: a.x, y: a.y }, ...water, { x: b.x, y: b.y }];
 }
 
+/** The path for the biggest ships that can sail between two ports, and which class that is. Null when no water joins them at all. */
+export function bestSeaPath(world: World, a: Tile, b: Tile): { path: Tile[]; draft: number } | null {
+  for (const draft of [2, 1, 0]) {
+    const path = seaPath(world, a, b, draft);
+    if (path) return { path, draft };
+  }
+  return null;
+}
+
 /** Why two ports cannot be linked, or null. */
 export function seaError(world: World, aId: number, bId: number): string | null {
   const a = siteById(world, aId);
@@ -2480,9 +2532,9 @@ export function seaError(world: World, aId: number, bId: number): string | null 
   if (!a || !b || !SITE_DEFS[a.kind].port || !SITE_DEFS[b.kind].port) return 'Sea routes join two ports';
   if (a.id === b.id) return 'Pick a different port to sail to';
   if (world.routes.some((r) => r.mode === 'sea' && ((r.fromSiteId === a.id && r.toSiteId === b.id) || (r.fromSiteId === b.id && r.toSiteId === a.id)))) return 'Those ports are already linked';
-  const path = seaPath(world, a, b);
-  if (!path) return 'No open sea joins those two ports';
-  const cost = path.length * SEA_COST_PER_TILE;
+  const found = bestSeaPath(world, a, b);
+  if (!found) return 'No water joins those two ports';
+  const cost = found.path.length * SEA_COST_PER_TILE;
   return world.money < cost ? `Need $${cost}` : null;
 }
 
@@ -2492,9 +2544,9 @@ export function createSeaRoute(world: World, aId: number, bId: number): string |
   if (err) return err;
   const a = siteById(world, aId)!;
   const b = siteById(world, bId)!;
-  const path = seaPath(world, a, b)!;
+  const { path, draft } = bestSeaPath(world, a, b)!;
   world.money -= path.length * SEA_COST_PER_TILE;
-  world.routes.push({ id: world.nextId++, mode: 'sea', fromSiteId: a.id, toSiteId: b.id, path });
+  world.routes.push({ id: world.nextId++, mode: 'sea', fromSiteId: a.id, toSiteId: b.id, path, draft });
   return null;
 }
 
@@ -3009,7 +3061,7 @@ export function buyOptions(world: World, siteId: number): VehicleKind[] {
   if (def.airport) return ['plane'];
   const out: VehicleKind[] = [];
   if (!def.station) out.push('boxtruck');
-  if (def.port) out.push('boat');
+  if (def.port) out.push('barge', 'boat');
   if (def.station || hasRail(world, siteId)) out.push('train');
   return out;
 }
@@ -3020,7 +3072,9 @@ export function buyError(world: World, siteId: number, kind: VehicleKind): strin
   if (!siteById(world, siteId)) return 'Select a building first';
   if (!buyOptions(world, siteId).includes(kind)) return 'This building cannot run that vehicle';
   if (def.tier > world.tier) return `${def.label} unlocks at Tier ${def.tier}`;
-  if (world.money < def.cost) return `Need $${def.cost}`;
+  const shipLanes = world.routes.filter((r) => r.mode === 'sea' && (r.fromSiteId === siteId || r.toSiteId === siteId));
+  if (def.mode === 'sea' && shipLanes.length > 0 && !shipLanes.some((r) => (def.draft ?? 0) <= (r.draft ?? 2))) return `The water from this port is too narrow for a ${def.label}`;
+  if (world.money < def.cost) return `Need ${def.cost}`;
   return null;
 }
 
@@ -3071,6 +3125,8 @@ export function upgradeVehicleError(world: World, vehicleId: number): string | n
   const next = VEHICLE_DEFS[v.kind].next;
   if (!next) return 'Already the top class';
   if (VEHICLE_DEFS[next].tier > world.tier) return `${VEHICLE_DEFS[next].label} unlocks at Tier ${VEHICLE_DEFS[next].tier}`;
+  const lane = v.routeId ? world.routes.find((r) => r.id === v.routeId) : undefined;
+  if (lane && lane.mode === 'sea' && (VEHICLE_DEFS[next].draft ?? 0) > (lane.draft ?? 2)) return `This route's water is too narrow for a ${VEHICLE_DEFS[next].label}`;
   const cost = upgradeVehicleCost(v.kind);
   return world.money < cost ? `Need $${cost.toLocaleString('en-US')}` : null;
 }

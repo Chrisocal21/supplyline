@@ -16,7 +16,7 @@ export type Good = (typeof GOOD_IDS)[number];
 export type Stock = Partial<Record<Good, number>>;
 export type Terrain = 'water' | 'grass' | 'forest' | 'mountain' | 'ice';
 export type NodeKind = 'forest' | 'farmland' | 'quarry' | 'mine' | 'coal' | 'clay' | 'pasture' | 'orchard' | 'coffee' | 'mango' | 'oil';
-export type VehicleKind = 'boxtruck' | 'bigtruck' | 'rig' | 'convoy' | 'train' | 'heavytrain' | 'plane' | 'jet' | 'boat' | 'freighter' | 'containership';
+export type VehicleKind = 'boxtruck' | 'bigtruck' | 'rig' | 'convoy' | 'train' | 'heavytrain' | 'plane' | 'jet' | 'barge' | 'boat' | 'freighter' | 'containership';
 export type Category = 'production' | 'processing' | 'manufacturing' | 'heavy' | 'logistics' | 'vehicles';
 
 export const GOOD_LIST: Good[] = [...GOOD_IDS];
@@ -311,6 +311,8 @@ export interface VehicleDef {
   implemented: boolean;
   /** The class this one trades up to. */
   next?: VehicleKind;
+  /** Ships only: how wide a channel it needs. 0 sails any river or lake, 1 needs a wide channel, 2 needs open sea. */
+  draft?: number;
 }
 
 export const VEHICLE_DEFS: Record<VehicleKind, VehicleDef> = {
@@ -321,13 +323,14 @@ export const VEHICLE_DEFS: Record<VehicleKind, VehicleDef> = {
   train: { label: 'Freight Train', blurb: 'Huge capacity on its own track. Rails cross roads at level crossings.', mode: 'rail', cost: 1800, tier: 2, capacity: 140, ticksPerTile: 3, implemented: true, next: 'heavytrain' },
   heavytrain: { label: 'Heavy Haul Train', blurb: 'A long unit train for the busiest lines.', mode: 'rail', cost: 5200, tier: 3, capacity: 360, ticksPerTile: 3, implemented: true },
   plane: { label: 'Cargo Plane', blurb: 'Fast, crosses any terrain. Flies between airports.', mode: 'air', cost: 7000, tier: 3, capacity: 60, ticksPerTile: 3, implemented: true, next: 'jet' },
-  boat: { label: 'Cargo Boat', blurb: 'A small coastal freighter. Sails between ports.', mode: 'sea', cost: 2500, tier: 2, capacity: 50, ticksPerTile: 4.5, implemented: true, next: 'freighter' },
-  freighter: { label: 'Freighter', blurb: 'A proper cargo ship with a crane and a hold.', mode: 'sea', cost: 9000, tier: 3, capacity: 160, ticksPerTile: 3.75, implemented: true, next: 'containership' },
-  containership: { label: 'Container Ship', blurb: 'Boxes stacked high. Carries more than any other vehicle.', mode: 'sea', cost: 28000, tier: 4, capacity: 520, ticksPerTile: 3, implemented: true },
+  barge: { label: 'River Barge', blurb: 'Flat and shallow: sails rivers and lakes, and the coast.', mode: 'sea', cost: 900, tier: 2, capacity: 24, ticksPerTile: 5, implemented: true, next: 'boat', draft: 0 },
+  boat: { label: 'Cargo Boat', blurb: 'A small coastal freighter. Needs a wide channel.', mode: 'sea', cost: 2500, tier: 2, capacity: 50, ticksPerTile: 4.5, implemented: true, next: 'freighter', draft: 1 },
+  freighter: { label: 'Freighter', blurb: 'A proper cargo ship with a crane and a hold.', mode: 'sea', cost: 9000, tier: 3, capacity: 160, ticksPerTile: 3.75, implemented: true, next: 'containership', draft: 2 },
+  containership: { label: 'Container Ship', blurb: 'Boxes stacked high. Carries more than any other vehicle.', mode: 'sea', cost: 28000, tier: 4, capacity: 520, ticksPerTile: 3, implemented: true, draft: 2 },
   jet: { label: 'Cargo Jet', blurb: 'A wide-body freighter for the longest hauls.', mode: 'air', cost: 22000, tier: 4, capacity: 220, ticksPerTile: 2.25, implemented: true },
 };
 
-export const VEHICLE_ORDER: VehicleKind[] = ['boxtruck', 'bigtruck', 'rig', 'convoy', 'train', 'heavytrain', 'plane', 'jet', 'boat', 'freighter', 'containership'];
+export const VEHICLE_ORDER: VehicleKind[] = ['boxtruck', 'bigtruck', 'rig', 'convoy', 'train', 'heavytrain', 'plane', 'jet', 'barge', 'boat', 'freighter', 'containership'];
 
 /**
  * The body a road vehicle is built with, set by what it hauls, like real freight: logs and heavy goods ride on flatbeds,

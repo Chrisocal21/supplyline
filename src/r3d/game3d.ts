@@ -153,6 +153,7 @@ const CARGO_AT: Record<VehicleKind, [number, number]> = {
   heavytrain: [0.58, 0.2],
   plane: [0.58, -0.14],
   jet: [0.58, -0.14],
+  barge: [0.3, 0],
   boat: [0.3, 0],
   freighter: [0.3, 0],
   containership: [0.3, 0],
@@ -2703,7 +2704,7 @@ export class Game3D {
   }
 
   /** The vehicles shown on the showroom turntable, in the order of the ladder. */
-  private static readonly SHOWROOM: VehicleKind[] = ['boxtruck', 'bigtruck', 'rig', 'convoy', 'train', 'heavytrain', 'plane', 'jet', 'boat', 'freighter', 'containership'];
+  private static readonly SHOWROOM: VehicleKind[] = ['boxtruck', 'bigtruck', 'rig', 'convoy', 'train', 'heavytrain', 'plane', 'jet', 'barge', 'boat', 'freighter', 'containership'];
 
   /**
    * Set out the ships, the showroom and the conspiracies. `film` is where the vehicle showroom shot starts, in seconds, so the
