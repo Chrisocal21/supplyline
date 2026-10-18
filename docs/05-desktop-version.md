@@ -363,9 +363,27 @@ Farmers Market, Restaurant Row, Heating Depot, Coffee House, Hardware Store and 
 - Growth test: grow every town to max level with a heavily built-up player map; nothing moves or disappears.
 - The hand-made map baker (tools/maps) runs the same checks, and Map 1 is re-checked against them.
 
-### Size
-- Today 288x96. Target for 0.14: roughly 4 times the tiles (about 576x192), more spread out, in the browser using instancing, culling and level of detail. Rendering and sim time must be measured; if the browser cannot hold it, we step the size down for 0.14.
-- Truly huge maps need chunk streaming from disk and the sim in a worker, which come with 0.19 to 0.24.
+### Size (how big can we go; measured from the code, 2026-10-18)
+The world is a globe. `width` is the tile count around the equator, and the pole-to-pole rows are about width / 2 (the code adds polar cap rows). So **doubling the width quadruples the tiles.** The terrain mesh uses 3x3 vertices per tile, and the ground paint texture is budgeted at 4096 pixels around the equator (`paintGlobe` in game3d.ts), so it gets blurrier as width grows. Tile size is fixed in world units (`TILE_UNITS`), so a bigger world means a bigger globe, not smaller tiles.
+
+| Name | Width around | Tiles on the globe | Mesh vertices | Ground paint per tile | Where it can run |
+|---|---|---|---|---|---|
+| Today (random worlds) | 192 | about 18,000 | 166,000 | 16 px | browser |
+| Map 1 | 288 | about 41,000 | 373,000 | 14 px | browser |
+| Large | 384 | about 74,000 (4x today) | 660,000 | 10 px | browser, with culling and instancing |
+| Huge | 576 | about 166,000 (9x) | 1.5 million | 7 px | browser if chunked, comfortable on desktop |
+| Giant | 768 | about 295,000 (16x) | 2.65 million | 5 px | desktop, needs chunked mesh, tiled textures, sim in a worker |
+| Enormous | 1,152 | about 660,000 (36x) | 6 million | 3 px | desktop only, streamed in chunks, sim ticks only the active area |
+| Ceiling | 1,536 to 2,048 | 1.2 to 2.1 million | chunked only | tiled / virtual texturing | desktop, long term; memory and pathfinding become the limit |
+
+Recommendation:
+- **0.14 ships Large (384 wide, about 4x the tiles)** and a world-size choice at new game (Small 192, Medium 288, Large 384). This is safe in the browser and leaves room to measure real frame rate on your machine.
+- **Huge and Giant come with the worker, chunked mesh and the .exe (0.19 to 0.24).**
+- **Enormous is the practical ceiling for a good-feeling game.** Past it, tiles outnumber what a player can ever visit; more land does not make better play unless towns, nodes and travel time scale with it.
+- Density rule: keep about one town per 800 to 1,200 tiles, and scale node hinterlands with it, so a big world is full, not empty.
+- Gameplay needs to grow with size: faster speed steps, auto-routes and fleet screens (the QoL releases) matter more the bigger the world is.
+- True 1:1 Earth at today's tile size would be about 1.2 million tiles around the equator, far past any ceiling. Not a goal.
+- The numbers above come from the code, not a benchmark; headless screenshots cannot measure real GPU frame rate. 0.14 adds an on-screen frame-time readout and we measure each size on Chris's machine before shipping it.
 - Saves record the world generator version: old saves keep their old map and rules; new games use the new generator.
 
 ---
