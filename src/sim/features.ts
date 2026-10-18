@@ -76,6 +76,8 @@ const TILES_PER_TOWN = 1100;
 const TOWN_GAP = 1;
 /** Resource nodes keep this many tiles from any town's fully grown footprint: the outskirts, clear of growth. */
 const NODE_TOWN_BUFFER = 3;
+/** The first town has a forest, field and meadow within this many tiles. */
+const START_REACH = 11;
 
 export interface ResourceNode {
   id: number;
@@ -585,10 +587,12 @@ export function generateFeatures(terrain: Terrain[], width: number, height: numb
   }
   const forestAny = terrain.map((tt, t) => (tt === 'forest' ? t : -1)).filter((t) => t >= 0);
   for (const p of places) {
+    // The first town is where a new game starts: its first forest and fields are close.
+    const radius = p === places[0] ? START_REACH : reach;
     for (const [kind, pool] of [['forest', forestAny], ['farmland', openAny], ['pasture', openAny]] as [NodeKind, number[]][]) {
-      if (nodes.some((n) => n.kind === kind && near(p, n.y * width + n.x) <= reach)) continue;
+      if (nodes.some((n) => n.kind === kind && near(p, n.y * width + n.x) <= radius)) continue;
       const free = pool
-        .filter((t) => near(p, t) <= reach && near(p, t) >= 5 + p.radius - 3 && !nearTown(t, 4) && clear(t) && dry(t) && level(t))
+        .filter((t) => near(p, t) <= radius && near(p, t) >= 5 + p.radius - 3 && !nearTown(t, 4) && clear(t) && dry(t) && level(t))
         .sort((a, b) => near(p, a) - near(p, b));
       if (free.length === 0) continue;
       const t = free[Math.min(free.length - 1, 2)];
@@ -630,21 +634,29 @@ export function generateFeatures(terrain: Terrain[], width: number, height: numb
     }
   }
   const usable = nodes.filter((n) => reachable[idx(n.x, n.y)]);
-  // Every world has clay. It lies on the shore, which towns like too: if none is left within reach, a bed is found on the
-  // dry, level ground nearest a town, still outside every town's growth ground.
-  if (!usable.some((n) => n.kind === 'clay')) {
+  // Every world has every kind of resource. If the buffers and rivers left a kind none within reach, a bed is found on the
+  // dry ground nearest a town, still outside every town's growth ground: clay and orchards near the shore or anywhere, rock
+  // and ore at the foot of a mountain.
+  const nearMountain = (t: number): boolean => {
+    const x = t % width;
+    const y = Math.floor(t / width);
+    for (let dy = -3; dy <= 3; dy++) for (let dx = -3; dx <= 3; dx++) if (terrain[idx(x + dx, Math.max(0, Math.min(height - 1, y + dy)))] === 'mountain') return true;
+    return false;
+  };
+  for (const kind of ['clay', 'quarry', 'mine', 'coal', 'orchard'] as NodeKind[]) {
+    if (usable.some((n) => n.kind === kind)) continue;
+    const want = (t: number): boolean => (kind === 'quarry' || kind === 'mine' || kind === 'coal' ? nearMountain(t) : kind === 'clay' ? waterWithin(t, NODE_DRY + 3) <= NODE_DRY + 3 : true);
     const pool: number[] = [];
     for (let t = 0; t < width * height; t++) {
-      if (!reachable[t] || terrain[t] !== 'grass' || nearTown(t, 4) || !clear(t) || !dry(t) || !level(t, Infinity)) continue;
+      if (!reachable[t] || terrain[t] !== 'grass' || nearTown(t, 4) || !clear(t) || !dry(t) || !want(t)) continue;
       pool.push(t);
     }
     pool.sort((p, q) => townDist(p) - townDist(q));
     const t = pool[Math.min(pool.length - 1, 5)];
-    if (t !== undefined) {
-      const bed: ResourceNode = { id: 0, kind: 'clay', x: t % width, y: Math.floor(t / width), quality: quality(), regionId: regionMap[t] };
-      nodes.push(bed);
-      usable.push(bed);
-    }
+    if (t === undefined) continue;
+    const bed: ResourceNode = { id: 0, kind, x: t % width, y: Math.floor(t / width), quality: quality(), regionId: regionMap[t] };
+    nodes.push(bed);
+    usable.push(bed);
   }
   usable.forEach((n, i) => (n.id = i + 1));
   return { regions, regionMap, places, nodes: usable };

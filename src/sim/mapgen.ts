@@ -142,5 +142,90 @@ export function generateLand(width: number, height: number, seed: number): Land 
     else if (wet[i] > wetCut && e < MOUNTAIN_ELEV - 14) terrain[i] = 'forest';
     else terrain[i] = 'grass';
   }
+  carveRivers(terrain, elev, width, height, seed);
   return { terrain, elev };
+}
+
+/** Rivers only run through lowland: ground no more than this far above the sea. Higher ground would need a deep gorge. */
+const RIVER_RISE = 22;
+
+/**
+ * Rivers and lakes. Each river starts at the coast and runs inland through the lowland, wandering, until the ground rises
+ * or it has gone far enough, and ends in a small lake. They are one tile wide, so a road crosses them by a bridge, and they
+ * are cut before any town or resource is placed, so everything else is laid out around them.
+ */
+function carveRivers(terrain: Terrain[], elev: number[], width: number, height: number, seed: number): void {
+  const idx = (x: number, y: number): number => y * width + ((x % width) + width) % width;
+  const rnd = (a: number, b: number): number => hash3(seed + 77, a, b, 5);
+  const land = (t: number): boolean => terrain[t] === 'grass' || terrain[t] === 'forest';
+  const DIRS: [number, number][] = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+  const starts: number[] = [];
+  let landCount = 0;
+  for (let y = ICE_ROWS + 4; y < height - ICE_ROWS - 4; y++) {
+    for (let x = 0; x < width; x++) {
+      const t = idx(x, y);
+      if (!land(t)) continue;
+      landCount++;
+      if (elev[t] > SEA_LEVEL + 8) continue;
+      if (DIRS.some(([dx, dy]) => terrain[idx(x + dx, y + dy)] === 'water')) starts.push(t);
+    }
+  }
+  const want = Math.max(2, Math.round(landCount / 1100));
+  const used = new Set<number>();
+  let made = 0;
+  for (let k = 0; k < starts.length * 3 && made < want; k++) {
+    const mouth = starts[Math.floor(rnd(k, 1) * starts.length)];
+    if (used.has(mouth)) continue;
+    // Rivers keep apart: no second mouth within a few tiles of another.
+    const mx = mouth % width;
+    const my = Math.floor(mouth / width);
+    let near = false;
+    for (const u of used) if (Math.abs(((u % width) - mx + width * 1.5) % width - width / 2) < 8 && Math.abs(Math.floor(u / width) - my) < 8) near = true;
+    if (near) continue;
+    const length = 8 + Math.floor(rnd(k, 2) * 14);
+    const path: number[] = [mouth];
+    const seen = new Set<number>([mouth]);
+    const waterAt = (t: number): boolean => terrain[t] === 'water';
+    let cur = mouth;
+    let heading = DIRS.findIndex(([dx, dy]) => waterAt(idx((cur % width) + dx, Math.floor(cur / width) + dy)));
+    // Inland is away from the water the mouth touches.
+    heading = heading ^ 1;
+    for (let step = 0; step < length; step++) {
+      const x = cur % width;
+      const y = Math.floor(cur / width);
+      // Mostly straight on, sometimes turning, never back; the gentlest rise wins.
+      const options = DIRS.map(([dx, dy], d) => ({ d, t: idx(x + dx, y + dy), turn: d === heading ? 0 : d === (heading ^ 1) ? 9 : 1 }))
+        .filter((o) => o.turn < 9 && land(o.t) && !seen.has(o.t) && elev[o.t] <= SEA_LEVEL + RIVER_RISE && Math.floor(o.t / width) > ICE_ROWS + 3 && Math.floor(o.t / width) < height - ICE_ROWS - 4)
+        // No braiding: the next tile touches no water but the river itself.
+        .filter((o) => DIRS.every(([dx, dy]) => { const n = idx((o.t % width) + dx, Math.floor(o.t / width) + dy); return n === cur || !waterAt(n) && !path.includes(n) || n === cur; }))
+        .map((o) => ({ ...o, score: o.turn * 0.9 + Math.max(0, elev[o.t] - elev[cur]) * 0.15 + rnd(cur, step + o.d * 13) * 1.4 }))
+        .sort((a, b) => a.score - b.score);
+      if (options.length === 0) break;
+      cur = options[0].t;
+      heading = options[0].d;
+      path.push(cur);
+      seen.add(cur);
+    }
+    if (path.length < 6) continue;
+    for (const t of path) {
+      terrain[t] = 'water';
+      elev[t] = SEA_LEVEL - 3;
+      used.add(t);
+    }
+    // The river rises in a small lake.
+    const head = path[path.length - 1];
+    const hx = head % width;
+    const hy = Math.floor(head / width);
+    const r = 1 + Math.floor(rnd(k, 3) * 2);
+    for (let dy = -r; dy <= r; dy++) {
+      for (let dx = -r; dx <= r; dx++) {
+        if (dx * dx + dy * dy > r * r + 1) continue;
+        const t = idx(hx + dx, hy + dy);
+        if (!land(t) || elev[t] > SEA_LEVEL + RIVER_RISE || Math.floor(t / width) <= ICE_ROWS + 3 || Math.floor(t / width) >= height - ICE_ROWS - 4) continue;
+        terrain[t] = 'water';
+        elev[t] = SEA_LEVEL - 3;
+      }
+    }
+    made++;
+  }
 }
