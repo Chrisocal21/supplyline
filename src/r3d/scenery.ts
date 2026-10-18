@@ -3,7 +3,7 @@ import { corridorTiles } from '../sim/corridors';
 import * as THREE from 'three';
 import type { NodeKind } from '../sim/defs';
 import { tileLonLat } from '../sim/mapgen';
-import { plotTiles, townTiles, type World } from '../sim/world';
+import { plotTiles, townGates, townTiles, type World } from '../sim/world';
 import { HeightField, LAT_SPAN, R, basisMatrix, lonLatToVec } from './geo';
 import { Parts } from './parts';
 import { specialtyNodeProps } from './specialty';
@@ -203,6 +203,8 @@ export class Scenery {
     this.buildTrees();
     this.buildMarkers();
     this.buildPlotMarkers();
+    this.buildGates();
+    this.buildStakes();
     this.buildNodeProps();
   }
 
@@ -279,9 +281,14 @@ export class Scenery {
       return Math.floor(c) + (r() < c - Math.floor(c) ? 1 : 0);
     };
 
-    // Trees keep off the land a town will grow over.
+    // Trees keep off the ground a town covers now. The land it will grow over stays as it is, a little thinner, and is
+    // cleared as the town grows into it.
     const town = new Set<number>();
-    for (const p of w.places) for (const t of townTiles(w, p)) town.add(this.tileIndex(t.x, t.y));
+    const later = new Set<number>();
+    for (const p of w.places) {
+      for (const t of townTiles(w, p, p.level)) town.add(this.tileIndex(t.x, t.y));
+      for (const t of townTiles(w, p)) if (!town.has(this.tileIndex(t.x, t.y))) later.add(this.tileIndex(t.x, t.y));
+    }
     // And off the natural routes between towns, so a road laid along one fells nothing.
     const corridor = corridorTiles(w);
 
@@ -300,6 +307,7 @@ export class Scenery {
           if (t === 'forest' && nearNode(x, y, jx, jy)) continue;
           if (nearQuarry(x, y)) continue;
           if (town.has(this.tileIndex(x, y))) continue;
+          if (later.has(this.tileIndex(x, y)) && r() < 0.4) continue;
           if (t !== 'mountain' && corridor.has(this.tileIndex(x, y))) continue;
           spots.push({
             tile: this.tileIndex(x, y),
@@ -319,6 +327,7 @@ export class Scenery {
             const jx = r();
             const jy = r();
             if (t === 'forest' && nearNode(x, y, jx, jy)) continue;
+            if (later.has(this.tileIndex(x, y)) && r() < 0.4) continue;
             spots.push({
               tile: this.tileIndex(x, y),
               lon: lon + (jx - 0.5) * dLon * 0.94,
@@ -484,6 +493,82 @@ export class Scenery {
         this.plotMarkers.push({ mesh: g, placeId: pl.id, index });
       });
     }
+  }
+
+  private readonly gateMarkers: THREE.Group[] = [];
+
+  /** Gold markers at the four gates of every town, shown while a road tool is active. */
+  private buildGates(): void {
+    const w = this.world;
+    const ring = new THREE.TorusGeometry(1.1, 0.09, 6, 36);
+    ring.rotateX(Math.PI / 2);
+    const beam = new THREE.CylinderGeometry(0.12, 0.12, 4.5, 6, 1, true);
+    beam.translate(0, 2.25, 0);
+    const mat = new THREE.MeshBasicMaterial({ color: 0xf2b04c, transparent: true, opacity: 0.95, depthWrite: false });
+    const beamMat = new THREE.MeshBasicMaterial({ color: 0xf2b04c, transparent: true, opacity: 0.3, depthWrite: false, side: THREE.DoubleSide });
+    for (const pl of w.places) {
+      for (const t of townGates(w, pl)) {
+        const g = new THREE.Group();
+        g.add(new THREE.Mesh(ring, mat));
+        g.add(new THREE.Mesh(beam, beamMat));
+        const { lon, lat } = tileLonLat(w.width, w.height, ((t.x % w.width) + w.width) % w.width, t.y);
+        const pos = lonLatToVec(lon, lat, R + this.hf.surface(lon, lat) + 0.14);
+        const up = pos.clone().normalize();
+        g.matrix.copy(basisMatrix(pos, up, new THREE.Vector3(0, 1, 0).cross(up).normalize()));
+        g.matrixAutoUpdate = false;
+        g.visible = false;
+        this.group.add(g);
+        this.gateMarkers.push(g);
+      }
+    }
+  }
+
+  showGates(active: boolean): void {
+    for (const g of this.gateMarkers) g.visible = active;
+  }
+
+  /** Survey stakes at the corners of the ground each town is set to grow over, until it has grown to fill it. */
+  private buildStakes(): void {
+    const w = this.world;
+    const post = new THREE.CylinderGeometry(0.05, 0.07, 1.5, 5);
+    post.translate(0, 0.75, 0);
+    const tip = new THREE.CylinderGeometry(0.1, 0.1, 0.3, 5);
+    tip.translate(0, 1.35, 0);
+    const spots: THREE.Matrix4[] = [];
+    for (const pl of w.places) {
+      if (pl.level >= 5) continue;
+      const full = townTiles(w, pl);
+      let x0 = Infinity;
+      let x1 = -Infinity;
+      let y0 = Infinity;
+      let y1 = -Infinity;
+      for (const t of full) {
+        const dx = ((t.x - pl.x + w.width * 1.5) % w.width) - w.width / 2;
+        x0 = Math.min(x0, dx);
+        x1 = Math.max(x1, dx);
+        y0 = Math.min(y0, t.y - pl.y);
+        y1 = Math.max(y1, t.y - pl.y);
+      }
+      for (const [cx, cy] of [[x0 - 0.5, y0 - 0.5], [x1 + 1.5, y0 - 0.5], [x0 - 0.5, y1 + 1.5], [x1 + 1.5, y1 + 1.5]]) {
+        const tx = Math.floor(pl.x + cx);
+        const ty = Math.floor(pl.y + cy);
+        const { lon, lat } = tileLonLat(w.width, w.height, ((tx % w.width) + w.width) % w.width, ty);
+        const pos = lonLatToVec(lon, lat, R + this.hf.surface(lon, lat) - 0.05);
+        const up = pos.clone().normalize();
+        spots.push(basisMatrix(pos, up, new THREE.Vector3(0, 1, 0).cross(up).normalize()));
+      }
+    }
+    if (spots.length === 0) return;
+    const woodMat = new THREE.MeshStandardMaterial({ color: 0x8a6a3e, roughness: 0.9 });
+    const tipMat = new THREE.MeshStandardMaterial({ color: 0xe0a23a, roughness: 0.7 });
+    const posts = new THREE.InstancedMesh(post, woodMat, spots.length);
+    const tips = new THREE.InstancedMesh(tip, tipMat, spots.length);
+    spots.forEach((m, i) => {
+      posts.setMatrixAt(i, m);
+      tips.setMatrixAt(i, m);
+    });
+    posts.castShadow = true;
+    this.group.add(posts, tips);
   }
 
   /** Show the open, empty district plots while an industry tool is active. */

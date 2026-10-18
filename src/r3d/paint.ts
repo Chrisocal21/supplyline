@@ -316,7 +316,7 @@ function overlays(world: World, data: Uint8ClampedArray, width: number, height: 
   // Towns: worn ground along the strip they cover. Each tile paints its own square, and the edge of the strip fades out
   // into the grass with a ragged margin.
   for (const pl of world.places) {
-    const tiles = townTiles(world, pl);
+    const tiles = townTiles(world, pl, pl.level);
     const has = new Set(tiles.map((t) => t.x + ',' + t.y));
     const wrapT = (x: number): number => ((x % world.width) + world.width) % world.width;
     for (const t of tiles) {

@@ -601,3 +601,7 @@ Water raised from 14% to 31% (the 15% target was too low). Three continents spli
 ## 2026-10-18 0.16 polish
 
 Ocean animation removed (plain blue with depth shading, no foam). Dirt tracks drawn as continuous strips, not round spots. Resource nodes of a belt stand on a square lattice, in straight rows and columns (4 tiles apart), and a node that has kin near it must line up with them. Forest nodes now scale with forest size (one per about 18 tiles) and small stands get one too, so most trees have a forestry node (76% of forest tiles within 8 tiles of one on Map 2).
+
+## 2026-10-18 0.17 start: natural town reserve and gates
+
+The flat dark rectangle around each town is gone. Ground a town will grow over now keeps its trees, bushes and rocks (thinned by 40%), with survey stakes at the corners. When a town levels up, the wave of growth fells the trees on the new ground as it passes. Each town has up to four gates (the outer ends of its main streets); they glow gold while a road tool is active, and planned streets count as cheap road so routes join them. The Back button moved above the hint chip and now glides home, and keeps the first view when two towns grow in a row.

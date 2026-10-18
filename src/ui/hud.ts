@@ -2721,7 +2721,7 @@ export class HudScene extends Phaser.Scene {
     const g = this.game3d;
     const w = 300;
     const x = (W - w) / 2;
-    const y = Math.min(H - 150, H - this.bottomInset - 60);
+    const y = H - this.bottomInset - 118;
     const hov = im.hit('gbBack', x, y, w - 46, 48, () => g.goBack(), 6);
     im.rect(6, x, y, w - 46, 48, hov ? 0xf2b04c : COLORS.accent, 1, 24);
     im.text('gbBackT', 'Back to where you were', x + (w - 46) / 2, y + 14, { size: 16, bold: true, color: 0x1b1204, align: 'center', layer: 7 });

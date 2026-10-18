@@ -65,6 +65,7 @@ import {
   plotFacing,
   layoutOf,
   plotTiles,
+  townTiles,
   terrainAt,
   elevAt,
   placeAt,
@@ -117,7 +118,7 @@ import { paintGlobe, paintRoughness } from './paint';
 import { Smoke } from './smoke';
 import { buildingSurfaces, loadSurfaces } from './surfaces';
 import { GRAPHICS, nightLight, readGraphics, saveGraphics, type GraphicsQuality, type LightingMode } from './graphics';
-import type { LightAnchor } from '../scale';
+import { TILE_UNITS, type LightAnchor } from '../scale';
 import { RoadNet, makeHighwayTexture, makeRailTexture, makeRoadTexture } from './roads';
 import { Scenery } from './scenery';
 import { buildDemo, demoSpots } from './demo';
@@ -364,7 +365,7 @@ export class Game3D {
   private readonly dummies = new Map<number, THREE.Mesh>();
   private readonly districtWork = new Map<number, { start: number; old: THREE.Mesh; mesh: THREE.Mesh; jobs: { id: number }[]; mats: THREE.MeshStandardMaterial[][] }>();
   /** Towns playing their growth: the old model sinking as the new one rises. */
-  private readonly growing = new Map<number, { start: number; old: THREE.Mesh; mesh: THREE.Mesh; reach: number }>();
+  private readonly growing = new Map<number, { start: number; old: THREE.Mesh; mesh: THREE.Mesh; reach: number; fell: { tile: number; d: number }[] }>();
   private townsShown = false;
   /** For screenshots: hold every growing town at this point of its growth (0 to 1). */
   debugGrowT: number | null = null;
@@ -560,6 +561,8 @@ export class Game3D {
     this.selection = null;
     this.draft = null;
     this.committed = null;
+    // No "back to where you were" carries over from the title scene or an earlier world.
+    this.backView = null;
     this.syncWorld();
     this.loadStats = { paintMs: Math.round(t1 - t0), totalMs: Math.round(performance.now() - t0) };
   }
@@ -829,7 +832,15 @@ export class Game3D {
   goBack(): void {
     const v = this.backView;
     this.backView = null;
-    if (v) this.cam.set(v.lon, v.lat, v.dist, v.heading, v.pitch);
+    if (!v) return;
+    // The angle comes back at once and the camera glides home along the ground.
+    this.cam.heading = this.cam.target.heading = v.heading;
+    this.cam.pitchManual = this.cam.target.pitch = v.pitch;
+    this.cam.target.lon = v.lon;
+    this.cam.target.lat = v.lat;
+    this.cam.target.dist = v.dist;
+    this.orbitUntil = 0;
+    this.shotList = [];
   }
 
   dismissBack(): void {
@@ -839,7 +850,8 @@ export class Game3D {
   private watch(x: number, y: number, dist: number, ms: number, back = false): void {
     if (this.showcase) return;
     const keep = { lon: this.cam.lon, lat: this.cam.lat, dist: this.cam.dist, heading: this.cam.heading, pitch: this.cam.pitchManual };
-    if (back) this.backView = keep;
+    // Where the player was looking is kept once. A second growth while the first is still being shown must not replace it with a camera cut.
+    if (back && (this.backView === null || this.nowMs >= this.orbitUntil)) this.backView = keep;
     const tries = (pitch: number) =>
       Array.from({ length: 8 }, (_, k) => {
         const heading = keep.heading + (k * Math.PI) / 4;
@@ -1056,6 +1068,7 @@ export class Game3D {
     });
     const usedNodes = new Set(w.sites.map((s) => s.nodeId).filter((n): n is number => n !== null));
     this.scenery.showMarkers(this.activeNodeKind(), usedNodes);
+    this.scenery.showGates(this.isRouteTool());
     this.scenery.setNodesUsed(usedNodes);
   }
 
@@ -1332,7 +1345,18 @@ export class Game3D {
     mesh.material = growMaterial(siteMaterial, false);
     // Shadows would show the finished town at once, so they wait for the end.
     old.castShadow = mesh.castShadow = false;
-    this.growing.set(p.id, { start: this.nowMs, old, mesh, reach: reach + 3 });
+    // The trees and bushes on ground the town is growing over come down as the wave reaches them.
+    const fell: { tile: number; d: number }[] = [];
+    if (withRoads) {
+      const before = new Set(townTiles(w, p, p.level - 1).map((t) => t.y * w.width + wrapX(w, t.x)));
+      for (const t of townTiles(w, p, p.level)) {
+        const k = t.y * w.width + wrapX(w, t.x);
+        if (before.has(k)) continue;
+        const dx = ((t.x - p.x + w.width * 1.5) % w.width) - w.width / 2;
+        fell.push({ tile: k, d: Math.hypot(dx, t.y - p.y) * TILE_UNITS });
+      }
+    } else this.scenery.clearTiles(townTiles(w, p, p.level).map((t) => t.y * w.width + wrapX(w, t.x)));
+    this.growing.set(p.id, { start: this.nowMs, old, mesh, reach: reach + 3, fell });
     // Rollers lay each new stretch of street, starting from the street it grows out of.
     const key = (t: { x: number; y: number }): string => t.x + ',' + t.y;
     const built = new Set(streets.map(key));
@@ -1382,6 +1406,13 @@ export class Game3D {
       const wave = -1 + (g.reach + 1) * THREE.MathUtils.smootherstep(t, 0, 0.92);
       (g.old.material as THREE.Material).userData.wave.value = wave;
       (g.mesh.material as THREE.Material).userData.wave.value = wave;
+      if (g.fell.length > 0) {
+        const down = g.fell.filter((f) => f.d <= wave + 2);
+        if (down.length > 0) {
+          this.scenery.clearTiles(down.map((f) => f.tile));
+          g.fell = g.fell.filter((f) => f.d > wave + 2);
+        }
+      }
       for (let k = 0; k < 3; k++) {
         const a = Math.random() * Math.PI * 2;
         const pos = new THREE.Vector3(Math.cos(a) * wave, 0.3, Math.sin(a) * wave).applyMatrix4(g.mesh.matrix);
@@ -1394,6 +1425,7 @@ export class Game3D {
     const g = this.growing.get(id);
     if (!g) return;
     this.growing.delete(id);
+    if (g.fell.length > 0) this.scenery.clearTiles(g.fell.map((f) => f.tile));
     this.scene.remove(g.old);
     g.old.geometry.dispose();
     (g.old.material as THREE.Material).dispose();
@@ -3003,6 +3035,7 @@ export class Game3D {
   /** Hand the world back: the opening is over. */
   endShowcase(): void {
     this.showcase = false;
+    this.backView = null;
     this.cine = null;
     this.props?.dispose();
     this.props = null;

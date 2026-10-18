@@ -66,6 +66,31 @@ export function townTiles(world: World, place: Place, level = 5): Tile[] {
   return footprint(layoutOf(world, place), level).map((t) => ({ x: wrapX(world, place.x + t.x), y: place.y + t.y }));
 }
 
+/**
+ * Where a road enters a town: the outer end of its street in each of the four directions. They are on the town's permanent
+ * streets, so a road laid to one joins the street that is already planned there.
+ */
+export function townGates(world: World, place: Place): Tile[] {
+  const streets = layoutOf(world, place).streets;
+  if (streets.length === 0) return [];
+  const pick = (better: (a: { x: number; y: number }, b: { x: number; y: number }) => boolean): { x: number; y: number } => streets.reduce((m, t) => (better(t, m) ? t : m));
+  const out = [
+    pick((a, b) => a.x > b.x || (a.x === b.x && Math.abs(a.y) < Math.abs(b.y))),
+    pick((a, b) => a.x < b.x || (a.x === b.x && Math.abs(a.y) < Math.abs(b.y))),
+    pick((a, b) => a.y > b.y || (a.y === b.y && Math.abs(a.x) < Math.abs(b.x))),
+    pick((a, b) => a.y < b.y || (a.y === b.y && Math.abs(a.x) < Math.abs(b.x))),
+  ];
+  const seen = new Set<string>();
+  const tiles: Tile[] = [];
+  for (const g of out) {
+    const k = g.x + ',' + g.y;
+    if (seen.has(k)) continue;
+    seen.add(k);
+    tiles.push({ x: wrapX(world, place.x + g.x), y: place.y + g.y });
+  }
+  return tiles;
+}
+
 /** A town's district plots, in order: the Market, the Supply Yard, then outward along the streets. */
 export function plotTiles(world: World, place: Place): Tile[] {
   return layoutOf(world, place).plots.map((p) => ({ x: place.x + p.x, y: place.y + p.y }));
@@ -3298,7 +3323,13 @@ export function findPath(world: World, from: Tile, to: Tile, maxVisits = 120000,
   // already, so joining one is as cheap as joining any other road.
   const spots = new Set<number>(world.nodes.map((n) => n.y * W + wrapX(world, n.x)));
   const streets = new Set<number>();
-  if (mode === 'road') for (const p of world.places) for (const k of townStreets(world, p)) streets.add(k);
+  if (mode === 'road') {
+    for (const p of world.places) {
+      for (const k of townStreets(world, p)) streets.add(k);
+      // Streets the town has yet to build are planned ground: a road that follows one becomes it, so it is as cheap as a road.
+      for (const s of layoutOf(world, p).streets) streets.add((p.y + s.y) * W + wrapX(world, p.x + s.x));
+    }
+  }
   const D = 5; // four headings, plus 4 for 'none yet'
   const tileOf = (st: number) => Math.floor(st / (R * D));
   const start = (from.y * W + wrapX(world, from.x)) * R * D + 4;
