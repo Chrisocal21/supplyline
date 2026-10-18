@@ -1,4 +1,5 @@
 // Trees, boulders and resource-node markers, placed on the terrain as instanced meshes.
+import { corridorTiles } from '../sim/corridors';
 import * as THREE from 'three';
 import type { NodeKind } from '../sim/defs';
 import { tileLonLat } from '../sim/mapgen';
@@ -262,6 +263,8 @@ export class Scenery {
     // Trees keep off the land a town will grow over.
     const town = new Set<number>();
     for (const p of w.places) for (const t of townTiles(w, p)) town.add(this.tileIndex(t.x, t.y));
+    // And off the natural routes between towns, so a road laid along one fells nothing.
+    const corridor = corridorTiles(w);
 
     for (let y = 0; y < w.height; y++) {
       for (let x = 0; x < w.width; x++) {
@@ -277,6 +280,7 @@ export class Scenery {
           if (t === 'forest' && nearNode(x, y, jx, jy)) continue;
           if (nearQuarry(x, y)) continue;
           if (town.has(this.tileIndex(x, y))) continue;
+          if (t !== 'mountain' && corridor.has(this.tileIndex(x, y))) continue;
           spots.push({
             tile: this.tileIndex(x, y),
             lon: lon + (jx - 0.5) * dLon * 0.92,

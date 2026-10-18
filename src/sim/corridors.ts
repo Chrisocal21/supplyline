@@ -67,14 +67,14 @@ function build(env: CorridorEnv): Set<number> {
     const at = (x: number, y: number): number => (y - y0) * w + (x - x0);
     const real = (x: number, y: number): number => y * W + ((x % W) + W) % W;
     // The towns themselves cost a lot to cross: a corridor runs between towns, not through them.
-    const solid = new Float32Array(w * h);
+    const solid = new Float64Array(w * h);
     for (const p of places) {
       const px = a.x + wdx(p.x - a.x);
       const r = (p.radius ?? 3) + 1;
       if (p === a || p === b) continue;
       for (let y = Math.max(y0, p.y - r); y <= Math.min(y1, p.y + r); y++) for (let x = Math.max(x0, px - r); x <= Math.min(x1, px + r); x++) solid[at(x, y)] = 40;
     }
-    const dist = new Float32Array(w * h).fill(Infinity);
+    const dist = new Float64Array(w * h).fill(Infinity);
     const from = new Int32Array(w * h).fill(-1);
     const heap: [number, number][] = [];
     const push = (d: number, i: number): void => {

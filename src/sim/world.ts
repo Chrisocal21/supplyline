@@ -959,9 +959,27 @@ export function lotsAt(place: Place, level = place.level): number {
   return plotCount(radiusOf(place)) - 2 - homesNow(place, level).length;
 }
 
+const futureStreets = new WeakMap<Place, { layout: TownLayout; tiles: Set<string> }>();
+/** Whether a tile is on one of the town's streets at any level, built yet or not. */
+function futureStreet(world: World, place: Place, x: number, y: number): boolean {
+  const layout = layoutOf(world, place);
+  let hit = futureStreets.get(place);
+  if (!hit || hit.layout !== layout) {
+    hit = { layout, tiles: new Set(layout.streets.map((s) => s.x + ',' + s.y)) };
+    futureStreets.set(place, hit);
+  }
+  return hit.tiles.has(wrapDx(world, place.x, wrapX(world, x)) + ',' + (y - place.y));
+}
+
 /** Where a road is and is not allowed to go inside a town: roads follow the streets, rails stay off streets and plots (except the lot beside a depot). */
 function townBlocks(world: World, x: number, y: number, mode: RouteMode): boolean {
-  if (!placeAt(world, x, y)) return false;
+  // Ground a town will grow over is kept for it: nothing is laid across its future homes and lots. A road may take one of
+  // its future streets (it becomes the street), and nothing else may.
+  if (!placeAt(world, x, y)) {
+    const later = plannedTownAt(world, x, y);
+    if (!later) return false;
+    return futureStreet(world, later, x, y) ? mode !== 'road' : true;
+  }
   if (streetAt(world, x, y)) return mode !== 'road';
   if (mode === 'rail') {
     if (plotAt(world, x, y) === null && civicAt(world, x, y) === null) return false;

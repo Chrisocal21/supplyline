@@ -2,6 +2,7 @@
 import { FREIGHT_DEMAND, MARKET_DEMAND, STYLE_TASTE, TOWN_STYLES, type DistrictId, type NodeKind, type PathId, type Stock, type Terrain, type TownStyle } from './defs';
 import { makeNamer } from './names';
 import { BLEND_REACH, BLEND_SHARE, blendPartner, blendRoll, footprint, plotCount, townLayout } from './townlayout';
+import { corridorTiles } from './corridors';
 
 export type RegionKind = 'ocean' | 'sea' | 'lake' | 'forest' | 'mountain' | 'land' | 'ice';
 
@@ -445,8 +446,13 @@ export function generateFeatures(terrain: Terrain[], width: number, height: numb
       for (let dx = -NODE_TOWN_BUFFER; dx <= NODE_TOWN_BUFFER; dx++) blocked[idx(kx + dx, ny)] = 1;
     }
   }
+  // The natural routes between towns (see corridors.ts) stay open too.
+  const corridorMask = new Uint8Array(width * height);
+  for (const k of corridorTiles({ width, height, terrain, elev, places })) {
+    corridorMask[k] = 1;
+  }
   const nearTown = (t: number, r: number): boolean =>
-    blocked[t] === 1 || townTiles.has(t) || places.some((p) => Math.abs(wrapDelta(p.x, t % width, width)) <= r + p.radius - 3 && Math.abs(p.y - Math.floor(t / width)) <= r + p.radius - 3);
+    blocked[t] === 1 || corridorMask[t] === 1 || townTiles.has(t) || places.some((p) => Math.abs(wrapDelta(p.x, t % width, width)) <= r + p.radius - 3 && Math.abs(p.y - Math.floor(t / width)) <= r + p.radius - 3);
   /** Steepest step to a neighbouring tile. */
   const slopeOf = (t: number): number => {
     if (!elev) return 0;
@@ -587,16 +593,20 @@ export function generateFeatures(terrain: Terrain[], width: number, height: numb
   }
   const forestAny = terrain.map((tt, t) => (tt === 'forest' ? t : -1)).filter((t) => t >= 0);
   for (const p of places) {
-    // The first town is where a new game starts: its first forest and fields are close.
-    const radius = p === places[0] ? START_REACH : reach;
+    // The first town is where a new game starts: its first forest and fields are close, and failing that, as close as the
+    // land allows.
+    const radii = p === places[0] ? [START_REACH, reach, reach + 4] : [reach];
     for (const [kind, pool] of [['forest', forestAny], ['farmland', openAny], ['pasture', openAny]] as [NodeKind, number[]][]) {
-      if (nodes.some((n) => n.kind === kind && near(p, n.y * width + n.x) <= radius)) continue;
-      const free = pool
-        .filter((t) => near(p, t) <= radius && near(p, t) >= 5 + p.radius - 3 && !nearTown(t, 4) && clear(t) && dry(t) && level(t))
-        .sort((a, b) => near(p, a) - near(p, b));
-      if (free.length === 0) continue;
-      const t = free[Math.min(free.length - 1, 2)];
-      nodes.push({ id: nodes.length + 1, kind, x: t % width, y: Math.floor(t / width), quality: quality(), regionId: regionMap[t] });
+      for (const radius of radii) {
+        if (nodes.some((n) => n.kind === kind && near(p, n.y * width + n.x) <= radius)) break;
+        const free = pool
+          .filter((t) => near(p, t) <= radius && near(p, t) >= 5 + p.radius - 3 && !nearTown(t, 4) && clear(t) && dry(t) && level(t))
+          .sort((x, y) => near(p, x) - near(p, y));
+        if (free.length === 0) continue;
+        const t = free[Math.min(free.length - 1, 2)];
+        nodes.push({ id: nodes.length + 1, kind, x: t % width, y: Math.floor(t / width), quality: quality(), regionId: regionMap[t] });
+        break;
+      }
     }
   }
 
