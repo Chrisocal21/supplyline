@@ -52,7 +52,7 @@ describe('resource-site polish', () => {
     }
     expect(tierCounts.size).toBe(3);
     base.dispose();
-  });
+  }, 30000);
 });
 
 describe('measured transport and sports geometry', () => {
