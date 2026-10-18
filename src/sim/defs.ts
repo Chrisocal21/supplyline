@@ -368,9 +368,15 @@ export const SALE_MULT = 0.65;
 export const TRADE_IN = 0.5;
 
 /** Building levels: output speed and storage multipliers for level 1, 2, 3. */
-export const LEVEL_SPEED = [1, 1.8, 3.2];
-export const LEVEL_CAP = [1, 2, 4];
-export const MAX_LEVEL = 3;
+export const LEVEL_SPEED = [1, 1.8, 3.2, 4.6, 6.2, 8, 10, 12.5];
+export const LEVEL_CAP = [1, 2, 4, 6, 9, 13, 18, 24];
+export const MAX_LEVEL = 8;
+/** Ports and airports grow with the town beside them and stop at level 3. */
+export const maxLevelOf = (def: { airport?: boolean; port?: boolean }): number => (def.airport || def.port ? 3 : MAX_LEVEL);
+/** How many vehicles a building runs on each of its product lines: the yard grows with the building. */
+export const FLEET_BASE = 3;
+export const FLEET_PER_LEVEL = 2;
+export const fleetLimit = (level: number): number => FLEET_BASE + FLEET_PER_LEVEL * level;
 export const UPGRADE_COST_FACTOR = 1.2;
 
 /** Node quality: impure, normal, pure. */

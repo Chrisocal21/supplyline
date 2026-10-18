@@ -11,7 +11,8 @@ import {
   LEVEL_SPEED,
   MARKET_DEMAND,
   MOUNTAIN_ELEV,
-  MAX_LEVEL,
+  fleetLimit,
+  maxLevelOf,
   NODE_QUALITY,
   BUILD_SLOPE,
   LOTS_PER_LEVEL,
@@ -2729,8 +2730,8 @@ export function upgradeError(world: World, siteId: number): string | null {
   const def = SITE_DEFS[site.kind];
   if (def.dock) return 'Towns grow through deliveries';
   if (def.station) return 'Stations belong to the town';
-  if (site.level >= MAX_LEVEL) return 'Already at max level';
-  const needTier = site.level; // level 2 needs tier 1, level 3 needs tier 2
+  if (site.level >= maxLevelOf(def)) return 'Already at max level';
+  const needTier = Math.min(site.level, 4); // level 2 needs tier 1, and so on up to tier 4 for level 5 and beyond
   if (world.tier < needTier) return `Level ${site.level + 1} needs Tier ${needTier}`;
   if (def.airport) {
     // An airport grows with the town it serves: a Town (level 3) for a regional field, a City (level 4) for an international one.
@@ -3174,6 +3175,8 @@ export function buyError(world: World, siteId: number, kind: VehicleKind): strin
 export function buyVehicle(world: World, siteId: number, kind: VehicleKind, line: Line = 'main'): string | null {
   const err = buyError(world, siteId, kind);
   if (err) return err;
+  const owner = siteById(world, siteId)!;
+  if (fleetOf(world, siteId, line).length >= fleetLimit(owner.level)) return `This line runs ${fleetLimit(owner.level)} vehicles at level ${owner.level}. Upgrade the building to run more`;
   world.money -= VEHICLE_DEFS[kind].cost;
   const v = newVehicle(world, siteId, kind);
   const site = siteById(world, siteId);

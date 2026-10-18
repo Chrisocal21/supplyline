@@ -690,7 +690,9 @@ function signGeometry(kind: SiteKind, level = 1): THREE.BufferGeometry {
 }
 
 /** A building as it looks at a level: the main building grown, with that level's extras around it. */
-export function siteGeometryAt(kind: SiteKind, level: number, withDepot = false): THREE.BufferGeometry {
+export function siteGeometryAt(kind: SiteKind, rawLevel: number, withDepot = false): THREE.BufferGeometry {
+  // Levels past 3 run on the level 3 building: they add output and fleet, not new models.
+  const level = Math.min(3, rawLevel);
   const base = withDepot && kind === 'hub' ? depot() : siteGeometry(kind);
   const def = SITE_DEFS[kind];
   const grow = LEVEL_GROW[level];

@@ -6,6 +6,9 @@ import {
   GOODS,
   GOOD_LIST,
   LEVEL_CAP,
+  LEVEL_SPEED,
+  fleetLimit,
+  maxLevelOf,
   NODE_QUALITY,
   SITE_DEFS,
   STYLE_LABEL,
@@ -515,7 +518,7 @@ export class HudScene extends Phaser.Scene {
     }
     const s = siteById(g.world, id);
     if (!s) return;
-    const err = s.level >= 3 ? 'Already at the top level' : upgradeError(g.world, id);
+    const err = s.level >= maxLevelOf(SITE_DEFS[s.kind]) ? 'Already at the top level' : upgradeError(g.world, id);
     if (err) {
       this.toasts.push({ text: `${s.name}: ${err}`, until: this.time.now + 2400 });
       return;
@@ -1956,7 +1959,7 @@ export class HudScene extends Phaser.Scene {
     const g = this.game3d;
     const world = g.world;
     const h = 72;
-    if (s.level >= 3) {
+    if (s.level >= maxLevelOf(SITE_DEFS[s.kind])) {
       im.rect(2, x, y, w, h, 0x12261f, 1, 16, COLORS.good, 1);
       im.text('ugT', 'Top level', x + 24, y + 16, { size: 20, bold: true, color: COLORS.good, layer: 3 });
       im.text('ugS', 'This building cannot be upgraded any further.', x + 24, y + 44, { size: 12, color: COLORS.muted, layer: 3 });
@@ -1965,7 +1968,7 @@ export class HudScene extends Phaser.Scene {
     const err = upgradeError(world, s.id);
     const can = !err;
     const next = s.level + 1;
-    const boost = `Makes ${[1, 1.8, 3.2][s.level]}x as much and stores ${LEVEL_CAP[s.level]}x more.`;
+    const boost = `Makes ${LEVEL_SPEED[s.level]}x as much, stores ${LEVEL_CAP[s.level]}x more and runs ${fleetLimit(next)} vehicles a line.`;
     const hov = im.hit('upgrade', x, y, w, h, () => can && g.upgrade(s.id), 3);
     im.rect(2, x, y, w, h, can ? (hov ? 0xf4b84f : COLORS.accent) : 0x161d27, 1, 16, can ? COLORS.accent : COLORS.line, 1);
     im.text('ugT', `Upgrade to level ${next}`, x + 24, y + 14, { size: 22, bold: true, color: can ? 0x1b1204 : COLORS.muted, layer: 4 });

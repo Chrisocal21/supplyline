@@ -27,6 +27,7 @@ import { townGeometry, type TownLandmark } from './townmodel';
 import type { Setting } from './districts';
 import { GROW_MS, growMaterial } from './grow';
 import { tileLonLat } from '../sim/mapgen';
+import { LEVEL_CAP } from '../sim/defs';
 import { findPath } from '../sim/path';
 import {
   buyVehicle,
@@ -2563,7 +2564,7 @@ export class Game3D {
   /** How full a site is, 0..1, for its status ring. */
   fill(s: Site): number {
     const def = SITE_DEFS[s.kind];
-    const cap = def.cap * (def.dock ? (this.world.places.find((p) => p.id === s.placeId)?.level ?? 1) : [1, 2, 4][s.level - 1]);
+    const cap = def.cap * (def.dock ? (this.world.places.find((p) => p.id === s.placeId)?.level ?? 1) : LEVEL_CAP[s.level - 1]);
     let hi = 0;
     for (const v of Object.values(s.stock)) hi = Math.max(hi, v ?? 0);
     return Math.min(1, hi / cap);
