@@ -186,7 +186,8 @@ export class Im {
       this.home?.add(i);
       this.images.set(id, i);
     }
-    if (i.texture.key !== key) i.setTexture(key);
+    // A texture rebuilt under the same key (the minimap when the world changes size) leaves the image on the old one.
+    if (i.texture.key !== key || i.texture !== this.scene.textures.get(key) || !i.frame) i.setTexture(key);
     i.setOrigin(0, 0).setPosition(x, y).setDisplaySize(w, h).setAlpha(alpha).setDepth(this.L(layer) * 10 + 4).setVisible(true);
     this.usedI.add(id);
   }

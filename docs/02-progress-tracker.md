@@ -314,15 +314,16 @@ Money
 
 #### 7.00 Release 0.14: the world first
 - [ ] Layered world generator: globe and size, land masses and ocean, mountain ranges with passes, rivers and lakes, land cover, then towns, nodes, corridors, scenery
-- [ ] Claim map: every tile records what owns it; every placement checked against true footprint plus a clearance ring
-- [ ] Towns reserve their full growth footprint and buffer on day one; cities, towns, harbours, canals sited on good land
+- [~] Claim map: every tile records what owns it; every placement checked against true footprint plus a clearance ring
+- [x] Towns reserve their full growth footprint and buffer on day one; cities, towns, harbours, canals sited on good land
+- [x] Nodes kept 3+ tiles from every town's grown footprint and clear of airport pads (hinterland clustering, rivers and passes still to do)
 - [ ] Nodes in the outskirts as a hinterland per town, outside growth zones, clear of rivers and passes
-- [ ] Placing a building or road never deletes buildings, roads or towns; scenery cleared only from the exact footprint
-- [ ] District buildings (Farmers Market, Restaurant Row, Heating Depot, Coffee House and the rest) get a permanent lot reserved in the town layout, sized for level 3; building one removes nothing; upgrading adds neighbouring buildings onto the lot (like a shopping centre gaining shops) and never replaces the original; homes and towers are laid out around the reserved lot and never overlap it; test levels every district to max and checks nothing standing before is lost
-- [ ] Bigger, more spread-out map: Large 384 wide (about 4x the tiles) in 0.14, world-size choice at new game (Small 192, Medium 288, Large 384), frame-time readout to measure on Chris's machine; Huge 576, Giant 768, Enormous 1,152 later with chunking, worker and the .exe (size table in 05-desktop-version.md)
-- [ ] Tests: generator over many seeds, placement never touches other objects, growth to max with a built-up map loses nothing; Map 1 re-checked
+- [~] Placing a building or road never deletes buildings, roads or towns; scenery cleared only from the exact footprint
+- [x] District buildings (Farmers Market, Restaurant Row, Heating Depot, Coffee House and the rest) get a permanent lot reserved in the town layout, sized for level 3; building one removes nothing; upgrading adds neighbouring buildings onto the lot (like a shopping centre gaining shops) and never replaces the original; homes and towers are laid out around the reserved lot and never overlap it; test levels every district to max and checks nothing standing before is lost
+- [x] Bigger, more spread-out map: Large 384 wide (about 4x the tiles) in 0.14, world-size choice at new game (Small 192, Medium 288, Large 384), frame-time readout to measure on Chris's machine; Huge 576, Giant 768, Enormous 1,152 later with chunking, worker and the .exe (size table in 05-desktop-version.md)
+- [x] Tests: generator over many seeds, placement never touches other objects, growth to max with a built-up map loses nothing; Map 1 re-checked
 - [ ] World generator version stored in saves; old saves keep their map
-- [ ] Bump src/version.ts (it still says 0.12 although 0.13 shipped)
+- [x] Bump src/version.ts (it still says 0.12 although 0.13 shipped)
 
 #### 7.0 Ground rules and sim changes (before the .exe)
 - [x] Ground rules written down in [05-desktop-version.md](05-desktop-version.md)

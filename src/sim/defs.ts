@@ -767,3 +767,19 @@ export const TIERS: TierDef[] = [
     ],
   },
 ];
+
+/** The worlds a new game can start on. Width is the tiles around the globe; the height is a third of it. Map 1 is hand-made. */
+export type WorldSizeId = 'map1' | 'small' | 'medium' | 'large';
+export interface WorldSizeDef {
+  id: WorldSizeId;
+  label: string;
+  width: number;
+  height: number;
+  blurb: string;
+}
+export const WORLD_SIZES: WorldSizeDef[] = [
+  { id: 'map1', label: 'Map 1', width: 288, height: 124, blurb: 'The hand-made world map: real continents, islands and seas. The best place to start.' },
+  { id: 'small', label: 'Small', width: 192, height: 64, blurb: 'A compact random world. Quick to learn, a handful of towns.' },
+  { id: 'medium', label: 'Medium', width: 288, height: 96, blurb: 'A random world with room to spread. About twenty towns.' },
+  { id: 'large', label: 'Large', width: 384, height: 128, blurb: 'A wide random world, four times the land of Small. About fifty towns and long hauls.' },
+];

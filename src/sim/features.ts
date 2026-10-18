@@ -68,6 +68,10 @@ const REACH_BRIDGE = 4;
 /** Nodes this close to a town are preferred. */
 const NODE_TOWN_REACH = 22;
 export const CITY_RADIUS = 5;
+/** Towns stand at least this many tiles beyond their own radii apart, so a world is spread out, not packed. */
+const TOWN_SPREAD = 8;
+/** About one town for this many tiles of the globe (land permitting). */
+const TILES_PER_TOWN = 1100;
 /** Clear tiles kept between one town's fully grown footprint and the next, so towns never grow into each other. */
 const TOWN_GAP = 1;
 /** Resource nodes keep this many tiles from any town's fully grown footprint: the outskirts, clear of growth. */
@@ -292,8 +296,10 @@ export function generateFeatures(terrain: Terrain[], width: number, height: numb
   const centre = idx(Math.floor(width / 2), Math.floor(height / 2));
   const wrapTile = (t: Tile): Tile => ({ x: ((t.x % width) + width) % width, y: t.y });
   const made: Place[] = [];
+  // The small world has little room, so its towns stand closer; bigger ones spread out.
+  const townSpread = width > 200 ? TOWN_SPREAD : 5;
   const tooClose = (c: number, R: number): boolean =>
-    made.some((p) => dist2(p.y * width + p.x, c) < (p.radius + R + 4) * (p.radius + R + 4));
+    made.some((p) => dist2(p.y * width + p.x, c) < (p.radius + R + townSpread) * (p.radius + R + townSpread));
   const makePlace = (c: number, R: number, fixed?: FixedPlace): Place => {
     const x = c % width;
     const y = Math.floor(c / width);
@@ -387,7 +393,7 @@ export function generateFeatures(terrain: Terrain[], width: number, height: numb
   } else {
     // Major cities first, while there is still room for them. A town is only kept if the whole set still has room to grow.
     places = [];
-    const cityTarget = Math.max(2, Math.min(3, Math.round((width * height) / 3600)));
+    const cityTarget = Math.max(3, Math.min(6, Math.round((width * height) / 8000)));
     for (const cand of shuffle(findCandidates(CITY_RADIUS, CITY_FLATNESS, 3))) {
       if (places.length >= cityTarget) break;
       if (tooClose(cand.c, CITY_RADIUS) || made.some((p) => dist2(p.y * width + p.x, cand.c) < 20 * 20)) continue;
@@ -401,7 +407,7 @@ export function generateFeatures(terrain: Terrain[], width: number, height: numb
     townCandidates.sort((a, b) => dist2(centre, a.c) - dist2(centre, b.c));
     const firstTown = townCandidates.shift();
     const ordered = firstTown ? [firstTown, ...shuffle(townCandidates)] : [];
-    const target = Math.max(6, Math.round((width * height) / 480));
+    const target = Math.max(6, Math.round((width * height) / TILES_PER_TOWN));
     const towns: Place[] = [];
     for (const cand of ordered) {
       if (towns.length >= target) break;

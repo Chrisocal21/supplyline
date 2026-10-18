@@ -21,6 +21,8 @@ import {
   SEA_TIER,
   type Good,
   BUILD_ORDER,
+  WORLD_SIZES,
+  type WorldSizeId,
   type SiteKind,
 } from '../sim/defs';
 import {
@@ -343,7 +345,9 @@ export class HudScene extends Phaser.Scene {
   private startGame(choice: TitleChoice): void {
     const g = this.game3d;
     g.endShowcase();
-    if (!(choice === 'continue' && g.load())) g.newWorld();
+    const loaded = choice === 'continue' && g.load();
+    if (!loaded) g.newWorld();
+    this.sizePick = loaded ? null : 'start';
     g.speed = 1;
     this.title = null;
     this.fadeIn = this.time.now;
@@ -409,6 +413,7 @@ export class HudScene extends Phaser.Scene {
   private closeAll(): void {
     this.menuOpen = false;
     this.graphicsOpen = false;
+    if (this.sizePick === 'menu' && !this.building) this.sizePick = null;
     this.saves = null;
     this.sheet = null;
     this.dash = null;
@@ -553,6 +558,10 @@ export class HudScene extends Phaser.Scene {
       this.panelRect = null;
       this.sheetCam.setVisible(false);
       this.graphicsPanel(W, H);
+    } else if (this.sizePick) {
+      this.panelRect = null;
+      this.sheetCam.setVisible(false);
+      this.sizeModal(W, H);
     } else if (this.saves) {
       this.panelRect = null;
       this.sheetCam.setVisible(false);
@@ -988,11 +997,63 @@ export class HudScene extends Phaser.Scene {
     return !!this.confirm && this.confirm.id === id && this.time.now < this.confirm.until;
   }
 
+  /** The world size window: which kind of world a new game starts on. 'start' follows the title screen and cannot be cancelled. */
+  private sizePick: 'start' | 'menu' | null = null;
+  /** The size being built: the window shows a message for a moment so the screen does not look frozen. */
+  private building: string | null = null;
+
+  /** A new game: ask which world first. */
   private startNewWorld(): void {
     this.saves = null;
-    this.game3d.newWorld();
-    this.activeTab = 'select';
-    this.toasts.push({ text: 'New game started', until: this.time.now + 2500 });
+    this.sizePick = 'menu';
+  }
+
+  private beginWorld(id: WorldSizeId): void {
+    const def = WORLD_SIZES.find((q) => q.id === id)!;
+    this.building = def.label;
+    // Let one frame show the message before the world is built, which takes a moment on the bigger sizes.
+    setTimeout(() => {
+      this.game3d.newWorld(undefined, id);
+      this.sizePick = null;
+      this.building = null;
+      this.activeTab = 'select';
+      this.game3d.speed = 1;
+      this.toasts.push({ text: `New ${def.label} world started`, until: this.time.now + 2500 });
+    }, 60);
+  }
+
+  private sizeModal(W: number, H: number): void {
+    const im = this.im;
+    im.rect(3, 0, 0, W, H, 0x05080c, 0.7);
+    im.block({ x: 0, y: 0, w: W, h: H });
+    const w = Math.min(600, W - 24);
+    const x = (W - w) / 2;
+    const pad = 22;
+    const inner = w - pad * 2;
+    const rowH = 74;
+    const cancel = this.sizePick === 'menu' && !this.building;
+    const h = 96 + WORLD_SIZES.length * (rowH + 8) + (cancel ? 56 : 14) + pad;
+    const y = Math.max(TOP + 6, (H - h) / 2);
+    im.rect(4, x, y, w, h, COLORS.panel, 1, 18, COLORS.accent, 1, 2);
+    let cy = y + pad;
+    im.text('szT', this.building ? `Building a ${this.building} world...` : 'Choose your world', x + w / 2, cy, { size: 21, bold: true, align: 'center', layer: 4 });
+    cy += 32;
+    im.text('szS', this.building ? 'Laying the land, the towns and the resources. One moment.' : 'A bigger world has more land, more towns and longer hauls. You can start another any time.', x + w / 2, cy, { size: 12, color: COLORS.muted, align: 'center', wrap: inner, layer: 4 });
+    cy += 42;
+    for (const def of WORLD_SIZES) {
+      const tiles = Math.round((def.width * (def.width / 2)) / 1000);
+      const hov = !this.building && im.hit(`sz${def.id}`, x + pad, cy, inner, rowH, () => this.beginWorld(def.id), 4);
+      im.rect(4, x + pad, cy, inner, rowH, hov ? 0x1f2b3a : 0x131a24, 1, 12, hov ? COLORS.accent : COLORS.line, 1);
+      im.text(`sz${def.id}n`, def.label, x + pad + 16, cy + 11, { size: 17, bold: true, color: hov ? COLORS.accent : COLORS.text, layer: 4 });
+      im.text(`sz${def.id}s`, `${def.width} wide  ·  about ${tiles}k tiles`, x + pad + inner - 16, cy + 14, { size: 11, color: COLORS.muted, align: 'right', layer: 4 });
+      im.text(`sz${def.id}b`, def.blurb, x + pad + 16, cy + 38, { size: 12, color: COLORS.muted, wrap: inner - 32, layer: 4 });
+      cy += rowH + 8;
+    }
+    if (cancel) {
+      const ch = im.hit('szCancel', x + pad, cy + 4, inner, 42, () => (this.sizePick = null), 4);
+      im.rect(4, x + pad, cy + 4, inner, 42, ch ? 0x2a3646 : 0x1b2430, 1, 21, COLORS.line, 1);
+      im.text('szCancelT', 'Cancel', x + w / 2, cy + 16, { size: 14, bold: true, align: 'center', layer: 4 });
+    }
   }
 
   private savesModal(W: number, H: number): void {

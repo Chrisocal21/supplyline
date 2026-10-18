@@ -15,6 +15,8 @@ import {
   vehicleLabel,
   VEHICLE_ORDER,
   BUILD_ORDER,
+  WORLD_SIZES,
+  type WorldSizeId,
   type DistrictId,
   type NodeKind,
   type SiteKind,
@@ -588,9 +590,10 @@ export class Game3D {
     this.cargoMeshes.clear();
   }
 
-  /** A new game on Map 1, or (given a seed, for tests and screenshots) on a generated world. */
-  newWorld(seed?: number): void {
-    const world = seed === undefined ? createWorldFromMap(map1 as MapData) : createWorld(seed);
+  /** A new game on Map 1, or (given a seed, for tests and screenshots) on a generated world. `size` picks one of WORLD_SIZES: a random world of that size when it is not Map 1. */
+  newWorld(seed?: number, size?: WorldSizeId): void {
+    const def = WORLD_SIZES.find((q) => q.id === size);
+    const world = def && def.id !== 'map1' ? createWorld(seed ?? Math.floor(Math.random() * 1e9), def.width, def.height) : seed === undefined ? createWorldFromMap(map1 as MapData) : createWorld(seed);
     prepareRealisticWorld(world);
     this.loadWorld(world);
   }
