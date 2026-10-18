@@ -517,15 +517,37 @@ export class Scenery {
   }
 
   private reserveShade: THREE.Group | null = null;
+  private reserveSig = '';
+  private reserveStrong = false;
 
   /**
-   * A soft amber wash over ground that is set aside for a town or a district, shown while a building or road tool is active so
-   * the player can see where they cannot build. The streets the town has planned run through it as gold lanes: roads may use
-   * those. It is made the first time it is wanted.
+   * A soft amber wash over ground that is set aside for a town or a district, always on at every height so the reserved
+   * land reads the same everywhere, and stronger while a building or road tool is active. The streets the town has planned
+   * run through it as gold lanes: roads may use those. Remade whenever a town grows or a district takes a lot.
    */
-  showReserved(active: boolean): void {
-    if (active && !this.reserveShade) this.reserveShade = this.buildReserveShade();
-    if (this.reserveShade) this.reserveShade.visible = active;
+  setReserved(strong: boolean, sig: string): void {
+    if (sig !== this.reserveSig) {
+      this.reserveSig = sig;
+      if (this.reserveShade) {
+        this.group.remove(this.reserveShade);
+        this.reserveShade.traverse((o) => {
+          const m = o as THREE.Mesh;
+          if (m.geometry) m.geometry.dispose();
+          if (m.material) (m.material as THREE.Material).dispose();
+        });
+      }
+      this.reserveShade = this.buildReserveShade();
+      this.reserveStrong = !strong;
+    }
+    if (strong === this.reserveStrong || !this.reserveShade) return;
+    this.reserveStrong = strong;
+    const [soft, bold] = [[0.13, 0.26], [0.26, 0.46]];
+    this.reserveShade.children.forEach((m, i) => ((m as THREE.Mesh).material as THREE.MeshBasicMaterial).opacity = (strong ? bold : soft)[i]);
+  }
+
+  /** Overlays that are drawn blended over the ground are left out of the ambient-occlusion pass, which would read them as solid. */
+  hideOverlays(hide: boolean): void {
+    if (this.reserveShade) this.reserveShade.visible = !hide;
   }
 
   private buildReserveShade(): THREE.Group {
@@ -570,7 +592,6 @@ export class Scenery {
     }
     group.add(quads(reserved, 0xe0883a, 0.22, 0.12));
     group.add(quads(lanes, 0xf2b04c, 0.4, 0.16));
-    group.visible = false;
     this.group.add(group);
     return group;
   }

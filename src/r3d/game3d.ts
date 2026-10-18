@@ -971,6 +971,14 @@ export class Game3D {
       // pixels: a high-DPI screen would otherwise multiply its cost by four.
       const fullSize = ao.setSize.bind(ao);
       ao.setSize = () => fullSize(Math.max(1, Math.round(this.w * settings.aoScale)), Math.max(1, Math.round(this.h * settings.aoScale)));
+      // The amber reserved-ground wash is blended over the ground; if the occlusion pass saw it as a solid sheet it would
+      // black out the ground under it at close range.
+      const aoRender = ao.render.bind(ao);
+      ao.render = (...args: Parameters<GTAOPass['render']>) => {
+        this.scenery.hideOverlays(true);
+        aoRender(...args);
+        this.scenery.hideOverlays(false);
+      };
       ao.output = GTAOPass.OUTPUT.Default;
       ao.blendIntensity = 1;
       ao.updateGtaoMaterial({ radius: 0.2, distanceExponent: 1.4, thickness: 0.3, scale: 1.1, samples: settings.aoSamples, distanceFallOff: 1, screenSpaceRadius: false });
@@ -1069,7 +1077,7 @@ export class Game3D {
     const usedNodes = new Set(w.sites.map((s) => s.nodeId).filter((n): n is number => n !== null));
     this.scenery.showMarkers(this.activeNodeKind(), usedNodes);
     this.scenery.showGates(this.isRouteTool());
-    this.scenery.showReserved(this.isRouteTool() || this.isBuildTool());
+    this.scenery.setReserved(this.isRouteTool() || this.isBuildTool(), w.places.map((p) => `${p.level}.${Object.values(p.districtLots ?? {}).join('_')}`).join(',') + (this.growing.size > 0 ? 'g' : ''));
     this.scenery.setNodesUsed(usedNodes);
   }
 
