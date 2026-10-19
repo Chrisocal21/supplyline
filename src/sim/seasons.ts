@@ -27,3 +27,15 @@ export const seasonOf = (tick: number): Season => SEASONS[seasonIndex(tick)];
 /** How far through the season it is, 0 to 1. */
 export const seasonProgress = (tick: number): number => (tick % SEASON_TICKS) / SEASON_TICKS;
 export const seasonMult = (kind: SiteKind, tick: number): number => (SEASONAL.includes(kind) ? seasonOf(tick).mult : 1);
+
+const MONTHS = ['Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar', 'Apr', 'May'];
+const MONTH_TICKS = SEASON_TICKS / 3;
+
+/** The date: the game starts on 1 June of year 1, and each season is three months of thirty days. */
+export function calendar(tick: number): { year: number; month: string; day: number; text: string } {
+  const year = Math.floor(tick / (SEASON_TICKS * 4)) + 1;
+  const inYear = tick % (SEASON_TICKS * 4);
+  const month = MONTHS[Math.floor(inYear / MONTH_TICKS)];
+  const day = Math.floor(((inYear % MONTH_TICKS) / MONTH_TICKS) * 30) + 1;
+  return { year, month, day, text: `${month} ${day}` };
+}

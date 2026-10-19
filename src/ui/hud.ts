@@ -88,7 +88,7 @@ import { VERSION, VERSION_NOTE } from '../version';
 import { Rates, Sheets, type SheetId } from './sheets';
 
 import { fitSize } from './company';
-import { SEASONAL, seasonIndex, seasonOf } from '../sim/seasons';
+import { SEASONAL, calendar, seasonIndex, seasonOf } from '../sim/seasons';
 import { vehicleCard, vehicleCardHeight } from './vehiclecard';
 import { condition, driverName, renameDriver, serviceCost, serviceError, serviceVehicle } from '../sim/drivers';
 import { TITLE_SLIDES, Title, type TitleChoice } from './title';
@@ -745,7 +745,7 @@ export class HudScene extends Phaser.Scene {
     const si = seasonIndex(w.tick);
     if (this.seasonSeen !== null && si !== this.seasonSeen) {
       const se = seasonOf(w.tick);
-      this.toasts.push({ text: `${se.label}: farms and orchards are ${se.job}${se.mult > 1 ? ', output is up' : se.mult < 1 ? ', output is down' : ''}`, until: now + 5000 });
+      this.toasts.push({ text: `${se.label} begins (${calendar(w.tick).text}): farms and orchards are ${se.job}${se.mult > 1 ? ', output is up' : se.mult < 1 ? ', output is down' : ''}`, until: now + 5000 });
     }
     this.seasonSeen = si;
 
@@ -1901,7 +1901,8 @@ export class HudScene extends Phaser.Scene {
     });
     im.text('miniSpeedL', g.speed === 0 ? 'PAUSED' : 'SPEED', bx0, fy - 3, { size: 8, bold: true, color: g.speed === 0 ? COLORS.warn : COLORS.muted, layer: 3 });
     const season = seasonOf(world.tick);
-    im.text('miniSeason', `${season.label.toUpperCase()} · ${season.job}`, b.x + b.w - 10, fy - 3, { size: 8, bold: true, color: season.mult > 1 ? COLORS.good : season.mult < 1 ? COLORS.warn : COLORS.muted, align: 'right', layer: 3 });
+    const cal = calendar(world.tick);
+    im.text('miniSeason', `${cal.text.toUpperCase()} · YEAR ${cal.year} · ${season.label.toUpperCase()}`, b.x + b.w - 10, fy - 3, { size: 8, bold: true, color: season.mult > 1 ? COLORS.good : season.mult < 1 ? COLORS.warn : COLORS.muted, align: 'right', layer: 3 });
     im.block({ x: b.x, y: b.y, w: b.w, h: b.h });
     this.miniRect = { x: b.x, y: b.y, w: b.w, h: b.h };
     this.rightInset = this.scale.height - b.y;

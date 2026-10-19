@@ -170,12 +170,12 @@ varying vec3 vSurfacePosition;`)
   float surfaceWater = 1.0 - smoothstep(0.46, 0.57, texture2D(roughnessMap, vRoughnessMapUv).g);
   float grain = texture2D(detailMap, vMapUv * detailRepeat).g;
   diffuseColor.rgb *= mix(0.86 + 0.28 * grain, 1.0, surfaceWater);
-  // The season: a tint over the land, and snow on the high and the far north and south as winter comes in.
+  // The season: a tint over the land, and snow on the high ground and toward the poles as winter comes in; the tropics stay clear.
   float seasonLand = 1.0 - surfaceWater;
   diffuseColor.rgb *= mix(vec3(1.0), uSeasonTint, seasonLand);
   float seaLevelHeight = length(vSurfacePosition) - uSeaR;
-  float snowScore = seaLevelHeight * 0.35 + abs(vSurfacePosition.y) / length(vSurfacePosition) * 0.9 + (grain - 0.5) * 0.9;
-  float snow = uSnow * smoothstep(0.42, 0.82, snowScore + uSnow * 0.45);
+  float snowScore = seaLevelHeight * 0.35 + abs(vSurfacePosition.y) / length(vSurfacePosition) * 1.15 + (grain - 0.5) * 0.5;
+  float snow = uSnow * smoothstep(0.58, 0.86, snowScore);
   diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.93, 0.96, 1.0), snow * seasonLand * 0.9);`,
       )
       .replace(
