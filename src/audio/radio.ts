@@ -13,6 +13,13 @@ export const STATIONS: Station[] = [
   { id: 'rain', name: 'Rainy Window', blurb: 'Steady rain, far thunder and a soft pad' },
   { id: 'drive', name: 'Night Drive', blurb: 'Warm synths and a gentle pulse' },
   { id: 'drift', name: 'Ambient Drift', blurb: 'Slow drones and bells, no beat' },
+  { id: 'sunrise', name: 'Sunrise Drive', blurb: 'Bright arpeggios, warm pads and a steady beat' },
+  { id: 'horizon', name: 'Horizon Lines', blurb: 'Slow, wide and hopeful, with soft brushes' },
+  { id: 'tape', name: 'Tape Garden', blurb: 'Worn tape, hazy chords and a sleepy tune' },
+  { id: 'golden', name: 'Golden Hour', blurb: 'A loose sunny groove with clean plucked guitar' },
+  { id: 'dusty', name: 'Dusty Roads', blurb: 'Jazzy keys over a head-nodding boom-bap beat' },
+  { id: 'cassette', name: 'Cassette Dreams', blurb: 'Neon synth arpeggios and a gentle gated pad' },
+  { id: 'fog', name: 'Morning Fog', blurb: 'Slow plucked notes in a big soft room, no drums' },
 ];
 
 const KEY = 'sl-radio';
@@ -45,6 +52,7 @@ interface Kit {
   ctx: AudioContext;
   bus: GainNode;
   reverb: AudioNode;
+  echo: AudioNode;
   white: AudioBuffer;
   tone: (freq: number, t: number, dur: number, o?: ToneOpts) => void;
   hit: (kind: 'kick' | 'snare' | 'hat' | 'clap', t: number, vel?: number) => void;
@@ -58,6 +66,8 @@ interface ToneOpts {
   cutoff?: number;
   detune?: number;
   send?: number;
+  /** How much goes to the station's echo. */
+  echo?: number;
   trem?: number;
 }
 
@@ -236,7 +246,105 @@ const drift: Generator = (k) => {
   };
 };
 
-const GENERATORS: Record<string, Generator> = { lofi, rain, drive, drift };
+/** A beat-based station described by patterns: sixteen steps a bar, x for a hit and o for a soft one. */
+interface Groove {
+  bpm: number;
+  swing?: number;
+  chords: number[][];
+  roots: number[];
+  /** Bars each chord lasts. */
+  chordBars?: number;
+  kick: string;
+  snare: string;
+  hat: string;
+  clap?: string;
+  /** r root, 5 fifth. */
+  bass: string;
+  bassType?: OscillatorType;
+  /** a to d: the chord's notes, an octave up. */
+  arp?: string;
+  arpType?: OscillatorType;
+  arpCutoff?: number;
+  arpGain?: number;
+  /** Short chord stabs where there is an x. */
+  stab?: string;
+  stabGain?: number;
+  pad?: { type: OscillatorType; gain: number; cutoff: number };
+  lead?: { scale: number[]; prob: number; gain: number };
+  echo?: number;
+  crackle?: boolean;
+  drums?: number;
+}
+
+const groove = (c: Groove): Generator => (k) => {
+  const beat = 60 / c.bpm;
+  const step = beat / 4;
+  const per = c.chordBars ?? 1;
+  let next = k.ctx.currentTime + 0.1;
+  let bar = 0;
+  let hiss: AudioBufferSourceNode | null = null;
+  if (c.crackle) {
+    const len = k.ctx.sampleRate * 4;
+    const buf = k.ctx.createBuffer(1, len, k.ctx.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) d[i] = (Math.random() - 0.5) * 0.02 + (Math.random() < 0.0005 ? (Math.random() - 0.5) * 0.9 : 0);
+    hiss = k.ctx.createBufferSource();
+    hiss.buffer = buf;
+    hiss.loop = true;
+    const hp = k.ctx.createBiquadFilter();
+    hp.type = 'highpass';
+    hp.frequency.value = 900;
+    const g = k.ctx.createGain();
+    g.gain.value = 0.3;
+    hiss.connect(hp).connect(g).connect(k.bus);
+    hiss.start();
+  }
+  const vel = (ch: string | undefined, i: number): number => (ch && ch[i] === 'x' ? 1 : ch && ch[i] === 'o' ? 0.4 : 0);
+  const dv = c.drums ?? 1;
+  return {
+    tick: (now) => {
+      while (next < now + LOOKAHEAD) {
+        const idx = Math.floor(bar / per) % c.chords.length;
+        const chord = c.chords[idx];
+        const root = c.roots[idx];
+        const bt = next;
+        if (c.pad && bar % per === 0) chord.forEach((n, i) => k.tone(hz(n), bt + i * 0.03, beat * 4 * per + 0.5, { type: c.pad!.type, gain: c.pad!.gain, attack: 0.9, release: 1.8, cutoff: c.pad!.cutoff, send: 0.5, detune: rand(-10, 10) }));
+        for (let i = 0; i < 16; i++) {
+          const t = bt + i * step + (i % 2 === 1 ? (c.swing ?? 0) * step : 0);
+          const kv = vel(c.kick, i);
+          if (kv) k.hit('kick', t, kv * dv * 0.9);
+          const sv = vel(c.snare, i);
+          if (sv) k.hit('snare', t, sv * dv * 0.8);
+          const cv = vel(c.clap, i);
+          if (cv) k.hit('clap', t, cv * dv * 0.6);
+          const hv = vel(c.hat, i);
+          if (hv) k.hit('hat', t, hv * dv * rand(0.6, 1));
+          const b = c.bass[i];
+          if (b && b !== '.') k.tone(hz(root + (b === '5' ? 7 : 0)), t, step * 1.7, { type: c.bassType ?? 'sine', gain: 0.2, attack: 0.01, release: 0.25, cutoff: 380 });
+          const a = c.arp?.[i];
+          if (a && a !== '.') k.tone(hz(chord[a.charCodeAt(0) - 97] + 12), t, step * 0.9, { type: c.arpType ?? 'triangle', gain: c.arpGain ?? 0.04, attack: 0.004, release: 0.4, cutoff: c.arpCutoff ?? 2600, send: 0.4, echo: c.echo });
+          if (c.stab?.[i] === 'x') chord.forEach((n, j) => k.tone(hz(n), t + j * 0.008, step * 1.2, { type: 'triangle', gain: c.stabGain ?? 0.05, attack: 0.005, release: 0.5, cutoff: 2400, send: 0.4, echo: c.echo, detune: rand(-4, 4) }));
+          if (c.lead && i % 2 === 0 && Math.random() < c.lead.prob) k.tone(hz(pick(c.lead.scale)), t, beat * rand(0.5, 1.5), { type: 'triangle', gain: c.lead.gain, attack: 0.008, release: 1, cutoff: 3200, send: 0.6, echo: c.echo ?? 0.4 });
+        }
+        next += beat * 4;
+        bar += 1;
+      }
+    },
+    stop: () => hiss?.stop(),
+  };
+};
+
+const GROOVES: Record<string, Groove> = {
+  sunrise: { bpm: 100, chords: [[57, 61, 64, 68], [54, 57, 61, 64], [50, 54, 57, 61], [52, 56, 59, 62]], roots: [45, 42, 38, 40], kick: 'x.....x...x.....', snare: '....x.......x...', hat: 'x.o.x.o.x.o.x.o.', bass: 'r..r..r.r..r..r.', arp: 'abcdcbabcdcbabcd', arpType: 'sawtooth', arpCutoff: 2300, arpGain: 0.03, pad: { type: 'sawtooth', gain: 0.026, cutoff: 1100 }, lead: { scale: [69, 71, 73, 76, 78], prob: 0.12, gain: 0.05 }, echo: 0.5, chordBars: 2 },
+  horizon: { bpm: 82, chords: [[53, 57, 60, 64], [55, 59, 62, 64], [57, 60, 64, 67], [52, 55, 59, 62]], roots: [41, 43, 45, 40], kick: 'x.......x.......', snare: '........o.......', hat: '..o...o...o...o.', bass: 'r.......r.....5.', arp: 'a...b...c...d...', arpCutoff: 3000, arpGain: 0.05, pad: { type: 'sine', gain: 0.05, cutoff: 2000 }, lead: { scale: [65, 67, 69, 72, 74], prob: 0.18, gain: 0.05 }, echo: 0.6, chordBars: 2 },
+  tape: { bpm: 72, chords: [[50, 53, 57, 64], [46, 50, 53, 57], [55, 58, 62, 65], [52, 57, 59, 62]], roots: [38, 34, 43, 33], kick: 'x.......x..o....', snare: '....o.......o...', hat: 'o.o.o.o.o.o.o.o.', bass: 'r.....r.....r...', pad: { type: 'sawtooth', gain: 0.04, cutoff: 700 }, lead: { scale: [62, 65, 67, 69, 72], prob: 0.24, gain: 0.05 }, echo: 0.5, crackle: true, chordBars: 2 },
+  golden: { bpm: 94, swing: 0.1, chords: [[57, 60, 64, 67], [50, 54, 57, 60], [55, 59, 62, 66], [48, 52, 55, 59]], roots: [45, 38, 43, 36], kick: 'x.....x...x.....', snare: '....x.o.....x..o', hat: 'x.o.x.o.x.o.x.o.', bass: 'r..r.5..r..r..5.', stab: '.x....x..x....x.', stabGain: 0.045, lead: { scale: [69, 72, 74, 76, 79], prob: 0.2, gain: 0.06 }, echo: 0.45 },
+  dusty: { bpm: 84, swing: 0.16, chords: [[50, 53, 57, 60], [43, 50, 53, 57], [48, 52, 55, 59], [53, 57, 60, 64]], roots: [38, 43, 36, 41], kick: 'x.....x..x......', snare: '....x.......x...', hat: 'x.x.x.x.x.x.x.x.', bass: 'r.....r.5.....r.', stab: '.x.....x........', stabGain: 0.06, lead: { scale: [62, 65, 67, 69, 72], prob: 0.14, gain: 0.05 }, echo: 0.4, crackle: true, chordBars: 2 },
+  cassette: { bpm: 108, chords: [[52, 55, 59, 64], [48, 52, 55, 60], [43, 47, 50, 55], [50, 54, 57, 62]], roots: [40, 36, 43, 38], kick: 'x...x...x...x...', snare: '....x.......x...', hat: '..x...x...x...x.', bass: '.r.r.r.r.r.r.r.r', bassType: 'sawtooth', arp: 'a.b.c.b.a.b.c.d.', arpType: 'sawtooth', arpCutoff: 1900, arpGain: 0.028, pad: { type: 'sawtooth', gain: 0.035, cutoff: 900 }, echo: 0.5, drums: 0.7, chordBars: 2 },
+  fog: { bpm: 60, chords: [[48, 52, 55, 59], [45, 48, 52, 55], [41, 45, 48, 52], [43, 47, 50, 55]], roots: [36, 33, 29, 31], kick: '................', snare: '................', hat: '................', bass: 'r...............', arp: 'a.......b...c...', arpCutoff: 3400, arpGain: 0.06, pad: { type: 'sine', gain: 0.06, cutoff: 1800 }, lead: { scale: [72, 74, 76, 79, 81], prob: 0.1, gain: 0.05 }, echo: 0.7, chordBars: 2 },
+};
+
+const GENERATORS: Record<string, Generator> = { lofi, rain, drive, drift, ...Object.fromEntries(Object.entries(GROOVES).map(([id, c]) => [id, groove(c)])) };
 
 export class Radio {
   private s: Settings = loadSettings();
@@ -319,10 +427,23 @@ export class Radio {
     bus.connect(this.master);
     const white = this.white;
     const reverb = this.reverb;
+    // A feedback echo each station can send notes to.
+    const echo = ctx.createGain();
+    const delay = ctx.createDelay(1.5);
+    delay.delayTime.value = 0.42;
+    const fb = ctx.createGain();
+    fb.gain.value = 0.36;
+    const echoTone = ctx.createBiquadFilter();
+    echoTone.type = 'lowpass';
+    echoTone.frequency.value = 2400;
+    echo.connect(delay).connect(echoTone);
+    echoTone.connect(fb).connect(delay);
+    echoTone.connect(bus);
     const kit: Kit = {
       ctx,
       bus,
       reverb,
+      echo,
       white,
       tone: (freq, t, dur, o = {}) => {
         const osc = ctx.createOscillator();
@@ -360,6 +481,11 @@ export class Radio {
           const sg = ctx.createGain();
           sg.gain.value = o.send;
           g.connect(sg).connect(reverb);
+        }
+        if (o.echo) {
+          const eg = ctx.createGain();
+          eg.gain.value = o.echo;
+          g.connect(eg).connect(echo);
         }
         osc.start(t);
         osc.stop(t + dur + r + 0.1);
