@@ -55,3 +55,19 @@ describe('vehicle classes and yards', () => {
     }
   });
 });
+
+describe('drivers', () => {
+  it('rank up with deliveries and drive a little faster at each rank', async () => {
+    const { driverLevel, vehicleTicks } = await import('./world');
+    const { DRIVER_TRIPS } = await import('./defs');
+    const v = { kind: 'boxtruck' as const, trips: 0 };
+    expect(driverLevel(v)).toBe(1);
+    let last = vehicleTicks(v);
+    DRIVER_TRIPS.slice(1).forEach((n, i) => {
+      v.trips = n;
+      expect(driverLevel(v)).toBe(i + 2);
+      expect(vehicleTicks(v)).toBeLessThan(last);
+      last = vehicleTicks(v);
+    });
+  });
+});

@@ -65,14 +65,24 @@ export function stat(im: Im, id: string, x: number, y: number, w: number, h: num
   im.text(`${id}v`, value, x + 14, y + 22, { size: 24, bold: true, color, layer: 3 });
 }
 
-/** A console button: square, with a bright face when it can be pressed. */
-export function button(im: Im, id: string, label: string, x: number, y: number, w: number, h: number, enabled: boolean, onClick: () => void, tone: 'main' | 'danger' | 'quiet' = 'quiet'): void {
+/** Text sized to fit a width: the size asked for, or smaller down to a floor. */
+export function fitSize(text: string, width: number, size: number, floor = 8): number {
+  const need = text.length * size * 0.56;
+  return need <= width ? size : Math.max(floor, Math.floor((size * width) / need));
+}
+
+/** A console button: square, with a bright face when it can be pressed. The label shrinks (and wraps, if asked) so all of it shows. */
+export function button(im: Im, id: string, label: string, x: number, y: number, w: number, h: number, enabled: boolean, onClick: () => void, tone: 'main' | 'danger' | 'quiet' = 'quiet', wrap = false): void {
   const hov = im.hit(id, x, y, w, h, () => enabled && onClick(), 3);
   const face = !enabled ? 0x121920 : tone === 'main' ? (hov ? 0xf4b84f : COLORS.accent) : tone === 'danger' ? (hov ? 0x6a2a26 : 0x4a1f1c) : hov ? 0x26364a : 0x1a2431;
   const line = !enabled ? COLORS.line : tone === 'main' ? COLORS.accent : tone === 'danger' ? COLORS.bad : hov ? COLORS.accent : COLORS.line;
   im.rect(3, x, y, w, h, face, 1, 3, line, 1);
   const ink = !enabled ? COLORS.muted : tone === 'main' ? 0x1b1204 : COLORS.text;
-  im.text(`${id}t`, label, x + w / 2, y + h / 2 - 7, { size: 12, bold: true, color: ink, align: 'center', layer: 4, alpha: enabled ? 1 : 0.6 });
+  const room = w - 14;
+  const size = fitSize(label, room, 12, wrap ? 10 : 8);
+  const two = wrap && label.length * size * 0.56 > room;
+  const ty = two ? y + 5 : y + h / 2 - size / 2 - 1;
+  im.text(`${id}t`, label, x + w / 2, ty, { size, bold: true, color: ink, align: 'center', wrap: two ? room : undefined, layer: 4, alpha: enabled ? 1 : 0.7 });
 }
 
 // ---- company: the home dashboard ----

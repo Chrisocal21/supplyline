@@ -12,6 +12,8 @@ import {
   MARKET_DEMAND,
   MOUNTAIN_ELEV,
   fleetLimit,
+  DRIVER_SPEED,
+  DRIVER_TRIPS,
   maxLevelOf,
   NODE_QUALITY,
   BUILD_SLOPE,
@@ -295,6 +297,8 @@ export interface Vehicle {
   /** The building the current load came from. */
   fromId?: number;
   kind: VehicleKind;
+  /** Deliveries made to a buyer, which raise the driver's level and make it faster. */
+  trips?: number;
   /**
    * Set when the road it was on is taken out from under it: the old line, kept here (not in world.routes) so it can
    * drive on to its home along it instead of vanishing. Cleared when it gets there.
@@ -1892,6 +1896,21 @@ function detourRoute(world: World, v: Vehicle, from: Route): Route | undefined {
 }
 
 /** Ticks to cover one tile on this route: highways are faster. */
+/** The driver's level, 1 to 5, from how many deliveries the vehicle has made. */
+export function driverLevel(v: { trips?: number }): number {
+  const t = v.trips ?? 0;
+  let lv = 1;
+  DRIVER_TRIPS.forEach((n, i) => {
+    if (t >= n) lv = i + 1;
+  });
+  return lv;
+}
+
+/** Ticks a vehicle needs for a tile: its class's time, less what its driver's experience saves. */
+export function vehicleTicks(v: { kind: VehicleKind; trips?: number }): number {
+  return VEHICLE_DEFS[v.kind].ticksPerTile * (1 - DRIVER_SPEED * (driverLevel(v) - 1));
+}
+
 export function routeTicks(route: Route, base: number): number {
   return route.grade === 'highway' ? base * HIGHWAY_TIME : base;
 }
@@ -2058,7 +2077,7 @@ function stepVehicle(world: World, v: Vehicle): void {
     }
     case 'moving': {
       v.moveTimer += 1;
-      if (v.moveTimer < routeTicks(route, vdef.ticksPerTile)) break;
+      if (v.moveTimer < routeTicks(route, vehicleTicks(v))) break;
       v.moveTimer = 0;
       v.idx += v.dir;
       if (v.idx <= 0 || v.idx >= last) {
@@ -2070,6 +2089,8 @@ function stepVehicle(world: World, v: Vehicle): void {
     case 'unloading': {
       const atHomeEnd = (v.idx === 0) === (homeEnd(route, v) === 0);
       const site = v.idx === 0 ? from : to;
+      // Arriving at a buyer with a load is a trip: it counts toward the driver's rank.
+      if (!atHomeEnd && v.cargo > 0) v.trips = (v.trips ?? 0) + 1;
       if (atHomeEnd) {
         if (v.cargo > 0 && v.good && v.fromId === v.homeId) {
           // Back home still carrying what the buyer could not take: try the next best buyer before loading again.
@@ -2996,7 +3017,7 @@ function stepRetreat(world: World, v: Vehicle): void {
     return;
   }
   v.moveTimer += 1;
-  if (v.moveTimer < routeTicks(route, VEHICLE_DEFS[v.kind].ticksPerTile)) return;
+  if (v.moveTimer < routeTicks(route, vehicleTicks(v))) return;
   v.moveTimer = 0;
   v.idx += v.dir;
   const last = route.path.length - 1;

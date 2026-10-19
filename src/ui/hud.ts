@@ -53,9 +53,6 @@ import {
   HISTORY_JOBS,
   buyersFor,
   roadPlan,
-  sellVehicleValue,
-  upgradeVehicleCost,
-  upgradeVehicleError,
   routeRefund,
   siteById,
   siteTown,
@@ -87,7 +84,8 @@ import { Game3D, type HoverInfo, type OverlayItem, type Tool } from '../r3d/game
 import { COLORS, Im } from './imui';
 import { VERSION, VERSION_NOTE } from '../version';
 import { Rates, Sheets, type SheetId } from './sheets';
-import { panel } from './company';
+
+import { vehicleCard, vehicleCardHeight } from './vehiclecard';
 import { Title, type TitleChoice } from './title';
 import { byInput, isTouch, onInputChange } from './inputmode';
 import { Minimap, viewSpan, viewTile } from './minimap';
@@ -2812,7 +2810,8 @@ export class HudScene extends Phaser.Scene {
     const fill = !ok ? 0x151c26 : style === 'main' ? (hov ? 0xf2b04c : COLORS.accent) : style === 'on' ? (hov ? 0x3ba877 : 0x2f9a69) : hov ? 0x2a3b50 : 0x1b2735;
     const text = !ok ? COLORS.muted : style === 'main' ? 0x1b1204 : style === 'on' ? 0xffffff : COLORS.accent;
     im.rect(3, x, y, w, h, fill, 1, 8, !ok || style !== 'plain' ? fill : COLORS.accent, 1);
-    im.text(`${id}t`, label, x + w / 2, y + h / 2 - 7, { size: 12, bold: true, color: text, align: 'center', layer: 4 });
+    const size = Math.max(8, Math.min(12, Math.floor((12 * (w - 14)) / Math.max(1, label.length * 6.7))));
+    im.text(`${id}t`, label, x + w / 2, y + h / 2 - size / 2 - 1, { size, bold: true, color: text, align: 'center', layer: 4 });
   }
 
   /** The good a building is mainly about: what a camp digs up or a factory makes. */
@@ -3429,49 +3428,45 @@ export class HudScene extends Phaser.Scene {
       im.text('trN', 'Lay track from this building to run trains.', x, cy, { size: 11, color: COLORS.muted, wrap: w, layer: 2 });
       cy += 24;
     }
-    const tCols = Math.max(1, Math.min(3, Math.floor((w + 12) / (380 + 12))));
+    const tCols = Math.max(1, Math.min(3, Math.floor((w + 12) / (420 + 12))));
     const tW = (w - 12 * (tCols - 1)) / tCols;
-    const cardH = (v: Vehicle): number => (this.truckOpen.has(v.id) ? 222 : 108);
+    const cardH = (v: Vehicle): number => vehicleCardHeight(this.truckOpen.has(v.id));
     const rowH: number[] = [];
     fleet.forEach((v, k) => {
       const row = Math.floor(k / tCols);
       rowH[row] = Math.max(rowH[row] ?? 0, cardH(v));
     });
     const rowY = [0];
-    rowH.forEach((hh, k) => rowY.push(rowY[k] + hh + 8));
+    rowH.forEach((hh, k) => rowY.push(rowY[k] + hh + 10));
     fleet.forEach((v, n) => {
       const gx = x + (n % tCols) * (tW + 12);
       const gy = cy + rowY[Math.floor(n / tCols)];
-      ((x: number, cy: number, w: number): void => {
       const vd = VEHICLE_DEFS[v.kind];
-      const st = this.truckStatus(v);
       const open = this.truckOpen.has(v.id);
-      const h = open ? 222 : 108;
-      panel(im, x, cy, w, h, st.color);
-      im.text(`tv${v.id}n`, `${vehicleLabel(v.kind, v.body)} ${n + 1}`, x + 12, cy + 10, { size: 15, bold: true, layer: 3 });
-      im.text(`tv${v.id}c`, `carries ${vd.capacity} t`, x + w - 12, cy + 12, { size: 12, color: COLORS.muted, align: 'right', layer: 3 });
-      im.text(`tv${v.id}s`, st.text, x + 12, cy + 34, { size: 12, color: st.color, wrap: w - 24, layer: 3 });
-      const upErr = upgradeVehicleError(world, v.id);
-      const next = vd.next ? VEHICLE_DEFS[vd.next] : null;
-      const bw3 = (w - 24 - 12) / 3;
-      const by = cy + 66;
-      this.button(`tv${v.id}u`, !next ? 'Top class' : next.tier > world.tier ? `Tier ${next.tier} bigger` : (s.level < next.needLevel ? `Needs level ${next.needLevel}` : `Upgrade ${fmt(upgradeVehicleCost(v.kind))}`), x + 12, by, bw3, 32, upErr === null, () => g.upgradeVeh(v.id));
-      this.button(`tv${v.id}k`, `Copy $${fmt(vd.cost)}`, x + 12 + bw3 + 6, by, bw3, 32, buyError(world, s.id, v.kind) === null, () => g.duplicateVeh(v.id));
-      this.button(`tv${v.id}m`, open ? 'Less' : 'Settings', x + 12 + (bw3 + 6) * 2, by, bw3, 32, true, () => (open ? this.truckOpen.delete(v.id) : this.truckOpen.add(v.id)));
-      if (open) {
-        const dests = destinationsOf(world, v);
-        const pinned = dests.find((d) => d.id === v.destId);
-        const label = pinned ? `Only to ${pinned.name}` : 'Goes to: any buyer';
-        this.button(`tv${v.id}d`, label.length > 26 ? `${label.slice(0, 25)}…` : label, x + 12, cy + 108, w - 24, 32, dests.length > 0, () => {
+      const dests = destinationsOf(world, v);
+      const pinned = dests.find((d) => d.id === v.destId);
+      const mode = v.pick ?? 'any';
+      const unit = vd.mode === 'rail' ? 'train' : vd.mode === 'air' ? 'plane' : vd.mode === 'sea' ? 'ship' : 'truck';
+      vehicleCard(im, world, v, `${vehicleLabel(v.kind, v.body)} ${n + 1}`, s.level, gx, gy, tW, open, {
+        status: this.truckStatus(v),
+        destLabel: pinned ? `Goes only to ${pinned.name}` : 'Goes to: any buyer',
+        destOk: dests.length > 0,
+        pickLabel: `Prefers: ${PICK_LABEL[mode]}`,
+        pickOk: dests.length > 1 && !v.destId,
+        copyOk: buyError(world, s.id, v.kind) === null,
+        copyCost: vd.cost,
+        unit,
+      }, {
+        upgrade: () => g.upgradeVeh(v.id),
+        copy: () => g.duplicateVeh(v.id),
+        toggle: () => (open ? this.truckOpen.delete(v.id) : this.truckOpen.add(v.id)),
+        cycleDest: () => {
           const ids = [0, ...dests.map((d) => d.id)];
           g.vehicleDest(v.id, ids[(ids.indexOf(v.destId) + 1) % ids.length]);
-        });
-        const mode = v.pick ?? 'any';
-        this.button(`tv${v.id}p`, `Prefers: ${PICK_LABEL[mode]}`, x + 12, cy + 146, w - 24, 32, dests.length > 1 && !v.destId, () => g.vehiclePick(v.id, PICK_MODES[(PICK_MODES.indexOf(mode) + 1) % PICK_MODES.length]));
-        const unit = vd.mode === 'rail' ? 'train' : vd.mode === 'air' ? 'plane' : vd.mode === 'sea' ? 'ship' : 'truck';
-        this.button(`tv${v.id}x`, `Sell ${unit}  +$${fmt(sellVehicleValue(v))}`, x + 12, cy + 184, w - 24, 32, true, () => g.sellVeh(v.id));
-      }
-      })(gx, gy, tW);
+        },
+        cyclePick: () => g.vehiclePick(v.id, PICK_MODES[(PICK_MODES.indexOf(mode) + 1) % PICK_MODES.length]),
+        sell: () => g.sellVeh(v.id),
+      });
     });
     cy += (rowY[rowH.length] ?? 0);
     return cy - y;

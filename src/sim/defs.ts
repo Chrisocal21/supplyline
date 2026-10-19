@@ -360,6 +360,12 @@ export function vehicleLabel(kind: VehicleKind, body: Body = 'box'): string {
   return i < 0 ? VEHICLE_DEFS[kind].label : ROAD_NAMES[body][i];
 }
 
+/** Trips a vehicle has made to a buyer for each driver level, the way a driver in a trucking game earns rank. */
+export const DRIVER_TRIPS = [0, 6, 20, 45, 90];
+/** Each driver level above the first takes this share off the time a vehicle needs for a tile. */
+export const DRIVER_SPEED = 0.04;
+export const DRIVER_RANKS = ['Rookie', 'Regular', 'Experienced', 'Veteran', 'Ace'];
+
 /** Running costs. Vehicles cost this share of their price every minute; buildings and districts a share of theirs per level. */
 export const VEHICLE_UPKEEP = 0.04;
 export const SITE_UPKEEP = 0.01;
