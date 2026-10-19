@@ -6,7 +6,7 @@
     <title>SupplyLine</title>
     <meta name="description" content="SupplyLine is a logistics game on a 3D globe, in development by Probably Fine Studios. Buy land, build farms, forests and factories, and move goods by truck, train, ship and plane. Play the work-in-progress build free in your browser." />
     <meta property="og:title" content="SupplyLine - a logistics game on a 3D globe" />
-    <meta property="og:description" content="In development. Play the early build free in your browser. Windows and Steam versions to come." />
+    <meta property="og:description" content="In development. Play the early build free in your browser, or download the Windows version. Steam to come." />
     <meta property="og:image" content="/site/shot-overview.png" />
     <style>
       :root {
@@ -170,10 +170,10 @@
         <p class="lead">Plans can change as the game takes shape. This is the current order.</p>
         <div class="road">
           <div class="step"><div class="ver">0.14 - 0.16</div><div><h3>The world</h3><p>Layered worlds that never delete what you build, towns that grow into each other, two hand-made maps, rivers, lakes, seas and islands.</p></div><span class="pill done">Done</span></div>
-          <div class="step"><div class="ver">0.17</div><div><h3>Land plots</h3><p>Buy plots before you build. Plots of different sizes, prices that follow the town and the ground.</p></div><span class="pill now">Next</span></div>
-          <div class="step"><div class="ver">0.18</div><div><h3>Fleets</h3><p>Vehicle upgrades and garages, truck capacity per product, building levels, river barges, freighters and container ships, and canals.</p></div><span class="pill">Planned</span></div>
-          <div class="step"><div class="ver">0.19</div><div><h3>Production depth</h3><p>Recipes with rates and buffers, and a view that shows where a chain is slow.</p></div><span class="pill">Planned</span></div>
-          <div class="step"><div class="ver">Later</div><div><h3>Windows download</h3><p>A desktop version with automatic updates and cloud-style saves, then better lighting and graphics.</p></div><span class="pill">Planned</span></div>
+          <div class="step"><div class="ver">0.17</div><div><h3>Land plots</h3><p>Buy plots before you build. Plots of different sizes, prices that follow the town and the ground.</p></div><span class="pill done">Done</span></div>
+          <div class="step"><div class="ver">0.18 - 0.31</div><div><h3>Fleets and crews</h3><p>Vehicle classes and garages, building levels, river barges, freighters and canals, named drivers who rank up, and vehicle wear and service.</p></div><span class="pill done">Done</span></div>
+          <div class="step"><div class="ver">0.19 - 0.35</div><div><h3>Production depth</h3><p>Rates, efficiency and a supply plan for every factory, seasons for farms, company skills, and a console-style interface.</p></div><span class="pill done">Done</span></div>
+          <div class="step"><div class="ver">0.36</div><div><h3>Windows download</h3><p>A desktop version with automatic updates. Next: saves on disk, then better lighting and graphics.</p></div><span class="pill now">Now</span></div>
           <div class="step"><div class="ver">Later</div><div><h3>Steam</h3><p>A Steam page and release once the game is ready for it.</p></div><span class="pill">Planned</span></div>
         </div>
       </div>
@@ -220,7 +220,7 @@
         <h2>FAQ</h2>
         <div style="margin-top: 22px">
           <details><summary>Is it free?</summary><p>The early build in your browser is free to play while the game is in development.</p></details>
-          <details><summary>Will there be a Windows version?</summary><p>Yes. A downloadable version with automatic updates is planned. The browser version will stay.</p></details>
+          <details><summary>Will there be a Windows version?</summary><p>Yes. Use the Download for Windows button at the top. It updates itself in the background and keeps your place. The browser version will stay.</p></details>
           <details><summary>Will it come to Steam?</summary><p>That is the plan. The Steam button will switch on once there is a page to link to.</p></details>
           <details><summary>Will my save carry over between builds?</summary><p>Not always yet. The game changes quickly, so an early save may stop working after an update. Save versioning is on the list for later.</p></details>
           <details><summary>Does it run on a phone?</summary><p>It is built for a desktop browser first. Phones can load it, but it is not tuned for them yet.</p></details>
@@ -236,8 +236,21 @@
     </footer>
 
     <script>
-      // When the download and Steam pages exist, set their addresses here and the buttons switch on.
+      // The Windows button switches on by itself once a release with an installer is published on GitHub. Set the Steam address
+      // here when there is a page.
       var LINKS = { download: '', steam: '' };
+      fetch('https://api.github.com/repos/Chrisocal21/supplyline/releases/latest')
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (rel) {
+          if (!rel || !rel.assets) return;
+          var exe = rel.assets.filter(function (a) { return /.exe$/i.test(a.name); })[0];
+          var el = document.getElementById('download-btn');
+          if (!exe || !el) return;
+          el.href = exe.browser_download_url;
+          el.removeAttribute('aria-disabled');
+          el.querySelector('small').textContent = 'Version ' + String(rel.tag_name || '').replace(/^v/, '') + ' · free';
+        })
+        .catch(function () {});
       [['download-btn', LINKS.download, 'Latest version'], ['steam-btn', LINKS.steam, 'Wishlist now']].forEach(function (b) {
         var el = document.getElementById(b[0]);
         if (!el || !b[1]) return;
