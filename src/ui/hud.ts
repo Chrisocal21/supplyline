@@ -87,6 +87,7 @@ import { Game3D, type HoverInfo, type OverlayItem, type Tool } from '../r3d/game
 import { COLORS, Im } from './imui';
 import { VERSION, VERSION_NOTE } from '../version';
 import { Rates, Sheets, type SheetId } from './sheets';
+import { panel } from './company';
 import { Title, type TitleChoice } from './title';
 import { byInput, isTouch, onInputChange } from './inputmode';
 import { Minimap, viewSpan, viewTile } from './minimap';
@@ -3446,7 +3447,7 @@ export class HudScene extends Phaser.Scene {
       const st = this.truckStatus(v);
       const open = this.truckOpen.has(v.id);
       const h = open ? 222 : 108;
-      im.rect(2, x, cy, w, h, 0x131a24, 1, 10, COLORS.line, 1);
+      panel(im, x, cy, w, h, st.color);
       im.text(`tv${v.id}n`, `${vehicleLabel(v.kind, v.body)} ${n + 1}`, x + 12, cy + 10, { size: 15, bold: true, layer: 3 });
       im.text(`tv${v.id}c`, `carries ${vd.capacity} t`, x + w - 12, cy + 12, { size: 12, color: COLORS.muted, align: 'right', layer: 3 });
       im.text(`tv${v.id}s`, st.text, x + 12, cy + 34, { size: 12, color: st.color, wrap: w - 24, layer: 3 });
@@ -3454,7 +3455,7 @@ export class HudScene extends Phaser.Scene {
       const next = vd.next ? VEHICLE_DEFS[vd.next] : null;
       const bw3 = (w - 24 - 12) / 3;
       const by = cy + 66;
-      this.button(`tv${v.id}u`, !next ? 'Top class' : next.tier > world.tier ? `Tier ${next.tier} bigger` : `Upgrade $${fmt(upgradeVehicleCost(v.kind))}`, x + 12, by, bw3, 32, upErr === null, () => g.upgradeVeh(v.id));
+      this.button(`tv${v.id}u`, !next ? 'Top class' : next.tier > world.tier ? `Tier ${next.tier} bigger` : (s.level < next.needLevel ? `Needs level ${next.needLevel}` : `Upgrade ${fmt(upgradeVehicleCost(v.kind))}`), x + 12, by, bw3, 32, upErr === null, () => g.upgradeVeh(v.id));
       this.button(`tv${v.id}k`, `Copy $${fmt(vd.cost)}`, x + 12 + bw3 + 6, by, bw3, 32, buyError(world, s.id, v.kind) === null, () => g.duplicateVeh(v.id));
       this.button(`tv${v.id}m`, open ? 'Less' : 'Settings', x + 12 + (bw3 + 6) * 2, by, bw3, 32, true, () => (open ? this.truckOpen.delete(v.id) : this.truckOpen.add(v.id)));
       if (open) {

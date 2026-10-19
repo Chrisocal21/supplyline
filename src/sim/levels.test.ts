@@ -45,3 +45,13 @@ describe('building levels', () => {
     expect(fleetOf(w, siteById(w, camp.id)!.id).length).toBe(fleetLimit(1) + 1);
   });
 });
+
+describe('vehicle classes and yards', () => {
+  it('never ask for a building level the vehicle\'s own tier cannot reach', async () => {
+    const { VEHICLE_DEFS } = await import('./defs');
+    for (const [kind, d] of Object.entries(VEHICLE_DEFS)) {
+      // Level n needs tier n - 1 (up to tier 4), so a vehicle unlocked at tier t can be had once the yard is level t + 1.
+      expect(Math.min(d.needLevel - 1, 4), `${kind} needs a yard its tier cannot build`).toBeLessThanOrEqual(d.tier);
+    }
+  });
+});

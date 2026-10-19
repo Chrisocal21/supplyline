@@ -22,7 +22,7 @@ import { BANK_TIER, DAY_TICKS, bankReport, FUND_FEE, LOAN_RATE, REAL_MONEY_ENABL
 import { pathMastered, pathQuestState, questState, tierUnlocks } from '../sim/quests';
 import { buildDistrict, choosePath, districtBoost, districtCost, districtError, districtLevel, districtRevenue, districtSatisfaction, pathError, townUpkeep } from '../sim/town';
 import { dockDemand, growthKinds, isHomePlot, metroBonus, partnerOf, plotTiles, radiusOf, produces, siteCap, stockOf, unitPrice, wants, type Place, type Site, type World } from '../sim/world';
-import { companyPage, fleetPage } from './company';
+import { companyPage, fleetPage, panel, sectionHead, stat } from './company';
 import { COLORS, Im } from './imui';
 import { isTouch } from './inputmode';
 
@@ -475,9 +475,9 @@ export class Sheets {
     const W = v.x1 - v.x0;
     let y = v.y0 - this.scroll;
     const vis = (yy: number, hh: number): boolean => yy + hh > v.y0 && yy < v.y1;
-    const head = (id: string, text: string, color: number = COLORS.muted): void => {
-      if (vis(y, 22)) im.text(id, text, v.x0, y + 3, { size: 11, bold: true, color, layer: 3 });
-      y += 26;
+    const head = (id: string, text: string): void => {
+      if (vis(y, 24)) sectionHead(im, id, text, v.x0, y, v.x1 - v.x0);
+      y += 32;
     };
     const buildings = world.sites.filter((s) => !SITE_DEFS[s.kind].dock && !SITE_DEFS[s.kind].station);
     const rank = (s: Site): number => {
@@ -501,11 +501,7 @@ export class Sheets {
     tiles.forEach(([label, value, color], k) => {
       const tx = v.x0 + (k % tc) * (tw + gap);
       const ty = y + Math.floor(k / tc) * 66;
-      if (vis(ty, 58)) {
-        im.rect(3, tx, ty, tw, 58, 0x131a24, 1, 10, COLORS.line, 1);
-        im.text(`pg-t${k}v`, value, tx + 14, ty + 9, { size: 22, bold: true, color, layer: 3 });
-        im.text(`pg-t${k}l`, label, tx + 14, ty + 38, { size: 10, bold: true, color: COLORS.muted, layer: 3 });
-      }
+      if (vis(ty, 58)) stat(im, `pg-t${k}`, tx, ty, tw, 58, label, value, color, color === COLORS.text ? COLORS.info : color);
     });
     y += 72 + (Math.ceil(tiles.length / tc) - 1) * 66;
 
@@ -520,7 +516,7 @@ export class Sheets {
         const up = e.mult > 1;
         const secs = Math.max(0, Math.round((e.until - world.tick) / TICKS_PER_SECOND));
         if (vis(sy, 36)) {
-          im.rect(3, sx, sy, sw, 34, up ? 0x15332a : 0x38201d, 1, 10, up ? COLORS.good : COLORS.bad, 0.7);
+          panel(im, sx, sy, sw, 34, up ? COLORS.good : COLORS.bad);
           im.text(`pg-ev-${k}`, `${GOODS[e.good].label}  ${up ? '+' : '-'}${Math.round(Math.abs(e.mult - 1) * 100)}%`, sx + 14, sy + 8, { size: 14, bold: true, color: up ? COLORS.good : COLORS.bad, layer: 3 });
           im.text(`pg-evt-${k}`, `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')} left`, sx + sw - 14, sy + 9, { size: 12, color: COLORS.muted, align: 'right', layer: 3 });
         }
@@ -547,7 +543,7 @@ export class Sheets {
       const def = SITE_DEFS[s.kind];
       const st = this.hooks.status(s);
       const hov = im.hit(`pg-row-${s.id}`, bx, by, bw, 66, () => this.hooks.focusSite(s), 3);
-      im.rect(3, bx, by, bw, 66, hov ? 0x1f2b3a : COLORS.panelAlt, 1, 12, st.color === COLORS.good ? COLORS.line : st.color, st.color === COLORS.good ? 1 : 0.8);
+      panel(im, bx, by, bw, 66, st.color, hov);
       const key = `thumb-${s.kind}`;
       if (this.hooks.hasTexture(key)) im.image(`pg-i-${s.id}`, key, bx + 8, by + 9, 48, 48, 1, 3);
       im.text(`pg-nm-${s.id}`, s.name, bx + 66, by + 8, { size: 13, bold: true, wrap: bw - 76, layer: 3 });
@@ -574,7 +570,7 @@ export class Sheets {
         const stored = world.sites.filter((s) => !SITE_DEFS[s.kind].dock).reduce((n, s) => n + stockOf(s, g), 0);
         const made = this.rates.made(g);
         const used = this.rates.used(g);
-        im.rect(3, gx, gy, gw, 62, 0x131a24, 1, 10, COLORS.line, 1);
+        panel(im, gx, gy, gw, 62, GOODS[g].color);
         im.circle(3, gx + 16, gy + 17, 6, GOODS[g].color);
         im.text(`pg-n-${g}`, GOODS[g].label, gx + 30, gy + 9, { size: 13, bold: true, layer: 3 });
         im.text(`pg-s-${g}`, fmt(stored), gx + gw - 12, gy + 6, { size: 20, bold: true, align: 'right', color: stored > 0 ? COLORS.text : COLORS.muted, layer: 3 });
@@ -982,9 +978,11 @@ export class Sheets {
     const w = v.x1 - v.x0;
     let y = v.y0 - this.scroll;
     const chipW = (s: string): number => 22 + Math.ceil(s.length * 6.7);
-    for (const tier of TIERS) {
+    // The tier being worked on first, then what is ahead, and the finished tiers folded down to a line each at the bottom.
+    const rank = (t: number): number => (t === world.tier ? 0 : t > world.tier ? 1 + t : 100 - t);
+    for (const tier of [...TIERS].sort((a, b) => rank(a.tier) - rank(b.tier))) {
       const state = tier.tier < world.tier ? 'done' : tier.tier === world.tier ? 'now' : 'locked';
-      const unlocks = tierUnlocks(tier.tier + 1);
+      const unlocks = state === 'done' ? [] : tierUnlocks(tier.tier + 1);
       const rowH = state === 'now' ? 62 : 34;
       // Unlock chips wrap. Their widths are estimated, so the card's height is known without drawing it.
       const spots: { u: string; cx: number; row: number }[] = [];
@@ -999,18 +997,19 @@ export class Sheets {
         cx += chipW(u) + 6;
       }
       const head = 76;
-      const h = head + tier.quests.length * rowH + (unlocks.length ? 34 + (row + 1) * 32 : 0) + 10;
+      const shown = state === 'done' ? [] : tier.quests;
+      const h = state === 'done' ? 68 : head + tier.quests.length * rowH + (unlocks.length ? 34 + (row + 1) * 32 : 0) + 10;
       if (y + h > v.y0 && y < v.y1) {
         const tint = state === 'done' ? COLORS.good : state === 'now' ? COLORS.accent : 0x4a5666;
-        im.rect(3, x, y, w, h, COLORS.panelAlt, 1, 14, state === 'now' ? COLORS.accent : COLORS.line, state === 'now' ? 0.8 : 1);
-        im.circle(3, x + 36, y + 38, 21, tint);
+        panel(im, x, y, w, h, tint, state === 'now');
+        im.rect(3, x + 15, y + 17, 42, 42, tint, 1, 3);
         im.text(`qs-n-${tier.tier}`, String(tier.tier), x + 36, y + 24, { size: 24, bold: true, color: 0x14100a, align: 'center', layer: 3 });
-        im.text(`qs-t-${tier.tier}`, `Tier ${tier.tier}  ·  ${tier.name}`, x + 70, y + 14, { size: 18, bold: true, color: state === 'locked' ? COLORS.muted : COLORS.text, layer: 3 });
+        im.text(`qs-t-${tier.tier}`, `TIER ${tier.tier}  ·  ${tier.name.toUpperCase()}`, x + 70, y + 14, { size: 18, bold: true, color: state === 'locked' ? COLORS.muted : COLORS.text, layer: 3 });
         im.text(`qs-b-${tier.tier}`, tier.blurb, x + 70, y + 42, { size: 12, color: COLORS.muted, wrap: w - 220, layer: 3 });
-        im.rect(3, x + w - 120, y + 14, 104, 26, state === 'now' ? COLORS.accent : 0x10161e, 1, 13, tint, 1);
+        im.rect(3, x + w - 120, y + 14, 104, 26, state === 'now' ? COLORS.accent : 0x10161e, 1, 3, tint, 1);
         im.text(`qs-s-${tier.tier}`, state === 'done' ? 'Complete' : state === 'now' ? 'In progress' : 'Locked', x + w - 68, y + 19, { size: 12, bold: true, color: state === 'now' ? 0x1b1204 : tint, align: 'center', layer: 3 });
 
-        tier.quests.forEach((q, i) => {
+        shown.forEach((q, i) => {
           const ry = y + head + i * rowH;
           const p = questState(world, tier, q);
           im.line(3, x + 16, ry, x + w - 16, ry, 0xffffff, 0.06, 1);
@@ -1070,19 +1069,18 @@ export class Sheets {
       ['Owed', b.loan, b.loan > 0 ? COLORS.bad : COLORS.text],
       ['Net worth', netWorth(world), COLORS.accent],
     ];
-    im.rect(3, v.x0, y0, W, 76, COLORS.panelAlt, 1, 14, COLORS.line, 1);
-    const sw = W / stats.length;
+    const bcols = W < 620 ? 2 : stats.length;
+    const bw0 = (W - 12 * (bcols - 1)) / bcols;
     stats.forEach(([label, val, col], i) => {
-      const sx = v.x0 + i * sw + sw / 2;
-      im.text(`bk-sl${i}`, label, sx, y0 + 14, { size: 12, color: COLORS.muted, align: 'center', layer: 3 });
-      im.text(`bk-sv${i}`, `${val < 0 ? '-' : ''}$${fmt(Math.abs(val))}`, sx, y0 + 34, { size: W < 700 ? 16 : 22, bold: true, color: col, align: 'center', layer: 3 });
+      stat(im, `bk-s${i}`, v.x0 + (i % bcols) * (bw0 + 12), y0 + Math.floor(i / bcols) * 66, bw0, 58, label, `${val < 0 ? '-' : ''}$${fmt(Math.abs(val))}`, col, col === COLORS.accent ? COLORS.accent : col === COLORS.bad ? COLORS.bad : COLORS.info);
     });
+    y0 += (Math.ceil(stats.length / bcols) - 1) * 66;
     const sign = (n: number): string => `${n >= 0 ? '+' : '-'}$${fmt(Math.abs(n))}`;
     const pct = (n: number): string => `${n >= 0 ? '+' : ''}${n.toFixed(1)}%`;
     const tint = (n: number): number => (n > 0.005 ? COLORS.good : n < -0.005 ? COLORS.bad : COLORS.muted);
     const dayLabel = rep.minutes >= 9.9 ? 'Today (last 10 min)' : `Today (last ${Math.max(1, Math.round(rep.minutes))} min)`;
-    im.text('bk-nt', `Net worth ${dayLabel.toLowerCase()}: ${sign(rep.netToday)} (${pct(rep.netTodayPct)}). A "day" in the bank is ${DAY_TICKS / 600} minutes of play.`, v.x0 + 4, y0 + 84, { size: 12, color: tint(rep.netToday), layer: 3, wrap: W - 8 });
-    y0 += 112;
+    im.text('bk-nt', `Net worth ${dayLabel.toLowerCase()}: ${sign(rep.netToday)} (${pct(rep.netTodayPct)}). A "day" in the bank is ${DAY_TICKS / 600} minutes of play.`, v.x0 + 4, y0 + 70, { size: 12, color: tint(rep.netToday), layer: 3, wrap: W - 8 });
+    y0 += 104;
 
     const gap = 14;
     const cols = W > 900 ? 2 : 1;

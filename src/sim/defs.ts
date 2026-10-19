@@ -321,7 +321,7 @@ export const VEHICLE_DEFS: Record<VehicleKind, VehicleDef> = {
   boxtruck: { label: 'Box Truck', blurb: 'Small, cheap, good for short hauls.', mode: 'road', cost: 120, tier: 0, capacity: 12, ticksPerTile: 6, implemented: true, needLevel: 1, next: 'bigtruck' },
   bigtruck: { label: 'Big Box Truck', blurb: 'Twice the load of a box truck.', mode: 'road', cost: 380, tier: 1, capacity: 27, ticksPerTile: 6, implemented: true, needLevel: 2, next: 'rig' },
   rig: { label: 'Big Rig', blurb: 'Large trailer, faster on the highway.', mode: 'road', cost: 950, tier: 2, capacity: 60, ticksPerTile: 5, implemented: true, needLevel: 3, next: 'convoy' },
-  convoy: { label: 'Truck Fleet', blurb: 'A convoy of rigs that moves as one. The top of the road ladder.', mode: 'road', cost: 3200, tier: 3, capacity: 165, ticksPerTile: 5, implemented: true, needLevel: 5 },
+  convoy: { label: 'Truck Fleet', blurb: 'A convoy of rigs that moves as one. The top of the road ladder.', mode: 'road', cost: 3200, tier: 3, capacity: 165, ticksPerTile: 5, implemented: true, needLevel: 4 },
   train: { label: 'Freight Train', blurb: 'Huge capacity on its own track. Rails cross roads at level crossings.', mode: 'rail', cost: 1800, tier: 2, capacity: 140, ticksPerTile: 3, implemented: true, needLevel: 1, next: 'heavytrain' },
   heavytrain: { label: 'Heavy Haul Train', blurb: 'A long unit train for the busiest lines.', mode: 'rail', cost: 5200, tier: 3, capacity: 360, ticksPerTile: 3, implemented: true, needLevel: 3 },
   plane: { label: 'Cargo Plane', blurb: 'Fast, crosses any terrain. Flies between airports.', mode: 'air', cost: 7000, tier: 3, capacity: 60, ticksPerTile: 3, implemented: true, needLevel: 1, next: 'jet' },
