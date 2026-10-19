@@ -273,7 +273,7 @@ export interface SheetHooks {
   hasTexture: (key: string) => boolean;
   focusSite: (s: Site) => void;
   focusPlace: (p: Place) => void;
-  focusTile: (x: number, y: number) => void;
+  focusTile: (x: number, y: number, placeId?: number) => void;
   select: (id: SheetId) => void;
   income: () => number;
   clip: (x: number, y: number, w: number, h: number) => void;
@@ -891,7 +891,7 @@ export class Sheets {
     const camps = campusSites(world, p);
     if (camps.length) {
       if (vis(y, 22)) im.text('td-ch', 'GROUND KEPT FOR SPORTS', x, y + 3, { size: 10, bold: true, color: COLORS.accent, layer: 3 });
-      if (vis(y, 22)) im.text('td-cn', 'Gold lines on the map show it. Nothing else is built there.', x + 190, y + 2, { size: 11, color: COLORS.muted, layer: 3 });
+      if (vis(y, 22)) im.text('td-cn', 'Select the town and gold lines show it on the map. Nothing else is built there.', x + 190, y + 2, { size: 11, color: COLORS.muted, layer: 3 });
       y += 24;
       const cc = w > 760 ? Math.min(3, camps.length) : 1;
       const cwid = (w - gap * (cc - 1)) / cc;
@@ -902,7 +902,7 @@ export class Sheets {
         panel(im, cx, cy, cwid, 50, c.built ? COLORS.good : COLORS.accent);
         im.text(`td-cs${i}`, DISTRICTS[c.district].label.toUpperCase(), cx + 14, cy + 8, { size: 12, bold: true, layer: 4 });
         im.text(`td-cd${i}`, `${c.built ? 'Built' : 'Kept free'}  ·  ${2 * c.halfX + 1} x ${2 * c.halfY + 1} tiles`, cx + 14, cy + 28, { size: 11, color: c.built ? COLORS.good : COLORS.muted, layer: 4 });
-        button(im, `td-cb${i}`, 'SHOW', cx + cwid - 76, cy + 12, 64, 26, true, () => this.hooks.focusTile(c.x, c.y), 'quiet');
+        button(im, `td-cb${i}`, 'SHOW', cx + cwid - 76, cy + 12, 64, 26, true, () => this.hooks.focusTile(c.x, c.y, p.id), 'quiet');
       });
       y += Math.ceil(camps.length / cc) * 56 + 8;
     }

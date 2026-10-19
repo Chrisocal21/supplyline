@@ -121,7 +121,7 @@ import { paintGlobe, paintRoughness } from './paint';
 import { seasonOf } from '../sim/seasons';
 import { Smoke } from './smoke';
 import { buildingSurfaces, loadSurfaces } from './surfaces';
-import { GRAPHICS, nightLight, readGraphics, saveGraphics, type GraphicsQuality, type LightingMode } from './graphics';
+import { GRAPHICS, nightLight, readAutoQuality, readGraphics, saveAutoQuality, saveGraphics, type GraphicsQuality, type LightingMode } from './graphics';
 import { TILE_UNITS, type LightAnchor } from '../scale';
 import { LAND_PREFIX, buyParcel, enableLandRules, parcelAt, parcelPrice } from '../sim/land';
 import { RoadNet, makeHighwayTexture, makeRailTexture, makeRoadTexture } from './roads';
@@ -418,6 +418,9 @@ export class Game3D {
   /** How the game is running, for the on-screen readout (F3): worked out from the last couple of seconds of frames. */
   readonly perf = { fps: 0, avgMs: 0, p95Ms: 0, simMs: 0, drawMs: 0, workMs: 0 };
   private perfGaps: number[] = [];
+  /** Lower the graphics by itself when the game runs slowly. Off once the player picks a quality. */
+  autoQuality = readAutoQuality();
+  private slowSince = 0;
   private perfSim = 0;
   private perfDraw = 0;
   private perfWork = 0;
@@ -498,6 +501,18 @@ export class Game3D {
     this.lightingMode = preferences.lighting;
     this.applyGraphics(preferences.quality);
     this.resize();
+  }
+
+  setAutoQuality(on: boolean): void {
+    this.autoQuality = on;
+    saveAutoQuality(on);
+    this.slowSince = 0;
+  }
+
+  /** A quality the player picked by hand: the game stops second-guessing it. */
+  chooseGraphics(quality: GraphicsQuality): void {
+    if (quality !== this.graphicsQuality) this.setAutoQuality(false);
+    this.setGraphics(quality);
   }
 
   setGraphics(quality: GraphicsQuality, lighting = this.lightingMode): void {
@@ -755,6 +770,28 @@ export class Game3D {
     requestAnimationFrame((t) => this.frame(t));
   }
 
+  /** If the game stays under about 24 frames a second for several seconds, drop one quality step and say so. */
+  private checkSpeed(now: number): void {
+    if (!this.autoQuality || this.shot || this.demo || this.showcase || document.hidden) {
+      this.slowSince = 0;
+      return;
+    }
+    if (this.perf.fps >= 24) {
+      this.slowSince = 0;
+      return;
+    }
+    if (this.slowSince === 0) this.slowSince = now;
+    if (now - this.slowSince < 7000) return;
+    this.slowSince = 0;
+    const order: GraphicsQuality[] = ['low', 'balanced', 'high', 'ultra'];
+    const at = order.indexOf(this.graphicsQuality);
+    if (at <= 0) return;
+    const next = order[at - 1];
+    this.setGraphics(next);
+    this.perfGaps.length = 0;
+    this.onToast(`Running slowly, so graphics are now ${GRAPHICS[next].label}. You can change this in Graphics.`);
+  }
+
   private frame(now: number): void {
     if (!this.running) return;
     if (this.idle) {
@@ -820,6 +857,7 @@ export class Game3D {
       this.perfSim = 0;
       this.perfDraw = 0;
       this.perfWork = 0;
+      this.checkSpeed(now);
     }
 
     if (!this.demo && !this.showcase && now - this.lastSave > (this.saveOk ? 20000 : 5000)) this.save();
@@ -1072,9 +1110,12 @@ export class Game3D {
     const now = performance.now();
     if (now - this.campusAt < 1000) return;
     this.campusAt = now;
-    const sites = w.realisticLots ? w.places.flatMap((p) => campusSites(w, p).filter((c) => !c.built)) : [];
+    // Only the town you have selected shows its sports ground, so the map stays clean everywhere else.
+    const sel = this.selection;
+    const town = sel && sel.kind === 'place' ? w.places.find((p) => p.id === sel.id) : undefined;
+    const sites = w.realisticLots && town ? campusSites(w, town).filter((c) => !c.built && terrainAt(w, c.x, c.y) !== 'water') : [];
     const sig = sites.map((c) => `${c.district}${c.x},${c.y}`).join('|');
-    const near = this.cam.dist < 150 * (R / 100);
+    const near = true;
     if (this.campusMarks) this.campusMarks.visible = near;
     if (sig === this.campusSig) return;
     this.campusSig = sig;

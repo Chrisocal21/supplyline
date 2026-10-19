@@ -251,8 +251,9 @@ export class HudScene extends Phaser.Scene {
         this.game3d.select({ kind: 'place', id: place.id });
         this.game3d.lookAt(place.x, place.y, 55, this.game3d.cam.heading, this.game3d.cam.pitchManual);
       },
-      focusTile: (x, y) => {
+      focusTile: (x, y, placeId) => {
         this.sheet = null;
+        if (placeId !== undefined) this.game3d.select({ kind: 'place', id: placeId });
         this.game3d.lookAt(x, y, 70, this.game3d.cam.heading, this.game3d.cam.pitchManual);
       },
       select: (id) => (this.sheet = id),
@@ -1254,23 +1255,30 @@ export class HudScene extends Phaser.Scene {
     im.text('gfxTitle', 'GRAPHICS AND LIGHTING', x + 18, y + 18, { size: 16, bold: true, layer: 4 });
     const close = im.hit('gfxClose', x + w - 50, y + 8, 40, 36, () => this.graphicsOpen = false, 4);
     im.text('gfxCloseT', 'X', x + w - 30, y + 17, { size: 16, color: close ? COLORS.accent : COLORS.muted, align: 'center', layer: 4 });
-    const bw = (w - 48) / 3;
-    const choice = (id: string, label: string, index: number, cy: number, selected: boolean, run: () => void) => {
+    const choice = (id: string, label: string, index: number, cy: number, selected: boolean, run: () => void, count = 3) => {
+      const bw = (w - 32 - 8 * (count - 1)) / count;
       const bx = x + 16 + index * (bw + 8);
       const hover = im.hit(id, bx, cy, bw, 40, run, 4);
       im.rect(3, bx, cy, bw, 40, selected ? COLORS.accent : COLORS.panelAlt, 1, 6, hover ? COLORS.accent : COLORS.line);
       im.text(`${id}T`, label, bx + bw / 2, cy + 12, { size: 13, bold: true, color: selected ? 0x182126 : COLORS.text, align: 'center', layer: 4 });
     };
     im.text('gfxQualityLabel', 'QUALITY', x + 18, y + 58, { size: 11, color: COLORS.muted, layer: 4 });
-    (['balanced', 'high', 'ultra'] as GraphicsQuality[]).forEach((quality, i) =>
-      choice(`gfx${quality}`, GRAPHICS[quality].label, i, y + 80, g.graphicsQuality === quality, () => g.setGraphics(quality)));
+    (['low', 'balanced', 'high', 'ultra'] as GraphicsQuality[]).forEach((quality, i) =>
+      choice(`gfx${quality}`, GRAPHICS[quality].label, i, y + 80, g.graphicsQuality === quality, () => g.chooseGraphics(quality), 4));
     const detail = g.graphicsQuality === 'ultra' ? 'High-end PC: 4K shadows, 32-sample contact shading, bloom, 16 local lights.'
       : g.graphicsQuality === 'high' ? 'Desktop: 2K shadows, contact shading, bloom, 8 local lights.'
+      : g.graphicsQuality === 'low' ? 'Lightest: soft low-resolution picture, small shadows, 2 lights. For laptops and older machines.'
       : 'Reduced GPU load: 1K shadows, native resolution, 4 local lights, no post-processing.';
     im.text('gfxDescription', detail, x + 18, y + 130, { size: 11, color: COLORS.muted, wrap: w - 36, layer: 4 });
-    im.text('gfxLightLabel', 'LIGHTING', x + 18, y + 180, { size: 11, color: COLORS.muted, layer: 4 });
+    {
+      const on = g.autoQuality;
+      const ah = im.hit('gfxAuto', x + 16, y + 150, w - 32, 26, () => g.setAutoQuality(!g.autoQuality), 4);
+      im.rect(3, x + 16, y + 150, w - 32, 26, ah ? 0x243246 : COLORS.panelAlt, 1, 6, on ? COLORS.good : COLORS.line);
+      im.text('gfxAutoT', on ? 'Lower the quality by itself if the game runs slowly: ON' : 'Lower the quality by itself if the game runs slowly: OFF', x + 28, y + 156, { size: 12, bold: true, color: on ? COLORS.good : COLORS.muted, layer: 4 });
+    }
+    im.text('gfxLightLabel', 'LIGHTING', x + 18, y + 190, { size: 11, color: COLORS.muted, layer: 4 });
     (['day', 'dusk', 'night'] as LightingMode[]).forEach((light, i) =>
-      choice(`gfx${light}`, light[0].toUpperCase() + light.slice(1), i, y + 202, g.lightingMode === light, () => g.setGraphics(g.graphicsQuality, light)));
+      choice(`gfx${light}`, light[0].toUpperCase() + light.slice(1), i, y + 212, g.lightingMode === light, () => g.setGraphics(g.graphicsQuality, light)));
     im.text('gfxCredits', 'Scanned materials: Poly Haven / CC0. Settings are saved on this device.', x + 18, y + h - 42, { size: 10, color: COLORS.muted, wrap: w - 36, layer: 4 });
   }
 
