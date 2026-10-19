@@ -81,8 +81,9 @@ const done = (code) => {
     const r = await evalJs(`(() => { const r = window.__steps[${i}](); __game.freezeAfter(${+frames}); return r; })()`);
     await sleep(150);
     const ok = await waitFrozen();
-    const shot = await send('Page.captureScreenshot', { format: 'png' });
-    const file = path.join(outDir, i + '.png');
+    const jpeg = process.env.SHOT_FORMAT === 'jpeg';
+    const shot = await send('Page.captureScreenshot', jpeg ? { format: 'jpeg', quality: 82 } : { format: 'png' });
+    const file = path.join(outDir, i + (jpeg ? '.jpg' : '.png'));
     fs.writeFileSync(file, Buffer.from(shot.result.data, 'base64'));
     console.log(i, ok ? 'ok' : 'TIMEOUT', r === undefined ? '' : JSON.stringify(r));
   }

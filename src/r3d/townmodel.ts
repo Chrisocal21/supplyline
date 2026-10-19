@@ -259,7 +259,7 @@ export function townGeometry(o: TownModelOptions): THREE.BufferGeometry {
     p.anchor = [cx, cz];
     if (d.campus && (d.id === 'stadium' || d.id === 'ballpark' || d.id === 'arena')) {
       lights.push(...sportsCampus(p, d.id, d.level, cx, cz, yawToward(fx, fz)));
-      const front = d.id === 'stadium' ? 5.7 : d.id === 'ballpark' ? 7.7 : 4.16;
+      const front = d.id === 'stadium' ? 5.7 : d.id === 'ballpark' ? 5.8 : 4.16;
       const startX = cx + fx * front;
       const startZ = cz + fz * front;
       const endX = X(d.ex);

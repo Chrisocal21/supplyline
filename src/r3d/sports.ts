@@ -1,10 +1,18 @@
 import type { Parts } from './parts';
-import { meters as m, SPORTS, type LightAnchor } from '../scale';
+import { meters, SPORTS, type LightAnchor } from '../scale';
 
 export type SportsKind = 'stadium' | 'ballpark' | 'arena';
 
+/**
+ * The campus each kind takes, in metres across and deep. Football, hockey and the rest of the big venues share one size so they
+ * fit any site; a baseball park is built at three quarters of that scale.
+ */
+export const CAMPUS_SIZE: Record<SportsKind, [number, number]> = { stadium: [180, 125], arena: [180, 125], ballpark: [135, 135] };
+
 /** Full-size sports facilities. The caller reserves a campus before using these models. */
 export function sportsCampus(p: Parts, kind: SportsKind, level: number, cx: number, cz: number, yaw: number): LightAnchor[] {
+  const scale = kind === 'ballpark' ? 0.75 : 1;
+  const m = (v: number): number => meters(v * scale);
   const c = Math.cos(yaw);
   const s = Math.sin(yaw);
   const at = (x: number, z: number) => ({ x: cx + m(x) * c + m(z) * s, z: cz - m(x) * s + m(z) * c, ry: yaw });
@@ -95,7 +103,7 @@ export function sportsCampus(p: Parts, kind: SportsKind, level: number, cx: numb
     box(0, 0.4, 72, 42, 5, 10, 0xa19b89, 1);
     box(0, 13, -77, 24, 9, 0.7, 0x344955, 8);
   } else {
-    p.slab(m(105), m(85), 0x7e847d, { ...at(0, 0) });
+    p.slab(m(180), m(125), 0x7e847d, { ...at(0, 0) });
     const { length, width } = SPORTS.hockey;
     box(0, 0.42, 0, length, 0.02, width, 0xcadadd, 8);
     for (const x of [-length / 2, length / 2]) box(x, 0.45, 0, 0.15, 1.22, width, 0xe0dfd5);

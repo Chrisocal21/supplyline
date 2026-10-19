@@ -948,6 +948,27 @@ export function districtSite(world: World, place: Place, id: DistrictId): Site |
   return world.sites.find((s) => s.placeId === place.id && s.districtId === id);
 }
 
+/** The sports campuses a town keeps ground for: which sport, where, how big, and whether it is built yet. */
+export interface CampusSite {
+  district: DistrictId;
+  /** Tile of its centre, and how far it reaches either way from there. */
+  x: number;
+  y: number;
+  halfX: number;
+  halfY: number;
+  built: boolean;
+}
+
+export function campusSites(world: World, place: Place): CampusSite[] {
+  const used = new Set(Object.values(place.districtLots ?? {}));
+  const out: CampusSite[] = [];
+  layoutOf(world, place).civic.forEach((c, i) => {
+    if (!c.campus) return;
+    out.push({ district: c.campus.district, x: wrapX(world, place.x + c.x), y: place.y + c.y, halfX: c.campus.halfX, halfY: c.campus.halfY, built: used.has(i) });
+  });
+  return out;
+}
+
 /** The next free district lot: one beside a street the town has built, nearest the centre. Null when there is none. */
 export function freeCivicLot(world: World, place: Place, district?: DistrictId): number | null {
   const layout = layoutOf(world, place);

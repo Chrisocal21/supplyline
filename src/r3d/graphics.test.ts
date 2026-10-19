@@ -89,8 +89,8 @@ describe('measured transport and sports geometry', () => {
       const g = p.build();
       checkGeometry(g, 120000);
       counts.add(g.getAttribute('position').count);
-      expect(g.boundingBox!.max.x - g.boundingBox!.min.x).toBeLessThanOrEqual(meters(kind === 'arena' ? 106 : 181));
-      expect(g.boundingBox!.max.z - g.boundingBox!.min.z).toBeLessThanOrEqual(meters(kind === 'stadium' ? 126 : kind === 'arena' ? 86 : 181));
+      expect(g.boundingBox!.max.x - g.boundingBox!.min.x).toBeLessThanOrEqual(meters(kind === 'ballpark' ? 136 : 181));
+      expect(g.boundingBox!.max.z - g.boundingBox!.min.z).toBeLessThanOrEqual(meters(kind === 'ballpark' ? 136 : 126));
       expect(lights.length).toBeGreaterThan(0);
       g.dispose();
     }

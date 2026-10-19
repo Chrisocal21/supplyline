@@ -67,6 +67,7 @@ import {
   layoutOf,
   plotTiles,
   townGround,
+  campusSites,
   townBlocks,
   terrainAt,
   elevAt,
@@ -423,6 +424,10 @@ export class Game3D {
   private running = false;
   private frames = 0;
   private lastSave = 0;
+  /** Gold outlines on the ground round the sports campuses that are kept for a stadium, ballpark or arena nobody has built yet. */
+  private campusMarks: THREE.Group | null = null;
+  private campusSig = '';
+  private campusAt = 0;
   /** When the last autosave went through (wall clock), and whether the most recent try worked. The HUD shows both. */
   savedAt = 0;
   saveOk = true;
@@ -752,6 +757,12 @@ export class Game3D {
 
   private frame(now: number): void {
     if (!this.running) return;
+    if (this.idle) {
+      this.last = now;
+      if (this.shot) (window as unknown as { __frozen?: boolean }).__frozen = true;
+      requestAnimationFrame((t) => this.frame(t));
+      return;
+    }
     const frameStart = performance.now();
     if (this.last > 0) {
       this.perfGaps.push(now - this.last);
@@ -1055,8 +1066,52 @@ export class Game3D {
     return basisMatrix(pos, up, south);
   }
 
+  /** Draw (or clear) the outlines of the unbuilt sports campuses. Cheap: it only rebuilds when the set of them changes. */
+  private syncCampusMarks(): void {
+    const w = this.world;
+    const now = performance.now();
+    if (now - this.campusAt < 1000) return;
+    this.campusAt = now;
+    const sites = w.realisticLots ? w.places.flatMap((p) => campusSites(w, p).filter((c) => !c.built)) : [];
+    const sig = sites.map((c) => `${c.district}${c.x},${c.y}`).join('|');
+    const near = this.cam.dist < 150 * (R / 100);
+    if (this.campusMarks) this.campusMarks.visible = near;
+    if (sig === this.campusSig) return;
+    this.campusSig = sig;
+    if (this.campusMarks) {
+      this.scene.remove(this.campusMarks);
+      this.campusMarks.traverse((o) => (o as THREE.Line).geometry?.dispose());
+    }
+    const group = new THREE.Group();
+    const mat = new THREE.LineBasicMaterial({ color: 0xf4b84f, transparent: true, opacity: 0.95, depthTest: false });
+    for (const c of sites) {
+      const x0 = c.x - c.halfX - 0.5;
+      const x1 = c.x + c.halfX + 0.5;
+      const y0 = c.y - c.halfY - 0.5;
+      const y1 = c.y + c.halfY + 0.5;
+      const pts: THREE.Vector3[] = [];
+      const at = (tx: number, ty: number): void => {
+        const { lon, lat } = tileLonLat(w.width, w.height, tx - 0.5, ty - 0.5);
+        pts.push(lonLatToVec(lon, lat, R + this.hf.surface(lon, lat) + 0.12));
+      };
+      const step = 0.5;
+      for (let tx = x0; tx < x1; tx += step) at(tx, y0);
+      for (let ty = y0; ty < y1; ty += step) at(x1, ty);
+      for (let tx = x1; tx > x0; tx -= step) at(tx, y1);
+      for (let ty = y1; ty > y0; ty -= step) at(x0, ty);
+      const line = new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(pts), mat);
+      line.renderOrder = 9;
+      line.frustumCulled = false;
+      group.add(line);
+    }
+    group.visible = near;
+    this.campusMarks = group;
+    this.scene.add(group);
+  }
+
   private syncWorld(): void {
     const w = this.world;
+    this.syncCampusMarks();
     // Roads change with the routes, and when a town grows its streets reach further.
     const roadSig = `${w.routes.length}:${w.places.map((p) => p.level).join('')}`;
     const sig = [
@@ -2713,6 +2768,8 @@ export class Game3D {
 
   /** True while the opening screen is up: the world is a demo, never saved, and the camera flies itself. */
   showcase = false;
+  /** True while only the title screen is up: no world is built, and the loop neither steps nor draws. */
+  idle = false;
   private cine: { shots: Shot[]; starts: number[]; film: number; total: number; t: number; events: { at: number; run: () => void; done: boolean }[]; later: number; cues: Cue[]; uis: Ui[]; cutAt: number[] } | null = null;
 
   /** Whether there is an autosave to continue from. */

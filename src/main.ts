@@ -33,10 +33,11 @@ if (synced) {
 } else if (hash.includes('notitle') || (hash.includes('shot') && !hash.includes('title'))) {
   if (!game.load()) game.newWorld();
 } else {
-  // The opening: a showcase base that builds and grows under a cinematic camera, behind the title screen.
-  game.newWorld();
-  game.buildDemoBase();
-  game.startShowcase();
+  // The opening is a title screen with a slideshow. No world is built until the player picks Continue or New game, so it comes
+  // up at once and nothing is drawn in 3D behind it. The blank world only keeps the HUD happy.
+  game.world = sim.createBlankWorld(8, 4, new Array(32).fill('grass'));
+  game.showcase = true;
+  game.idle = true;
 }
 game.start();
 // Phones and tablets suspend a tab without warning, so save as the page is hidden.

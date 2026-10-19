@@ -89,7 +89,8 @@ import { fitSize } from './company';
 import { SEASONAL, seasonIndex, seasonOf } from '../sim/seasons';
 import { vehicleCard, vehicleCardHeight } from './vehiclecard';
 import { condition, driverName, renameDriver, serviceCost, serviceError, serviceVehicle } from '../sim/drivers';
-import { Title, type TitleChoice } from './title';
+import { TITLE_SLIDES, Title, type TitleChoice } from './title';
+import { Radio, STATIONS } from '../audio/radio';
 import { byInput, isTouch, onInputChange } from './inputmode';
 import { Minimap, viewSpan, viewTile } from './minimap';
 
@@ -219,6 +220,11 @@ export class HudScene extends Phaser.Scene {
     super('hud');
   }
 
+  /** The title screen's pictures load first, so the opening is never blank. */
+  preload(): void {
+    TITLE_SLIDES.forEach((sl, i) => this.load.image(`title-${i}`, `/${sl.file}`));
+  }
+
   create(): void {
     // Sheet contents scroll, so they live in their own layer, seen only by a camera whose viewport is the sheet body.
     const mainLayer = this.add.layer();
@@ -244,6 +250,10 @@ export class HudScene extends Phaser.Scene {
         this.sheet = null;
         this.game3d.select({ kind: 'place', id: place.id });
         this.game3d.lookAt(place.x, place.y, 55, this.game3d.cam.heading, this.game3d.cam.pitchManual);
+      },
+      focusTile: (x, y) => {
+        this.sheet = null;
+        this.game3d.lookAt(x, y, 70, this.game3d.cam.heading, this.game3d.cam.pitchManual);
       },
       select: (id) => (this.sheet = id),
       income: () => this.income,
@@ -300,7 +310,11 @@ export class HudScene extends Phaser.Scene {
     kb.on('keydown-U', () => !this.title && this.upgradeKey());
     for (let i = 1; i <= 9; i++) kb.on(`keydown-${['ONE', 'TWO', 'THREE', 'FOUR', 'FIVE', 'SIX', 'SEVEN', 'EIGHT', 'NINE'][i - 1]}`, () => this.pickByNumber(i - 1));
 
-    // Any other key, or a click on the picture, skips the opening film.
+    // Browsers only start sound after a press, so the first click or key wakes the radio.
+    this.input.on('pointerdown', () => this.radio.unlock());
+    kb.on('keydown', () => this.radio.unlock());
+
+    // Any other key skips nothing now, but is kept out of the game while the title is up.
     kb.on('keydown', (e: KeyboardEvent) => {
       if (this.title) {
         if (e.key !== 'Enter') this.title.skip();
@@ -354,7 +368,7 @@ export class HudScene extends Phaser.Scene {
 
     // The opening screen: the showcase world flies by behind it until the player starts.
     if (this.game3d.showcase) {
-      this.title = new Title(this.game3d.hasSave(), (c) => this.startGame(c), () => this.game3d.showcaseInfo(), () => this.game3d.skipShowcase());
+      this.title = new Title(this.game3d.hasSave(), (c) => this.startGame(c), (key) => this.textures.exists(key), VERSION);
       return;
     }
     // A first-time player gets the guide straight away. Screenshot and demo links skip it.
@@ -372,6 +386,7 @@ export class HudScene extends Phaser.Scene {
   private startGame(choice: TitleChoice): void {
     const g = this.game3d;
     g.endShowcase();
+    g.idle = false;
     const loaded = choice === 'continue' && g.load();
     if (!loaded) g.newWorld();
     this.sizePick = loaded ? null : 'start';
@@ -617,6 +632,8 @@ export class HudScene extends Phaser.Scene {
   private latest: string | null = null;
   private versionAt = 0;
   private seasonSeen: number | null = null;
+  /** The radio: music made in the browser, with a few stations. It starts on the first click or key press. */
+  readonly radio = new Radio();
   /** The menu button flashes gold until this time, after a new build shows up. */
   private flashUntil = 0;
 
@@ -1087,7 +1104,8 @@ export class HudScene extends Phaser.Scene {
     const showKeys = !isTouch() && !narrow;
     const keysH = showKeys ? 130 : 0;
     const updH = narrow ? 104 : 82;
-    let bodyH = updH + 14;
+    const radioH = narrow ? 118 : 66;
+    let bodyH = updH + 14 + radioH + 14;
     for (const grp of groups) bodyH += 24 + Math.ceil(grp.items.length / cols) * (tileH + gap) - gap + 12;
     const ph = Math.min(H - 24, 56 + bodyH + pad + (showKeys ? 16 + keysH : 0));
     const y = Math.max(12, Math.round((H - ph) / 2));
@@ -1119,6 +1137,60 @@ export class HudScene extends Phaser.Scene {
     im.rect(5, btnX, btnY, btnW, btnH, ready ? (sh ? 0xf4b84f : COLORS.accent) : sh ? 0x2a3646 : 0x1b2430, 1, 10, ready ? COLORS.accent : COLORS.line, 1);
     im.text('menuSyncT', ready ? (this.desktopReady ? 'Restart to update' : 'Sync update now') : this.desktopWired ? 'Up to date' : 'Sync update', btnX + btnW / 2, btnY + 11, { size: 14, bold: true, color: ready ? 0x1b1204 : COLORS.text, align: 'center', layer: 6 });
     cy += updH + 14;
+
+    // The radio: pick a station, turn it up or down, or switch it off.
+    {
+      const r = this.radio;
+      const rx = x + pad;
+      const rw = w - pad * 2;
+      im.rect(4, rx, cy, rw, radioH, 0x111a22, 1, 12, r.on ? COLORS.good : COLORS.line, 1);
+      const st = r.station;
+      const ic = 20;
+      im.rect(4, rx + 12, cy + 12, ic * 2, ic * 2, r.on ? COLORS.good : 0x0c1218, 1, 10);
+      // A little speaker.
+      const sx = rx + 12 + ic;
+      const sy = cy + 12 + ic;
+      const ink = r.on ? 0x0b1f16 : COLORS.muted;
+      im.rect(5, sx - 9, sy - 4, 6, 8, ink, 1, 1);
+      im.rect(5, sx - 4, sy - 8, 6, 16, ink, 1, 1);
+      if (r.on) {
+        im.line(5, sx + 6, sy - 5, sx + 6, sy + 5, ink, 1, 2);
+        im.line(5, sx + 10, sy - 8, sx + 10, sy + 8, ink, 1, 2);
+      }
+      const tx = rx + 12 + ic * 2 + 12;
+      im.text('radioKick', 'RADIO', tx, cy + 9, { size: 10, bold: true, color: COLORS.accent, layer: 5 });
+      im.text('radioName', r.on ? st.name : `${st.name} (off)`, tx, cy + 23, { size: 15, bold: true, color: r.on ? COLORS.text : COLORS.muted, layer: 5 });
+      if (!narrow) im.text('radioBlurb', st.blurb, tx, cy + 43, { size: 11, color: COLORS.muted, layer: 5 });
+      const bh = 34;
+      const by = narrow ? cy + 62 : cy + (radioH - bh) / 2;
+      const small = (id: string, label: string, bx: number, bw: number, on: boolean, act: () => void): void => {
+        const hov = im.hit(id, bx, by, bw, bh, act, 5);
+        im.rect(5, bx, by, bw, bh, on ? COLORS.good : hov ? 0x243246 : 0x1b2430, 1, 8, on ? COLORS.good : hov ? COLORS.accent : COLORS.line, 1);
+        im.text(`${id}t`, label, bx + bw / 2, by + 9, { size: 13, bold: true, color: on ? 0x0b1f16 : COLORS.text, align: 'center', layer: 6 });
+      };
+      // From the right: on or off, the volume, the two arrows.
+      let px = rx + rw - 12;
+      px -= 70;
+      small('radioOn', r.on ? 'ON' : 'OFF', px, 70, r.on, () => r.toggle());
+      const vw = narrow ? 110 : 150;
+      px -= vw + 10;
+      const vx = px;
+      im.rect(5, vx, by + 12, vw, 10, 0x0c1218, 1, 5, COLORS.line, 1);
+      im.rect(5, vx, by + 12, Math.max(6, vw * r.volume), 10, r.on ? COLORS.good : COLORS.muted, 1, 5);
+      im.hit('radioVol', vx - 6, by, vw + 12, bh, () => r.setVolume((this.input.activePointer.x - vx) / vw), 5);
+      px -= 44 + 6;
+      small('radioNext', 'Next', px - 4, 52, false, () => {
+        r.next();
+        this.toasts.push({ text: `Radio: ${r.station.name}`, until: this.time.now + 2200 });
+      });
+      px -= 52 + 6;
+      small('radioPrev', 'Prev', px - 4, 52, false, () => {
+        r.prev();
+        this.toasts.push({ text: `Radio: ${r.station.name}`, until: this.time.now + 2200 });
+      });
+      im.text('radioN', `${STATIONS.findIndex((q) => q.id === st.id) + 1} / ${STATIONS.length}`, px - 14, by + 11, { size: 11, color: COLORS.muted, align: 'right', layer: 5 });
+    }
+    cy += radioH + 14;
 
     for (const grp of groups) {
       im.text(`menuS${grp.title}`, grp.title, x + pad, cy + 2, { size: 10, bold: true, color: COLORS.accent, layer: 4 });
