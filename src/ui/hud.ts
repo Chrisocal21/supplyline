@@ -85,6 +85,7 @@ import { COLORS, Im } from './imui';
 import { VERSION, VERSION_NOTE } from '../version';
 import { Rates, Sheets, type SheetId } from './sheets';
 
+import { fitSize } from './company';
 import { vehicleCard, vehicleCardHeight } from './vehiclecard';
 import { condition, driverName, renameDriver, serviceCost, serviceError, serviceVehicle } from '../sim/drivers';
 import { Title, type TitleChoice } from './title';
@@ -2618,30 +2619,71 @@ export class HudScene extends Phaser.Scene {
     return cy + 30 - y;
   }
 
+  private filterOpen: Record<FilterPage, boolean> = { supply: false, sell: false };
+
   /**
-   * The filter bar over a list: search, the chip rows, a count of what is shown and a way to clear it all. Rows are
-   * [id, label, options, current, setter]. Returns its height.
+   * The toolbar over a list: search, the one filter that matters most as a segmented switch, a sort button, and a Filters
+   * button that opens the rest (type, goods). Rows are [id, label, options, current, setter]. Returns its height.
    */
   private filterBar(page: FilterPage, rows: [string, string, { v: string; label: string; n?: number; color?: number }[], string, (v: string) => void][], shown: number, total: number, x: number, y: number, w: number): number {
     const im = this.pim;
     const f = this.filters[page];
+    const status = rows.find((r) => r[0] === 'status');
+    const sort = rows.find((r) => r[0] === 'sort');
+    const extra = rows.filter((r) => r[0] !== 'status' && r[0] !== 'sort' && r[2].length > 1);
+    const hidden = extra.filter((r) => r[3] !== 'all').length;
+    const open = this.filterOpen[page] || hidden > 0;
+    const wide = w >= 900;
+    const H = 34;
     let cy = y;
+
+    // Search, with the status switch beside it when there is room.
+    const segW = status && wide ? Math.min(420, status[2].length * 116) : 0;
+    this.searchBox(page, x, cy, w - (segW ? segW + 10 : 0), H);
+    if (status && wide) this.segmented(`fl${page}st`, status[2], status[3], status[4], x + w - segW, cy, segW, H);
+    cy += H + 8;
+    if (status && !wide) {
+      this.segmented(`fl${page}st`, status[2], status[3], status[4], x, cy, w, H);
+      cy += H + 8;
+    }
+
+    // Sort and Filters, and what is showing.
+    const bw = 170;
+    if (sort) {
+      const cur = sort[2].findIndex((o) => o.v === sort[3]);
+      const nextOpt = sort[2][(cur + 1) % sort[2].length];
+      this.button(`fl${page}so`, `Sort: ${sort[2][Math.max(0, cur)].label}`, x, cy, bw, 30, true, () => sort[4](nextOpt.v));
+    }
+    if (extra.length) this.button(`fl${page}fo`, hidden ? `Filters  (${hidden})` : open ? 'Hide filters' : 'More filters', x + bw + 8, cy, 140, 30, true, () => void (this.filterOpen[page] = !this.filterOpen[page]), hidden ? 'on' : 'plain');
     const busy = isFiltered(f);
-    const cw = busy ? 120 : 0;
-    this.searchBox(page, x, cy, w - (busy ? cw + 8 : 0), 34);
     if (busy) {
-      this.button(`fx${page}`, 'Clear filters', x + w - cw, cy + 1, cw, 32, true, () => {
+      this.button(`fx${page}`, 'Clear', x + bw + 8 + (extra.length ? 148 : 0), cy, 80, 30, true, () => {
         this.filters[page] = newFilter(f.sort);
         if (this.searchEl && this.searchFor === page) this.searchEl.value = '';
       });
     }
-    cy += 42;
-    for (const [id, label, opts, cur, set] of rows) {
-      if (opts.length <= 1 && id !== 'sort') continue;
-      cy += this.chipRow(`fl${page}${id}`, label, opts, cur, set, x, cy, w) + 2;
+    if (busy || shown !== total) im.text(`fl${page}N`, `${shown} of ${total}`, x + w, cy + 8, { size: 11, bold: true, color: shown ? COLORS.info : COLORS.warn, align: 'right', layer: 2 });
+    cy += 30 + 8;
+
+    if (open) {
+      for (const [id, label, opts, cur, set] of extra) cy += this.chipRow(`fl${page}${id}`, label, opts, cur, set, x, cy, w) + 2;
+      cy += 4;
     }
-    im.text(`fl${page}N`, shown === total ? `Showing all ${total}` : `Showing ${shown} of ${total}`, x, cy + 2, { size: 11, bold: true, color: shown ? COLORS.info : COLORS.warn, layer: 2 });
-    return cy + 24 - y;
+    return cy - y;
+  }
+
+  /** A row of joined buttons, one lit: the filter people reach for most. */
+  private segmented(id: string, opts: { v: string; label: string; n?: number }[], cur: string, pick: (v: string) => void, x: number, y: number, w: number, h: number): void {
+    const im = this.pim;
+    const bw = w / opts.length;
+    opts.forEach((o, i) => {
+      const on = o.v === cur;
+      const bx = x + i * bw;
+      const hov = im.hit(`${id}${o.v}`, bx, y, bw, h, () => pick(o.v), 3);
+      im.rect(3, bx, y, bw, h, on ? 0x2f9a69 : hov ? 0x243246 : 0x161d27, 1, 4, on ? 0x2f9a69 : COLORS.line, 1);
+      const txt = o.n === undefined ? o.label : `${o.label}  ${o.n}`;
+      im.text(`${id}${o.v}T`, txt, bx + bw / 2, y + h / 2 - 7, { size: fitSize(txt, bw - 12, 12, 8), bold: on, color: on ? 0xffffff : COLORS.text, align: 'center', layer: 4 });
+    });
   }
 
   /** Tiles between two buildings, going round the globe the short way. */
