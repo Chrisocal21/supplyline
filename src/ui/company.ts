@@ -3,6 +3,7 @@
 // square panels, a coloured edge, big numbers and small capitals.
 import { GOODS, SITE_DEFS, TIERS, TOWN_LEVELS, VEHICLE_DEFS, VEHICLE_UPKEEP, vehicleLabel, type VehicleKind } from '../sim/defs';
 import { netWorth } from '../sim/bank';
+import { condition, serviceCost, serviceVehicle } from '../sim/drivers';
 import { diagnoseAll, shortOf } from '../sim/diagnose';
 import { nextQuest } from '../sim/quests';
 import {
@@ -271,21 +272,32 @@ export function fleetPage(im: Im, world: World, v: PageView, scroll: number, hoo
   const working = vehicles.filter((q) => q.routeId !== 0).length;
   const value = vehicles.reduce((n, q) => n + VEHICLE_DEFS[q.kind].cost, 0);
   const upkeep = vehicles.reduce((n, q) => n + VEHICLE_DEFS[q.kind].cost * VEHICLE_UPKEEP, 0);
+  const worn = vehicles.filter((q) => condition(q) < 0.6);
   const tiles: [string, string, number][] = [
     ['Vehicles', String(vehicles.length), COLORS.text],
     ['Working', String(working), COLORS.good],
     ['Waiting', String(vehicles.length - working), vehicles.length - working > 0 ? COLORS.warn : COLORS.muted],
     ['Fleet value', money(value), COLORS.accent],
     ['Upkeep a minute', money(upkeep), COLORS.bad],
+    ['Need service', String(worn.length), worn.length ? COLORS.warn : COLORS.muted],
   ];
-  const tc = W < 620 ? 2 : W < 900 ? 3 : 5;
+  const tc = W < 620 ? 2 : W < 900 ? 3 : 6;
   const tw = (W - gap * (tc - 1)) / tc;
   tiles.forEach(([label, val, color], k) => {
     const tx = v.x0 + (k % tc) * (tw + gap);
     const ty = y + Math.floor(k / tc) * 66;
     if (vis(ty, 58)) stat(im, `fl-s${k}`, tx, ty, tw, 58, label, val, color, color === COLORS.text ? COLORS.info : color);
   });
-  y += Math.ceil(tiles.length / tc) * 66 + 8;
+  y += Math.ceil(tiles.length / tc) * 66 + 2;
+  if (vis(y, 34)) {
+    const bill = worn.reduce((n, q) => n + serviceCost(q), 0);
+    button(im, 'fl-svc', worn.length ? `SERVICE ALL WORN  ${worn.length}  ·  ${money(bill)}` : 'ALL VEHICLES IN GOOD SHAPE', v.x0, y, 300, 30, worn.length > 0 && world.money >= Math.min(...worn.map(serviceCost)), () => {
+      let done = 0;
+      for (const q of worn) if (serviceVehicle(world, q.id) === null) done++;
+      hooks.toast(done ? `Serviced ${done} vehicle${done === 1 ? '' : 's'}` : 'Not enough money');
+    }, 'main');
+  }
+  y += 40;
 
   // Every building that has a yard, the ones with vehicles first.
   const homes = world.sites
@@ -329,7 +341,11 @@ export function fleetPage(im: Im, world: World, v: PageView, scroll: number, hoo
         panel(im, v.x0, ry, W, rowH - 4, st.color);
         im.text(`fl-vn${q.id}`, `${vehicleLabel(q.kind, q.body)} ${i + 1}`, v.x0 + 16, ry + 5, { size: 13, bold: true, layer: 4 });
         im.text(`fl-vs${q.id}`, st.text, v.x0 + 16, ry + 22, { size: 11, color: st.color, layer: 4 });
-        im.text(`fl-vc${q.id}`, `carries ${VEHICLE_DEFS[q.kind].capacity}`, v.x0 + 230, ry + 13, { size: 11, color: COLORS.muted, layer: 4 });
+        const cond = condition(q);
+        const tint = cond > 0.6 ? COLORS.good : cond > 0.3 ? COLORS.warn : COLORS.bad;
+        im.text(`fl-vc${q.id}`, `carries ${VEHICLE_DEFS[q.kind].capacity}`, v.x0 + 230, ry + 6, { size: 11, color: COLORS.muted, layer: 4 });
+        im.rect(4, v.x0 + 230, ry + 26, 90, 5, 0x0a0f14, 1, 1);
+        im.rect(4, v.x0 + 230, ry + 26, 90 * cond, 5, tint, 1, 1);
         const up = upgradeVehicleError(world, q.id);
         const next = VEHICLE_DEFS[q.kind].next;
         const bw = 118;
