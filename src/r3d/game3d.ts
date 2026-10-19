@@ -117,6 +117,7 @@ import { buildDistrict } from '../sim/town';
 import map1 from '../maps/map1.json';
 import map2 from '../maps/map2.json';
 import { paintGlobe, paintRoughness } from './paint';
+import { seasonOf } from '../sim/seasons';
 import { Smoke } from './smoke';
 import { buildingSurfaces, loadSurfaces } from './surfaces';
 import { GRAPHICS, nightLight, readGraphics, saveGraphics, type GraphicsQuality, type LightingMode } from './graphics';
@@ -310,6 +311,13 @@ interface Shot {
   view: (u: number, t: number, dt: number) => { x: number; y: number; dist: number; h: number; p: number };
 }
 
+const SEASON_LIGHT: Record<string, { sun: THREE.Color; sky: THREE.Color; ground: THREE.Color }> = {
+  summer: { sun: new THREE.Color(0xffe8c2), sky: new THREE.Color(0xcfe0f7), ground: new THREE.Color(0x66714c) },
+  autumn: { sun: new THREE.Color(0xffd29a), sky: new THREE.Color(0xe6dcc4), ground: new THREE.Color(0x7d6a3c) },
+  winter: { sun: new THREE.Color(0xe6efff), sky: new THREE.Color(0xdde8f6), ground: new THREE.Color(0x8c9aa6) },
+  spring: { sun: new THREE.Color(0xfff0d0), sky: new THREE.Color(0xd4e8f2), ground: new THREE.Color(0x667f4a) },
+};
+
 export class Game3D {
   readonly renderer: THREE.WebGLRenderer;
   readonly scene = new THREE.Scene();
@@ -363,6 +371,9 @@ export class Game3D {
   private readonly highwayTexture = makeHighwayTexture();
   private readonly hemi = new THREE.HemisphereLight(0xcfe0f7, 0x66714c, 1.2);
   private readonly sun = new THREE.DirectionalLight(0xffe8c2, 2.6);
+  private readonly seasonSun = new THREE.Color(0xffe8c2);
+  private readonly seasonSky = new THREE.Color(0xcfe0f7);
+  private readonly seasonGround = new THREE.Color(0x66714c);
   private readonly siteMeshes = new Map<number, THREE.Mesh>();
   private readonly townMeshes = new Map<number, { mesh: THREE.Mesh; sig: string; level: number; districts: Record<string, number>; path: string }>();
   /** Stand-ins for the building work on a district's landmark, so the scaffolding and lorries have something to stand at. */
@@ -1756,7 +1767,17 @@ export class Game3D {
     this.sun.position.copy(F).addScaledVector(dir, 300);
     this.sun.target.position.copy(F);
     this.sun.intensity = night ? 0.16 : dusk ? 1.3 : 2.6;
+    // The season tints the daylight: warm in autumn, cool and pale in winter, fresh in spring. It eases from one to the next.
+    const tint = SEASON_LIGHT[this.world ? seasonOf(this.world.tick).id : 'summer'];
+    this.seasonSun.lerp(tint.sun, 0.03);
+    this.seasonSky.lerp(tint.sky, 0.03);
+    this.seasonGround.lerp(tint.ground, 0.03);
     this.sun.color.set(night ? 0x9cb8df : dusk ? 0xffb576 : 0xffe8c2);
+    if (!night && !dusk) {
+      this.sun.color.copy(this.seasonSun);
+      this.hemi.color.copy(this.seasonSky);
+      this.hemi.groundColor.copy(this.seasonGround);
+    }
     this.scene.environmentIntensity = night ? 0.05 : dusk ? 0.18 : 0.28;
     this.sun.castShadow = dist < 190;
     const ext = THREE.MathUtils.clamp(dist * 0.95, 22, 150);

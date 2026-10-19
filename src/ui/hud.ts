@@ -2418,6 +2418,7 @@ export class HudScene extends Phaser.Scene {
         add((cx, yy, ww) => this.nextStepCard(s, cx, yy, ww));
         add((cx, yy, ww) => this.statStrip(s, cx, yy, ww));
         add((cx, yy, ww) => this.inventorySection(s, cx, yy, ww));
+        if (def.recipe) add((cx, yy, ww) => this.plannerSection(s, cx, yy, ww));
         add(info);
       } else if (this.dashPage === 'supply') {
         add((cx, yy, ww) => this.businessSection(s, cx, yy + 6, ww) + 6);
@@ -3114,6 +3115,45 @@ export class HudScene extends Phaser.Scene {
       im.text(`st${i}l`, label, tx + 14, ty + 38, { size: 10, bold: true, color: COLORS.muted, layer: 3 });
     });
     return 58 + (Math.ceil(tiles.length / cols) - 1) * 66;
+  }
+
+  /**
+   * A factory's supply plan, the way a factory game lays it out: for each input, what it needs a minute at full speed, what
+   * the buildings joined to it can send, and how many more it would take to keep it running flat out.
+   */
+  private plannerSection(s: Site, x: number, y: number, w: number): number {
+    const im = this.pim;
+    const world = this.game3d.world;
+    const rate = ratePerMin(world, s);
+    if (!rate) return 0;
+    let cy = this.sectionHead('plH', 'SUPPLY PLAN  (a minute, at full speed)', x, y, w);
+    const ins = Object.entries(rate.in) as [Good, number][];
+    const cols = Math.max(1, Math.min(ins.length, Math.floor((w + 10) / 330)));
+    const cw = (w - 10 * (cols - 1)) / cols;
+    ins.forEach(([gd, need], i) => {
+      let have = 0;
+      for (const o of world.sites) {
+        if (o.id === s.id) continue;
+        const out = ratePerMin(world, o)?.out[gd];
+        if (!out) continue;
+        const to = sellTargets(world, o, hasByLine(o) && !lineGoods(o, 'main').includes(gd) ? 'by' : 'main').filter((t) => t.on);
+        if (to.some((t) => t.site.id === s.id)) have += out / to.length;
+      }
+      const short = Math.max(0, need - have);
+      const maker = (Object.keys(SITE_DEFS) as SiteKind[]).find((k) => SITE_DEFS[k].produce?.good === gd);
+      const one = maker ? ((TICKS_PER_SECOND * 60) / SITE_DEFS[maker].produce!.every) * LEVEL_SPEED[0] : 0;
+      const more = short > 0.4 && one > 0 ? Math.ceil(short / one) : 0;
+      const col = short <= 0.4 ? COLORS.good : have > 0 ? COLORS.warn : COLORS.bad;
+      const cx = x + (i % cols) * (cw + 10);
+      const ty = cy + Math.floor(i / cols) * 70;
+      im.rect(2, cx, ty, cw, 62, 0x131a24, 1, 8, COLORS.line, 1);
+      im.circle(3, cx + 16, ty + 16, 5, GOODS[gd].color);
+      im.text(`pl${i}n`, GOODS[gd].label, cx + 28, ty + 8, { size: 13, bold: true, layer: 3 });
+      im.text(`pl${i}v`, `${Math.round(have * 10) / 10} of ${need}`, cx + cw - 12, ty + 8, { size: 13, bold: true, color: col, align: 'right', layer: 3 });
+      im.bar(3, cx + 12, ty + 30, cw - 24, 6, Math.min(1, have / need), col);
+      im.text(`pl${i}t`, short <= 0.4 ? 'Supplied' : more > 0 && maker ? `Short ${Math.round(short * 10) / 10}: about ${more} more ${SITE_DEFS[maker].label.toLowerCase()}${more === 1 ? '' : 's'} at level 1` : `Short ${Math.round(short * 10) / 10} a minute`, cx + 12, ty + 42, { size: 11, color: short <= 0.4 ? COLORS.good : COLORS.warn, wrap: cw - 24, layer: 3 });
+    });
+    return cy + Math.ceil(ins.length / cols) * 70 - y;
   }
 
   /** The building's shelves across the full width: one card per good it takes in or makes, filled to how full its store is. */
