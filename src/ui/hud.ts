@@ -86,6 +86,7 @@ import { VERSION, VERSION_NOTE } from '../version';
 import { Rates, Sheets, type SheetId } from './sheets';
 
 import { vehicleCard, vehicleCardHeight } from './vehiclecard';
+import { condition, driverName, renameDriver, serviceCost, serviceError, serviceVehicle } from '../sim/drivers';
 import { Title, type TitleChoice } from './title';
 import { byInput, isTouch, onInputChange } from './inputmode';
 import { Minimap, viewSpan, viewTile } from './minimap';
@@ -3456,6 +3457,10 @@ export class HudScene extends Phaser.Scene {
         copyOk: buyError(world, s.id, v.kind) === null,
         copyCost: vd.cost,
         unit,
+        driver: driverName(world, v),
+        condition: condition(v),
+        serviceCost: serviceCost(v),
+        serviceOk: serviceError(world, v.id) === null,
       }, {
         upgrade: () => g.upgradeVeh(v.id),
         copy: () => g.duplicateVeh(v.id),
@@ -3466,6 +3471,11 @@ export class HudScene extends Phaser.Scene {
         },
         cyclePick: () => g.vehiclePick(v.id, PICK_MODES[(PICK_MODES.indexOf(mode) + 1) % PICK_MODES.length]),
         sell: () => g.sellVeh(v.id),
+        service: () => this.toasts.push({ text: serviceVehicle(world, v.id) ?? `${driverName(world, v)}'s ${unit} is serviced`, until: this.time.now + 2400 }),
+        rename: () => {
+          const name = window.prompt('Name this driver', driverName(world, v));
+          if (name !== null) this.toasts.push({ text: renameDriver(world, v.id, name) ?? 'Driver renamed', until: this.time.now + 2000 });
+        },
       });
     });
     cy += (rowY[rowH.length] ?? 0);

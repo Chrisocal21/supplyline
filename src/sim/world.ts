@@ -56,6 +56,7 @@ import { blendPartner, civicFootprint, footprint, plotCount, streetReach, townLa
 import { generateLand } from './mapgen';
 import { checkQuests } from './quests';
 import { stepBank, type BankState } from './bank';
+import { WEAR_SLOWDOWN, WEAR_TILES } from './drivers';
 import { districtDemand, stepEconomy, townGrowthMult, townLoadMult, townPriceMult, townSpeedMult, townStorageMult } from './town';
 
 export type { Place, Region, ResourceNode, Tile };
@@ -299,6 +300,10 @@ export interface Vehicle {
   kind: VehicleKind;
   /** Deliveries made to a buyer, which raise the driver's level and make it faster. */
   trips?: number;
+  /** The driver's name, once the player has given one. Until then a name is made from the vehicle (see drivers.ts). */
+  driver?: string;
+  /** How worn the vehicle is, 0 (new) to 1 (worn out). It grows with the ground covered and a service sets it back. */
+  wear?: number;
   /**
    * Set when the road it was on is taken out from under it: the old line, kept here (not in world.routes) so it can
    * drive on to its home along it instead of vanishing. Cleared when it gets there.
@@ -1907,8 +1912,8 @@ export function driverLevel(v: { trips?: number }): number {
 }
 
 /** Ticks a vehicle needs for a tile: its class's time, less what its driver's experience saves. */
-export function vehicleTicks(v: { kind: VehicleKind; trips?: number }): number {
-  return VEHICLE_DEFS[v.kind].ticksPerTile * (1 - DRIVER_SPEED * (driverLevel(v) - 1));
+export function vehicleTicks(v: { kind: VehicleKind; trips?: number; wear?: number }): number {
+  return VEHICLE_DEFS[v.kind].ticksPerTile * (1 - DRIVER_SPEED * (driverLevel(v) - 1)) * (1 + WEAR_SLOWDOWN * (v.wear ?? 0));
 }
 
 export function routeTicks(route: Route, base: number): number {
@@ -2080,6 +2085,7 @@ function stepVehicle(world: World, v: Vehicle): void {
       if (v.moveTimer < routeTicks(route, vehicleTicks(v))) break;
       v.moveTimer = 0;
       v.idx += v.dir;
+      v.wear = Math.min(1, (v.wear ?? 0) + 1 / WEAR_TILES);
       if (v.idx <= 0 || v.idx >= last) {
         v.idx = v.idx <= 0 ? 0 : last;
         v.state = 'unloading';
@@ -3020,6 +3026,7 @@ function stepRetreat(world: World, v: Vehicle): void {
   if (v.moveTimer < routeTicks(route, vehicleTicks(v))) return;
   v.moveTimer = 0;
   v.idx += v.dir;
+  v.wear = Math.min(1, (v.wear ?? 0) + 1 / WEAR_TILES);
   const last = route.path.length - 1;
   if ((v.dir === -1 && v.idx <= 0) || (v.dir === 1 && v.idx >= last)) {
     // Home: the load goes back in the store, and the vehicle waits for a road like any other.

@@ -42,6 +42,11 @@ export interface CardInfo {
   copyOk: boolean;
   copyCost: number;
   unit: string;
+  driver: string;
+  /** 0 (worn out) to 1 (new). */
+  condition: number;
+  serviceCost: number;
+  serviceOk: boolean;
 }
 
 export interface CardActions {
@@ -51,9 +56,11 @@ export interface CardActions {
   cycleDest: () => void;
   cyclePick: () => void;
   sell: () => void;
+  service: () => void;
+  rename: () => void;
 }
 
-export const vehicleCardHeight = (open: boolean): number => (open ? 354 : 222);
+export const vehicleCardHeight = (open: boolean): number => (open ? 428 : 252);
 
 export function vehicleCard(im: Im, world: World, v: Vehicle, name: string, homeLevel: number, x: number, y: number, w: number, open: boolean, info: CardInfo, act: CardActions): void {
   const vd = VEHICLE_DEFS[v.kind];
@@ -94,7 +101,8 @@ export function vehicleCard(im: Im, world: World, v: Vehicle, name: string, home
   const lv = driverLevel(v);
   const trips = v.trips ?? 0;
   const dx = px + 2 * (colW + 12);
-  im.text(`${id}dl`, 'DRIVER', dx, sy, { size: 9, bold: true, color: COLORS.muted, layer: 4 });
+  const who = info.driver.toUpperCase();
+  im.text(`${id}dl`, who, dx, sy, { size: fitSize(who, colW, 9, 7), bold: true, color: COLORS.muted, layer: 4 });
   im.text(`${id}dv`, DRIVER_RANKS[lv - 1], dx, sy + 11, { size: 14, bold: true, color: COLORS.accent, layer: 4 });
   for (let i = 0; i < 5; i++) im.rect(4, dx + colW - 5 * 13 + i * 13, sy + 15, 10, 10, i < lv ? COLORS.accent : 0x0a0f14, 1, 1, i < lv ? COLORS.accent : COLORS.line, 1);
   const lo = DRIVER_TRIPS[lv - 1];
@@ -103,8 +111,20 @@ export function vehicleCard(im: Im, world: World, v: Vehicle, name: string, home
   im.rect(4, dx, sy + 32, colW * (hi === undefined ? 1 : (trips - lo) / (hi - lo)), 5, COLORS.accent, 1, 1);
   im.text(`${id}dt`, hi === undefined ? `${trips} trips · top rank` : `${trips} / ${hi} trips`, dx, sy + 41, { size: 9, color: COLORS.muted, layer: 4 });
 
+  // Condition: how worn it is, and the service that puts it right.
+  const cy = y + 134;
+  const cond = info.condition;
+  const tint = cond > 0.6 ? COLORS.good : cond > 0.3 ? COLORS.warn : COLORS.bad;
+  im.text(`${id}ol`, `CONDITION  ${Math.round(cond * 100)}%`, px, cy + 3, { size: 9, bold: true, color: tint, layer: 4 });
+  const barX = px + 100;
+  const svcW = 112;
+  const barW = Math.max(40, iw - 100 - svcW - 10);
+  im.rect(4, barX, cy + 5, barW, 6, 0x0a0f14, 1, 1);
+  im.rect(4, barX, cy + 5, barW * cond, 6, tint, 1, 1);
+  button(im, `${id}v`, info.serviceCost > 0 ? `SERVICE  $${fmt(info.serviceCost)}` : 'NO SERVICE NEEDED', px + iw - svcW, cy - 2, svcW, 20, info.serviceOk, act.service, 'quiet');
+
   // The class ladder: where this vehicle is, and what the next step needs.
-  const ly = y + 128;
+  const ly = y + 160;
   const n = peers.length;
   const gap = 6;
   const cw = (iw - gap * (n - 1)) / n;
@@ -124,7 +144,7 @@ export function vehicleCard(im: Im, world: World, v: Vehicle, name: string, home
   });
 
   // The buttons: upgrade is the big one.
-  const by = y + 174;
+  const by = y + 206;
   const upErr = upgradeVehicleError(world, v.id);
   const gapB = 8;
   const upW = (iw - gapB * 2) * 0.52;
@@ -134,7 +154,9 @@ export function vehicleCard(im: Im, world: World, v: Vehicle, name: string, home
   button(im, `${id}k`, `COPY  $${fmt(info.copyCost)}`, px + upW + gapB, by, smW, 38, info.copyOk, act.copy, 'quiet');
   button(im, `${id}m`, open ? 'LESS' : 'SETTINGS', px + upW + smW + gapB * 2, by, smW, 38, true, act.toggle, 'quiet');
   if (open) {
-    let sy2 = y + 222;
+    let sy2 = y + 254;
+    button(im, `${id}r`, `Driver: ${info.driver}  ·  rename`, px, sy2, iw, 38, true, act.rename, 'quiet', true);
+    sy2 += 44;
     button(im, `${id}d`, info.destLabel, px, sy2, iw, 38, info.destOk, act.cycleDest, 'quiet', true);
     sy2 += 44;
     button(im, `${id}p`, info.pickLabel, px, sy2, iw, 38, info.pickOk, act.cyclePick, 'quiet', true);

@@ -1571,6 +1571,30 @@ export class Game3D {
     }
   }
 
+  private wearLamp: { geo: THREE.SphereGeometry; amber: THREE.MeshBasicMaterial; red: THREE.MeshBasicMaterial } | null = null;
+
+  /**
+   * A small lamp over a vehicle that needs a service: amber when it is getting worn, red when it is nearly worn out. The first
+   * visual for upkeep; dirt and smoke can follow the same wear figure.
+   */
+  private showWear(m: THREE.Mesh, v: { wear?: number; kind: VehicleKind }): void {
+    const wear = v.wear ?? 0;
+    let lamp = m.userData.lamp as THREE.Mesh | undefined;
+    if (wear < 0.6) {
+      if (lamp) lamp.visible = false;
+      return;
+    }
+    this.wearLamp ??= { geo: new THREE.SphereGeometry(0.07, 8, 6), amber: new THREE.MeshBasicMaterial({ color: 0xffb340 }), red: new THREE.MeshBasicMaterial({ color: 0xff4a3d }) };
+    if (!lamp) {
+      lamp = new THREE.Mesh(this.wearLamp.geo, this.wearLamp.amber);
+      lamp.position.set(0, CARGO_AT[v.kind][0] + 0.45, CARGO_AT[v.kind][1]);
+      m.add(lamp);
+      m.userData.lamp = lamp;
+    }
+    lamp.material = wear >= 0.85 ? this.wearLamp.red : this.wearLamp.amber;
+    lamp.visible = true;
+  }
+
   private cargoMat(good: Good): THREE.MeshStandardMaterial {
     let m = this.cargoMats.get(good);
     if (!m) {
@@ -1634,6 +1658,7 @@ export class Game3D {
       const m = this.vehicleMeshes.get(v.id);
       const route = vehicleRoute(this.world, v);
       if (!m) continue;
+      this.showWear(m, v);
       // Waiting at home with nowhere to go: out of sight until a route opens.
       if (!route) {
         m.visible = false;
