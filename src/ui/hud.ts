@@ -925,9 +925,25 @@ export class HudScene extends Phaser.Scene {
     // Right: the one Menu button that opens everything, with the speed control beside it.
     const menuW = narrow ? br * 2 + 4 : 134;
     const menuX = W - 12 - menuW;
-    const menuHov = im.hit('btnMenu', menuX, y, menuW, h, () => (this.menuOpen = !this.menuOpen), 1);
+    const menuHov = im.hit('btnMenu', menuX, y, menuW, h, () => {
+      this.menuOpen = !this.menuOpen;
+      // Opening the menu is a good moment to save.
+      if (this.menuOpen && !g.demo && !g.showcase) g.save();
+    }, 1);
     const menuOn = this.menuOpen;
     im.rect(1, menuX, y, menuW, h, menuOn ? COLORS.accent : menuHov ? 0x2a3646 : 0x1a2430, 1, 10, menuOn || menuHov ? COLORS.accent : COLORS.line, 1, menuOn ? 2 : 1);
+    // The autosave: a small "Saved" note that fades after each save, and a red warning when the game cannot save.
+    if (!g.demo && !g.showcase && !this.title) {
+      const ago = Date.now() - g.savedAt;
+      const bad = !g.saveOk;
+      if (bad || (g.savedAt > 0 && ago < 2600)) {
+        const a = bad ? 1 : Math.min(1, (2600 - ago) / 900);
+        const sx = menuX - 12;
+        im.circle(2, sx - (bad ? 118 : 50), mid, 4, bad ? COLORS.bad : COLORS.good, a);
+        im.text('saveNote', bad ? 'CANNOT SAVE' : 'SAVED', sx, mid - 7, { size: 11, bold: true, color: bad ? COLORS.bad : COLORS.good, align: 'right', alpha: a, layer: 2 });
+      }
+    }
+
     // A new build is ready: the button flashes gold a few times, then keeps a gold edge until the menu is opened.
     if (this.latest && !menuOn) {
       const t = this.time.now;

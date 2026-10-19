@@ -423,6 +423,9 @@ export class Game3D {
   private running = false;
   private frames = 0;
   private lastSave = 0;
+  /** When the last autosave went through (wall clock), and whether the most recent try worked. The HUD shows both. */
+  savedAt = 0;
+  saveOk = true;
   private logSeen = 0;
   private w = 1;
   private h = 1;
@@ -636,8 +639,11 @@ export class Game3D {
     try {
       localStorage.setItem(SAVE_KEY, JSON.stringify(this.world));
       this.lastSave = performance.now();
+      this.savedAt = Date.now();
+      this.saveOk = true;
       return true;
     } catch {
+      this.saveOk = false;
       return false;
     }
   }
@@ -805,7 +811,7 @@ export class Game3D {
       this.perfWork = 0;
     }
 
-    if (!this.demo && !this.showcase && now - this.lastSave > 20000) this.save();
+    if (!this.demo && !this.showcase && now - this.lastSave > (this.saveOk ? 20000 : 5000)) this.save();
 
     if (this.shot && this.frames > 24) {
       (window as unknown as { __frozen?: boolean }).__frozen = true;
