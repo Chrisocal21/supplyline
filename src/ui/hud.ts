@@ -119,6 +119,9 @@ const sitesIn = (category: string): Tool[] => BUILD_ORDER.filter((k) => SITE_DEF
 
 /** The dashboard pages that have a filtered list. */
 type FilterPage = 'supply' | 'sell';
+
+/** The widest a full window gets, so on a wide screen the text stays readable and there is no sea of empty space. */
+const WINDOW_MAX = 1400;
 interface ListFilter {
   q: string;
   status: string;
@@ -1183,13 +1186,25 @@ export class HudScene extends Phaser.Scene {
     im.text('gfxCredits', 'Scanned materials: Poly Haven / CC0. Settings are saved on this device.', x + 18, y + h - 42, { size: 10, color: COLORS.muted, wrap: w - 36, layer: 4 });
   }
 
+  /** On a wide screen the window keeps a readable width, and the world either side is dimmed; a click there closes it. */
+  private sideDim(W: number, H: number, x: number, w: number, close: () => void): void {
+    if (x <= 12) return;
+    const y = TOP + 6;
+    const im = this.im;
+    im.rect(1, 0, y, x, H - y, 0x04070a, 0.62);
+    im.rect(1, x + w, y, W - x - w, H - y, 0x04070a, 0.62);
+    im.hit('sideL', 0, y, x, H - y, close, 1);
+    im.hit('sideR', x + w, y, W - x - w, H - y, close, 1);
+  }
+
   /** The production and towns sheets. */
   private sheetLayer(W: number, H: number): void {
     // A full-screen window: the whole screen under the top bar, like a normal game menu.
-    const w = W - 24;
-    const x = 12;
+    const w = Math.min(W - 24, WINDOW_MAX);
+    const x = Math.round((W - w) / 2);
     const y = TOP + 6;
     const h = H - y - 12;
+    this.sideDim(W, H, x, w, () => (this.sheet = null));
     this.sheets.draw(this.game3d.world, this.sheet!, x, y, w, h, () => (this.sheet = null));
   }
 
@@ -2344,10 +2359,11 @@ export class HudScene extends Phaser.Scene {
     this.planBudget = 2;
     const im = this.im;
     const def = SITE_DEFS[s.kind];
-    const x = 12;
+    const w = Math.min(W - 24, WINDOW_MAX);
+    const x = Math.round((W - w) / 2);
     const y = TOP + 6;
-    const w = W - 24;
     const h = H - y - 12;
+    this.sideDim(W, H, x, w, () => (this.dash = null));
     im.rect(1, x, y, w, h, 0x0b1117, 0.985, 4, COLORS.line, 1);
     im.rect(1, x, y, w, 3, COLORS.accent, 0.9, 0);
     im.block({ x, y, w, h });
