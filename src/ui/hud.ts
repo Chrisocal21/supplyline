@@ -86,6 +86,7 @@ import { VERSION, VERSION_NOTE } from '../version';
 import { Rates, Sheets, type SheetId } from './sheets';
 
 import { fitSize } from './company';
+import { SEASONAL, seasonIndex, seasonOf } from '../sim/seasons';
 import { vehicleCard, vehicleCardHeight } from './vehiclecard';
 import { condition, driverName, renameDriver, serviceCost, serviceError, serviceVehicle } from '../sim/drivers';
 import { Title, type TitleChoice } from './title';
@@ -612,6 +613,9 @@ export class HudScene extends Phaser.Scene {
   /** The newest version the server has, once it differs from the one running: the menu offers to sync to it. */
   private latest: string | null = null;
   private versionAt = 0;
+  private seasonSeen: number | null = null;
+  /** The menu button flashes gold until this time, after a new build shows up. */
+  private flashUntil = 0;
 
   /** Look for a newer build once a minute. */
   private checkVersion(now: number): void {
@@ -622,6 +626,7 @@ export class HudScene extends Phaser.Scene {
       .then((j: { version?: string }) => {
         if (!j.version || j.version === VERSION || j.version === this.latest) return;
         this.latest = j.version;
+        this.flashUntil = this.time.now + 4800;
         this.toasts.push({ text: `Update ${j.version} is ready. Menu, then Sync update, keeps you where you are`, until: this.time.now + 7000 });
       })
       .catch(() => undefined);
@@ -653,6 +658,13 @@ export class HudScene extends Phaser.Scene {
     const now = this.time.now;
     this.checkVersion(now);
     this.stepNorth(now);
+    // A new season: say what it means for the farms.
+    const si = seasonIndex(w.tick);
+    if (this.seasonSeen !== null && si !== this.seasonSeen) {
+      const se = seasonOf(w.tick);
+      this.toasts.push({ text: `${se.label}: farms and orchards are ${se.job}${se.mult > 1 ? ', output is up' : se.mult < 1 ? ', output is down' : ''}`, until: now + 5000 });
+    }
+    this.seasonSeen = si;
 
     if (this.title) {
       this.hideSearch();
@@ -889,6 +901,13 @@ export class HudScene extends Phaser.Scene {
     const menuHov = im.hit('btnMenu', menuX, y, menuW, h, () => (this.menuOpen = !this.menuOpen), 1);
     const menuOn = this.menuOpen;
     im.rect(1, menuX, y, menuW, h, menuOn ? COLORS.accent : menuHov ? 0x2a3646 : 0x1a2430, 1, 10, menuOn || menuHov ? COLORS.accent : COLORS.line, 1, menuOn ? 2 : 1);
+    // A new build is ready: the button flashes gold a few times, then keeps a gold edge until the menu is opened.
+    if (this.latest && !menuOn) {
+      const t = this.time.now;
+      const lit = t < this.flashUntil ? (Math.sin(t / 160) > 0 ? 1 : 0.15) : 0;
+      if (lit > 0) im.rect(1, menuX - 3, y - 3, menuW + 6, h + 6, COLORS.accent, 0.35 * lit, 13);
+      im.rect(1, menuX, y, menuW, h, COLORS.accent, 0.55 * lit, 10, COLORS.accent, 1, 2);
+    }
     const mc = menuOn ? 0x1b1204 : COLORS.text;
     const gx = narrow ? menuX + menuW / 2 - 9 : menuX + 14;
     for (let r = 0; r < 3; r++) for (let c = 0; c < 3; c++) im.rect(2, gx + c * 7, mid - 9 + r * 7, 5, 5, mc, 1, 1);
@@ -1660,6 +1679,8 @@ export class HudScene extends Phaser.Scene {
       } else im.text(`miniSpeedT${v}`, `${v}x`, bx + bw / 2, fy + 14, { size: 14, bold: true, color: col, align: 'center', layer: 3 });
     });
     im.text('miniSpeedL', g.speed === 0 ? 'PAUSED' : 'SPEED', bx0, fy - 3, { size: 8, bold: true, color: g.speed === 0 ? COLORS.warn : COLORS.muted, layer: 3 });
+    const season = seasonOf(world.tick);
+    im.text('miniSeason', `${season.label.toUpperCase()} · ${season.job}`, b.x + b.w - 10, fy - 3, { size: 8, bold: true, color: season.mult > 1 ? COLORS.good : season.mult < 1 ? COLORS.warn : COLORS.muted, align: 'right', layer: 3 });
     im.block({ x: b.x, y: b.y, w: b.w, h: b.h });
     this.miniRect = { x: b.x, y: b.y, w: b.w, h: b.h };
     this.rightInset = this.scale.height - b.y;
@@ -3071,8 +3092,13 @@ export class HudScene extends Phaser.Scene {
     const earned = Object.values(s.sales ?? {}).reduce((n, r) => n + r.money, 0);
     const fleet = fleetOf(world, s.id);
     const out = fleet.filter((v) => v.state === 'moving' && v.routeId !== 0).length;
+    // Efficiency, the way a factory game shows it: the share of its rated output it is really making.
+    const eff = Math.round((s.run ?? 0) * 100);
+    const why = s.stall === 'input' ? 'short of input' : s.stall === 'room' ? 'shelf full' : s.stall === 'off' ? 'switched off' : 'running';
     const tiles: [string, string, number][] = [
-      [maker ? 'MAKING PER MINUTE' : 'GOODS HELD', maker ? rate.toFixed(0) : fmt(held), maker && rate === 0 ? COLORS.warn : COLORS.text],
+      [maker ? 'MAKING PER MINUTE' : 'GOODS HELD', maker ? (rate > 0 ? `${Math.round(rate * (s.run ?? 0))} of ${rate.toFixed(0)}` : '0') : fmt(held), maker && rate === 0 ? COLORS.warn : COLORS.text],
+      ...(maker && rate > 0 ? [[`EFFICIENCY · ${why}`.toUpperCase(), `${eff}%`, eff >= 80 ? COLORS.good : eff >= 40 ? COLORS.warn : COLORS.bad] as [string, string, number]] : []),
+      ...(SEASONAL.includes(s.kind) ? [[`${seasonOf(world.tick).label} · ${seasonOf(world.tick).job}`.toUpperCase(), `x${seasonOf(world.tick).mult}`, seasonOf(world.tick).mult > 1 ? COLORS.good : seasonOf(world.tick).mult < 1 ? COLORS.warn : COLORS.text] as [string, string, number]] : []),
       ['IN STORE', fmt(held), COLORS.text],
       ['EARNED FROM SALES', `$${fmt(earned)}`, COLORS.good],
       [def.airport ? 'PLANES OUT' : 'VEHICLES OUT', `${out} of ${fleet.length}`, fleet.length === 0 ? COLORS.warn : COLORS.text],

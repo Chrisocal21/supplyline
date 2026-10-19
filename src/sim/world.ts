@@ -57,6 +57,8 @@ import { generateLand } from './mapgen';
 import { checkQuests } from './quests';
 import { stepBank, type BankState } from './bank';
 import { WEAR_SLOWDOWN, WEAR_TILES } from './drivers';
+import { saleMult, wearMult } from './perks';
+import { seasonMult } from './seasons';
 import { districtDemand, stepEconomy, townGrowthMult, townLoadMult, townPriceMult, townSpeedMult, townStorageMult } from './town';
 
 export type { Place, Region, ResourceNode, Tile };
@@ -370,6 +372,8 @@ export interface World {
   tier: number;
   /** Ids of the quests already finished and paid out. */
   questsDone: string[];
+  /** Company skills bought, by perk id: the level of each (see perks.ts). Old saves have none. */
+  perks?: Record<string, number>;
   /** Path quests finished, by id (see PATH_QUESTS). */
   pathDone?: string[];
   tick: number;
@@ -1203,7 +1207,7 @@ export function siteCap(world: World, site: Site): number {
 export function siteSpeed(world: World, site: Site): number {
   const node = site.nodeId === null ? undefined : world.nodes.find((n) => n.id === site.nodeId);
   const town = SITE_DEFS[site.kind].inTown ? siteTown(world, site) : undefined;
-  return LEVEL_SPEED[site.level - 1] * (node ? NODE_QUALITY[node.quality].mult : 1) * (town ? townSpeedMult(town, site.kind) : 1);
+  return LEVEL_SPEED[site.level - 1] * (node ? NODE_QUALITY[node.quality].mult : 1) * (town ? townSpeedMult(town, site.kind) : 1) * seasonMult(site.kind, world.tick);
 }
 
 /** The town a site belongs to: its docks and station, and the buildings on its district plots. */
@@ -1237,7 +1241,7 @@ export function unitPrice(world: World, site: Site, good: Good): number {
   const fill = stockOf(site, good) / Math.max(1, siteCap(world, site));
   const taste = place?.taste?.[good] ?? 1;
   const swing = world.events.find((e) => e.good === good && e.until > world.tick)?.mult ?? 1;
-  return GOODS[good].price * SALE_MULT * taste * swing * (place ? townPriceMult(place, good) * metroBonus(world, place) : 1) * (1 + 0.12 * (level - 1)) * Math.min(1.3, Math.max(0.4, 1.3 - fill));
+  return GOODS[good].price * SALE_MULT * taste * swing * (place ? townPriceMult(place, good) * metroBonus(world, place) : 1) * (1 + 0.12 * (level - 1)) * Math.min(1.3, Math.max(0.4, 1.3 - fill)) * saleMult(world);
 }
 
 // ---- push / pull ----
@@ -2085,7 +2089,7 @@ function stepVehicle(world: World, v: Vehicle): void {
       if (v.moveTimer < routeTicks(route, vehicleTicks(v))) break;
       v.moveTimer = 0;
       v.idx += v.dir;
-      v.wear = Math.min(1, (v.wear ?? 0) + 1 / WEAR_TILES);
+      v.wear = Math.min(1, (v.wear ?? 0) + wearMult(world) / WEAR_TILES);
       if (v.idx <= 0 || v.idx >= last) {
         v.idx = v.idx <= 0 ? 0 : last;
         v.state = 'unloading';
@@ -3026,7 +3030,7 @@ function stepRetreat(world: World, v: Vehicle): void {
   if (v.moveTimer < routeTicks(route, vehicleTicks(v))) return;
   v.moveTimer = 0;
   v.idx += v.dir;
-  v.wear = Math.min(1, (v.wear ?? 0) + 1 / WEAR_TILES);
+  v.wear = Math.min(1, (v.wear ?? 0) + wearMult(world) / WEAR_TILES);
   const last = route.path.length - 1;
   if ((v.dir === -1 && v.idx <= 0) || (v.dir === 1 && v.idx >= last)) {
     // Home: the load goes back in the store, and the vehicle waits for a road like any other.

@@ -4,6 +4,7 @@
 import { GOODS, SITE_DEFS, TIERS, TOWN_LEVELS, VEHICLE_DEFS, VEHICLE_UPKEEP, vehicleLabel, type VehicleKind } from '../sim/defs';
 import { netWorth } from '../sim/bank';
 import { condition, serviceCost, serviceVehicle } from '../sim/drivers';
+import { PERKS, PERK_MAX, buyPerk, perkError, perkLevel, pointsLeft } from '../sim/perks';
 import { diagnoseAll, shortOf } from '../sim/diagnose';
 import { nextQuest } from '../sim/quests';
 import {
@@ -228,8 +229,26 @@ export function companyPage(im: Im, world: World, v: PageView, scroll: number, h
   });
   yr += 8;
 
-  const total = Math.max(yl, yr);
+  let total = Math.max(yl, yr);
   void GOODS;
+
+  // Company skills: points to spend on lasting perks.
+  if (vis(total, 24)) sectionHead(im, 'co-sk', 'Company skills', v.x0, total, W, `${pointsLeft(world)} point${pointsLeft(world) === 1 ? '' : 's'} to spend`);
+  total += 30;
+  const kw = (W - gap * (PERKS.length - 1)) / PERKS.length;
+  PERKS.forEach((p, k) => {
+    const kx = v.x0 + k * (kw + gap);
+    if (vis(total, 96)) {
+      const lv = perkLevel(world, p.id);
+      panel(im, kx, total, kw, 92, lv > 0 ? COLORS.accent : COLORS.line);
+      im.text(`co-pk${k}`, p.label.toUpperCase(), kx + 16, total + 8, { size: 13, bold: true, layer: 4 });
+      im.text(`co-pb${k}`, p.blurb, kx + 16, total + 28, { size: 11, color: COLORS.muted, wrap: kw - 32, layer: 4 });
+      for (let i = 0; i < PERK_MAX; i++) im.rect(4, kx + 16 + i * 22, total + 62, 18, 14, i < lv ? COLORS.accent : 0x0a0f14, 1, 2, i < lv ? COLORS.accent : COLORS.line, 1);
+      const err = perkError(world, p.id);
+      button(im, `co-pu${k}`, lv >= PERK_MAX ? 'MAXED' : '+1 LEVEL', kx + kw - 110, total + 56, 94, 26, !err, () => hooks.toast(buyPerk(world, p.id) ?? `${p.label} improved`), 'main');
+    }
+    if (k === PERKS.length - 1) total += 100;
+  });
   return total + scroll - v.y0 + 8;
 }
 

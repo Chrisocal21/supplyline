@@ -25,6 +25,7 @@ import {
   type PathId,
   type SiteKind,
 } from './defs';
+import { upkeepMult } from './perks';
 import type { Place } from './features';
 import { freeCivicLot, syncDistrictSite, type World } from './world';
 
@@ -201,7 +202,7 @@ export function townUpkeep(place: Place): number {
 export function upkeepPerMinute(world: World): number {
   let total = 0;
   for (const s of world.sites) total += SITE_DEFS[s.kind].cost * s.level * SITE_UPKEEP;
-  for (const v of world.vehicles) total += VEHICLE_DEFS[v.kind].cost * VEHICLE_UPKEEP;
+  for (const v of world.vehicles) total += VEHICLE_DEFS[v.kind].cost * VEHICLE_UPKEEP * upkeepMult(world);
   for (const p of world.places) for (const { def, level } of builtDistricts(p)) total += def.cost * level * DISTRICT_UPKEEP;
   return total;
 }
