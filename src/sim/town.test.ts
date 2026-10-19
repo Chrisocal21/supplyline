@@ -168,6 +168,9 @@ describe('vehicle trade-up', () => {
     w.tier = 0;
     expect(upgradeVehicleError(w, 901)).toMatch(/Tier 1/);
     w.tier = 1;
+    // A bigger class needs a bigger yard: the Big Box Truck wants level 2 at its home.
+    expect(upgradeVehicleError(w, 901)).toMatch(/at level 2/);
+    w.sites.find((q) => q.id === 1)!.level = 2;
     const cost = upgradeVehicleCost('boxtruck');
     expect(cost).toBe(VEHICLE_DEFS.bigtruck.cost - VEHICLE_DEFS.boxtruck.cost / 2);
     const before = w.money;
@@ -179,6 +182,7 @@ describe('vehicle trade-up', () => {
     // Next up is the rig at Tier 2.
     expect(upgradeVehicleError(w, 901)).toMatch(/Tier 2/);
     w.tier = 4;
+    w.sites.find((q) => q.id === 1)!.level = 5;
     for (let i = 0; i < 2; i++) expect(upgradeVehicle(w, 901)).toBeNull();
     expect(w.vehicles[0].kind).toBe('convoy');
     expect(upgradeVehicleError(w, 901)).toMatch(/top class/);

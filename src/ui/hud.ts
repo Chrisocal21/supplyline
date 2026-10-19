@@ -241,6 +241,7 @@ export class HudScene extends Phaser.Scene {
         this.game3d.lookAt(place.x, place.y, 55, this.game3d.cam.heading, this.game3d.cam.pitchManual);
       },
       select: (id) => (this.sheet = id),
+      income: () => this.income,
       toast: (text) => this.toasts.push({ text, until: this.time.now + 3200 }),
     });
     const el = this.game.canvas;
@@ -269,6 +270,8 @@ export class HudScene extends Phaser.Scene {
     kb.on('keydown-SPACE', () => (this.game3d.speed = this.game3d.speed === 0 ? 1 : 0));
     kb.on('keydown-TAB', () => this.cycleTab());
     kb.on('keydown-P', () => this.toggleSheet('production'));
+    kb.on('keydown-Y', () => !this.title && this.toggleSheet('company'));
+    kb.on('keydown-V', () => !this.title && this.toggleSheet('fleet'));
     kb.on('keydown-BACKSPACE', () => this.game3d.undoDraft());
     kb.on('keydown-ENTER', () => {
       if (this.title) {
@@ -450,24 +453,21 @@ export class HudScene extends Phaser.Scene {
   }
 
   /** The frame-time readout: frames a second, how long a frame takes, and what the world is. Green is smooth. */
-  private perfReadout(W: number): void {
-    if (!this.perfOn || this.title) return;
+  /** Frame readout: two lines in the top bar, beside the menu, so it never covers a window. Returns the width it takes. */
+  private perfReadout(rightEdge: number, narrow: boolean): number {
+    if (!this.perfOn || this.title || narrow) return 0;
     const im = this.im;
     const g = this.game3d;
     const p = g.perf;
-    const w = g.world;
     const fps = Math.round(p.fps);
     const color = fps >= 55 ? COLORS.good : fps >= 30 ? COLORS.warn : COLORS.bad;
-    const lines = [
-      `${fps} fps   ${p.avgMs.toFixed(1)} ms a frame   worst 1 in 20: ${p.p95Ms.toFixed(1)} ms`,
-      `sim ${p.simMs.toFixed(1)} ms   draw ${p.drawMs.toFixed(1)} ms   busy ${p.workMs.toFixed(1)} ms`,
-      `world ${w.width} x ${w.height}   ${w.places.length} towns   ${w.sites.length} buildings   ${w.vehicles.length} vehicles`,
-    ];
-    const bw = 330;
-    const x = W - bw - 12;
-    const y = TOP + 8;
-    im.rect(2, x, y, bw, 62, 0x0b1118, 0.82, 10, color, 0.8);
-    lines.forEach((t, i) => im.text(`pf${i}`, t, x + 10, y + 8 + i * 17, { size: 11, bold: i === 0, color: i === 0 ? color : COLORS.muted, layer: 3 }));
+    const bw = 300;
+    const x = rightEdge - bw;
+    const y = 8;
+    im.rect(2, x, y, bw, 44, 0x0b1118, 0.9, 3, color, 0.8);
+    im.text('pf0', `${fps} fps   ${p.avgMs.toFixed(1)} ms   worst ${p.p95Ms.toFixed(1)} ms`, x + 10, y + 7, { size: 11, bold: true, color, layer: 3 });
+    im.text('pf1', `sim ${p.simMs.toFixed(1)}   draw ${p.drawMs.toFixed(1)}   ${g.world.sites.length} buildings   ${g.world.vehicles.length} vehicles`, x + 10, y + 25, { size: 10, color: COLORS.muted, layer: 3 });
+    return bw + 8;
   }
 
   private toggleMinimap(): void {
@@ -685,9 +685,8 @@ export class HudScene extends Phaser.Scene {
     this.miniRect = null;
     TOP = this.topBarHeight(W);
     this.topBar(W);
-    this.perfReadout(W);
     const growing = !this.sheet && !g.draft && !this.saves ? this.pendingGrowth() : undefined;
-    if (g.canGoBack && !this.sheet && !this.saves && !this.graphicsOpen && this.dash === null) this.backButton(W, H);
+    if (g.canGoBack && !this.sheet && !this.saves && !this.graphicsOpen && !this.menuOpen && this.dash === null) this.backButton(W, H);
     if (this.graphicsOpen) {
       g.setKeys(0, 0, 0);
       this.panelRect = null;
@@ -925,7 +924,8 @@ export class HudScene extends Phaser.Scene {
 
     // The quest bar: tier and the next quest, in the space between the money and the buttons. Click it for the full list.
     const free0 = narrow ? 12 + spW + 8 : 12 + mw + 12;
-    const free1 = narrow ? W - 12 : spX - 12;
+    const perfW = this.perfReadout(speedUp ? spX - 8 : menuX - 10, narrow);
+    const free1 = narrow ? W - 12 : spX - 12 - perfW;
     const cw = narrow ? free1 - free0 : Math.min(430, free1 - free0);
     if (cw >= (narrow ? 150 : 250)) {
       const cx0 = narrow ? free0 : Math.round(Math.max(free0, Math.min(free1 - cw, W / 2 - cw / 2)));
@@ -996,7 +996,9 @@ export class HudScene extends Phaser.Scene {
       {
         title: 'RUN YOUR BUSINESS',
         items: [
+          { id: 'company', label: 'Company', key: 'Y', on: this.sheet === 'company', icon: glyph('#'), act: () => this.toggleSheet('company') },
           { id: 'prod', label: 'Production', key: 'P', on: this.sheet === 'production', icon: (cx, cy, c) => this.factoryIcon(cx, cy, c, 4), act: () => this.toggleSheet('production') },
+          { id: 'fleet', label: 'Fleet', key: 'V', on: this.sheet === 'fleet', icon: glyph('V'), act: () => this.toggleSheet('fleet') },
           { id: 'towns', label: 'Towns', key: 'T', on: this.sheet === 'towns', icon: (cx, cy, c) => this.townIcon(cx, cy, c, 4), act: () => this.toggleSheet('towns') },
           { id: 'bank', label: 'Bank', key: 'B', on: this.sheet === 'bank', icon: (cx, cy, c) => this.bankIcon(cx, cy, c, 4), act: () => this.toggleSheet('bank') },
           { id: 'quests', label: 'Quests', key: 'G', on: this.sheet === 'quests', icon: glyph('!'), act: () => this.toggleSheet('quests') },
@@ -1015,13 +1017,13 @@ export class HudScene extends Phaser.Scene {
         title: 'ON SCREEN',
         items: [
           { id: 'mini', label: 'Minimap', key: 'M', on: this.minimapOn, toggle: true, icon: glyph('M'), act: () => this.toggleMinimap() },
-          { id: 'perf', label: 'Frame readout', key: 'F3', on: this.perfOn, toggle: true, icon: glyph('F'), act: () => this.togglePerf() },
+          { id: 'perf', label: 'Frame rate', key: 'F3', on: this.perfOn, toggle: true, icon: glyph('F'), act: () => this.togglePerf() },
         ],
       },
     ];
     const showKeys = !isTouch() && !narrow;
     const keysH = showKeys ? 130 : 0;
-    const updH = narrow ? 92 : 66;
+    const updH = narrow ? 104 : 82;
     let bodyH = updH + 14;
     for (const grp of groups) bodyH += 24 + Math.ceil(grp.items.length / cols) * (tileH + gap) - gap + 12;
     const ph = Math.min(H - 24, 56 + bodyH + pad + (showKeys ? 16 + keysH : 0));
@@ -2300,27 +2302,38 @@ export class HudScene extends Phaser.Scene {
     const y = TOP + 6;
     const w = W - 24;
     const h = H - y - 12;
-    im.rect(1, x, y, w, h, COLORS.panel, 0.98, 18, COLORS.line, 1);
+    im.rect(1, x, y, w, h, 0x0b1117, 0.985, 4, COLORS.line, 1);
+    im.rect(1, x, y, w, 3, COLORS.accent, 0.9, 0);
     im.block({ x, y, w, h });
 
-    // Header, fixed: name, what it is, and the way out.
-    const nameH = im.text('dhName', s.name, x + 22, y + 16, { size: 22, bold: true, wrap: w - 220, layer: 2 }).h;
-    const subY = y + 20 + Math.max(26, nameH);
+    // Header, fixed: the building's picture, its name, what it is and how it is doing, and the way out.
+    const thumb = `thumb-${s.kind}`;
+    const hasThumb = this.textures.exists(thumb);
+    const tx0 = hasThumb ? x + 98 : x + 22;
+    if (hasThumb) {
+      im.rect(1, x + 18, y + 14, 66, 66, 0x131b25, 1, 3, COLORS.line, 1);
+      im.image('dhThumb', thumb, x + 21, y + 17, 60, 60, 1, 2);
+    }
+    const nameH = im.text('dhName', s.name.toUpperCase(), tx0, y + 14, { size: 24, bold: true, wrap: w - 360, layer: 2 }).h;
+    const subY = y + 18 + Math.max(28, nameH);
     const node = s.nodeId === null ? undefined : world.nodes.find((n) => n.id === s.nodeId);
     const town = siteTown(world, s);
     const sub = [def.label, (def.dock && def.dock !== 'civic') || def.station ? '' : `Level ${s.level}`, node ? `${NODE_QUALITY[node.quality].label} ${node.kind} spot` : '', town ? `in ${town.name}` : ''].filter(Boolean).join('  ·  ');
-    const subH = im.text('dhSub', sub, x + 22, subY, { size: 13, color: COLORS.muted, wrap: w - 220, layer: 2 }).h;
-    const headH = Math.max(72, subY - y + subH + 12);
-    const mh = im.hit('dhMap', x + w - 168, y + 16, 108, 40, () => {
+    const subH = im.text('dhSub', sub, tx0, subY, { size: 13, color: COLORS.muted, wrap: w - 360, layer: 2 }).h;
+    const stat = this.siteStatus(s);
+    im.circle(2, tx0 + 5, subY + subH + 12, 4, stat.color);
+    im.text('dhStat', stat.text, tx0 + 16, subY + subH + 5, { size: 12, bold: true, color: stat.color, wrap: w - 380, layer: 2 });
+    const headH = Math.max(96, subY - y + subH + 30);
+    const mh = im.hit('dhMap', x + w - 196, y + 18, 132, 40, () => {
       this.dash = null;
       g.lookAt(s.x, s.y, 45, g.cam.heading, g.cam.pitchManual);
     }, 3);
-    im.rect(3, x + w - 168, y + 16, 108, 40, mh ? 0x2a3646 : 0x1b2430, 1, 20, COLORS.line, 1);
-    im.text('dhMapT', 'Show on map', x + w - 114, y + 28, { size: 12, bold: true, align: 'center', layer: 3 });
-    const ch = im.hit('dhClose', x + w - 52, y + 16, 40, 40, () => (this.dash = null), 3);
-    im.rect(3, x + w - 52, y + 16, 40, 40, ch ? 0x2a3646 : 0x1b2430, 1, 20);
-    im.line(3, x + w - 38, y + 30, x + w - 26, y + 42, COLORS.text, 1, 2.5);
-    im.line(3, x + w - 26, y + 30, x + w - 38, y + 42, COLORS.text, 1, 2.5);
+    im.rect(3, x + w - 196, y + 18, 132, 40, mh ? 0x26364a : 0x131b25, 1, 3, mh ? COLORS.accent : COLORS.line, 1);
+    im.text('dhMapT', 'SHOW ON MAP', x + w - 130, y + 31, { size: 12, bold: true, align: 'center', layer: 3 });
+    const ch = im.hit('dhClose', x + w - 54, y + 18, 40, 40, () => (this.dash = null), 3);
+    im.rect(3, x + w - 54, y + 18, 40, 40, ch ? 0x2a3646 : 0x131b25, 1, 3, ch ? COLORS.accent : COLORS.line, 1);
+    im.line(3, x + w - 40, y + 32, x + w - 28, y + 44, COLORS.text, 1, 2.5);
+    im.line(3, x + w - 28, y + 32, x + w - 40, y + 44, COLORS.text, 1, 2.5);
     im.line(2, x + 14, y + headH, x + w - 14, y + headH, COLORS.line, 1);
 
     // Pages: one thing at a time, so nothing is crowded. The tab row stays put while the page scrolls.
@@ -2351,8 +2364,9 @@ export class HudScene extends Phaser.Scene {
           this.dashPage = id;
           this.dashScroll = 0;
         }, 3);
-        im.rect(3, tx, y + headH + 10, tw, 42, on ? 0x1f2c3a : hov ? 0x1a2431 : 0x131b25, 1, 14, on ? COLORS.accent : COLORS.line, 1, on ? 2 : 1);
-        im.text(`dpT${id}`, label, tx + tw / 2, y + headH + 22, { size: 15, bold: true, color: on ? COLORS.accent : COLORS.text, align: 'center', layer: 4 });
+        im.rect(3, tx, y + headH + 10, tw, 42, on ? 0x17212b : hov ? 0x10181f : 0x0e141a, 1, 3, COLORS.line, 1);
+        if (on) im.rect(3, tx, y + headH + 48, tw, 4, COLORS.accent, 1, 0);
+        im.text(`dpT${id}`, label.toUpperCase(), tx + tw / 2, y + headH + 23, { size: 13, bold: true, color: on ? COLORS.accent : COLORS.text, align: 'center', layer: 4 });
       });
       tabsH = 56;
     }

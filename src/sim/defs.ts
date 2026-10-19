@@ -311,23 +311,25 @@ export interface VehicleDef {
   implemented: boolean;
   /** The class this one trades up to. */
   next?: VehicleKind;
+  /** The building level whose garage can take this class: a bigger vehicle needs a bigger yard. */
+  needLevel: number;
   /** Ships only: how wide a channel it needs. 0 sails any river or lake, 1 needs a wide channel, 2 needs open sea. */
   draft?: number;
 }
 
 export const VEHICLE_DEFS: Record<VehicleKind, VehicleDef> = {
-  boxtruck: { label: 'Box Truck', blurb: 'Small, cheap, good for short hauls.', mode: 'road', cost: 120, tier: 0, capacity: 12, ticksPerTile: 6, implemented: true, next: 'bigtruck' },
-  bigtruck: { label: 'Big Box Truck', blurb: 'Twice the load of a box truck.', mode: 'road', cost: 380, tier: 1, capacity: 27, ticksPerTile: 6, implemented: true, next: 'rig' },
-  rig: { label: 'Big Rig', blurb: 'Large trailer, faster on the highway.', mode: 'road', cost: 950, tier: 2, capacity: 60, ticksPerTile: 5, implemented: true, next: 'convoy' },
-  convoy: { label: 'Truck Fleet', blurb: 'A convoy of rigs that moves as one. The top of the road ladder.', mode: 'road', cost: 3200, tier: 3, capacity: 165, ticksPerTile: 5, implemented: true },
-  train: { label: 'Freight Train', blurb: 'Huge capacity on its own track. Rails cross roads at level crossings.', mode: 'rail', cost: 1800, tier: 2, capacity: 140, ticksPerTile: 3, implemented: true, next: 'heavytrain' },
-  heavytrain: { label: 'Heavy Haul Train', blurb: 'A long unit train for the busiest lines.', mode: 'rail', cost: 5200, tier: 3, capacity: 360, ticksPerTile: 3, implemented: true },
-  plane: { label: 'Cargo Plane', blurb: 'Fast, crosses any terrain. Flies between airports.', mode: 'air', cost: 7000, tier: 3, capacity: 60, ticksPerTile: 3, implemented: true, next: 'jet' },
-  barge: { label: 'River Barge', blurb: 'Flat and shallow: sails rivers and lakes, and the coast.', mode: 'sea', cost: 900, tier: 2, capacity: 24, ticksPerTile: 5, implemented: true, next: 'boat', draft: 0 },
-  boat: { label: 'Cargo Boat', blurb: 'A small coastal freighter. Needs a wide channel.', mode: 'sea', cost: 2500, tier: 2, capacity: 50, ticksPerTile: 4.5, implemented: true, next: 'freighter', draft: 1 },
-  freighter: { label: 'Freighter', blurb: 'A proper cargo ship with a crane and a hold.', mode: 'sea', cost: 9000, tier: 3, capacity: 160, ticksPerTile: 3.75, implemented: true, next: 'containership', draft: 2 },
-  containership: { label: 'Container Ship', blurb: 'Boxes stacked high. Carries more than any other vehicle.', mode: 'sea', cost: 28000, tier: 4, capacity: 520, ticksPerTile: 3, implemented: true, draft: 2 },
-  jet: { label: 'Cargo Jet', blurb: 'A wide-body freighter for the longest hauls.', mode: 'air', cost: 22000, tier: 4, capacity: 220, ticksPerTile: 2.25, implemented: true },
+  boxtruck: { label: 'Box Truck', blurb: 'Small, cheap, good for short hauls.', mode: 'road', cost: 120, tier: 0, capacity: 12, ticksPerTile: 6, implemented: true, needLevel: 1, next: 'bigtruck' },
+  bigtruck: { label: 'Big Box Truck', blurb: 'Twice the load of a box truck.', mode: 'road', cost: 380, tier: 1, capacity: 27, ticksPerTile: 6, implemented: true, needLevel: 2, next: 'rig' },
+  rig: { label: 'Big Rig', blurb: 'Large trailer, faster on the highway.', mode: 'road', cost: 950, tier: 2, capacity: 60, ticksPerTile: 5, implemented: true, needLevel: 3, next: 'convoy' },
+  convoy: { label: 'Truck Fleet', blurb: 'A convoy of rigs that moves as one. The top of the road ladder.', mode: 'road', cost: 3200, tier: 3, capacity: 165, ticksPerTile: 5, implemented: true, needLevel: 5 },
+  train: { label: 'Freight Train', blurb: 'Huge capacity on its own track. Rails cross roads at level crossings.', mode: 'rail', cost: 1800, tier: 2, capacity: 140, ticksPerTile: 3, implemented: true, needLevel: 1, next: 'heavytrain' },
+  heavytrain: { label: 'Heavy Haul Train', blurb: 'A long unit train for the busiest lines.', mode: 'rail', cost: 5200, tier: 3, capacity: 360, ticksPerTile: 3, implemented: true, needLevel: 3 },
+  plane: { label: 'Cargo Plane', blurb: 'Fast, crosses any terrain. Flies between airports.', mode: 'air', cost: 7000, tier: 3, capacity: 60, ticksPerTile: 3, implemented: true, needLevel: 1, next: 'jet' },
+  barge: { label: 'River Barge', blurb: 'Flat and shallow: sails rivers and lakes, and the coast.', mode: 'sea', cost: 900, tier: 2, capacity: 24, ticksPerTile: 5, implemented: true, needLevel: 1, next: 'boat', draft: 0 },
+  boat: { label: 'Cargo Boat', blurb: 'A small coastal freighter. Needs a wide channel.', mode: 'sea', cost: 2500, tier: 2, capacity: 50, ticksPerTile: 4.5, implemented: true, needLevel: 1, next: 'freighter', draft: 1 },
+  freighter: { label: 'Freighter', blurb: 'A proper cargo ship with a crane and a hold.', mode: 'sea', cost: 9000, tier: 3, capacity: 160, ticksPerTile: 3.75, implemented: true, needLevel: 2, next: 'containership', draft: 2 },
+  containership: { label: 'Container Ship', blurb: 'Boxes stacked high. Carries more than any other vehicle.', mode: 'sea', cost: 28000, tier: 4, capacity: 520, ticksPerTile: 3, implemented: true, needLevel: 3, draft: 2 },
+  jet: { label: 'Cargo Jet', blurb: 'A wide-body freighter for the longest hauls.', mode: 'air', cost: 22000, tier: 4, capacity: 220, ticksPerTile: 2.25, implemented: true, needLevel: 3 },
 };
 
 export const VEHICLE_ORDER: VehicleKind[] = ['boxtruck', 'bigtruck', 'rig', 'convoy', 'train', 'heavytrain', 'plane', 'jet', 'barge', 'boat', 'freighter', 'containership'];

@@ -3231,6 +3231,8 @@ export function buyError(world: World, siteId: number, kind: VehicleKind): strin
   if (!siteById(world, siteId)) return 'Select a building first';
   if (!buyOptions(world, siteId).includes(kind)) return 'This building cannot run that vehicle';
   if (def.tier > world.tier) return `${def.label} unlocks at Tier ${def.tier}`;
+  const owner0 = siteById(world, siteId)!;
+  if (owner0.level < def.needLevel) return `${def.label} needs this building at level ${def.needLevel}`;
   const shipLanes = world.routes.filter((r) => r.mode === 'sea' && (r.fromSiteId === siteId || r.toSiteId === siteId));
   if (def.mode === 'sea' && shipLanes.length > 0 && !shipLanes.some((r) => (def.draft ?? 0) <= (r.draft ?? 2))) return `The water from this port is too narrow for a ${def.label}`;
   if (world.money < def.cost) return `Need ${def.cost}`;
@@ -3286,6 +3288,8 @@ export function upgradeVehicleError(world: World, vehicleId: number): string | n
   const next = VEHICLE_DEFS[v.kind].next;
   if (!next) return 'Already the top class';
   if (VEHICLE_DEFS[next].tier > world.tier) return `${VEHICLE_DEFS[next].label} unlocks at Tier ${VEHICLE_DEFS[next].tier}`;
+  const home = siteById(world, v.homeId);
+  if (home && home.level < VEHICLE_DEFS[next].needLevel) return `${VEHICLE_DEFS[next].label} needs ${home.name} at level ${VEHICLE_DEFS[next].needLevel}`;
   const lane = v.routeId ? world.routes.find((r) => r.id === v.routeId) : undefined;
   if (lane && lane.mode === 'sea' && (VEHICLE_DEFS[next].draft ?? 0) > (lane.draft ?? 2)) return `This route's water is too narrow for a ${VEHICLE_DEFS[next].label}`;
   const cost = upgradeVehicleCost(v.kind);

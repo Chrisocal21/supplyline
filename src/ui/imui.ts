@@ -107,6 +107,8 @@ export class Im {
   }
 
   rect(layer: number, x: number, y: number, w: number, h: number, fill: number, alpha = 1, radius = 0, line?: number, lineAlpha = 1, lineWidth = 1): void {
+    // Square-shouldered panels and buttons, like a console game; only round things (w equals h) keep a full curve.
+    if (radius > 6 && Math.abs(w - h) > 1) radius = 6;
     const g = this.gfx[this.L(layer)];
     if ((fill === COLORS.panel || fill === COLORS.panelAlt) && w > 80 && h > 36 && alpha > 0.5) {
       g.fillStyle(0x03080b, alpha * 0.28);

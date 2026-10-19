@@ -22,10 +22,11 @@ import { BANK_TIER, DAY_TICKS, bankReport, FUND_FEE, LOAN_RATE, REAL_MONEY_ENABL
 import { pathMastered, pathQuestState, questState, tierUnlocks } from '../sim/quests';
 import { buildDistrict, choosePath, districtBoost, districtCost, districtError, districtLevel, districtRevenue, districtSatisfaction, pathError, townUpkeep } from '../sim/town';
 import { dockDemand, growthKinds, isHomePlot, metroBonus, partnerOf, plotTiles, radiusOf, produces, siteCap, stockOf, unitPrice, wants, type Place, type Site, type World } from '../sim/world';
+import { companyPage, fleetPage } from './company';
 import { COLORS, Im } from './imui';
 import { isTouch } from './inputmode';
 
-export type SheetId = 'production' | 'towns' | 'bank' | 'quests' | 'guide';
+export type SheetId = 'company' | 'production' | 'fleet' | 'towns' | 'bank' | 'quests' | 'guide';
 
 interface View {
   x0: number;
@@ -273,6 +274,7 @@ export interface SheetHooks {
   focusSite: (s: Site) => void;
   focusPlace: (p: Place) => void;
   select: (id: SheetId) => void;
+  income: () => number;
   clip: (x: number, y: number, w: number, h: number) => void;
   toast: (text: string) => void;
 }
@@ -297,37 +299,105 @@ export class Sheets {
   /** Draw the open sheet inside the box. Returns the box so the caller can block input and route wheel events. */
   draw(world: World, id: SheetId, x: number, y: number, w: number, h: number, close: () => void): void {
     const im = this.im;
-    im.rect(2, x, y, w, h, COLORS.panel, 0.97, 18, COLORS.line, 1);
-    im.block({ x, y, w, h });
-
-    // Header: tabs and a close button.
-    const narrow = w < 640;
-    const tabs: [SheetId, string][] = [['production', 'Production'], ['towns', 'Towns'], ['bank', 'Bank'], ['quests', 'Quests'], ['guide', narrow ? 'Guide' : 'How to play']];
-    const tabW = narrow ? Math.floor((w - 36 - 52 - 4 * 4) / 5) : 120;
-    const tabStep = tabW + (narrow ? 4 : 8);
-    tabs.forEach(([tid, label], i) => {
-      const tx = x + (narrow ? 12 : 18) + i * tabStep;
-      const on = tid === id;
-      const hov = im.hit(`sheetTab${tid}`, tx, y + 14, tabW, 40, () => {
-        this.hooks.select(tid);
-        this.scroll = 0;
-      }, 3);
-      im.rect(3, tx, y + 14, tabW, 40, on ? 0x1f2c3a : hov ? 0x1a2431 : 0x131b25, 1, 12, on ? COLORS.accent : COLORS.line, 1, on ? 2 : 1);
-      im.text(`sheetTabT${tid}`, label, tx + tabW / 2, y + (narrow ? 27 : 24), { size: narrow ? 10 : 15, bold: true, color: on ? COLORS.accent : COLORS.text, align: 'center', layer: 3 });
-    });
-    const cx = x + w - 58;
-    const chov = im.hit('sheetClose', cx, y + 14, 40, 40, close, 3);
-    im.rect(3, cx, y + 14, 40, 40, chov ? 0x2a3646 : 0x1b2430, 1, 20);
-    im.line(3, cx + 14, y + 28, cx + 26, y + 40, COLORS.text, 1, 2.5);
-    im.line(3, cx + 26, y + 28, cx + 14, y + 40, COLORS.text, 1, 2.5);
-    im.line(3, x + 14, y + 66, x + w - 14, y + 66, COLORS.line, 1, 1);
-
-    const top = y + 76;
-    const bottom = y + h - 12;
-    const view = { x0: x + 18, x1: x + w - 18, y0: top, y1: bottom };
+    const wide = w >= 760;
+    const pages: { id: SheetId; label: string; title: string; sub: string; key: string }[] = [
+      { id: 'company', label: 'Company', title: 'Company', sub: 'How the whole business is doing', key: 'Y' },
+      { id: 'production', label: 'Production', title: 'Production', sub: 'Every building and every good', key: 'P' },
+      { id: 'fleet', label: 'Fleet', title: 'Fleet garage', sub: 'Vehicles, yards and upgrades', key: 'V' },
+      { id: 'towns', label: 'Towns', title: 'Towns', sub: 'What each town wants and how it grows', key: 'T' },
+      { id: 'bank', label: 'Finance', title: 'Finance', sub: 'Loans, savings and the market fund', key: 'B' },
+      { id: 'quests', label: 'Objectives', title: 'Objectives', sub: 'Tiers, goals and rewards', key: 'G' },
+      { id: 'guide', label: 'How to play', title: 'How to play', sub: 'The guide to every building', key: 'H' },
+    ];
+    const page = pages.find((p) => p.id === id)!;
+    const select = (tid: SheetId): void => {
+      this.hooks.select(tid);
+      this.scroll = 0;
+    };
+    let top: number;
+    let view: View;
+    let bottom: number;
+    if (wide) {
+      // A console menu: a rail of pages down the left, the page's title across the top, the page itself in the middle.
+      const rail = 208;
+      im.rect(2, x, y, w, h, 0x0b1117, 0.985, 4, COLORS.line, 1);
+      im.rect(2, x, y, rail, h, 0x080c11, 1, 4);
+      im.rect(2, x + rail, y, 1, h, COLORS.line, 1, 0);
+      im.rect(2, x, y, w, 3, COLORS.accent, 0.9, 0);
+      im.block({ x, y, w, h });
+      im.text('shMark', 'SUPPLYLINE', x + 20, y + 20, { size: 13, bold: true, color: COLORS.accent, layer: 3 });
+      im.text('shMark2', 'MANAGE', x + 20, y + 38, { size: 10, color: COLORS.muted, layer: 3 });
+      pages.forEach((p, i) => {
+        const ry = y + 70 + i * 52;
+        const on = p.id === id;
+        const hov = im.hit(`shRail${p.id}`, x, ry, rail, 48, () => select(p.id), 3);
+        im.rect(3, x, ry, rail, 48, on ? 0x17212b : hov ? 0x10181f : 0x080c11, 1, 0);
+        if (on) im.rect(3, x, ry, 4, 48, COLORS.accent, 1, 0);
+        this.railIcon(p.id, x + 32, ry + 24, on ? COLORS.accent : hov ? COLORS.text : COLORS.muted);
+        im.text(`shRailT${p.id}`, p.label.toUpperCase(), x + 56, ry + 16, { size: 13, bold: true, color: on ? COLORS.accent : COLORS.text, layer: 4 });
+        if (!isTouch()) {
+          im.rect(3, x + rail - 34, ry + 14, 20, 20, 0x0b1117, 1, 3, COLORS.line, 1);
+          im.text(`shRailK${p.id}`, p.key, x + rail - 24, ry + 18, { size: 10, bold: true, color: on ? COLORS.accent : COLORS.muted, align: 'center', layer: 4 });
+        }
+      });
+      if (!isTouch()) {
+        im.line(3, x + 16, y + h - 70, x + rail - 16, y + h - 70, COLORS.line, 0.8, 1);
+        im.text('shHint1', 'Esc   Close', x + 20, y + h - 56, { size: 11, color: COLORS.muted, layer: 3 });
+        im.text('shHint2', 'Wheel   Scroll', x + 20, y + h - 38, { size: 11, color: COLORS.muted, layer: 3 });
+      }
+      const cx0 = x + rail + 26;
+      im.text('shTitle', page.title.toUpperCase(), cx0, y + 18, { size: 26, bold: true, layer: 3 });
+      im.text('shSub', page.sub, cx0, y + 50, { size: 12, color: COLORS.muted, layer: 3 });
+      const cx = x + w - 56;
+      const chov = im.hit('sheetClose', cx, y + 16, 38, 38, close, 3);
+      im.rect(3, cx, y + 16, 38, 38, chov ? 0x2a3646 : 0x131b25, 1, 3, chov ? COLORS.accent : COLORS.line, 1);
+      im.line(3, cx + 12, y + 27, cx + 26, y + 43, COLORS.text, 1, 2.5);
+      im.line(3, cx + 26, y + 27, cx + 12, y + 43, COLORS.text, 1, 2.5);
+      im.line(3, cx0, y + 74, x + w - 24, y + 74, COLORS.line, 1, 1);
+      top = y + 86;
+      bottom = y + h - 12;
+      view = { x0: cx0, x1: x + w - 26, y0: top, y1: bottom };
+    } else {
+      im.rect(2, x, y, w, h, COLORS.panel, 0.97, 8, COLORS.line, 1);
+      im.block({ x, y, w, h });
+      // Phones and small windows keep a row of tabs across the top.
+      const tabW = Math.floor((w - 36 - 52 - (pages.length - 1) * 4) / pages.length);
+      const tabStep = tabW + 4;
+      pages.forEach((p, i) => {
+        const tx = x + 12 + i * tabStep;
+        const on = p.id === id;
+        const hov = im.hit(`sheetTab${p.id}`, tx, y + 14, tabW, 40, () => select(p.id), 3);
+        im.rect(3, tx, y + 14, tabW, 40, on ? 0x1f2c3a : hov ? 0x1a2431 : 0x131b25, 1, 4, on ? COLORS.accent : COLORS.line, 1, on ? 2 : 1);
+        im.text(`sheetTabT${p.id}`, p.label, tx + tabW / 2, y + 27, { size: 9, bold: true, color: on ? COLORS.accent : COLORS.text, align: 'center', layer: 3 });
+      });
+      const cx = x + w - 58;
+      const chov = im.hit('sheetClose', cx, y + 14, 40, 40, close, 3);
+      im.rect(3, cx, y + 14, 40, 40, chov ? 0x2a3646 : 0x1b2430, 1, 4);
+      im.line(3, cx + 14, y + 28, cx + 26, y + 40, COLORS.text, 1, 2.5);
+      im.line(3, cx + 26, y + 28, cx + 14, y + 40, COLORS.text, 1, 2.5);
+      im.line(3, x + 14, y + 66, x + w - 14, y + 66, COLORS.line, 1, 1);
+      top = y + 76;
+      bottom = y + h - 12;
+      view = { x0: x + 18, x1: x + w - 18, y0: top, y1: bottom };
+    }
     this.hooks.clip(x, top, w, bottom - top);
     this.cim.clipBox = { x, y: top, w, h: bottom - top };
-    const contentH = id === 'production' ? this.production(world, view) : id === 'towns' ? (this.manage !== null && world.places.some((p) => p.id === this.manage) ? this.townDetail(world, world.places.find((p) => p.id === this.manage)!, view) : this.towns(world, view)) : id === 'bank' ? this.bank(world, view) : id === 'quests' ? this.quests(world, view) : this.guide(view);
+    const pageHooks = {
+      focusSite: this.hooks.focusSite,
+      focusPlace: this.hooks.focusPlace,
+      hasTexture: this.hooks.hasTexture,
+      toast: this.hooks.toast,
+      income: this.hooks.income,
+      open: (p: SheetId): void => select(p),
+    };
+    const contentH =
+      id === 'company' ? companyPage(this.cim, world, view, this.scroll, pageHooks)
+      : id === 'fleet' ? fleetPage(this.cim, world, view, this.scroll, pageHooks)
+      : id === 'production' ? this.production(world, view)
+      : id === 'towns' ? (this.manage !== null && world.places.some((p) => p.id === this.manage) ? this.townDetail(world, world.places.find((p) => p.id === this.manage)!, view) : this.towns(world, view))
+      : id === 'bank' ? this.bank(world, view)
+      : id === 'quests' ? this.quests(world, view)
+      : this.guide(view);
     this.maxScroll = Math.max(0, contentH - (bottom - top));
     this.scroll = Math.max(0, Math.min(this.maxScroll, this.scroll));
     if (this.maxScroll > 0) {
@@ -336,6 +406,43 @@ export class Sheets {
       const by = top + 4 + (trackH - barH) * (this.scroll / this.maxScroll);
       im.rect(3, x + w - 10, top + 4, 4, trackH, 0xffffff, 0.06, 2);
       im.rect(3, x + w - 10, by, 4, barH, 0xffffff, 0.3, 2);
+    }
+  }
+
+  /** The little picture beside each page in the rail. */
+  private railIcon(id: SheetId, cx: number, cy: number, c: number): void {
+    const im = this.im;
+    switch (id) {
+      case 'company':
+        for (const [dx, dy] of [[-9, -9], [1, -9], [-9, 1], [1, 1]]) im.rect(4, cx + dx, cy + dy, 8, 8, c, 1, 1);
+        break;
+      case 'production':
+        im.rect(4, cx - 11, cy - 1, 22, 11, c, 1, 1);
+        im.rect(4, cx + 4, cy - 11, 6, 11, c, 1, 1);
+        im.rect(4, cx - 11, cy - 6, 8, 5, c, 1, 1);
+        break;
+      case 'fleet':
+        im.rect(4, cx - 12, cy - 8, 16, 12, c, 1, 1);
+        im.rect(4, cx + 5, cy - 3, 8, 7, c, 1, 1);
+        im.circle(4, cx - 6, cy + 6, 3.5, c);
+        im.circle(4, cx + 8, cy + 6, 3.5, c);
+        break;
+      case 'towns':
+        im.rect(4, cx - 12, cy, 8, 10, c, 1, 1);
+        im.rect(4, cx - 4, cy - 10, 9, 20, c, 1, 1);
+        im.rect(4, cx + 6, cy + 3, 7, 7, c, 1, 1);
+        break;
+      case 'bank':
+        im.rect(4, cx - 12, cy - 10, 24, 4, c, 1, 1);
+        for (const dx of [-9, -2, 5]) im.rect(4, cx + dx, cy - 5, 5, 11, c, 1, 1);
+        im.rect(4, cx - 13, cy + 8, 26, 3, c, 1, 1);
+        break;
+      case 'quests':
+        im.rect(4, cx - 8, cy - 11, 3, 22, c, 1, 1);
+        im.rect(4, cx - 5, cy - 11, 15, 10, c, 1, 1);
+        break;
+      default:
+        im.text('shRailQ', '?', cx, cy - 10, { size: 20, bold: true, color: c, align: 'center', layer: 4 });
     }
   }
 
