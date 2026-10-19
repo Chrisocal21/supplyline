@@ -662,14 +662,21 @@ export class HudScene extends Phaser.Scene {
   /** In the Windows app, the update downloads in the background and a restart applies it. */
   private desktopReady = false;
   private desktopWired = false;
+  /** What the desktop updater is doing, shown under the Menu's update button. */
+  private desktopStatus = '';
 
   private checkVersion(now: number): void {
-    const desk = (window as unknown as { supplyline?: { onUpdate: (cb: (i: { state: string; version: string }) => void) => void } }).supplyline;
+    const desk = (window as unknown as { supplyline?: { onUpdate: (cb: (i: { state: string; version?: string; percent?: number; message?: string }) => void) => void } }).supplyline;
     if (desk) {
       if (!this.desktopWired) {
         this.desktopWired = true;
-        desk.onUpdate((i) => {
-          if (i.state !== 'ready' || this.latest === i.version) return;
+        desk.onUpdate((i: { state: string; version?: string; percent?: number; message?: string }) => {
+          if (i.state === 'checking') this.desktopStatus = 'Looking for an update...';
+          else if (i.state === 'none') this.desktopStatus = `You have the newest build (v${VERSION})`;
+          else if (i.state === 'downloading') this.desktopStatus = i.percent !== undefined ? `Downloading the update, ${i.percent}%` : `Downloading ${i.version ?? 'the update'}...`;
+          else if (i.state === 'error') this.desktopStatus = `Could not check: ${i.message ?? 'no connection'}`;
+          if (i.state !== 'ready' || !i.version || this.latest === i.version) return;
+          this.desktopStatus = '';
           this.latest = i.version;
           this.desktopReady = true;
           this.flashUntil = this.time.now + 4800;
@@ -694,10 +701,17 @@ export class HudScene extends Phaser.Scene {
   /** Save, reload on the newest build, and carry on from the same place with no title screen. */
   private syncUpdate(): void {
     const g = this.game3d;
-    const desk = (window as unknown as { supplyline?: { installUpdate: () => void } }).supplyline;
+    const desk = (window as unknown as { supplyline?: { installUpdate: () => void; checkUpdate?: () => void } }).supplyline;
     if (desk && this.desktopReady) {
       if (!g.demo && !g.showcase) g.save();
       desk.installUpdate();
+      return;
+    }
+    if (desk) {
+      // Nothing downloaded yet: look right now.
+      this.desktopStatus = 'Looking for an update...';
+      desk.checkUpdate?.();
+      this.toasts.push({ text: 'Looking for an update', until: this.time.now + 2500 });
       return;
     }
     if (!g.demo && !g.showcase && !g.save()) {
@@ -1155,13 +1169,14 @@ export class HudScene extends Phaser.Scene {
     const btnY = narrow ? cy + updH - btnH - 10 : cy + (updH - btnH) / 2;
     const textW = narrow ? w - pad * 2 - 24 : w - pad * 2 - btnW - 36;
     im.text('menuUpdT', ready ? `Update ${this.latest} is ready` : 'What is new in this build', x + pad + 14, cy + 10, { size: 13, bold: true, color: ready ? COLORS.accent : COLORS.text, layer: 5 });
-    im.text('menuUpdN', VERSION_NOTE, x + pad + 14, cy + 30, { size: 11, color: COLORS.muted, wrap: textW, layer: 5 });
+    im.text('menuUpdN', this.desktopStatus && !ready ? this.desktopStatus : VERSION_NOTE, x + pad + 14, cy + 30, { size: 11, color: this.desktopStatus && !ready ? COLORS.accent : COLORS.muted, wrap: textW, layer: 5 });
     const sh = im.hit('menuSync', btnX, btnY, btnW, btnH, () => {
-      this.menuOpen = false;
+      const checking = this.desktopWired && !this.desktopReady;
+      if (!checking) this.menuOpen = false;
       this.syncUpdate();
     }, 5);
     im.rect(5, btnX, btnY, btnW, btnH, ready ? (sh ? 0xf4b84f : COLORS.accent) : sh ? 0x2a3646 : 0x1b2430, 1, 10, ready ? COLORS.accent : COLORS.line, 1);
-    im.text('menuSyncT', ready ? (this.desktopReady ? 'Restart to update' : 'Sync update now') : this.desktopWired ? 'Up to date' : 'Sync update', btnX + btnW / 2, btnY + 11, { size: 14, bold: true, color: ready ? 0x1b1204 : COLORS.text, align: 'center', layer: 6 });
+    im.text('menuSyncT', ready ? (this.desktopReady ? 'Restart to update' : 'Sync update now') : this.desktopWired ? 'Check for update' : 'Sync update', btnX + btnW / 2, btnY + 11, { size: 14, bold: true, color: ready ? 0x1b1204 : COLORS.text, align: 'center', layer: 6 });
     cy += updH + 14;
 
     // The radio: pick a station, turn it up or down, or switch it off.

@@ -13,6 +13,7 @@ const DIST = path.join(__dirname, '..', 'dist');
 let win = null;
 let updater = null;
 let pending = null;
+let checkNow = null;
 
 function send(channel, payload) {
   if (win && !win.isDestroyed()) win.webContents.send(channel, payload);
@@ -32,10 +33,14 @@ function startUpdater() {
     pending = { state: 'ready', version: info.version };
     send('update', pending);
   });
-  updater.on('error', () => undefined);
+  updater.on('checking-for-update', () => send('update', { state: 'checking' }));
+  updater.on('update-not-available', () => send('update', { state: 'none' }));
+  updater.on('download-progress', (p) => send('update', { state: 'downloading', percent: Math.round(p.percent) }));
+  updater.on('error', (e) => send('update', { state: 'error', message: String((e && e.message) || e).split('\n')[0].slice(0, 90) }));
   const check = () => updater.checkForUpdates().catch(() => undefined);
+  checkNow = check;
   check();
-  setInterval(check, 30 * 60 * 1000);
+  setInterval(check, 10 * 60 * 1000);
 }
 
 function createWindow() {
@@ -85,6 +90,12 @@ app.whenReady().then(() => {
   });
   ipcMain.on('update:install', () => {
     if (updater && pending) updater.quitAndInstall(false, true);
+  });
+  // The menu asks for a look right now, instead of waiting for the next timed one.
+  ipcMain.on('update:check', () => {
+    if (pending) send('update', pending);
+    else if (checkNow) checkNow();
+    else send('update', { state: 'error', message: 'Updates only run in the installed app' });
   });
   ipcMain.handle('app:info', () => ({ version: app.getVersion(), packaged: app.isPackaged }));
   createWindow();
