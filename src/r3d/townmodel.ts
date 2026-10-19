@@ -44,6 +44,17 @@ const TREE_GREEN = [0x526747, 0x63764e, 0x405a41];
 
 const YAW: Record<'N' | 'S' | 'E' | 'W', number> = { S: 0, N: Math.PI, E: Math.PI / 2, W: -Math.PI / 2 };
 
+/** One district as a model on its own, for the preview that follows the pointer while the player is placing it. */
+export function districtGhostGeometry(id: DistrictId, level: number, setting: Setting, fx: number, fz: number, campus: boolean): THREE.BufferGeometry {
+  const yaw = fx > 0 ? YAW.E : fx < 0 ? YAW.W : fz > 0 ? YAW.S : YAW.N;
+  const p = new Parts();
+  p.anchor = [0, 0];
+  if (campus && (id === 'stadium' || id === 'ballpark' || id === 'arena' || id === 'soccer')) sportsCampus(p, id, level, 0, 0, yaw);
+  else districtLandmark(p, id, level, 0, 0, yaw, setting);
+  p.anchor = null;
+  return p.build();
+}
+
 /** Where a district's landmark stands in the model: its tile (offset from the centre) and its place in model units. */
 export interface TownLandmark {
   id: DistrictId;
@@ -257,9 +268,9 @@ export function townGeometry(o: TownModelOptions): THREE.BufferGeometry {
     marks.push({ id: d.id, level: d.level, tx: d.x, ty: d.y, x: cx, z: cz });
     if (!d.campus) placed.push([cx - TILE * sq * 0.5, cz - TILE * 0.5, cx + TILE * sq * 0.5, cz + TILE * 0.5]);
     p.anchor = [cx, cz];
-    if (d.campus && (d.id === 'stadium' || d.id === 'ballpark' || d.id === 'arena')) {
+    if (d.campus && (d.id === 'stadium' || d.id === 'ballpark' || d.id === 'arena' || d.id === 'soccer')) {
       lights.push(...sportsCampus(p, d.id, d.level, cx, cz, yawToward(fx, fz)));
-      const front = d.id === 'stadium' ? 5.7 : d.id === 'ballpark' ? 5.8 : 4.16;
+      const front = d.id === 'stadium' ? 5.7 : d.id === 'soccer' ? 5.7 : d.id === 'ballpark' ? 5.8 : 4.16;
       const startX = cx + fx * front;
       const startZ = cz + fz * front;
       const endX = X(d.ex);

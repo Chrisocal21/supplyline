@@ -40,4 +40,5 @@ export const SPORTS = {
   football: { length: 109.728, width: 48.768 },
   hockey: { length: 60.96, width: 25.908 },
   baseball: { basePath: 27.432, mound: 18.4404 },
+  soccer: { length: 105, width: 68 },
 };

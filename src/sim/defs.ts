@@ -556,6 +556,7 @@ export type DistrictId =
   | 'stadium'
   | 'ballpark'
   | 'arena'
+  | 'soccer'
   | 'cafe'
   | 'resort'
   | 'terminal'
@@ -611,6 +612,7 @@ export const DISTRICTS: Record<DistrictId, DistrictDef> = {
   amphitheatre: { label: 'Amphitheatre', blurb: 'Open-air stage and tiered seating. Timber, cloth and paper for the shows.', minLevel: 3, cost: 2600, goods: ['lumber', 'cloth', 'clothes', 'paper'], price: 0.08, revenue: 50, affinity: 'boulevard' },
   stadium: { label: 'Football Stadium', blurb: 'Game day fills the town. Wants bread, cheese, milk, clothes and coffee for the crowd.', minLevel: 4, cost: 6500, goods: ['bread', 'cheese', 'milk', 'clothes', 'coffee'], price: 0.08, revenue: 120 },
   ballpark: { label: 'Baseball Park', blurb: 'Summer evenings and a full house. Wants bread, fruit, paper, clothes and coffee.', minLevel: 4, cost: 6000, goods: ['bread', 'fruit', 'paper', 'clothes', 'coffee'], price: 0.08, revenue: 110 },
+  soccer: { label: 'Soccer Stadium', blurb: 'The beautiful game, under floodlights. Wants bread, fruit, milk, clothes and coffee for the supporters.', minLevel: 4, cost: 6000, goods: ['bread', 'fruit', 'milk', 'clothes', 'coffee'], price: 0.08, revenue: 105 },
   arena: { label: 'Hockey Arena', blurb: 'An indoor arena on ice. Wants milk, cheese, clothes, steel and coffee.', minLevel: 4, cost: 5500, goods: ['milk', 'cheese', 'clothes', 'steel', 'coffee'], price: 0.08, revenue: 100 },
   resort: { label: 'Beach Resort', blurb: 'Pool, palms and a long list of guests. Pays well for mangoes and coffee. Income grows with the variety the town offers.', minLevel: 3, cost: 3600, goods: ['mango', 'coffee', 'fruit', 'furniture', 'cloth'], price: 0.1, revenue: 58, effect: 'visitors', affinity: 'boulevard' },
   university: { label: 'University', blurb: 'Educated townsfolk. Everything the town buys makes it grow faster.', minLevel: 4, cost: 4500, goods: ['books', 'paper', 'machinery'], price: 0.06, revenue: 0, effect: 'growth' },

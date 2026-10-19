@@ -18,13 +18,16 @@ import {
   WORLD_SIZES,
   RANDOM_SIZES,
   type WorldSizeId,
+  DISTRICTS,
+  DISTRICT_ORDER,
   type DistrictId,
   type NodeKind,
   type SiteKind,
   type VehicleKind,
 } from '../sim/defs';
-import { townGeometry, type TownLandmark } from './townmodel';
-import type { Setting } from './districts';
+import { districtGhostGeometry, townGeometry, type TownLandmark } from './townmodel';
+import { districtLandmark, type Setting } from './districts';
+import { Parts } from './parts';
 import { GROW_MS, growMaterial } from './grow';
 import { tileLonLat } from '../sim/mapgen';
 import { LEVEL_CAP } from '../sim/defs';
@@ -114,7 +117,7 @@ import { buildGlobe, type Globe } from './globeMesh';
 import { siteGeometry, siteGeometryAt, trainUnits, vehicleGeometry } from './models';
 import { BUILD_MS, Construction } from './construction';
 import { packSave, saveFileName, unpackSave } from '../sim/saveio';
-import { buildDistrict } from '../sim/town';
+import { buildDistrict, buildDistrictAt, districtSpotAt, type DistrictSpot } from '../sim/town';
 import map1 from '../maps/map1.json';
 import map2 from '../maps/map2.json';
 import { paintGlobe, paintRoughness } from './paint';
@@ -164,7 +167,11 @@ const CARGO_AT: Record<VehicleKind, [number, number]> = {
   containership: [0.3, 0],
 };
 
-export type Tool = 'select' | 'route' | 'highway' | 'rail' | 'air' | 'sea' | 'demolish' | SiteKind;
+/** A town district being placed: 'd:' and the district's id. */
+export type DistrictTool = `d:${DistrictId}`;
+export type Tool = 'select' | 'route' | 'highway' | 'rail' | 'air' | 'sea' | 'demolish' | SiteKind | DistrictTool;
+export const isDistrictTool = (t: Tool): t is DistrictTool => t.startsWith('d:');
+export const districtOfTool = (t: DistrictTool): DistrictId => t.slice(2) as DistrictId;
 export type Selection = { kind: 'site'; id: number } | { kind: 'place'; id: number } | null;
 
 export interface HoverInfo {
@@ -176,6 +183,8 @@ export interface HoverInfo {
   route?: Route;
   /** Why the active build tool cannot be used here. */
   error?: string | null;
+  /** For a district tool: the lot it would take. */
+  spot?: DistrictSpot | null;
 }
 
 export interface OverlayItem {
@@ -1198,12 +1207,12 @@ export class Game3D {
     this.scenery.showMarkers(this.activeNodeKind(), usedNodes);
     this.scenery.showGates(this.isRouteTool());
     this.scenery.setParcels(this.isBuildTool() && !!w.landRules, String((w.owned ?? []).length));
-    this.scenery.setReserved(this.isRouteTool() || this.isBuildTool(), w.places.map((p) => `${p.level}.${Object.values(p.districtLots ?? {}).join('_')}`).join(',') + (this.growing.size > 0 ? 'g' : ''));
+    this.scenery.setReserved(this.isRouteTool() || this.isBuildTool() || isDistrictTool(this.tool), w.places.map((p) => `${p.level}.${Object.values(p.districtLots ?? {}).join('_')}`).join(',') + (this.growing.size > 0 ? 'g' : ''));
     this.scenery.setNodesUsed(usedNodes);
   }
 
   private activeNodeKind(): NodeKind | null {
-    if (this.isRouteTool() || this.tool === 'select' || this.tool === 'air' || this.tool === 'sea' || this.tool === 'demolish') return null;
+    if (this.isRouteTool() || this.tool === 'select' || this.tool === 'air' || this.tool === 'sea' || this.tool === 'demolish' || isDistrictTool(this.tool)) return null;
     return SITE_DEFS[this.tool as SiteKind].node ?? null;
   }
 
@@ -1992,6 +2001,10 @@ export class Game3D {
     info.route = routeAt(w, tile.x, tile.y, this.tool === 'rail' ? 'rail' : undefined);
     info.region = w.regions.find((r) => r.id === w.regionMap[tile.y * w.width + tile.x]);
     if (this.isBuildTool()) info.error = placeError(w, this.tool as SiteKind, tile.x, tile.y, this.placeRot ?? undefined);
+    if (isDistrictTool(this.tool)) {
+      info.spot = districtSpotAt(w, tile.x, tile.y, districtOfTool(this.tool));
+      info.error = info.spot ? info.spot.error : 'Point at a free lot beside a town street, or a sports ground kept for it';
+    }
     if (this.tool === 'demolish') {
       info.route = routeAt(w, tile.x, tile.y, undefined, { newest: true });
       info.error = info.site ? null : info.route ? removeRouteError(w, info.route.id) : 'Click a building or a road to remove it';
@@ -2065,7 +2078,7 @@ export class Game3D {
   }
 
   private isBuildTool(): boolean {
-    return this.tool !== 'select' && !this.isRouteTool() && this.tool !== 'air' && this.tool !== 'sea' && this.tool !== 'demolish';
+    return this.tool !== 'select' && !this.isRouteTool() && this.tool !== 'air' && this.tool !== 'sea' && this.tool !== 'demolish' && !isDistrictTool(this.tool);
   }
 
   /** The stretch of road or track the demolish tool is pointing at, shown in red. */
@@ -2187,12 +2200,57 @@ export class Game3D {
     this.ring.matrixWorldNeedsUpdate = true;
     this.ring.visible = true;
     const buildTool = this.isBuildTool();
-    const ok = !buildTool && this.tool !== 'demolish' ? true : !this.hover.error;
+    const districtTool = isDistrictTool(this.tool);
+    const ok = !buildTool && !districtTool && this.tool !== 'demolish' ? true : !this.hover.error;
     // A plot for sale is neither free nor blocked: gold says it can be had for a price.
     const forSale = buildTool && !!this.hover.error?.startsWith(LAND_PREFIX);
     (this.ring.material as THREE.MeshBasicMaterial).color.set(ok ? 0xffffff : forSale ? 0xf4b84f : 0xff6b5e);
     if (buildTool) this.showGhost(this.tool as SiteKind, tile, ok, forSale);
+    else if (districtTool && this.hover.spot) this.showDistrictGhost(this.hover.spot, districtOfTool(this.tool as DistrictTool), ok);
     else if (this.ghost) this.ghost.visible = false;
+  }
+
+  /** What the lot among is: hills, shore, woods or open ground. It decides how the district is dressed. */
+  private settingAt(x: number, y: number): Setting {
+    const w = this.world;
+    let rock = 0;
+    let wet = 0;
+    let wood = 0;
+    const e0 = elevAt(w, wrapX(w, x), y);
+    for (let dy = -3; dy <= 3; dy++) {
+      for (let dx = -3; dx <= 3; dx++) {
+        const tx = wrapX(w, x + dx);
+        const ty = y + dy;
+        const ter = terrainAt(w, tx, ty);
+        if (ter === 'water') wet += 1;
+        else if (ter === 'forest') wood += 1;
+        if (ter === 'mountain' || (ter && elevAt(w, tx, ty) - e0 > 22)) rock += 1;
+      }
+    }
+    return rock >= 7 ? 'rock' : wet >= 6 ? 'water' : wood >= 10 ? 'forest' : 'plain';
+  }
+
+  private districtGhostKey = '';
+
+  private showDistrictGhost(spot: DistrictSpot, id: DistrictId, ok: boolean): void {
+    const setting = this.settingAt(spot.x, spot.y);
+    const fx = Math.sign(spot.ex - spot.x);
+    const fz = Math.sign(spot.ey - spot.y);
+    const level = Math.max(1, spot.place.districts?.[id] ?? 0 ? (spot.place.districts![id] ?? 0) + 1 : 1);
+    const key = `${id}.${Math.min(3, level)}.${setting}.${fx}.${fz}.${spot.campus}`;
+    if (!this.ghost || this.ghostKind !== null || this.districtGhostKey !== key) {
+      if (this.ghost) this.scene.remove(this.ghost);
+      const mat = new THREE.MeshStandardMaterial({ vertexColors: true, transparent: true, opacity: 0.7, roughness: 0.9, depthWrite: false });
+      this.ghost = new THREE.Mesh(districtGhostGeometry(id, Math.min(3, level), setting, fx, fz, spot.campus), mat);
+      this.ghost.matrixAutoUpdate = false;
+      this.scene.add(this.ghost);
+      this.ghostKind = null;
+      this.districtGhostKey = key;
+    }
+    (this.ghost.material as THREE.MeshStandardMaterial).color.set(ok ? 0xb8ffc8 : 0xff9a90);
+    this.ghost.matrix.copy(this.tileMatrix({ x: spot.x, y: spot.y }, 0.02));
+    this.ghost.matrixWorldNeedsUpdate = true;
+    this.ghost.visible = true;
   }
 
   private showGhost(kind: SiteKind, tile: Tile, ok: boolean, forSale = false): void {
@@ -2203,6 +2261,7 @@ export class Game3D {
       this.ghost.matrixAutoUpdate = false;
       this.scene.add(this.ghost);
       this.ghostKind = kind;
+      this.districtGhostKey = '';
     }
     (this.ghost.material as THREE.MeshStandardMaterial).color.set(ok ? 0xb8ffc8 : forSale ? 0xffd98a : 0xff9a90);
     this.ghost.matrix.copy(this.tileMatrix(tile, 0.02)).multiply(new THREE.Matrix4().makeRotationY((this.ghostRot(kind, tile) * Math.PI) / 2));
@@ -2293,7 +2352,7 @@ export class Game3D {
     if (d.button !== 0 || d.moved) return;
     const pick = this.pickTile(x, y);
     if (!pick) return;
-    if (this.touch && (this.isBuildTool() || this.tool === 'demolish')) {
+    if (this.touch && (this.isBuildTool() || isDistrictTool(this.tool) || this.tool === 'demolish')) {
       // A tap only previews. The confirm button builds.
       this.pending = pick.tile;
       this.hoverBlocked = false;
@@ -2378,6 +2437,22 @@ export class Game3D {
       return;
     }
     if (this.isRouteTool()) return;
+    if (isDistrictTool(this.tool)) {
+      const id = districtOfTool(this.tool);
+      const spot = districtSpotAt(w, tile.x, tile.y, id);
+      if (!spot) {
+        this.onToast('Point at a free lot beside a town street, or a sports ground kept for it');
+        return;
+      }
+      const had = spot.place.districts?.[id] ?? 0;
+      const err = buildDistrictAt(w, spot.place, id, spot.lot);
+      if (err) this.onToast(err);
+      else {
+        this.onToast(`${DISTRICTS[id].label} ${had ? 'improved' : 'built'} in ${spot.place.name}`);
+        this.setHover(tile);
+      }
+      return;
+    }
     if (this.tool === 'demolish') {
       const site = siteAt(w, tile.x, tile.y);
       if (site) {
@@ -2814,6 +2889,11 @@ export class Game3D {
     };
     for (const kind of BUILD_ORDER) shoot(kind, SITE_DEFS[kind].produce ? siteGeometryAt(kind, 1) : siteGeometry(kind), 0);
     for (const kind of VEHICLE_ORDER) shoot(kind, vehicleGeometry(kind), 0.9);
+    for (const id of DISTRICT_ORDER) {
+      const parts = new Parts();
+      districtLandmark(parts, id, 3, 0, 0, 0);
+      shoot(`d:${id}`, parts.build(), 0.5);
+    }
     r.dispose();
     r.forceContextLoss();
     return out;

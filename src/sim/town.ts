@@ -27,7 +27,8 @@ import {
 } from './defs';
 import { upkeepMult } from './perks';
 import type { Place } from './features';
-import { freeCivicLot, syncDistrictSite, type World } from './world';
+import { freeCivicLot, layoutOf, routeAt, siteAt, syncDistrictSite, wrapDx, wrapX, type World } from './world';
+import { civicFootprint } from './townlayout';
 
 const TICKS_PER_MINUTE = 600;
 
@@ -80,10 +81,66 @@ export function districtError(world: World, place: Place, id: DistrictId): strin
   if (level >= districtCap(place, id)) return `Needs a ${TOWN_LEVELS[Math.min(TOWN_LEVELS.length, def.minLevel + level) - 1].name}`;
   const cost = districtCost(place, id);
   if (world.money < cost) return `Need $${cost.toLocaleString('en-US')}`;
-  if (level === 0 && freeCivicLot(world, place, id) === null) return world.realisticLots && ['stadium', 'ballpark', 'arena'].includes(id)
+  if (level === 0 && place.districtLots?.[id] === undefined && freeCivicLot(world, place, id) === null) return world.realisticLots && ['stadium', 'ballpark', 'arena', 'soccer'].includes(id)
     ? `${place.name} has no clear, full-size sports campus available`
     : `${place.name} has no free lot left for it`;
   return null;
+}
+
+/** The ground a district would take if built where the player points: which town, which lot, and why it cannot be built, if so. */
+export interface DistrictSpot {
+  place: Place;
+  /** Index of the lot among the town's civic lots. */
+  lot: number;
+  /** Tile at the middle of the lot, and the tile its door looks toward. */
+  x: number;
+  y: number;
+  ex: number;
+  ey: number;
+  campus: boolean;
+  error: string | null;
+}
+
+const CAMPUS_DISTRICTS: DistrictId[] = ['stadium', 'ballpark', 'arena', 'soccer'];
+
+/**
+ * The lot a district would take at a tile. A district already built can only be taken up a level on its own lot; one not yet
+ * built goes on a free lot of the town beside it, or on the campus kept for it (a stadium, ballpark, arena or soccer stadium).
+ */
+export function districtSpotAt(world: World, x: number, y: number, id: DistrictId): DistrictSpot | null {
+  let best: DistrictSpot | null = null;
+  let bd = Infinity;
+  for (const place of world.places) {
+    const layout = layoutOf(world, place);
+    const used = new Set(Object.values(place.districtLots ?? {}));
+    const own = place.districtLots?.[id];
+    layout.civic.forEach((c, i) => {
+      if (c.campus ? c.campus.district !== id : CAMPUS_DISTRICTS.includes(id) && world.realisticLots) return;
+      if (own !== undefined ? own !== i : used.has(i) || (!c.campus && c.level > place.level)) return;
+      const cx = wrapX(world, place.x + c.x);
+      const cy = place.y + c.y;
+      const d = Math.hypot(wrapDx(world, x, cx), y - cy);
+      const reach = c.campus ? Math.max(c.campus.halfX, c.campus.halfY) + 3 : 3.5;
+      if (d > reach || d >= bd) return;
+      bd = d;
+      const blocked = own === undefined && civicFootprint(c).some((t) => siteAt(world, wrapX(world, place.x + t.x), place.y + t.y) || routeAt(world, wrapX(world, place.x + t.x), place.y + t.y));
+      best = { place, lot: i, x: cx, y: cy, ex: wrapX(world, place.x + c.entry.x), ey: place.y + c.entry.y, campus: !!c.campus, error: blocked ? 'Something is in the way of this lot' : districtError(world, place, id) };
+    });
+  }
+  return best;
+}
+
+/** Build a district on the lot the player picked, or take the one already there up a level. */
+export function buildDistrictAt(world: World, place: Place, id: DistrictId, lot: number): string | null {
+  const had = place.districtLots?.[id];
+  const spot = districtSpotAt(world, place.x + layoutOf(world, place).civic[lot].x, place.y + layoutOf(world, place).civic[lot].y, id);
+  if (!spot || spot.place.id !== place.id || spot.lot !== lot) return 'That is not a lot for this district';
+  if (spot.error) return spot.error;
+  place.districtLots ??= {};
+  place.districtLots[id] = lot;
+  const err = buildDistrict(world, place, id);
+  if (err && had === undefined) delete place.districtLots[id];
+  return err;
 }
 
 /** Build a district, or take it up a level. */

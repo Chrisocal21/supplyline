@@ -1,7 +1,7 @@
 // Landmarks for town districts. Each district a town builds puts a small building group on one of the tiles around its
 // streets, and it grows taller or busier with the district's level, so a town visibly fills in as it is developed.
 // Everything fits inside one tile (about 1.7 units square) so it can sit in any of the slots without touching a street.
-import type { DistrictId } from '../sim/defs';
+import { DISTRICTS, GOODS, type DistrictId } from '../sim/defs';
 import type { Parts } from './parts';
 import { framedWindow, roofVent } from './architecture';
 import { addTree } from './vegetation';
@@ -56,6 +56,36 @@ export function districtLandmark(p: Parts, id: DistrictId, level: number, cx: nu
     return pts;
   };
   p.slab(1.8, 1.8, 0x9a968c, { x: cx, z: cz, ry: yaw });
+  // The lot reaches below the ground on a plinth, so on a slope it sits on the hill and not above it, and it is dressed for what it
+  // sits among: stone blocks in the hills, a timber deck and posts by the water, trees in the woods.
+  {
+    const [px, pz] = at(0, 0);
+    p.tex = 6;
+    p.box(1.74, 0.5, 1.74, setting === 'rock' ? 0x77746c : 0x6f6c63, { x: px, y: -0.5, z: pz, ry: yaw });
+    p.tex = 0;
+    if (setting === 'rock') {
+      for (const [lx, lz, w] of [[-0.8, -0.8, 0.34], [0.82, -0.78, 0.28], [-0.84, 0.8, 0.3], [0.8, 0.84, 0.36]] as [number, number, number][]) {
+        const [bx, bz] = at(lx, lz);
+        p.box(w, w * 0.8, w, 0x85827a, { x: bx, y: -0.02, z: bz, ry: yaw + lx });
+      }
+    } else if (setting === 'water') {
+      for (const lz of [-0.7, -0.35, 0, 0.35, 0.7]) for (const lx of [-0.92, 0.92]) {
+        const [bx, bz] = at(lx, lz);
+        p.cyl(0.04, 0.05, 0.8, 0x54402b, { x: bx, y: -0.7, z: bz }, 6);
+      }
+      for (const lx of [-0.93, 0.93]) {
+        const [bx, bz] = at(lx, 0);
+        p.box(0.1, 0.05, 1.8, 0x7a5a3c, { x: bx, y: 0.02, z: bz, ry: yaw });
+      }
+    } else if (setting === 'forest') {
+      for (const [lx, lz] of [[-0.86, -0.84], [0.86, -0.82], [-0.88, 0.1], [0.88, 0.14]] as [number, number][]) {
+        const [bx, bz] = at(lx, lz);
+        p.cyl(0.03, 0.04, 0.28, 0x54402b, { x: bx, y: 0.02, z: bz }, 6);
+        p.cone(0.26, 0.6, 0x3f7a4f, { x: bx, y: 0.3, z: bz }, 8);
+      }
+    }
+  }
+  const accent = GOODS[DISTRICTS[id].goods[0]]?.color ?? 0xd7a21f;
   const front = 0.82;
   const win = (lx: number, y: number, w: number, h: number, lz = 0.065): void => {
     const [x, z] = at(lx, lz);
@@ -330,6 +360,7 @@ export function districtLandmark(p: Parts, id: DistrictId, level: number, cx: nu
       }
       break;
     }
+    case 'soccer':
     case 'stadium': {
       // A football stadium: a long rounded-rectangle bowl round a rectangular field with end zones and goalposts, the stands
       // stepping down toward the grass, a roof over the sidelines on the bigger ones, floodlights, a press box and a gate.
@@ -558,6 +589,32 @@ export function districtLandmark(p: Parts, id: DistrictId, level: number, cx: nu
       }
       break;
     }
+  }
+  // Each level shows: lamps and planters at the second, and at the third a paved forecourt, trees and a flag in the district's colour.
+  if (L >= 2) {
+    for (const [lx, lz] of [[-0.86, 0.86], [0.86, 0.86]] as [number, number][]) {
+      const [bx, bz] = at(lx, lz);
+      p.cyl(0.02, 0.025, 0.55, 0x55595e, { x: bx, y: 0.04, z: bz }, 6);
+      p.box(0.1, 0.04, 0.06, 0xf2e6b0, { x: bx, y: 0.6, z: bz, ry: yaw });
+    }
+    for (const lx of [-0.45, 0.45]) {
+      const [bx, bz] = at(lx, 0.88);
+      p.box(0.26, 0.1, 0.12, 0x6a5a44, { x: bx, y: 0.04, z: bz, ry: yaw });
+      p.sphere(0.09, 0x4a8a4f, { x: bx, y: 0.17, z: bz });
+    }
+  }
+  if (L >= 3) {
+    const [fx, fz] = at(0, 0.9);
+    p.slab(1.7, 0.22, 0xb4aea0, { x: fx, z: fz, ry: yaw, y: 0.045 });
+    p.box(1.7, 0.012, 0.03, accent, { x: fx, y: 0.075, z: fz, ry: yaw });
+    for (const lx of [-0.88, 0.88]) {
+      const [bx, bz] = at(lx, 0.55);
+      p.cyl(0.03, 0.04, 0.26, 0x54402b, { x: bx, y: 0.04, z: bz }, 6);
+      p.cone(0.24, 0.5, 0x3f7a4f, { x: bx, y: 0.3, z: bz }, 8);
+    }
+    const [px, pz] = at(0.72, -0.86);
+    p.cyl(0.012, 0.012, 1.3, 0xc9cdcf, { x: px, y: 0.04, z: pz }, 6);
+    p.box(0.3, 0.17, 0.02, accent, { x: px + 0.15, y: 1.12, z: pz, ry: yaw });
   }
   p.tex = 0;
 }

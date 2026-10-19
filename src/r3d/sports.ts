@@ -1,13 +1,13 @@
 import type { Parts } from './parts';
 import { meters, SPORTS, type LightAnchor } from '../scale';
 
-export type SportsKind = 'stadium' | 'ballpark' | 'arena';
+export type SportsKind = 'stadium' | 'ballpark' | 'arena' | 'soccer';
 
 /**
  * The campus each kind takes, in metres across and deep. Football, hockey and the rest of the big venues share one size so they
  * fit any site; a baseball park is built at three quarters of that scale.
  */
-export const CAMPUS_SIZE: Record<SportsKind, [number, number]> = { stadium: [180, 125], arena: [180, 125], ballpark: [135, 135] };
+export const CAMPUS_SIZE: Record<SportsKind, [number, number]> = { stadium: [180, 125], arena: [180, 125], soccer: [180, 125], ballpark: [135, 135] };
 
 /** Full-size sports facilities. The caller reserves a campus before using these models. */
 export function sportsCampus(p: Parts, kind: SportsKind, level: number, cx: number, cz: number, yaw: number): LightAnchor[] {
@@ -102,6 +102,50 @@ export function sportsCampus(p: Parts, kind: SportsKind, level: number, cx: numb
     }
     box(0, 0.4, 72, 42, 5, 10, 0xa19b89, 1);
     box(0, 13, -77, 24, 9, 0.7, 0x344955, 8);
+  } else if (kind === 'soccer') {
+    p.slab(m(180), m(125), 0x727a70, { ...at(0, 0) });
+    const { length, width } = SPORTS.soccer;
+    box(0, 0.42, 0, length + 6, 0.03, width + 6, 0x41603c, 10);
+    for (let i = 0; i < 14; i++) box(-length / 2 + (i + 0.5) * length / 14, 0.455, 0, length / 14, 0.01, width, i % 2 ? 0x56744a : 0x4b6942, 10);
+    const ring = 24;
+    for (let i = 0; i < ring; i++) {
+      const a0 = (i / ring) * Math.PI * 2;
+      const a1 = ((i + 1) / ring) * Math.PI * 2;
+      line(Math.cos(a0) * 9.15, Math.sin(a0) * 9.15, Math.cos(a1) * 9.15, Math.sin(a1) * 9.15, 0.49);
+    }
+    line(0, -width / 2, 0, width / 2, 0.49);
+    for (const z of [-width / 2, width / 2]) line(-length / 2, z, length / 2, z, 0.49);
+    for (const x of [-length / 2, length / 2]) line(x, -width / 2, x, width / 2, 0.49);
+    for (const side of [-1, 1]) {
+      const gx = side * length / 2;
+      for (const [d, half] of [[16.5, 20.15], [5.5, 9.16]]) {
+        line(gx - side * d, -half, gx - side * d, half, 0.49);
+        line(gx, -half, gx - side * d, -half, 0.49);
+        line(gx, half, gx - side * d, half, 0.49);
+      }
+      for (const z of [-3.66, 3.66]) pole(gx, z, 2.44, 0.06);
+      box(gx, 2.44, 0, 0.12, 0.12, 7.32, 0xf2f2ee, 5);
+      box(gx + side * 1.0, 0.5, 0, 2.0, 1.9, 7.32, 0xdfe5e4, 8);
+    }
+    for (const side of [-1, 1]) {
+      for (let row = 0; row < 4 + level * 3; row++) {
+        box(0, 0.4, side * (width / 2 + 5 + row * 0.9), 108, 0.7 + row * 0.4, 0.9, 0x8a928d, 6);
+        box(0, 1.1 + row * 0.4, side * (width / 2 + 5 + row * 0.9), 108, 0.34, 0.42, side > 0 ? 0x4b6a80 : 0x7a4b45, 11);
+      }
+      if (level >= 2) {
+        box(0, 11 + level, side * 41, 116, 0.35, 20, 0x75807c, 5);
+        for (let i = -3; i <= 3; i++) pole(i * 17, side * 49, 11 + level, 0.2);
+      }
+    }
+    if (level >= 3) for (const side of [-1, 1]) for (let row = 0; row < 8; row++) {
+      box(side * (length / 2 + 6 + row * 0.9), 0.4, 0, 0.9, 0.7 + row * 0.4, 56, 0x8a928d, 6);
+      box(side * (length / 2 + 6 + row * 0.9), 1.1 + row * 0.4, 0, 0.45, 0.35, 56, 0x6b7f8e, 11);
+    }
+    box(0, 0.4, 53, 40, 5, 7, 0xb5b2a4, 1);
+    for (let i = -3; i <= 3; i++) box(i * 5, 1.1, 56.55, 3.2, 2.4, 0.12, 0x3b5663, 8);
+    box(0, 13, -54, 20, 7, 0.6, 0x303d42, 5);
+    box(0, 13.4, -53.65, 18, 5.6, 0.08, 0x37556a, 8);
+    for (const x of [-68, 68]) for (const z of [-50, 50]) flood(x, z, 27);
   } else {
     p.slab(m(180), m(125), 0x7e847d, { ...at(0, 0) });
     const { length, width } = SPORTS.hockey;

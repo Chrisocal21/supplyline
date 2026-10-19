@@ -81,7 +81,7 @@ describe('measured transport and sports geometry', () => {
     g.dispose();
   });
 
-  it.each(['stadium', 'ballpark', 'arena'] as const)('%s has three distinct tiers within its measured campus', kind => {
+  it.each(['stadium', 'ballpark', 'arena', 'soccer'] as const)('%s has three distinct tiers within its measured campus', kind => {
     const counts = new Set<number>();
     for (const level of [1, 2, 3]) {
       const p = new Parts();

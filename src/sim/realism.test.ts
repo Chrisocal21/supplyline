@@ -16,11 +16,11 @@ function flatWorld() {
 }
 
 describe('measured sports reservations', () => {
-  it('provides all three facilities on suitable land without overlapping other lots', () => {
+  it('provides all four facilities on suitable land without overlapping other lots', () => {
     const w = flatWorld();
     const layout = layoutOf(w, w.places[0]);
     const campuses = layout.civic.filter(c => c.campus);
-    expect(campuses.map(c => c.campus!.district)).toEqual(['stadium', 'ballpark', 'arena']);
+    expect(campuses.map(c => c.campus!.district)).toEqual(['stadium', 'ballpark', 'arena', 'soccer']);
     const occupied = new Set([...layout.homes, ...layout.plots, ...layout.streets, ...layout.civic.filter(c => !c.campus)].map(t => `${t.x},${t.y}`));
     for (const campus of campuses) for (const tile of civicFootprint(campus)) {
       const key = `${tile.x},${tile.y}`;

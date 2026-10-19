@@ -80,7 +80,9 @@ import {
   wrapDx,
 } from '../sim/world';
 import { nextQuest } from '../sim/quests';
-import { Game3D, type HoverInfo, type OverlayItem, type Tool } from '../r3d/game3d';
+import { Game3D, districtOfTool, isDistrictTool, type HoverInfo, type OverlayItem, type Tool } from '../r3d/game3d';
+import { DISTRICTS, DISTRICT_ORDER } from '../sim/defs';
+import { districtCost } from '../sim/town';
 import { COLORS, Im } from './imui';
 import { VERSION, VERSION_NOTE } from '../version';
 import { Rates, Sheets, type SheetId } from './sheets';
@@ -152,6 +154,7 @@ const TABS: Tab[] = [
   { id: 'processing', label: 'Processing', icon: 'thumb-sawmill', blurb: 'Food and materials. Build these on a free plot in a town.', tools: sitesIn('processing') },
   { id: 'manufacturing', label: 'Manufacturing', icon: 'thumb-workshop', blurb: 'Paper, textiles, furniture. Build these on a free plot in a town.', tools: sitesIn('manufacturing') },
   { id: 'heavy', label: 'Heavy Industry', icon: 'thumb-smelter', blurb: 'Stone, metal, glass and machinery. Build these on a free plot in a town.', tools: sitesIn('heavy') },
+  { id: 'districts', label: 'Districts', icon: 'thumb-d:farmersmarket', blurb: 'Civic buildings that make a town earn. Point at a free lot beside a street, or a sports ground kept for it. Click one you have built to take it up a level.', tools: DISTRICT_ORDER.map((id) => `d:${id}` as Tool) },
   { id: 'logistics', label: 'Logistics', icon: 'thumb-route', blurb: 'Roads, highways, rails, air and sea routes, hubs, yards, airports, ports and clearing the way', tools: ['route', 'highway', 'rail', 'air', 'sea', 'hub', 'railyard', 'airport', 'port', 'demolish'] },
 ];
 
@@ -838,8 +841,9 @@ export class HudScene extends Phaser.Scene {
     const info = g.pendingInfo();
     if (info) {
       const demolish = g.tool === 'demolish';
-      const d = demolish ? null : SITE_DEFS[g.tool as SiteKind];
-      const label = demolish ? `Demolish ${info.site?.name ?? ''}` : `${d?.label} $${fmt(buildCost(g.world, g.tool as SiteKind, info.tile.x, info.tile.y))}`;
+      const dist = isDistrictTool(g.tool);
+      const d = demolish || dist ? null : SITE_DEFS[g.tool as SiteKind];
+      const label = demolish ? `Demolish ${info.site?.name ?? ''}` : dist ? `${DISTRICTS[districtOfTool(g.tool as `d:${keyof typeof DISTRICTS}`)].label}` : `${d?.label} $${fmt(buildCost(g.world, g.tool as SiteKind, info.tile.x, info.tile.y))}`;
       const text = info.error ?? label;
       const tw = im.text('pendText', text, 0, -100, { size: 14, bold: true, layer: 3 }).w;
       const cancelW = 92;
@@ -1566,6 +1570,19 @@ export class HudScene extends Phaser.Scene {
 
   private cardInfo(tool: Tool): Card {
     const w = this.game3d.world;
+    if (isDistrictTool(tool)) {
+      const id = districtOfTool(tool);
+      const def = DISTRICTS[id];
+      const ready = w.places.some((p) => p.level >= def.minLevel && (!def.path || def.path === p.path));
+      return {
+        name: def.label,
+        cost: `$${fmt(def.cost)}`,
+        locked: ready ? null : def.path ? 'Needs the path' : `Town level ${def.minLevel}`,
+        thumb: `thumb-${tool}`,
+        blurb: def.blurb,
+        detail: [`Opens at town level ${def.minLevel}. Each further level needs the town one level higher.`, `Income about $${def.revenue} a minute at level 1 while the goods it lives on are in stock.`, def.goods.length ? `Lives on: ${def.goods.map((g) => GOODS[g].label).join(', ')}.` : 'A town-wide effect rather than goods.'],
+      };
+    }
     if (tool === 'route') {
       return {
         name: 'Road',
@@ -1900,7 +1917,11 @@ export class HudScene extends Phaser.Scene {
     else if (g.tool === 'air') text = g.airFrom === null ? `${byInput('Click', 'Tap')} an airport, then ${byInput('click', 'tap')} the airport to fly to` : `Now ${byInput('click', 'tap')} the airport to fly to (${byInput('click', 'tap')} the same one to cancel)`;
     else if (g.tool === 'sea') text = g.airFrom === null ? `${byInput('Click', 'Tap')} a port, then ${byInput('click', 'tap')} the port to sail to` : `Now ${byInput('click', 'tap')} the port to sail to (${byInput('click', 'tap')} the same one to cancel)`;
     else if (g.tool === 'demolish') text = h?.site ? `${byInput('Click', 'Tap')} to demolish ${h.site.name}` : h?.route ? (h.error ? h.error : `${byInput('Click', 'Tap')} to remove this stretch of ${h.route.mode === 'rail' ? 'track' : h.route.grade === 'highway' ? 'highway' : 'road'} for $${fmt(routeRefund(w, h.route))} back`) : `${byInput('Click', 'Tap')} a building or a road to remove it`;
-    else if (g.tool !== 'select') {
+    else if (isDistrictTool(g.tool)) {
+      const id = districtOfTool(g.tool);
+      const d = DISTRICTS[id];
+      text = h?.spot ? (h.error ? h.error : `${byInput('Click', 'Tap')} to ${(h.spot.place.districts?.[id] ?? 0) > 0 ? 'improve' : 'build'} ${d.label} in ${h.spot.place.name} for $${fmt(districtCost(h.spot.place, id))}`) : h?.error ?? `${d.label} $${fmt(d.cost)}  ·  point at a free lot beside a town street`;
+    } else if (g.tool !== 'select') {
       const d = SITE_DEFS[g.tool as SiteKind];
       const turn = `  ·  R ${SITE_DEFS[g.tool as SiteKind].airport ? 'turns the runway' : 'to rotate'}`;
       const cost = h ? buildCost(w, g.tool as SiteKind, h.tile.x, h.tile.y) : d.cost;

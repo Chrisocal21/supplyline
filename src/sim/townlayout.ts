@@ -288,7 +288,7 @@ function build(env: LayoutEnv, place: Place): TownLayout {
     const sideTips = allTips.filter(s => !s.main);
     const tips = sideTips.length >= 3 ? sideTips : allTips;
     const cosLat = Math.max(0.15, Math.cos((0.5 - (place.y + 0.5) / H) * Math.PI * 2 * H / W));
-    const campuses: [DistrictId, number, number][] = [['stadium', 180, 125], ['ballpark', 135, 135], ['arena', 180, 125]];
+    const campuses: [DistrictId, number, number][] = [['stadium', 180, 125], ['ballpark', 135, 135], ['arena', 180, 125], ['soccer', 180, 125]];
     const clear = (t: Tile): boolean => {
       if (used.has(key(t)) || !buildable(t.x, t.y)) return false;
       const x = place.x + t.x;

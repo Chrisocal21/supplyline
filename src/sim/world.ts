@@ -977,7 +977,7 @@ export function freeCivicLot(world: World, place: Place, district?: DistrictId):
   const used = new Set(Object.values(place.districtLots ?? {}));
   for (let i = 0; i < layout.civic.length; i++) {
     const c = layout.civic[i];
-    const needsCampus = world.realisticLots && (district === 'stadium' || district === 'ballpark' || district === 'arena');
+    const needsCampus = world.realisticLots && (district === 'stadium' || district === 'ballpark' || district === 'arena' || district === 'soccer');
     if (c.campus ? c.campus.district !== district : needsCampus) continue;
     if (used.has(i) || c.level > place.level) continue;
     if (civicFootprint(c).some(t => siteAt(world, wrapX(world, place.x + t.x), place.y + t.y) || routeAt(world, wrapX(world, place.x + t.x), place.y + t.y))) continue;
