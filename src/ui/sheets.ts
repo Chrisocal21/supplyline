@@ -22,7 +22,7 @@ import { BANK_TIER, DAY_TICKS, bankReport, FUND_FEE, LOAN_RATE, REAL_MONEY_ENABL
 import { pathMastered, pathQuestState, questState, tierUnlocks } from '../sim/quests';
 import { buildDistrict, choosePath, districtBoost, districtCost, districtError, districtLevel, districtRevenue, districtSatisfaction, pathError, townUpkeep } from '../sim/town';
 import { dockDemand, growthKinds, isHomePlot, metroBonus, partnerOf, plotTiles, radiusOf, produces, siteCap, stockOf, unitPrice, wants, type Place, type Site, type World } from '../sim/world';
-import { companyPage, fleetPage, panel, sectionHead, stat } from './company';
+import { button, companyPage, fleetPage, panel, sectionHead, stat } from './company';
 import { COLORS, Im } from './imui';
 import { isTouch } from './inputmode';
 
@@ -622,15 +622,13 @@ export class Sheets {
     const im = this.cim;
     const lv = TOWN_LEVELS[p.level - 1];
     const hov = im.hit(`tw-card-${p.id}`, x, y, w, h, () => this.hooks.focusPlace(p), 3);
-    im.rect(3, x, y, w, h, hov ? 0x1b2634 : COLORS.panelAlt, 1, 14, COLORS.line, 1);
-    im.text(`tw-n-${p.id}`, p.name, x + 16, y + 12, { size: 17, bold: true, layer: 3 });
-    const mhov = im.hit(`tw-m-${p.id}`, x + w - 170, y + 10, 84, 28, () => {
+    panel(im, x, y, w, h, p.level >= TOWN_LEVELS.length ? COLORS.good : COLORS.accent, hov);
+    im.text(`tw-n-${p.id}`, p.name.toUpperCase(), x + 16, y + 12, { size: 16, bold: true, layer: 3 });
+    button(im, `tw-m-${p.id}`, 'MANAGE', x + w - 170, y + 10, 84, 28, true, () => {
       this.manage = p.id;
       this.scroll = 0;
-    }, 4);
-    im.rect(3, x + w - 170, y + 10, 84, 28, mhov ? 0x2a3b50 : 0x1b2735, 1, 14, COLORS.accent, 1);
-    im.text(`tw-mt-${p.id}`, 'Manage', x + w - 128, y + 16, { size: 13, bold: true, color: COLORS.accent, align: 'center', layer: 5 });
-    im.rect(3, x + w - 76, y + 12, 60, 24, COLORS.accent, 1, 12);
+    }, 'quiet');
+    im.rect(3, x + w - 76, y + 12, 60, 24, COLORS.accent, 1, 3);
     im.text(`tw-l-${p.id}`, `Lv ${p.level}`, x + w - 46, y + 16, { size: 12, bold: true, color: 0x1b1204, align: 'center', layer: 4 });
     im.text(`tw-s-${p.id}`, `${radiusOf(p) > 3 ? 'Major city' : lv.name}  ·  ${STYLE_LABEL[p.style]}  ·  population ${fmt(lv.pop * (radiusOf(p) > 3 ? 4 : 1))}`, x + 16, y + 38, { size: 12, color: COLORS.muted, layer: 3 });
 
@@ -671,7 +669,7 @@ export class Sheets {
           const gy = cy + Math.floor(i / perRow) * (chipH + 6);
           const have = stockOf(n.market!, g) / cap;
           const color = have > 0.05 ? COLORS.warn : COLORS.bad;
-          im.rect(3, gx, gy, chipW, chipH, 0x10161e, 1, 8, color, 0.7);
+          im.rect(3, gx, gy, chipW, chipH, 0x10161e, 1, 3, color, 0.7);
           im.text(`tw-c-${p.id}-${g}`, GOODS[g].label, gx + 8, gy + 3, { size: 11, bold: true, layer: 3 });
           im.text(`tw-cp-${p.id}-${g}`, (p.delivered[g] ?? 0) > 0 ? `$${unitPrice(world, n.market!, g).toFixed(1)}` : 'NEW', gx + chipW - 8, gy + 3, { size: 11, bold: (p.delivered[g] ?? 0) === 0, color: (p.delivered[g] ?? 0) > 0 ? COLORS.warn : COLORS.good, align: 'right', layer: 3 });
           im.bar(3, gx + 8, gy + 21, chipW - 16, 4, have, color);
@@ -1190,7 +1188,7 @@ export class Sheets {
     let cx = v.x0;
     let cy = v.y0 - this.scroll;
     for (const s of GUIDE) {
-      const w = s.label.length * 9 + 36;
+      const w = s.label.length * 9 + 40;
       if (cx + w > v.x1) {
         cx = v.x0;
         cy += 46;
@@ -1200,8 +1198,8 @@ export class Sheets {
         this.guideTab = s.id;
         this.scroll = 0;
       }, 4);
-      im.rect(3, cx, cy, w, 38, on ? s.color : hov ? 0x2a3646 : COLORS.panelAlt, 1, 19, on ? s.color : COLORS.line, 1);
-      im.text(`gd-tabt-${s.id}`, s.label, cx + w / 2, cy + 10, { size: 15, bold: true, color: on ? 0x10161e : COLORS.text, align: 'center', layer: 4 });
+      im.rect(3, cx, cy, w, 38, on ? s.color : hov ? 0x2a3646 : COLORS.panelAlt, 1, 3, on ? s.color : COLORS.line, 1);
+      im.text(`gd-tabt-${s.id}`, s.label.toUpperCase(), cx + w / 2, cy + 11, { size: 13, bold: true, color: on ? 0x10161e : COLORS.text, align: 'center', layer: 4 });
       cx += w + 10;
     }
     cy += 54;
@@ -1244,8 +1242,8 @@ export class Sheets {
         yy += t3.h + 18;
       }
       const h = Math.max(card.step || icon ? 96 : 0, yy - y + 16);
-      im.rect(3, x, y, cw, h, COLORS.panelAlt, 1, 14, card.step ? sec.color : COLORS.line, card.step ? 0.7 : 1);
-      if (box) im.rect(3, box.x, box.y, box.w, box.h, 0x12261f, 1, 10, COLORS.good, 1);
+      panel(im, x, y, cw, h, sec.color);
+      if (box) im.rect(3, box.x, box.y, box.w, box.h, 0x12261f, 1, 3, COLORS.good, 1);
       for (const [dx, dy] of dots.splice(0)) im.circle(4, dx, dy, 3, sec.color);
       if (card.step) {
         im.circle(4, x + 20 + 22, y + 16 + 24, 24, sec.color);
