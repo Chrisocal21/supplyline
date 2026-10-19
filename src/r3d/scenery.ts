@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import type { NodeKind } from '../sim/defs';
 import { tileLonLat } from '../sim/mapgen';
 import { parcelState, parcelsOf } from '../sim/land';
+import { seasonLook } from './season';
 import { layoutOf, plotTiles, reservedGround, townGates, townGround, type World } from '../sim/world';
 import { HeightField, LAT_SPAN, R, basisMatrix, lonLatToVec } from './geo';
 import { Parts } from './parts';
@@ -376,6 +377,8 @@ export class Scenery {
     }
 
     const treeMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9 });
+    // The leaves change with the season: the colour is the one the game eases (see season.ts).
+    treeMat.color = seasonLook.leaf;
     const rockMat = new THREE.MeshStandardMaterial({ color: 0x8f8d88, roughness: 1, flatShading: true });
     const shapes: Record<Spot['kind'], { geo: THREE.BufferGeometry; lod: THREE.BufferGeometry | null; mat: THREE.Material }> = {
       pine: { geo: treeGeometry('pine'), lod: treeLodGeometry('pine'), mat: treeMat },

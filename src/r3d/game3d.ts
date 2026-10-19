@@ -119,6 +119,7 @@ import map1 from '../maps/map1.json';
 import map2 from '../maps/map2.json';
 import { paintGlobe, paintRoughness } from './paint';
 import { seasonOf } from '../sim/seasons';
+import { easeSeason } from './season';
 import { Smoke } from './smoke';
 import { buildingSurfaces, loadSurfaces } from './surfaces';
 import { GRAPHICS, nightLight, readAutoQuality, readGraphics, saveAutoQuality, saveGraphics, type GraphicsQuality, type LightingMode } from './graphics';
@@ -882,7 +883,7 @@ export class Game3D {
   }
 
   /** Dust from vehicles that have just been upgraded, gathered while they are drawn. */
-  private readonly popDust = new Map<number, { pos: THREE.Vector3; up: THREE.Vector3; every: number }>();
+  private readonly popDust = new Map<number, { pos: THREE.Vector3; up: THREE.Vector3; every: number; dark?: boolean }>();
   /** While building work plays, the camera cuts between two clear views of it; any drag or click hands it back. */
   private orbitUntil = 0;
   private shotList: { at: number; x: number; y: number; dist: number; heading: number; pitch: number }[] = [];
@@ -994,8 +995,8 @@ export class Game3D {
 
   /** Smoke rises from the chimneys of processing buildings that are running. */
 
-  private updateSmoke(dt: number, dust: Map<number, { pos: THREE.Vector3; up: THREE.Vector3; every: number }> = new Map()): void {
-    const sources = new Map<number, { pos: THREE.Vector3; up: THREE.Vector3; every?: number }>(dust);
+  private updateSmoke(dt: number, dust: Map<number, { pos: THREE.Vector3; up: THREE.Vector3; every: number; dark?: boolean }> = new Map()): void {
+    const sources = new Map<number, { pos: THREE.Vector3; up: THREE.Vector3; every?: number; dark?: boolean }>(dust);
     if (this.speed > 0 && this.cam.dist < 170) {
       const local = new THREE.Vector3(0.45, 1.2, -0.55);
       for (const s of this.world.sites) {
@@ -1690,8 +1691,27 @@ export class Game3D {
    * A small lamp over a vehicle that needs a service: amber when it is getting worn, red when it is nearly worn out. The first
    * visual for upkeep; dirt and smoke can follow the same wear figure.
    */
+  private dirtMats: THREE.MeshStandardMaterial[] = [];
+
+  private dirtMat(step: number): THREE.Material {
+    let mat = this.dirtMats[step];
+    if (!mat) {
+      mat = (siteMaterial as THREE.MeshStandardMaterial).clone();
+      const k = [1, 0.9, 0.76, 0.6][step];
+      mat.color.setRGB(k, k * 0.94, k * 0.84);
+      this.dirtMats[step] = mat;
+    }
+    return mat;
+  }
+
   private showWear(m: THREE.Mesh, v: { wear?: number; kind: VehicleKind }): void {
     const wear = v.wear ?? 0;
+    // Dirt: a worn vehicle is greyer and browner, in four steps.
+    const dirt = wear < 0.2 ? 0 : wear < 0.45 ? 1 : wear < 0.7 ? 2 : 3;
+    if (m.userData.dirt !== dirt) {
+      m.userData.dirt = dirt;
+      m.material = dirt === 0 ? siteMaterial : this.dirtMat(dirt);
+    }
     let lamp = m.userData.lamp as THREE.Mesh | undefined;
     if (wear < 0.6) {
       if (lamp) lamp.visible = false;
@@ -1841,6 +1861,11 @@ export class Game3D {
       }
       // A train under way trails smoke from its engine.
       if (route.mode === 'rail' && v.state === 'moving' && m.visible) this.popDust.set(-3e6 - v.id, { pos: new THREE.Vector3(0, 0.48, 0.3).applyMatrix4(m.matrix), up: new THREE.Vector3().setFromMatrixColumn(m.matrix, 1).normalize(), every: 0.28 });
+      // A worn road vehicle or ship under way puffs dark exhaust, more the more it is worn.
+      if ((v.wear ?? 0) >= 0.5 && v.state === 'moving' && m.visible && route.mode !== 'rail' && route.mode !== 'air') {
+        const at = CARGO_AT[v.kind];
+        this.popDust.set(-5e6 - v.id, { pos: new THREE.Vector3(0.1, at[0] + 0.4, at[1] - 0.1).applyMatrix4(m.matrix), up: new THREE.Vector3().setFromMatrixColumn(m.matrix, 1).normalize(), every: 0.9 - 0.65 * (v.wear ?? 0), dark: true });
+      }
       const cargo = this.cargoMeshes.get(v.id);
       if (cargo) {
         cargo.visible = v.cargo > 0 && vd.mode !== 'air' && vd.mode !== 'sea';
@@ -1870,7 +1895,9 @@ export class Game3D {
     this.sun.target.position.copy(F);
     this.sun.intensity = night ? 0.16 : dusk ? 1.3 : 2.6;
     // The season tints the daylight: warm in autumn, cool and pale in winter, fresh in spring. It eases from one to the next.
-    const tint = SEASON_LIGHT[this.world ? seasonOf(this.world.tick).id : 'summer'];
+    const seasonId = this.world ? seasonOf(this.world.tick).id : 'summer';
+    easeSeason(seasonId);
+    const tint = SEASON_LIGHT[seasonId];
     this.seasonSun.lerp(tint.sun, 0.03);
     this.seasonSky.lerp(tint.sky, 0.03);
     this.seasonGround.lerp(tint.ground, 0.03);

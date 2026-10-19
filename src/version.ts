@@ -1,3 +1,3 @@
 /** The build number, matching the commit it ships in (0.7, 0.8, ...), and a short line on what that update covered. Bump both with every commit. */
-export const VERSION = '0.45';
-export const VERSION_NOTE = 'Seven new Radio stations (Sunrise Drive, Horizon Lines, Tape Garden, Golden Hour, Dusty Roads, Cassette Dreams, Morning Fog), 11 in all';
+export const VERSION = '0.46';
+export const VERSION_NOTE = 'Build tray in the console look, worn vehicles get dirty and puff dark smoke, and the land changes with the seasons: golden autumn, snow in winter, fresh green spring';

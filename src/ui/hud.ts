@@ -1729,9 +1729,12 @@ export class HudScene extends Phaser.Scene {
     const trayH = 24 + TRAY_PAD * 2 + rows * CH + (rows - 1) * 10;
     const tx = Math.round(W / 2 - trayW / 2);
     const ty = footY - DOCK_GAP - trayH;
-    im.rect(1, tx, ty, trayW, trayH, COLORS.panel, 0.95, 18, COLORS.line, 1);
+    im.rect(1, tx, ty, trayW, trayH, 0x0b1117, 0.97, 4, COLORS.line, 1);
+    im.rect(1, tx, ty, trayW, 3, COLORS.accent, 0.9, 0);
     im.block({ x: tx, y: ty, w: trayW, h: trayH });
-    im.text('trayTitle', tab.blurb, tx + TRAY_PAD + 4, ty + 9, { size: 12, color: COLORS.muted, layer: 2, wrap: narrow ? trayW - 2 * TRAY_PAD - 8 : undefined });
+    const head = tab.label.toUpperCase();
+    im.text('trayHead', head, tx + TRAY_PAD + 4, ty + 10, { size: 11, bold: true, color: COLORS.accent, layer: 2 });
+    im.text('trayTitle', tab.blurb, tx + TRAY_PAD + 4 + head.length * 7.4 + 14, ty + 10, { size: 11, color: COLORS.muted, layer: 2, wrap: narrow ? trayW - 2 * TRAY_PAD - 8 : undefined });
     tools.forEach((tool, i) => {
       const cx = tx + TRAY_PAD + (i % perRow) * (CW + 10);
       const cy = ty + TRAY_PAD + 24 + Math.floor(i / perRow) * (CH + 10);
@@ -1743,11 +1746,16 @@ export class HudScene extends Phaser.Scene {
         coachText = `Pick ${info.name}`;
       }
       const hov = im.hit(id, cx, cy, CW, CH, () => this.setTool(tool));
-      im.rect(1, cx, cy, CW, CH, on ? 0x1b3a36 : hov ? 0x1f2b3a : COLORS.panelAlt, 1, 12, on ? COLORS.good : hov ? 0x3a4a5e : COLORS.line, 1, on ? 2 : 1);
+      im.rect(1, cx, cy, CW, CH, on ? 0x16302c : hov ? 0x1a2634 : 0x111921, 1, 3, on ? COLORS.good : hov ? COLORS.accent : COLORS.line, 1, on ? 2 : 1);
+      im.rect(1, cx, cy, 3, CH, on ? COLORS.good : info.locked ? 0x2a3440 : COLORS.accent, info.locked ? 0.7 : on || hov ? 1 : 0.55, 0);
       im.image(`cardImg${tool}`, info.thumb, cx + (CW - IMG) / 2, cy + 6, IMG, IMG, info.locked ? 0.35 : 1, 2);
       im.text(`cardName${tool}`, info.name, cx + CW / 2, cy + IMG + 10, { size: info.name.length > 14 ? 11 : 12, bold: true, align: 'center', layer: 2, alpha: info.locked ? 0.55 : 1 });
-      im.text(`cardCost${tool}`, info.locked ?? info.cost, cx + CW / 2, cy + IMG + 28, { size: 12, color: info.locked ? COLORS.muted : COLORS.warn, align: 'center', layer: 2 });
-      if (i < 9 && !isTouch()) im.text(`cardKey${tool}`, String(i + 1), cx + 8, cy + 5, { size: 11, color: COLORS.muted, layer: 2 });
+      im.rect(1, cx + 3, cy + IMG + 24, CW - 3, CH - IMG - 24, 0x0a0f14, 0.9, 0);
+      im.text(`cardCost${tool}`, info.locked ?? info.cost, cx + CW / 2, cy + IMG + 28, { size: 12, bold: true, color: info.locked ? COLORS.muted : COLORS.warn, align: 'center', layer: 2 });
+      if (i < 9 && !isTouch()) {
+        im.rect(1, cx + 8, cy + 6, 16, 16, 0x0a0f14, 0.9, 3, COLORS.line, 1);
+        im.text(`cardKey${tool}`, String(i + 1), cx + 16, cy + 8, { size: 10, bold: true, color: on ? COLORS.good : COLORS.muted, align: 'center', layer: 2 });
+      }
       if (hov) im.tip(id);
     });
     if (coach) this.coachRing(coachRect.x, coachRect.y, coachRect.w, coachRect.h, coachText);

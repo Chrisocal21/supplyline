@@ -5,6 +5,7 @@ import * as townRules from './sim/town';
 import * as bankRules from './sim/bank';
 import { findPath } from './sim/path';
 import { HudScene } from './ui/hud';
+import { SEASON_LOOK, seasonLook } from './r3d/season';
 
 const game = new Game3D(document.body);
 const hash = location.hash;
@@ -59,4 +60,4 @@ const phaser = new Phaser.Game({
 });
 
 // Handles for automated checks and debugging from the console.
-Object.assign(window, { __game: game, __phaser: phaser, __sim: sim, __town: townRules, __bank: bankRules, __path: findPath });
+Object.assign(window, { __game: game, __phaser: phaser, __sim: sim, __town: townRules, __bank: bankRules, __path: findPath, __season: { look: seasonLook, table: SEASON_LOOK } });
