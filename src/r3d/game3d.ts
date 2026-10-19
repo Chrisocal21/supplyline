@@ -67,6 +67,7 @@ import {
   layoutOf,
   plotTiles,
   townGround,
+  townBlocks,
   terrainAt,
   elevAt,
   placeAt,
@@ -2385,6 +2386,18 @@ export class Game3D {
     }
     const mode = this.tool === 'rail' ? 'rail' : 'road';
     const W = this.world.width;
+    // Pointing at ground no road may use: show a red line straight there at once, rather than searching the whole map for a way in.
+    if (!siteAt(this.world, target.x, target.y) && townBlocks(this.world, target.x, target.y, mode)) {
+      const line: Tile[] = [];
+      const dx = ((target.x - anchor.x + W * 1.5) % W) - W / 2;
+      const dy = target.y - anchor.y;
+      const n = Math.max(Math.abs(dx), Math.abs(dy));
+      for (let i = 1; i <= n; i++) line.push({ x: (((anchor.x + Math.round((dx * i) / n)) % W) + W) % W, y: anchor.y + Math.round((dy * i) / n) });
+      this.draft = [...fixed, ...line];
+      this.draftPlan = { mode, grade: 'street', error: 'That ground is reserved for a town: a road cannot go there', path: [], cost: 0, bridgeTiles: 0, tunnelTiles: 0, crossings: 0, free: true };
+      this.updateDraftMesh();
+      return;
+    }
     const avoid = new Set(fixed.slice(0, -1).map((t) => t.y * W + t.x));
     const path = findPath(this.world, anchor, target, 120000, mode, avoid);
     if (!path) {

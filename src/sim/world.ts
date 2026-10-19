@@ -1073,7 +1073,7 @@ function futureStreet(world: World, place: Place, x: number, y: number): boolean
 }
 
 /** Where a road is and is not allowed to go inside a town: roads follow the streets, rails stay off streets and plots (except the lot beside a depot). */
-function townBlocks(world: World, x: number, y: number, mode: RouteMode): boolean {
+export function townBlocks(world: World, x: number, y: number, mode: RouteMode): boolean {
   // Ground a town will grow over is kept for it: nothing is laid across its future homes and lots. A road may take one of
   // its future streets (it becomes the street), and nothing else may.
   if (!placeAt(world, x, y)) {
