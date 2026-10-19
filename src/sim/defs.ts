@@ -376,9 +376,11 @@ export const SALE_MULT = 0.65;
 export const TRADE_IN = 0.5;
 
 /** Building levels: output speed and storage multipliers for level 1, 2, 3. */
-export const LEVEL_SPEED = [1, 1.8, 3.2, 4.6, 6.2, 8, 10, 12.5];
-export const LEVEL_CAP = [1, 2, 4, 6, 9, 13, 18, 24];
-export const MAX_LEVEL = 8;
+export const LEVEL_SPEED = [1, 1.8, 3.2, 4.6, 6.2, 8, 10, 12.5, 15.5, 19];
+export const LEVEL_CAP = [1, 2, 4, 6, 9, 13, 18, 24, 32, 42];
+export const MAX_LEVEL = 10;
+/** The late levels also ask for what the company has earned in all, so they come after the tiers are done, not with them. */
+export const LEVEL_EARN: Record<number, number> = { 7: 150_000, 8: 400_000, 9: 800_000, 10: 1_500_000 };
 /** Ports and airports grow with the town beside them and stop at level 3. */
 export const maxLevelOf = (def: { airport?: boolean; port?: boolean }): number => (def.airport || def.port ? 3 : MAX_LEVEL);
 /** How many vehicles a building runs on each of its product lines: the yard grows with the building. */
@@ -386,6 +388,8 @@ export const FLEET_BASE = 3;
 export const FLEET_PER_LEVEL = 2;
 export const fleetLimit = (level: number): number => FLEET_BASE + FLEET_PER_LEVEL * level;
 export const UPGRADE_COST_FACTOR = 1.2;
+/** What each upgrade costs grows a little faster than the level, so the top levels are a real goal. */
+export const UPGRADE_COST_POWER = 1.25;
 
 /** Node quality: impure, normal, pure. */
 export const NODE_QUALITY = [

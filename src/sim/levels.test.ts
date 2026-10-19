@@ -1,4 +1,4 @@
-// Eight building levels, and a fleet limit per product line that grows with the level.
+// Ten building levels, and a fleet limit per product line that grows with the level.
 import { describe, expect, it } from 'vitest';
 import { LEVEL_CAP, LEVEL_SPEED, MAX_LEVEL, fleetLimit, type SiteKind, type Terrain } from './defs';
 import { buyVehicle, createBlankWorld, fleetOf, siteById, upgradeSite, type World } from './world';
@@ -15,17 +15,28 @@ const add = (w: World, kind: SiteKind) => {
 };
 
 describe('building levels', () => {
-  it('run to eight, each worth more than the one before', () => {
-    expect(MAX_LEVEL).toBe(8);
+  it('run to ten, each worth more than the one before', () => {
+    expect(MAX_LEVEL).toBe(10);
     for (let i = 1; i < MAX_LEVEL; i++) {
       expect(LEVEL_SPEED[i]).toBeGreaterThan(LEVEL_SPEED[i - 1]);
       expect(LEVEL_CAP[i]).toBeGreaterThan(LEVEL_CAP[i - 1]);
     }
     const w = world();
+    w.earned = 5e6;
     const mill = add(w, 'sawmill');
     for (let i = 1; i < MAX_LEVEL; i++) expect(upgradeSite(w, mill.id)).toBeNull();
-    expect(mill.level).toBe(8);
+    expect(mill.level).toBe(10);
     expect(upgradeSite(w, mill.id)).toMatch(/max level/);
+  });
+
+  it('hold the top levels until the company has earned enough', () => {
+    const w = world();
+    const mill = add(w, 'sawmill');
+    mill.level = 5;
+    expect(upgradeSite(w, mill.id)).toBeNull();
+    expect(upgradeSite(w, mill.id)).toMatch(/earned in total/);
+    w.earned = 150_000;
+    expect(upgradeSite(w, mill.id)).toBeNull();
   });
 
   it('stop a port at level 3, as it grows with its town', () => {

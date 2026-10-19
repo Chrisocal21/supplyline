@@ -689,20 +689,164 @@ function signGeometry(kind: SiteKind, level = 1): THREE.BufferGeometry {
   return p.build();
 }
 
+/**
+ * What a building adds from level 4 to level 10, one stage a level: more halls and silos, an office, a second stack, cooling
+ * towers, solar roofs and, at the top, a headquarters tower with its own grounds. It grows out round the lot on a plinth that
+ * reaches below the ground, so on a slope the wider lot still sits on the hill.
+ */
+function grandParts(kind: SiteKind, level: number): THREE.BufferGeometry {
+  const def = SITE_DEFS[kind];
+  const p = new Parts();
+  const stage = Math.min(7, Math.max(1, level - 3));
+  const good = def.produce?.good ?? (Object.keys(def.recipe?.outputs ?? {})[0] as Good | undefined);
+  const gc = good ? GOODS[good].color : C.wood;
+  const raw = !!def.produce;
+  const e = 3.4 + 0.3 * stage;
+  p.slab(e, e, raw ? C.soil : 0x7f7e79, { y: -0.06 });
+  p.box(e - 0.1, 0.4, e - 0.1, C.soil, { y: -0.46 });
+  const tree = (x: number, z: number): void => {
+    p.cyl(0.03, 0.04, 0.3, C.timberDark, { x, y: 0, z }, 6);
+    p.cone(0.28, 0.55, 0x3f7a4f, { x, y: 0.3, z }, 8);
+  };
+  if (raw) {
+    if (stage >= 1) {
+      p.tex = 2;
+      p.box(0.9, 0.5, 0.6, C.timber, { x: 2.0, y: 0, z: -0.5 });
+      p.gable(1.0, 0.28, 0.7, C.roofRed, { x: 2.0, y: 0.5, z: -0.5 });
+      p.tex = 0;
+      p.cone(0.3, 0.34, gc, { x: 2.0, y: 0, z: 0.5 }, 9);
+      p.cone(0.22, 0.26, gc, { x: 2.3, y: 0, z: 0.8 }, 9);
+    }
+    if (stage >= 2) {
+      p.tex = 5;
+      p.cyl(0.05, 0.08, 1.8, C.metal, { x: -2.0, y: 0, z: 1.6 }, 8);
+      for (const a of [0, Math.PI / 2]) p.box(0.9, 0.05, 0.06, C.white, { x: -2.0, y: 1.7, z: 1.6, ry: a });
+      p.tex = 0;
+    }
+    if (stage >= 3) {
+      p.tex = 5;
+      p.box(2.0, 0.6, 0.8, 0x9aa3ab, { x: 0, y: 0, z: -2.1 });
+      for (let i = 0; i < 4; i++) p.gable(0.5, 0.22, 0.84, 0x4a525c, { x: -0.75 + i * 0.5, y: 0.6, z: -2.1 });
+      p.tex = 0;
+      truck(p, 0.2, -1.55, C.orange);
+    }
+    if (stage >= 4) {
+      p.tex = 5;
+      for (const z of [0.3, 0.95]) {
+        p.cyl(0.28, 0.28, 1.9, 0xc9cdcf, { x: 2.25, y: 0, z }, 14);
+        p.dome(0.28, C.metalDark, { x: 2.25, y: 1.9, z });
+      }
+      p.box(0.1, 0.1, 1.3, C.metalDark, { x: 1.75, y: 1.0, z: 0.6 });
+      p.tex = 0;
+    }
+    if (stage >= 5) {
+      p.tex = 6;
+      p.box(1.0, 0.75, 0.8, 0xcfc9bb, { x: -2.1, y: 0, z: -1.5 });
+      p.box(1.06, 0.06, 0.86, C.roofDark, { x: -2.1, y: 0.75, z: -1.5 });
+      for (let i = 0; i < 3; i++) p.box(0.18, 0.2, 0.02, 0x8fb4c8, { x: -2.45 + i * 0.35, y: 0.3, z: -1.09 });
+      p.tex = 0;
+      truck(p, -2.1, -0.45, C.blue);
+    }
+    if (stage >= 6) {
+      for (let i = 0; i < 5; i++) p.box(0.34, 0.03, 0.6, 0x1f3d63, { x: -0.8 + i * 0.4, y: 0.95, z: -2.1, rx: -0.35 });
+      p.cyl(0.03, 0.04, 2.6, C.metal, { x: 2.4, y: 0, z: -1.7 }, 6);
+      p.box(0.08, 0.08, 0.08, 0xff4a3d, { x: 2.4, y: 2.6, z: -1.7 });
+    }
+    if (stage >= 7) {
+      p.cyl(0.55, 0.55, 0.03, 0x4f86a8, { x: 2.1, y: 0, z: 1.9 }, 24);
+      for (const [x, z] of [[-2.3, 2.0], [-1.8, 2.4], [1.2, 2.4], [2.5, 2.7], [-2.4, 0.5]]) tree(x, z);
+      p.cyl(0.015, 0.015, 1.6, C.metal, { x: -1.4, y: 0, z: 2.3 }, 6);
+      p.box(0.3, 0.18, 0.02, gc, { x: -1.25, y: 1.4, z: 2.3 });
+    }
+    return p.build();
+  }
+  // Factories and hubs.
+  if (stage >= 1) {
+    p.tex = 1;
+    p.cyl(0.1, 0.14, 2.1, 0xd8d4cc, { x: -0.2, y: 0, z: -1.9 }, 12);
+    p.cyl(0.115, 0.115, 0.14, C.red, { x: -0.2, y: 1.5, z: -1.9 }, 12);
+    p.tex = 5;
+    p.box(1.3, 0.9, 0.7, 0xb9b4a8, { x: 2.0, y: 0, z: -0.6 });
+    p.box(1.36, 0.05, 0.76, 0x5a6068, { x: 2.0, y: 0.9, z: -0.6 });
+    p.tex = 0;
+  }
+  if (stage >= 2) {
+    p.tex = 5;
+    for (const z of [1.1, 1.8]) {
+      p.cyl(0.32, 0.32, 0.95, 0xc7cbce, { x: -2.1, y: 0, z }, 16);
+      p.dome(0.32, C.metalDark, { x: -2.1, y: 0.95, z });
+    }
+    p.box(2.2, 0.08, 0.08, C.metalDark, { x: 0.1, y: 1.05, z: -1.9 });
+    p.tex = 0;
+  }
+  if (stage >= 3) {
+    p.tex = 6;
+    p.box(0.9, 1.4, 0.8, 0xd7d2c4, { x: -2.1, y: 0, z: -1.5 });
+    for (let r = 0; r < 4; r++) p.box(0.74, 0.08, 0.02, 0x8fb4c8, { x: -2.1, y: 0.25 + r * 0.3, z: -1.09 });
+    p.box(0.96, 0.06, 0.86, C.roofDark, { x: -2.1, y: 1.4, z: -1.5 });
+    p.tex = 0;
+  }
+  if (stage >= 4) {
+    p.tex = 5;
+    p.box(1.6, 0.8, 0.7, 0x9aa3ab, { x: 0.2, y: 0, z: 2.1 });
+    for (let i = 0; i < 4; i++) p.gable(0.4, 0.22, 0.74, 0x4a525c, { x: -0.4 + i * 0.4, y: 0.8, z: 2.1 });
+    p.tex = 0;
+    p.box(3.0, 0.03, 0.05, C.metalDark, { y: 0.02, z: 2.85 });
+    p.box(3.0, 0.03, 0.05, C.metalDark, { y: 0.02, z: 3.05 });
+    p.box(0.7, 0.28, 0.26, C.red, { x: 1.0, y: 0.07, z: 2.95 });
+  }
+  if (stage >= 5) {
+    p.tex = 6;
+    for (const z of [1.2, 2.2]) p.cyl(0.34, 0.5, 1.2, 0xc9c8c2, { x: 2.3, y: 0, z }, 20);
+    p.tex = 1;
+    p.cyl(0.1, 0.14, 3.4, 0xd8d4cc, { x: 2.6, y: 0, z: -1.7 }, 12);
+    for (const h of [2.4, 2.9]) p.cyl(0.115, 0.115, 0.16, C.red, { x: 2.6, y: h, z: -1.7 }, 12);
+    p.tex = 0;
+  }
+  if (stage >= 6) {
+    for (let i = 0; i < 4; i++) p.box(0.3, 0.03, 0.55, 0x1f3d63, { x: 1.6 + i * 0.32, y: 0.97, z: -0.6, rx: -0.3 });
+    p.box(1.0, 0.5, 0.6, 0x9ccbe0, { x: -1.0, y: 0, z: 2.6 });
+    p.box(1.06, 0.05, 0.66, C.roofDark, { x: -1.0, y: 0.5, z: 2.6 });
+    for (const x of [-1.5, -0.5]) p.box(0.06, 1.3, 0.06, C.yellow, { x, y: 0, z: 3.3 });
+    p.box(1.1, 0.08, 0.1, C.yellow, { x: -1.0, y: 1.3, z: 3.3 });
+  }
+  if (stage >= 7) {
+    p.tex = 6;
+    p.box(0.8, 3.0, 0.8, 0xcfd6db, { x: -2.7, y: 0, z: -2.1 });
+    for (let r = 0; r < 9; r++) p.box(0.84, 0.1, 0.84, 0x7fa8bf, { x: -2.7, y: 0.25 + r * 0.3, z: -2.1 });
+    p.box(0.86, 0.16, 0.86, gc, { x: -2.7, y: 3.0, z: -2.1 });
+    p.tex = 0;
+    p.cyl(0.02, 0.025, 0.7, C.metal, { x: -2.7, y: 3.16, z: -2.1 }, 6);
+    p.cyl(0.5, 0.5, 0.03, 0x4f86a8, { x: 2.2, y: 0, z: 2.9 }, 24);
+    for (const [x, z] of [[-2.6, 0.6], [-2.5, 2.8], [1.4, 3.4], [2.9, 3.3], [2.9, 0.4]]) tree(x, z);
+  }
+  return p.build();
+}
+
+/** The main building's growth at a level: more across and a good deal more up. Past level 3 it keeps growing, more slowly. */
+function growAt(level: number): { raw: [number, number]; other: [number, number] } {
+  const known = LEVEL_GROW[level];
+  if (known) return known;
+  const n = level - 3;
+  return { raw: [1.12 + 0.012 * n, 1.3 + 0.04 * n], other: [1.15 + 0.022 * n, 1.6 + 0.1 * n] };
+}
+
 /** A building as it looks at a level: the main building grown, with that level's extras around it. */
 export function siteGeometryAt(kind: SiteKind, rawLevel: number, withDepot = false): THREE.BufferGeometry {
-  // Levels past 3 run on the level 3 building: they add output and fleet, not new models.
-  const level = Math.min(3, rawLevel);
-  const base = withDepot && kind === 'hub' ? depot() : siteGeometry(kind);
+  // Ports and airports stop at level 3. Everything else has ten looks: level 3 is the full set, and each level after adds a stage.
   const def = SITE_DEFS[kind];
-  const grow = LEVEL_GROW[level];
+  const level = def.port || def.airport ? Math.min(3, rawLevel) : Math.min(10, rawLevel);
+  const base = withDepot && kind === 'hub' ? depot() : siteGeometry(kind);
+  const grow = level >= 2 ? growAt(level) : undefined;
   if (def.dock || def.station) return base;
   const sign = signGeometry(kind, level);
   if (def.produce) {
-    const details = resourceDetails(kind, level);
-    const whole = mergeGeometries([base, details, sign], false)!;
+    const details = resourceDetails(kind, Math.min(3, level));
+    const more = level >= 4 ? grandParts(kind, level) : null;
+    const whole = mergeGeometries(more ? [base, details, more, sign] : [base, details, sign], false)!;
     base.dispose();
     details.dispose();
+    more?.dispose();
     sign.dispose();
     whole.computeBoundingSphere();
     return whole;
@@ -735,11 +879,13 @@ export function siteGeometryAt(kind: SiteKind, rawLevel: number, withDepot = fal
   }
   const [across, up] = def.produce ? grow.raw : grow.other;
   base.scale(across, up, across);
-  const extra = levelParts(kind, level);
-  const out = mergeGeometries([base, extra, sign], false)!;
+  const extra = levelParts(kind, Math.min(3, level));
+  const more = level >= 4 ? grandParts(kind, level) : null;
+  const out = mergeGeometries(more ? [base, extra, more, sign] : [base, extra, sign], false)!;
   sign.dispose();
   base.dispose();
   extra.dispose();
+  more?.dispose();
   out.computeBoundingSphere();
   return out;
 }

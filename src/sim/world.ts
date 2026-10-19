@@ -38,6 +38,8 @@ import {
   START_MONEY,
   TOWN_LEVELS,
   UPGRADE_COST_FACTOR,
+  UPGRADE_COST_POWER,
+  LEVEL_EARN,
   VEHICLE_DEFS,
   bodyOf,
   TICKS_PER_SECOND,
@@ -2825,7 +2827,7 @@ export function placeSite(world: World, kind: SiteKind, x: number, y: number, ro
 }
 
 export function upgradeCost(site: Site): number {
-  return Math.round(SITE_DEFS[site.kind].cost * UPGRADE_COST_FACTOR * site.level);
+  return Math.round(SITE_DEFS[site.kind].cost * UPGRADE_COST_FACTOR * Math.pow(site.level, UPGRADE_COST_POWER));
 }
 
 /** The closest town to a building, within reach of its customers (about 60 tiles), or null. */
@@ -2851,6 +2853,8 @@ export function upgradeError(world: World, siteId: number): string | null {
   if (site.level >= maxLevelOf(def)) return 'Already at max level';
   const needTier = Math.min(site.level, 4); // level 2 needs tier 1, and so on up to tier 4 for level 5 and beyond
   if (world.tier < needTier) return `Level ${site.level + 1} needs Tier ${needTier}`;
+  const needEarn = LEVEL_EARN[site.level + 1];
+  if (needEarn && world.earned < needEarn) return `Level ${site.level + 1} needs $${needEarn.toLocaleString('en-US')} earned in total`;
   if (def.airport) {
     // An airport grows with the town it serves: a Town (level 3) for a regional field, a City (level 4) for an international one.
     const town = nearestPlace(world, site);
