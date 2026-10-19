@@ -536,3 +536,14 @@ Sea routes already sail over any connected water tile, rivers and lakes included
 3. 0.18 fleets: truck cap per product line, 8 building levels, vehicle licences and upgrades, vessel size classes and canals.
 4. 0.19 production depth: recipes with rates, buffers and a bottleneck view.
 5. Then QoL batches, foundations, the Windows build and Steam.
+
+---
+
+## Status: Rung 1 started (0.36)
+
+- `electron/main.cjs` opens the built game in a window (served as `app://game/`), asks for the strong GPU, F11 for fullscreen.
+- `electron/preload.cjs` gives the game `window.supplyline` so the Menu can show updates and Restart to update.
+- Updates: `electron-updater` checks GitHub releases at launch and every 30 minutes, downloads in the background, and the Menu button flashes gold. The player's save and place are kept.
+- `npm run desktop` builds and opens it. `npm run dist` makes the installer in `release/` (needs a machine where the unpack step is not blocked; it was blocked here by Windows file locking).
+- **Releasing:** push a tag such as `v0.36` and `.github/workflows/release.yml` builds the Windows installer and publishes the release. Installed apps pick it up themselves.
+- Still to do: code signing (Windows shows a warning without it), disk saves instead of localStorage, Steam (Steamworks).

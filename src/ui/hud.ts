@@ -618,7 +618,25 @@ export class HudScene extends Phaser.Scene {
   private flashUntil = 0;
 
   /** Look for a newer build once a minute. */
+  /** In the Windows app, the update downloads in the background and a restart applies it. */
+  private desktopReady = false;
+  private desktopWired = false;
+
   private checkVersion(now: number): void {
+    const desk = (window as unknown as { supplyline?: { onUpdate: (cb: (i: { state: string; version: string }) => void) => void } }).supplyline;
+    if (desk) {
+      if (!this.desktopWired) {
+        this.desktopWired = true;
+        desk.onUpdate((i) => {
+          if (i.state !== 'ready' || this.latest === i.version) return;
+          this.latest = i.version;
+          this.desktopReady = true;
+          this.flashUntil = this.time.now + 4800;
+          this.toasts.push({ text: `Update ${i.version} is ready. Menu, then Restart to update`, until: this.time.now + 7000 });
+        });
+      }
+      return;
+    }
     if (now - this.versionAt < 60000 || location.hash.includes('shot')) return;
     this.versionAt = now;
     fetch(`/version.json?t=${Date.now()}`, { cache: 'no-store' })
@@ -635,6 +653,12 @@ export class HudScene extends Phaser.Scene {
   /** Save, reload on the newest build, and carry on from the same place with no title screen. */
   private syncUpdate(): void {
     const g = this.game3d;
+    const desk = (window as unknown as { supplyline?: { installUpdate: () => void } }).supplyline;
+    if (desk && this.desktopReady) {
+      if (!g.demo && !g.showcase) g.save();
+      desk.installUpdate();
+      return;
+    }
     if (!g.demo && !g.showcase && !g.save()) {
       this.toasts.push({ text: 'Could not save here, so the update was not applied', until: this.time.now + 3000 });
       return;
@@ -1074,7 +1098,7 @@ export class HudScene extends Phaser.Scene {
       this.syncUpdate();
     }, 5);
     im.rect(5, btnX, btnY, btnW, btnH, ready ? (sh ? 0xf4b84f : COLORS.accent) : sh ? 0x2a3646 : 0x1b2430, 1, 10, ready ? COLORS.accent : COLORS.line, 1);
-    im.text('menuSyncT', ready ? 'Sync update now' : 'Sync update', btnX + btnW / 2, btnY + 11, { size: 14, bold: true, color: ready ? 0x1b1204 : COLORS.text, align: 'center', layer: 6 });
+    im.text('menuSyncT', ready ? (this.desktopReady ? 'Restart to update' : 'Sync update now') : this.desktopWired ? 'Up to date' : 'Sync update', btnX + btnW / 2, btnY + 11, { size: 14, bold: true, color: ready ? 0x1b1204 : COLORS.text, align: 'center', layer: 6 });
     cy += updH + 14;
 
     for (const grp of groups) {

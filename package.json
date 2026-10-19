@@ -1,22 +1,68 @@
 {
   "name": "supplyline",
   "private": true,
-  "version": "0.35.0",
+  "version": "0.36.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
-    "test": "vitest run"
+    "test": "vitest run",
+    "desktop": "vite build && electron .",
+    "dist": "vite build && electron-builder --win --publish never",
+    "release": "vite build && electron-builder --win --publish always"
   },
   "dependencies": {
+    "electron-updater": "^6.8.9",
     "phaser": "^4.2.1",
     "three": "^0.186.1"
   },
   "devDependencies": {
     "@types/three": "^0.186.0",
+    "electron": "^44.9.0",
+    "electron-builder": "^26.15.3",
     "typescript": "^7.0.2",
     "vite": "^8.3.4",
     "vitest": "^5.0.3"
+  },
+  "main": "electron/main.cjs",
+  "description": "Supplyline: build a supply network across a 3D world",
+  "author": "Probably Fine Studios",
+  "build": {
+    "appId": "com.probablyfinestudios.supplyline",
+    "productName": "Supplyline",
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.png"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": false,
+      "deleteAppDataOnUninstall": false
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "Chrisocal21",
+        "repo": "supplyline"
+      }
+    ]
   }
 }

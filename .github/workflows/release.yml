@@ -1,0 +1,22 @@
+# Builds the Windows installer and publishes it as a GitHub release. Push a tag like v0.36 to run it; the desktop app picks
+# the new release up on its own and offers a restart.
+name: Release Windows build
+on:
+  push:
+    tags: ['v*']
+permissions:
+  contents: write
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - run: npm test
+      - run: npx vite build
+      - run: npx electron-builder --win --publish always
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
