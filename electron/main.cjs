@@ -1,5 +1,5 @@
 // Supplyline for Windows: the built game in its own window, with saves on disk and updates that download in the background.
-const { app, BrowserWindow, protocol, net, ipcMain, shell, Menu } = require('electron');
+const { app, BrowserWindow, protocol, net, ipcMain, shell, Menu, session } = require('electron');
 const path = require('path');
 const { pathToFileURL } = require('url');
 
@@ -53,6 +53,13 @@ function createWindow() {
   });
   Menu.setApplicationMenu(null);
   win.once('ready-to-show', () => win.show());
+  // Saves live in the page's storage. Write it to disk often and when the window closes, so a crash or a killed process loses little.
+  const flush = () => session.defaultSession.flushStorageData();
+  const timer = setInterval(flush, 15000);
+  win.on('close', () => {
+    clearInterval(timer);
+    flush();
+  });
   win.webContents.setWindowOpenHandler(({ url }) => {
     if (/^https?:/.test(url)) shell.openExternal(url);
     return { action: 'deny' };
