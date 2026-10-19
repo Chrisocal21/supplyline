@@ -819,6 +819,7 @@ export class HudScene extends Phaser.Scene {
     }
     this.offersLayer(W, H);
     if (this.menuOpen) this.menuPanel(W, H);
+    else this.menuPage = 'home';
     if (!this.searchSeen || this.menuOpen || g.removal) this.hideSearch();
     this.searchSeen = false;
     this.toastsLayer(W, now);
@@ -1093,7 +1094,10 @@ export class HudScene extends Phaser.Scene {
     im.rect(layer, cx + 7, cy + 2, 7, 9, c, 1, 2);
   }
 
-  /** The menu: sheets and settings in three tidy groups, the update strip on top, and the keys below. */
+  /** Which page of the menu is showing: the home page of folders, or one folder opened. */
+  private menuPage: 'home' | 'business' | 'game' | 'sound' | 'screen' | 'keys' = 'home';
+
+  /** The menu: the update strip and a few folders on the home page; each folder opens its own tidy page. */
   private menuPanel(W: number, H: number): void {
     const im = this.im;
     const close = (): void => {
@@ -1104,7 +1108,7 @@ export class HudScene extends Phaser.Scene {
 
     const narrow = W < 640;
     const cols = narrow ? 2 : 4;
-    const w = Math.min(780, W - 24);
+    const w = Math.min(720, W - 24);
     const x = Math.round((W - w) / 2);
     const pad = 20;
     const gap = 10;
@@ -1112,42 +1116,56 @@ export class HudScene extends Phaser.Scene {
     const tileH = narrow ? 56 : 64;
     type Item = { id: string; label: string; key: string; on: boolean; toggle?: boolean; icon: (cx: number, cy: number, c: number) => void; act: () => void };
     const glyph = (s: string) => (cx: number, cy: number, c: number) => im.text(`menuG${s}`, s, cx, cy - 12, { size: 20, bold: true, color: c, align: 'center', layer: 4 });
-    const groups: { title: string; items: Item[] }[] = [
-      {
-        title: 'RUN YOUR BUSINESS',
-        items: [
-          { id: 'company', label: 'Company', key: 'Y', on: this.sheet === 'company', icon: glyph('#'), act: () => this.toggleSheet('company') },
-          { id: 'prod', label: 'Production', key: 'P', on: this.sheet === 'production', icon: (cx, cy, c) => this.factoryIcon(cx, cy, c, 4), act: () => this.toggleSheet('production') },
-          { id: 'fleet', label: 'Fleet', key: 'V', on: this.sheet === 'fleet', icon: glyph('V'), act: () => this.toggleSheet('fleet') },
-          { id: 'towns', label: 'Towns', key: 'T', on: this.sheet === 'towns', icon: (cx, cy, c) => this.townIcon(cx, cy, c, 4), act: () => this.toggleSheet('towns') },
-          { id: 'bank', label: 'Bank', key: 'B', on: this.sheet === 'bank', icon: (cx, cy, c) => this.bankIcon(cx, cy, c, 4), act: () => this.toggleSheet('bank') },
-          { id: 'quests', label: 'Quests', key: 'G', on: this.sheet === 'quests', icon: glyph('!'), act: () => this.toggleSheet('quests') },
-        ],
-      },
-      {
-        title: 'GAME',
-        items: [
-          { id: 'guide', label: 'How to play', key: 'H', on: this.sheet === 'guide', icon: glyph('?'), act: () => this.toggleSheet('guide') },
-          { id: 'saves', label: 'Save / Load', key: 'L', on: this.saves === 'manage', icon: glyph('S'), act: () => this.openSavesFromKey() },
-          { id: 'gfx', label: 'Graphics', key: 'O', on: this.graphicsOpen, icon: glyph('O'), act: () => this.openGraphics() },
-          { id: 'new', label: 'New world', key: '', on: false, icon: glyph('+'), act: () => this.openSaves('new') },
-        ],
-      },
-      {
-        title: 'ON SCREEN',
-        items: [
-          { id: 'mini', label: 'Minimap', key: 'M', on: this.minimapOn, toggle: true, icon: glyph('M'), act: () => this.toggleMinimap() },
-          { id: 'perf', label: 'Frame rate', key: 'F3', on: this.perfOn, toggle: true, icon: glyph('F'), act: () => this.togglePerf() },
-        ],
-      },
+    const business: Item[] = [
+      { id: 'company', label: 'Company', key: 'Y', on: this.sheet === 'company', icon: glyph('#'), act: () => this.toggleSheet('company') },
+      { id: 'prod', label: 'Production', key: 'P', on: this.sheet === 'production', icon: (cx, cy, c) => this.factoryIcon(cx, cy, c, 4), act: () => this.toggleSheet('production') },
+      { id: 'fleet', label: 'Fleet', key: 'V', on: this.sheet === 'fleet', icon: glyph('V'), act: () => this.toggleSheet('fleet') },
+      { id: 'towns', label: 'Towns', key: 'T', on: this.sheet === 'towns', icon: (cx, cy, c) => this.townIcon(cx, cy, c, 4), act: () => this.toggleSheet('towns') },
+      { id: 'bank', label: 'Bank', key: 'B', on: this.sheet === 'bank', icon: (cx, cy, c) => this.bankIcon(cx, cy, c, 4), act: () => this.toggleSheet('bank') },
+      { id: 'quests', label: 'Quests', key: 'G', on: this.sheet === 'quests', icon: glyph('!'), act: () => this.toggleSheet('quests') },
     ];
-    const showKeys = !isTouch() && !narrow;
-    const keysH = showKeys ? 130 : 0;
+    const gameItems: Item[] = [
+      { id: 'guide', label: 'How to play', key: 'H', on: this.sheet === 'guide', icon: glyph('?'), act: () => this.toggleSheet('guide') },
+      { id: 'saves', label: 'Save / Load', key: 'L', on: this.saves === 'manage', icon: glyph('S'), act: () => this.openSavesFromKey() },
+      { id: 'new', label: 'New world', key: '', on: false, icon: glyph('+'), act: () => this.openSaves('new') },
+    ];
+    const screenItems: Item[] = [
+      { id: 'gfx', label: 'Graphics', key: 'O', on: this.graphicsOpen, icon: glyph('O'), act: () => this.openGraphics() },
+      { id: 'mini', label: 'Minimap', key: 'M', on: this.minimapOn, toggle: true, icon: glyph('M'), act: () => this.toggleMinimap() },
+      { id: 'perf', label: 'Frame rate', key: 'F3', on: this.perfOn, toggle: true, icon: glyph('F'), act: () => this.togglePerf() },
+    ];
+    const folders: { id: 'business' | 'game' | 'sound' | 'screen' | 'keys'; label: string; blurb: string; mark: string }[] = [
+      { id: 'business', label: 'Run your business', blurb: 'Company, production, fleet, towns, bank, quests', mark: '#' },
+      { id: 'game', label: 'Game', blurb: 'How to play, save and load, new world', mark: 'G' },
+      { id: 'sound', label: 'Sound', blurb: 'Radio stations and sound effects', mark: 'S' },
+      { id: 'screen', label: 'Display', blurb: 'Graphics, minimap and frame rate', mark: 'D' },
+    ];
+    if (!isTouch()) folders.push({ id: 'keys', label: 'Keybinds', blurb: 'Every key in one place', mark: 'K' });
+
+    const page = this.menuPage;
     const updH = narrow ? 104 : 82;
-    const radioH = narrow ? 176 : 112;
-    let bodyH = updH + 14 + radioH + 14;
-    for (const grp of groups) bodyH += 24 + Math.ceil(grp.items.length / cols) * (tileH + gap) - gap + 12;
-    const ph = Math.min(H - 24, 56 + bodyH + pad + (showKeys ? 16 + keysH : 0));
+    const fcols = narrow ? 1 : 2;
+    const fw = (w - pad * 2 - gap * (fcols - 1)) / fcols;
+    const fh = 70;
+    const radioH = narrow ? 132 : 104;
+    const sfxH = narrow ? 92 : 66;
+    const keyGroups: [string, [string, string][]][] = [
+      ['Camera', [['W A S D', 'Move'], ['Q / E', 'Turn'], ['Wheel', 'Zoom'], ['Right-drag', 'Tilt and turn'], ['Compass', 'Face north']]],
+      ['Build', [['Tab', 'Next category'], ['1 - 9', 'Pick a card'], ['R', 'Rotate building'], ['C / X', 'Road / Demolish'], ['Enter / Bksp', 'Finish / undo bend']]],
+      ['Game', [['Space', 'Pause'], ['- / +', 'Slower / faster'], ['U', 'Upgrade selected'], ['N', 'Next problem'], ['Esc', 'Close / menu']]],
+    ];
+    const tilesH = (n: number): number => Math.ceil(n / cols) * (tileH + gap) - gap;
+    let bodyH: number;
+    if (page === 'home') bodyH = updH + 16 + Math.ceil(folders.length / fcols) * (fh + gap) - gap;
+    else {
+      bodyH = 46;
+      if (page === 'business') bodyH += tilesH(business.length);
+      else if (page === 'game') bodyH += tilesH(gameItems.length);
+      else if (page === 'screen') bodyH += tilesH(screenItems.length);
+      else if (page === 'sound') bodyH += radioH + 12 + sfxH;
+      else bodyH += narrow ? keyGroups.length * 120 : 5 * 20 + 40;
+    }
+    const ph = Math.min(H - 24, 56 + bodyH + pad);
     const y = Math.max(12, Math.round((H - ph) / 2));
     im.rect(3, x, y, w, ph, 0x0d141b, 0.98, 16, COLORS.accent, 0.6, 1.5);
     im.rect(3, x, y, w, 4, COLORS.accent, 0.9, 2);
@@ -1159,113 +1177,55 @@ export class HudScene extends Phaser.Scene {
     im.rect(4, x + w - 48, y + 12, 34, 34, xh ? 0x2a3646 : 0x17202b, 1, 8, COLORS.line, 1);
     im.text('menuXT', 'x', x + w - 31, y + 19, { size: 16, bold: true, align: 'center', layer: 5 });
 
-    // The update strip: what is new, and the one button that fetches the newest build and keeps the player's place.
     let cy = y + 56;
-    const ready = !!this.latest;
-    im.rect(4, x + pad, cy, w - pad * 2, updH, ready ? 0x2a2312 : 0x111a22, 1, 12, ready ? COLORS.accent : COLORS.line, 1, ready ? 2 : 1);
-    const btnW = narrow ? w - pad * 2 - 24 : 176;
-    const btnH = 38;
-    const btnX = narrow ? x + pad + 12 : x + w - pad - 12 - btnW;
-    const btnY = narrow ? cy + updH - btnH - 10 : cy + (updH - btnH) / 2;
-    const textW = narrow ? w - pad * 2 - 24 : w - pad * 2 - btnW - 36;
-    im.text('menuUpdT', ready ? `Update ${this.latest} is ready` : 'What is new in this build', x + pad + 14, cy + 10, { size: 13, bold: true, color: ready ? COLORS.accent : COLORS.text, layer: 5 });
-    im.text('menuUpdN', this.desktopStatus && !ready ? this.desktopStatus : VERSION_NOTE, x + pad + 14, cy + 30, { size: 11, color: this.desktopStatus && !ready ? COLORS.accent : COLORS.muted, wrap: textW, layer: 5 });
-    const sh = im.hit('menuSync', btnX, btnY, btnW, btnH, () => {
-      const checking = this.desktopWired && !this.desktopReady;
-      if (!checking) this.menuOpen = false;
-      this.syncUpdate();
-    }, 5);
-    im.rect(5, btnX, btnY, btnW, btnH, ready ? (sh ? 0xf4b84f : COLORS.accent) : sh ? 0x2a3646 : 0x1b2430, 1, 10, ready ? COLORS.accent : COLORS.line, 1);
-    im.text('menuSyncT', ready ? (this.desktopReady ? 'Restart to update' : 'Sync update now') : this.desktopWired ? 'Check for update' : 'Sync update', btnX + btnW / 2, btnY + 11, { size: 14, bold: true, color: ready ? 0x1b1204 : COLORS.text, align: 'center', layer: 6 });
-    cy += updH + 14;
-
-    // The radio: pick a station, turn it up or down, or switch it off.
-    {
-      const r = this.radio;
-      const rx = x + pad;
-      const rw = w - pad * 2;
-      im.rect(4, rx, cy, rw, radioH, 0x111a22, 1, 12, r.on ? COLORS.good : COLORS.line, 1);
-      const st = r.station;
-      const ic = 20;
-      im.rect(4, rx + 12, cy + 12, ic * 2, ic * 2, r.on ? COLORS.good : 0x0c1218, 1, 10);
-      // A little speaker.
-      const sx = rx + 12 + ic;
-      const sy = cy + 12 + ic;
-      const ink = r.on ? 0x0b1f16 : COLORS.muted;
-      im.rect(5, sx - 9, sy - 4, 6, 8, ink, 1, 1);
-      im.rect(5, sx - 4, sy - 8, 6, 16, ink, 1, 1);
-      if (r.on) {
-        im.line(5, sx + 6, sy - 5, sx + 6, sy + 5, ink, 1, 2);
-        im.line(5, sx + 10, sy - 8, sx + 10, sy + 8, ink, 1, 2);
-      }
-      const tx = rx + 12 + ic * 2 + 12;
-      im.text('radioKick', 'RADIO', tx, cy + 9, { size: 10, bold: true, color: COLORS.accent, layer: 5 });
-      im.text('radioName', r.on ? st.name : `${st.name} (off)`, tx, cy + 23, { size: 15, bold: true, color: r.on ? COLORS.text : COLORS.muted, layer: 5 });
-      if (!narrow) im.text('radioBlurb', st.blurb, tx, cy + 43, { size: 11, color: COLORS.muted, layer: 5 });
-      const bh = 34;
-      const by = narrow ? cy + 62 : cy + (radioH - bh) / 2;
-      const small = (id: string, label: string, bx: number, bw: number, on: boolean, act: () => void): void => {
-        const hov = im.hit(id, bx, by, bw, bh, act, 5);
-        im.rect(5, bx, by, bw, bh, on ? COLORS.good : hov ? 0x243246 : 0x1b2430, 1, 8, on ? COLORS.good : hov ? COLORS.accent : COLORS.line, 1);
-        im.text(`${id}t`, label, bx + bw / 2, by + 9, { size: 13, bold: true, color: on ? 0x0b1f16 : COLORS.text, align: 'center', layer: 6 });
-      };
-      // From the right: on or off, the volume, the two arrows.
-      let px = rx + rw - 12;
-      px -= 70;
-      small('radioOn', r.on ? 'ON' : 'OFF', px, 70, r.on, () => r.toggle());
-      const vw = narrow ? 110 : 150;
-      px -= vw + 10;
-      const vx = px;
-      im.rect(5, vx, by + 12, vw, 10, 0x0c1218, 1, 5, COLORS.line, 1);
-      im.rect(5, vx, by + 12, Math.max(6, vw * r.volume), 10, r.on ? COLORS.good : COLORS.muted, 1, 5);
-      im.hit('radioVol', vx - 6, by, vw + 12, bh, () => r.setVolume((this.input.activePointer.x - vx) / vw), 5);
-      px -= 44 + 6;
-      small('radioNext', 'Next', px - 4, 52, false, () => {
-        r.next();
-        this.toasts.push({ text: `Radio: ${r.station.name}`, until: this.time.now + 2200 });
-      });
-      px -= 52 + 6;
-      small('radioPrev', 'Prev', px - 4, 52, false, () => {
-        r.prev();
-        this.toasts.push({ text: `Radio: ${r.station.name}`, until: this.time.now + 2200 });
-      });
-      im.text('radioN', `${STATIONS.findIndex((q) => q.id === st.id) + 1} / ${STATIONS.length}`, px - 14, by + 11, { size: 11, color: COLORS.muted, align: 'right', layer: 5 });
-    }
-    {
-      // Sound effects: on or off, and how loud, under the radio.
-      const f = this.sfx;
-      const rx = x + pad;
-      const rw = w - pad * 2;
-      const sy = cy + (narrow ? 118 : 64);
-      im.line(5, rx + 12, sy - 6, rx + rw - 12, sy - 6, COLORS.line, 0.8, 1);
-      im.text('sfxKick', 'SOUND EFFECTS', rx + 14, sy + 12, { size: 11, bold: true, color: COLORS.accent, layer: 5 });
-      im.text('sfxBlurb', 'Engines, wind, birds and clicks', rx + 14, sy + 28, { size: 11, color: COLORS.muted, layer: 5 });
-      const bw = 70;
-      const bx = rx + rw - 12 - bw;
-      const bh = 30;
-      const by = sy + 6;
-      const hov = im.hit('sfxOn', bx, by, bw, bh, () => f.setOn(!f.on), 5);
-      im.rect(5, bx, by, bw, bh, f.on ? COLORS.good : hov ? 0x243246 : 0x1b2430, 1, 8, f.on ? COLORS.good : COLORS.line, 1);
-      im.text('sfxOnT', f.on ? 'ON' : 'OFF', bx + bw / 2, by + 8, { size: 13, bold: true, color: f.on ? 0x0b1f16 : COLORS.text, align: 'center', layer: 6 });
-      const vw = narrow ? 110 : 150;
-      const vx = bx - 16 - vw;
-      im.rect(5, vx, by + 10, vw, 10, 0x0c1218, 1, 5, COLORS.line, 1);
-      im.rect(5, vx, by + 10, Math.max(6, vw * f.volume), 10, f.on ? COLORS.good : COLORS.muted, 1, 5);
-      im.hit('sfxVol', vx - 6, by, vw + 12, bh, () => {
-        f.setVolume((this.input.activePointer.x - vx) / vw);
-        f.click();
+    if (page === 'home') {
+      // The update strip: what is new, and the one button that fetches the newest build and keeps the player's place.
+      const ready = !!this.latest;
+      im.rect(4, x + pad, cy, w - pad * 2, updH, ready ? 0x2a2312 : 0x111a22, 1, 12, ready ? COLORS.accent : COLORS.line, 1, ready ? 2 : 1);
+      const btnW = narrow ? w - pad * 2 - 24 : 176;
+      const btnH = 38;
+      const btnX = narrow ? x + pad + 12 : x + w - pad - 12 - btnW;
+      const btnY = narrow ? cy + updH - btnH - 10 : cy + (updH - btnH) / 2;
+      const textW = narrow ? w - pad * 2 - 24 : w - pad * 2 - btnW - 36;
+      im.text('menuUpdT', ready ? `Update ${this.latest} is ready` : 'What is new in this build', x + pad + 14, cy + 10, { size: 13, bold: true, color: ready ? COLORS.accent : COLORS.text, layer: 5 });
+      im.text('menuUpdN', this.desktopStatus && !ready ? this.desktopStatus : VERSION_NOTE, x + pad + 14, cy + 30, { size: 11, color: this.desktopStatus && !ready ? COLORS.accent : COLORS.muted, wrap: textW, layer: 5 });
+      const sh = im.hit('menuSync', btnX, btnY, btnW, btnH, () => {
+        const checking = this.desktopWired && !this.desktopReady;
+        if (!checking) this.menuOpen = false;
+        this.syncUpdate();
       }, 5);
-    }
-    cy += radioH + 14;
+      im.rect(5, btnX, btnY, btnW, btnH, ready ? (sh ? 0xf4b84f : COLORS.accent) : sh ? 0x2a3646 : 0x1b2430, 1, 10, ready ? COLORS.accent : COLORS.line, 1);
+      im.text('menuSyncT', ready ? (this.desktopReady ? 'Restart to update' : 'Sync update now') : this.desktopWired ? 'Check for update' : 'Sync update', btnX + btnW / 2, btnY + 11, { size: 14, bold: true, color: ready ? 0x1b1204 : COLORS.text, align: 'center', layer: 6 });
+      cy += updH + 16;
 
-    for (const grp of groups) {
-      im.text(`menuS${grp.title}`, grp.title, x + pad, cy + 2, { size: 10, bold: true, color: COLORS.accent, layer: 4 });
-      cy += 22;
-      grp.items.forEach((it, i) => {
+      folders.forEach((f, i) => {
+        const fx = x + pad + (i % fcols) * (fw + gap);
+        const fy = cy + Math.floor(i / fcols) * (fh + gap);
+        const hov = im.hit(`menuF${f.id}`, fx, fy, fw, fh, () => (this.menuPage = f.id), 4);
+        im.rect(4, fx, fy, fw, fh, hov ? 0x223040 : 0x151e28, 1, 12, hov ? COLORS.accent : COLORS.line, 1);
+        im.rect(4, fx + 12, fy + 13, 44, 44, 0x0c1218, 1, 10);
+        im.text(`menuFM${f.id}`, f.mark, fx + 34, fy + 23, { size: 22, bold: true, color: COLORS.accent, align: 'center', layer: 5 });
+        im.text(`menuFL${f.id}`, f.label, fx + 68, fy + 13, { size: 15, bold: true, layer: 5 });
+        im.text(`menuFB${f.id}`, f.blurb, fx + 68, fy + 35, { size: 11, color: COLORS.muted, wrap: fw - 68 - 30, layer: 5 });
+        im.text(`menuFA${f.id}`, '>', fx + fw - 18, fy + fh / 2 - 9, { size: 18, bold: true, color: hov ? COLORS.accent : COLORS.muted, align: 'center', layer: 5 });
+      });
+      return;
+    }
+
+    // A folder: a Back button and its name, then what is in it.
+    const folder = folders.find((f) => f.id === page)!;
+    const bh0 = im.hit('menuBackBtn', x + pad, cy - 6, 96, 34, () => (this.menuPage = 'home'), 4);
+    im.rect(4, x + pad, cy - 6, 96, 34, bh0 ? 0x2a3646 : 0x17202b, 1, 8, bh0 ? COLORS.accent : COLORS.line, 1);
+    im.text('menuBackT', '< Back', x + pad + 48, cy + 3, { size: 13, bold: true, align: 'center', layer: 5 });
+    im.text('menuPageT', folder.label.toUpperCase(), x + pad + 112, cy + 3, { size: 13, bold: true, color: COLORS.accent, layer: 5 });
+    cy += 46;
+
+    const tiles = (items: Item[]): void => {
+      items.forEach((it, i) => {
         const tx = x + pad + (i % cols) * (tileW + gap);
         const ty = cy + Math.floor(i / cols) * (tileH + gap);
         const hov = im.hit(`menu${it.id}`, tx, ty, tileW, tileH, () => {
-          this.menuOpen = false;
+          if (!it.toggle) this.menuOpen = false;
           it.act();
         }, 4);
         const lit = it.on && !it.toggle;
@@ -1284,28 +1244,92 @@ export class HudScene extends Phaser.Scene {
           im.text(`menuK${it.id}`, it.key, tx + tileW - 19, ty + 9, { size: 10, bold: true, color: COLORS.accent, align: 'center', layer: 6 });
         }
       });
-      cy += Math.ceil(grp.items.length / cols) * (tileH + gap) - gap + 12;
-    }
-
-    if (showKeys) {
-      im.line(4, x + pad, cy, x + w - pad, cy, COLORS.line, 1, 1);
-      im.text('menuKeysT', 'KEYBOARD', x + pad, cy + 10, { size: 10, bold: true, color: COLORS.accent, layer: 4 });
-      const keyGroups: [string, [string, string][]][] = [
-        ['Camera', [['W A S D', 'Move'], ['Q / E', 'Turn'], ['Wheel', 'Zoom'], ['Right-drag', 'Tilt and turn'], ['Compass', 'Face north']]],
-        ['Build', [['Tab', 'Next category'], ['1 - 9', 'Pick a card'], ['R', 'Rotate building'], ['C / X', 'Road / Demolish'], ['Enter / Bksp', 'Finish / undo bend']]],
-        ['Game', [['Space', 'Pause'], ['- / +', 'Slower / faster'], ['U', 'Upgrade selected'], ['N', 'Next problem'], ['Esc', 'Close / menu']]],
-      ];
-      const gw = (w - pad * 2) / keyGroups.length;
+    };
+    if (page === 'business') tiles(business);
+    else if (page === 'game') tiles(gameItems);
+    else if (page === 'screen') tiles(screenItems);
+    else if (page === 'sound') this.soundCards(x + pad, cy, w - pad * 2, narrow, radioH, sfxH);
+    else {
+      const gw = (w - pad * 2) / (narrow ? 1 : keyGroups.length);
       keyGroups.forEach(([title, list], gi) => {
-        const gx = x + pad + gi * gw;
-        im.text(`menuKG${gi}`, title, gx, cy + 28, { size: 12, bold: true, layer: 4 });
+        const gx = narrow ? x + pad : x + pad + gi * gw;
+        const gy = narrow ? cy + gi * 120 : cy;
+        im.text(`menuKG${gi}`, title.toUpperCase(), gx, gy, { size: 11, bold: true, color: COLORS.accent, layer: 4 });
         list.forEach(([k, what], ki) => {
-          const ly = cy + 48 + ki * 18;
-          im.text(`menuKK${gi}-${ki}`, k, gx, ly, { size: 11, bold: true, color: COLORS.warn, layer: 4 });
-          im.text(`menuKW${gi}-${ki}`, what, gx + 90, ly, { size: 11, color: COLORS.muted, layer: 4 });
+          const ly = gy + 22 + ki * (narrow ? 18 : 20);
+          im.text(`menuKK${gi}-${ki}`, k, gx, ly, { size: 12, bold: true, color: COLORS.warn, layer: 4 });
+          im.text(`menuKW${gi}-${ki}`, what, gx + 100, ly, { size: 12, color: COLORS.muted, layer: 4 });
         });
       });
     }
+  }
+
+  /** The Sound folder: the radio, then the sound effects, each in its own card. */
+  private soundCards(rx: number, top: number, rw: number, narrow: boolean, radioH: number, sfxH: number): void {
+    const im = this.im;
+    const r = this.radio;
+    const cy = top;
+    im.rect(4, rx, cy, rw, radioH, 0x111a22, 1, 12, r.on ? COLORS.good : COLORS.line, 1);
+    const st = r.station;
+    const ic = 20;
+    im.rect(4, rx + 12, cy + 12, ic * 2, ic * 2, r.on ? COLORS.good : 0x0c1218, 1, 10);
+    // A little speaker.
+    const sx = rx + 12 + ic;
+    const sy = cy + 12 + ic;
+    const ink = r.on ? 0x0b1f16 : COLORS.muted;
+    im.rect(5, sx - 9, sy - 4, 6, 8, ink, 1, 1);
+    im.rect(5, sx - 4, sy - 8, 6, 16, ink, 1, 1);
+    if (r.on) {
+      im.line(5, sx + 6, sy - 5, sx + 6, sy + 5, ink, 1, 2);
+      im.line(5, sx + 10, sy - 8, sx + 10, sy + 8, ink, 1, 2);
+    }
+    const tx = rx + 12 + ic * 2 + 12;
+    im.text('radioKick', `RADIO  ${STATIONS.findIndex((q) => q.id === st.id) + 1} / ${STATIONS.length}`, tx, cy + 10, { size: 10, bold: true, color: COLORS.accent, layer: 5 });
+    im.text('radioName', r.on ? st.name : `${st.name} (off)`, tx, cy + 25, { size: 15, bold: true, color: r.on ? COLORS.text : COLORS.muted, layer: 5 });
+    im.text('radioBlurb', st.blurb, tx, cy + 44, { size: 11, color: COLORS.muted, wrap: rw - (tx - rx) - 12, layer: 5 });
+    const bh = 32;
+    const by = cy + radioH - bh - 12;
+    const small = (id: string, label: string, bx: number, bw: number, on: boolean, act: () => void): void => {
+      const hov = im.hit(id, bx, by, bw, bh, act, 5);
+      im.rect(5, bx, by, bw, bh, on ? COLORS.good : hov ? 0x243246 : 0x1b2430, 1, 8, on ? COLORS.good : hov ? COLORS.accent : COLORS.line, 1);
+      im.text(`${id}t`, label, bx + bw / 2, by + 9, { size: 13, bold: true, color: on ? 0x0b1f16 : COLORS.text, align: 'center', layer: 6 });
+    };
+    // From the right: on or off, then the volume; the two arrows sit at the left of the row.
+    const onX = rx + rw - 12 - 70;
+    small('radioOn', r.on ? 'ON' : 'OFF', onX, 70, r.on, () => r.toggle());
+    const vw = narrow ? 90 : 160;
+    const vx = onX - 14 - vw;
+    im.rect(5, vx, by + 11, vw, 10, 0x0c1218, 1, 5, COLORS.line, 1);
+    im.rect(5, vx, by + 11, Math.max(6, vw * r.volume), 10, r.on ? COLORS.good : COLORS.muted, 1, 5);
+    im.hit('radioVol', vx - 6, by, vw + 12, bh, () => r.setVolume((this.input.activePointer.x - vx) / vw), 5);
+    small('radioPrev', 'Prev', tx, 56, false, () => {
+      r.prev();
+      this.toasts.push({ text: `Radio: ${r.station.name}`, until: this.time.now + 2200 });
+    });
+    small('radioNext', 'Next', tx + 62, 56, false, () => {
+      r.next();
+      this.toasts.push({ text: `Radio: ${r.station.name}`, until: this.time.now + 2200 });
+    });
+
+    // Sound effects: on or off, and how loud.
+    const f = this.sfx;
+    const fy = cy + radioH + 12;
+    im.rect(4, rx, fy, rw, sfxH, 0x111a22, 1, 12, f.on ? COLORS.good : COLORS.line, 1);
+    im.text('sfxKick', 'SOUND EFFECTS', rx + 16, fy + 12, { size: 10, bold: true, color: COLORS.accent, layer: 5 });
+    im.text('sfxBlurb', 'Engines, wind, birds and clicks', rx + 16, fy + 28, { size: 11, color: COLORS.muted, layer: 5 });
+    const bw = 70;
+    const bx = rx + rw - 12 - bw;
+    const sby = narrow ? fy + sfxH - 38 : fy + (sfxH - 32) / 2;
+    const hov = im.hit('sfxOn', bx, sby, bw, 32, () => f.setOn(!f.on), 5);
+    im.rect(5, bx, sby, bw, 32, f.on ? COLORS.good : hov ? 0x243246 : 0x1b2430, 1, 8, f.on ? COLORS.good : COLORS.line, 1);
+    im.text('sfxOnT', f.on ? 'ON' : 'OFF', bx + bw / 2, sby + 9, { size: 13, bold: true, color: f.on ? 0x0b1f16 : COLORS.text, align: 'center', layer: 6 });
+    const svx = bx - 14 - vw;
+    im.rect(5, svx, sby + 11, vw, 10, 0x0c1218, 1, 5, COLORS.line, 1);
+    im.rect(5, svx, sby + 11, Math.max(6, vw * f.volume), 10, f.on ? COLORS.good : COLORS.muted, 1, 5);
+    im.hit('sfxVol', svx - 6, sby, vw + 12, 32, () => {
+      f.setVolume((this.input.activePointer.x - svx) / vw);
+      f.click();
+    }, 5);
   }
 
   private graphicsPanel(W: number, H: number): void {
@@ -1841,10 +1865,22 @@ export class HudScene extends Phaser.Scene {
   }
 
   /** Where the minimap goes, or null when it is off or there is no room for it beside the dock. */
+  /** The world map opened large in the middle of the screen. */
+  private bigMap = false;
+
   private minimapBox(W: number, H: number, minX: number): { x: number; y: number; w: number; h: number; mw: number; mh: number } | null {
     if (!this.minimapOn || W < 900 || isTouch()) return null;
     const world = this.game3d.world;
-    const mw = Math.min(300, Math.max(200, Math.round(W * 0.19)));
+    if (this.bigMap) {
+      const mw = Math.max(300, Math.min(W - 80, 1100, Math.round(((H - TOP - 130) * world.width) / world.height)));
+      const mh = Math.round((mw * world.height) / world.width);
+      const w = mw + 16;
+      const h = mh + 28 + 56;
+      return { x: Math.round((W - w) / 2), y: Math.max(TOP + 8, Math.round((H - h) / 2)), w, h, mw, mh };
+    }
+    // As big as the room beside the build tray allows.
+    const mw = Math.min(380, Math.round(W * 0.23), W - 10 - 16 - minX);
+    if (mw < 190) return null;
     const mh = Math.round((mw * world.height) / world.width);
     const w = mw + 16;
     const h = mh + 28 + 56;
@@ -1860,6 +1896,10 @@ export class HudScene extends Phaser.Scene {
     const world = g.world;
     const at = viewTile(world, g.cam.lon, g.cam.lat);
     const aspect = this.scale.width / Math.max(1, this.scale.height);
+    if (this.bigMap) {
+      im.rect(1, 0, TOP, this.scale.width, this.scale.height - TOP, 0x04070a, 0.6);
+      im.hit('bigMapBack', 0, 0, this.scale.width, this.scale.height, () => (this.bigMap = false), 1);
+    }
     const key = this.minimap.draw(world, { x: at.x, y: at.y, span: viewSpan(world, g.cam.dist, aspect), heading: g.cam.heading }, b.mw, this.time.now);
     im.rect(1, b.x, b.y, b.w, b.h, 0x0a0f14, 0.97, 12, COLORS.accent, 0.55, 1.5);
     im.rect(1, b.x, b.y, b.w, 3, COLORS.accent, 0.85, 1);
@@ -1874,13 +1914,16 @@ export class HudScene extends Phaser.Scene {
       im.line(3, cx0, cy0, cx0, cy0 + sy * 10, COLORS.accent, 0.9, 2);
     }
     const coord = this.minimap.tileAt(world, 0.5, at.y / world.height);
-    im.text('miniXY', `${coord.x}, ${Math.round(at.y)}`, b.x + b.w / 2, b.y + 9, { size: 10, color: COLORS.muted, align: 'center', layer: 2 });
+    im.text('miniXY', `${coord.x}, ${Math.round(at.y)}`, b.x + 92, b.y + 9, { size: 10, color: COLORS.muted, layer: 2 });
+    const bigH = im.hit('miniBig', b.x + b.w - 96, b.y + 6, 62, 18, () => (this.bigMap = !this.bigMap), 2);
+    im.text('miniBigT', this.bigMap ? 'SHRINK' : 'ENLARGE', b.x + b.w - 65, b.y + 9, { size: 10, bold: true, color: bigH ? COLORS.accent : COLORS.muted, align: 'center', layer: 3 });
     const offH = im.hit('miniOff', b.x + b.w - 30, b.y + 6, 22, 18, () => this.toggleMinimap(), 2);
     im.text('miniOffT', 'M', b.x + b.w - 19, b.y + 8, { size: 11, bold: true, color: offH ? COLORS.text : COLORS.muted, align: 'center', layer: 3 });
     im.hit('miniMap', mx, my, b.mw, b.mh, () => {
       const p = this.input.activePointer;
       const t = this.minimap.tileAt(world, (p.x - mx) / b.mw, (p.y - my) / b.mh);
       g.lookAt(t.x, t.y, g.cam.dist, g.cam.heading, g.cam.pitchManual);
+      this.bigMap = false;
     }, 2);
     // Under the map: the compass, and the game speed beside it.
     const fy = my + b.mh + 10;
