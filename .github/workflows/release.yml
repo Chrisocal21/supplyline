@@ -1,4 +1,4 @@
-# Builds the Windows installer and publishes it as a GitHub release. Push a tag like v0.36 to run it; the desktop app picks
+# Builds the Windows installer and publishes it as a GitHub release. Push a tag that matches package.json, like v0.38.0, to run it; the desktop app picks
 # the new release up on its own and offers a restart.
 name: Release Windows build
 on:
@@ -17,6 +17,10 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: npx vite build
+      # Make the release first, so the uploads do not race to create it.
+      - run: gh release view ${{ github.ref_name }} || gh release create ${{ github.ref_name }} --title "${{ github.ref_name }}" --notes "Windows installer. Installed copies update themselves." --draft
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - run: npx electron-builder --win --publish always
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
