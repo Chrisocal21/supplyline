@@ -27,6 +27,7 @@ import {
 } from '../sim/defs';
 import { districtGhostGeometry, townGeometry, type TownLandmark } from './townmodel';
 import { districtLandmark, type Setting } from './districts';
+import type { AudioScene } from '../audio/sfx';
 import { Parts } from './parts';
 import { GROW_MS, growMaterial } from './grow';
 import { tileLonLat } from '../sim/mapgen';
@@ -1112,6 +1113,30 @@ export class Game3D {
     const east = new THREE.Vector3(Math.cos(lon), 0, -Math.sin(lon));
     const south = new THREE.Vector3().crossVectors(east, up).normalize();
     return basisMatrix(pos, up, south);
+  }
+
+  /** What the sound needs to know about the view: how close the camera is, what is moving nearby, and the time and season. */
+  audioScene(): AudioScene {
+    const w = this.world;
+    const sc: AudioScene = { dist: this.cam.dist, road: 0, rail: 0, sea: 0, air: 0, night: this.lightingMode === 'night', winter: !!w && seasonOf(w.tick).id === 'winter', town: 0, paused: this.speed === 0 };
+    if (!w || this.idle) return sc;
+    const fx = ((this.cam.lon + Math.PI) / (Math.PI * 2)) * w.width;
+    const fy = (0.5 - this.cam.lat / ((2 * Math.PI * w.height) / w.width)) * w.height;
+    const near = (x: number, y: number, reach: number): number => {
+      const d = Math.hypot(wrapDx(w, fx, x), fy - y);
+      return d >= reach ? 0 : 1 - d / reach;
+    };
+    for (const v of w.vehicles) {
+      if (v.state !== 'moving') continue;
+      const route = vehicleRoute(w, v);
+      const t = route?.path[v.idx];
+      if (!route || !t) continue;
+      const k = near(t.x, t.y, 26);
+      if (k <= 0) continue;
+      sc[route.mode === 'rail' ? 'rail' : route.mode === 'sea' ? 'sea' : route.mode === 'air' ? 'air' : 'road'] += k * 0.5;
+    }
+    for (const p of w.places) sc.town = Math.max(sc.town, near(p.x, p.y, 18));
+    return sc;
   }
 
   /** Draw (or clear) the outlines of the unbuilt sports campuses. Cheap: it only rebuilds when the set of them changes. */
@@ -2232,6 +2257,9 @@ export class Game3D {
 
   private districtGhostKey = '';
 
+  /** The HUD plays the sound: the game only says what happened. */
+  onSound: (kind: 'build' | 'warn') => void = () => undefined;
+
   private showDistrictGhost(spot: DistrictSpot, id: DistrictId, ok: boolean): void {
     const setting = this.settingAt(spot.x, spot.y);
     const fx = Math.sign(spot.ex - spot.x);
@@ -2449,6 +2477,7 @@ export class Game3D {
       if (err) this.onToast(err);
       else {
         this.onToast(`${DISTRICTS[id].label} ${had ? 'improved' : 'built'} in ${spot.place.name}`);
+        this.onSound('build');
         this.setHover(tile);
       }
       return;
@@ -2508,6 +2537,7 @@ export class Game3D {
     else {
       const s = w.sites[w.sites.length - 1];
       this.onToast(`${s.name} built`);
+      this.onSound('build');
       this.select({ kind: 'site', id: s.id });
       this.setHover(tile);
     }

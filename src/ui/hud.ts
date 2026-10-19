@@ -93,6 +93,7 @@ import { vehicleCard, vehicleCardHeight } from './vehiclecard';
 import { condition, driverName, renameDriver, serviceCost, serviceError, serviceVehicle } from '../sim/drivers';
 import { TITLE_SLIDES, Title, type TitleChoice } from './title';
 import { Radio, STATIONS } from '../audio/radio';
+import { Sfx } from '../audio/sfx';
 import { byInput, isTouch, onInputChange } from './inputmode';
 import { Minimap, viewSpan, viewTile } from './minimap';
 
@@ -315,8 +316,18 @@ export class HudScene extends Phaser.Scene {
     for (let i = 1; i <= 9; i++) kb.on(`keydown-${['ONE', 'TWO', 'THREE', 'FOUR', 'FIVE', 'SIX', 'SEVEN', 'EIGHT', 'NINE'][i - 1]}`, () => this.pickByNumber(i - 1));
 
     // Browsers only start sound after a press, so the first click or key wakes the radio.
-    this.input.on('pointerdown', () => this.radio.unlock());
-    kb.on('keydown', () => this.radio.unlock());
+    const wake = (): void => {
+      this.radio.unlock();
+      this.sfx.unlock();
+    };
+    this.input.on('pointerdown', () => {
+      wake();
+      // A press on the HUD ticks; a press on the map does not.
+      const p = this.input.activePointer;
+      if (this.im.blocked(p.x, p.y)) this.sfx.click();
+    });
+    kb.on('keydown', wake);
+    this.game3d.onSound = (kind) => (kind === 'build' ? this.sfx.build() : this.sfx.warn());
 
     // Any other key skips nothing now, but is kept out of the game while the title is up.
     kb.on('keydown', (e: KeyboardEvent) => {
@@ -367,7 +378,10 @@ export class HudScene extends Phaser.Scene {
       else if (!this.im.blocked(p.x, p.y)) this.game3d.wheel(p.x, p.y, dy);
     });
 
-    this.game3d.onToast = (text) => this.toasts.push({ text, until: this.time.now + 3200 });
+    this.game3d.onToast = (text) => {
+      this.toasts.push({ text, until: this.time.now + 3200 });
+      if (/^(Need|Not enough|Cannot|Can't|No |Point at|Click a|Something is)/i.test(text)) this.sfx.warn();
+    };
     onInputChange((m) => this.toasts.push({ text: m === 'touch' ? 'Touch controls' : 'Mouse and keyboard controls', until: this.time.now + 2200 }));
 
     // The opening screen: the showcase world flies by behind it until the player starts.
@@ -638,6 +652,9 @@ export class HudScene extends Phaser.Scene {
   private seasonSeen: number | null = null;
   /** The radio: music made in the browser, with a few stations. It starts on the first click or key press. */
   readonly radio = new Radio();
+  /** Engines, wind and birds, and the small sounds of playing. */
+  readonly sfx = new Sfx();
+  private sfxAt = 0;
   /** The menu button flashes gold until this time, after a new build shows up. */
   private flashUntil = 0;
 
@@ -706,6 +723,10 @@ export class HudScene extends Phaser.Scene {
     const now = this.time.now;
     this.checkVersion(now);
     this.stepNorth(now);
+    if (!this.title && now - this.sfxAt > 250) {
+      this.sfxAt = now;
+      this.sfx.update(g.audioScene());
+    }
     // A new season: say what it means for the farms.
     const si = seasonIndex(w.tick);
     if (this.seasonSeen !== null && si !== this.seasonSeen) {
@@ -1109,7 +1130,7 @@ export class HudScene extends Phaser.Scene {
     const showKeys = !isTouch() && !narrow;
     const keysH = showKeys ? 130 : 0;
     const updH = narrow ? 104 : 82;
-    const radioH = narrow ? 118 : 66;
+    const radioH = narrow ? 176 : 112;
     let bodyH = updH + 14 + radioH + 14;
     for (const grp of groups) bodyH += 24 + Math.ceil(grp.items.length / cols) * (tileH + gap) - gap + 12;
     const ph = Math.min(H - 24, 56 + bodyH + pad + (showKeys ? 16 + keysH : 0));
@@ -1194,6 +1215,31 @@ export class HudScene extends Phaser.Scene {
         this.toasts.push({ text: `Radio: ${r.station.name}`, until: this.time.now + 2200 });
       });
       im.text('radioN', `${STATIONS.findIndex((q) => q.id === st.id) + 1} / ${STATIONS.length}`, px - 14, by + 11, { size: 11, color: COLORS.muted, align: 'right', layer: 5 });
+    }
+    {
+      // Sound effects: on or off, and how loud, under the radio.
+      const f = this.sfx;
+      const rx = x + pad;
+      const rw = w - pad * 2;
+      const sy = cy + (narrow ? 118 : 64);
+      im.line(5, rx + 12, sy - 6, rx + rw - 12, sy - 6, COLORS.line, 0.8, 1);
+      im.text('sfxKick', 'SOUND EFFECTS', rx + 14, sy + 12, { size: 11, bold: true, color: COLORS.accent, layer: 5 });
+      im.text('sfxBlurb', 'Engines, wind, birds and clicks', rx + 14, sy + 28, { size: 11, color: COLORS.muted, layer: 5 });
+      const bw = 70;
+      const bx = rx + rw - 12 - bw;
+      const bh = 30;
+      const by = sy + 6;
+      const hov = im.hit('sfxOn', bx, by, bw, bh, () => f.setOn(!f.on), 5);
+      im.rect(5, bx, by, bw, bh, f.on ? COLORS.good : hov ? 0x243246 : 0x1b2430, 1, 8, f.on ? COLORS.good : COLORS.line, 1);
+      im.text('sfxOnT', f.on ? 'ON' : 'OFF', bx + bw / 2, by + 8, { size: 13, bold: true, color: f.on ? 0x0b1f16 : COLORS.text, align: 'center', layer: 6 });
+      const vw = narrow ? 110 : 150;
+      const vx = bx - 16 - vw;
+      im.rect(5, vx, by + 10, vw, 10, 0x0c1218, 1, 5, COLORS.line, 1);
+      im.rect(5, vx, by + 10, Math.max(6, vw * f.volume), 10, f.on ? COLORS.good : COLORS.muted, 1, 5);
+      im.hit('sfxVol', vx - 6, by, vw + 12, bh, () => {
+        f.setVolume((this.input.activePointer.x - vx) / vw);
+        f.click();
+      }, 5);
     }
     cy += radioH + 14;
 

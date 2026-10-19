@@ -1,3 +1,3 @@
 /** The build number, matching the commit it ships in (0.7, 0.8, ...), and a short line on what that update covered. Bump both with every commit. */
-export const VERSION = '0.48';
-export const VERSION_NOTE = 'Districts are buildables: a Districts tab in the build tray, pick one and click a free lot or a sports ground; a Soccer Stadium; every district looks different at each level and dresses itself for hills, water or woods';
+export const VERSION = '0.49';
+export const VERSION_NOTE = 'Sound effects: engines, rails, ships and planes hum where you are looking, wind and birds by day and crickets by night, town murmur, and clicks, builds and warnings; with its own switch and volume in the Menu';
