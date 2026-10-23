@@ -5,7 +5,7 @@ import type { NodeKind } from '../sim/defs';
 import { tileLonLat } from '../sim/mapgen';
 import { parcelState, parcelsOf } from '../sim/land';
 import { seasonLook } from './season';
-import { layoutOf, plotTiles, reservedGround, townGates, townGround, type World } from '../sim/world';
+import { layoutOf, plotTiles, reservedGround, siteAt, terrainAt, townBlocks, townGates, townGround, type World } from '../sim/world';
 import { HeightField, LAT_SPAN, R, basisMatrix, lonLatToVec } from './geo';
 import { Parts } from './parts';
 import { specialtyNodeProps } from './specialty';
@@ -646,40 +646,45 @@ export class Scenery {
   /** Overlays that are drawn blended over the ground are left out of the ambient-occlusion pass, which would read them as solid. */
   hideOverlays(hide: boolean): void {
     if (this.reserveShade) this.reserveShade.visible = !hide;
+    if (this.zoneGroup && hide) this.zoneGroup.visible = false;
     if (this.parcelGroup) this.parcelGroup.children.forEach((c) => ((c as THREE.Mesh).isMesh ? (c.visible = !hide) : undefined));
+  }
+
+  /** One blended quad per tile, lying on the ground. */
+  private tileQuads(tiles: { x: number; y: number }[], color: number, opacity: number, lift: number): THREE.Mesh {
+  const w = this.world;
+    const dLon = (Math.PI * 2) / w.width;
+    const dLat = (2 * LAT_SPAN) / w.height;
+    const pos: number[] = [];
+    const idx: number[] = [];
+    const v = new THREE.Vector3();
+    for (const t of tiles) {
+      const { lon, lat } = tileLonLat(w.width, w.height, ((t.x % w.width) + w.width) % w.width, t.y);
+      const base = pos.length / 3;
+      for (const [a, b] of [[-0.5, -0.5], [0.5, -0.5], [0.5, 0.5], [-0.5, 0.5]]) {
+        const lo = lon + a * dLon;
+        const la = lat + b * dLat;
+        lonLatToVec(lo, la, R + this.hf.surface(lo, la) + lift, v);
+        pos.push(v.x, v.y, v.z);
+      }
+      idx.push(base, base + 1, base + 2, base, base + 2, base + 3);
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    geo.setIndex(idx);
+    const mat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity, depthWrite: false, side: THREE.DoubleSide, fog: false });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.frustumCulled = false;
+    mesh.castShadow = false;
+    mesh.receiveShadow = false;
+    mesh.renderOrder = 4;
+    return mesh;
   }
 
   private buildReserveShade(): THREE.Group {
     const w = this.world;
     const group = new THREE.Group();
-    const quads = (tiles: { x: number; y: number }[], color: number, opacity: number, lift: number): THREE.Mesh => {
-      const dLon = (Math.PI * 2) / w.width;
-      const dLat = (2 * LAT_SPAN) / w.height;
-      const pos: number[] = [];
-      const idx: number[] = [];
-      const v = new THREE.Vector3();
-      for (const t of tiles) {
-        const { lon, lat } = tileLonLat(w.width, w.height, ((t.x % w.width) + w.width) % w.width, t.y);
-        const base = pos.length / 3;
-        for (const [a, b] of [[-0.5, -0.5], [0.5, -0.5], [0.5, 0.5], [-0.5, 0.5]]) {
-          const lo = lon + a * dLon;
-          const la = lat + b * dLat;
-          lonLatToVec(lo, la, R + this.hf.surface(lo, la) + lift, v);
-          pos.push(v.x, v.y, v.z);
-        }
-        idx.push(base, base + 1, base + 2, base, base + 2, base + 3);
-      }
-      const geo = new THREE.BufferGeometry();
-      geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-      geo.setIndex(idx);
-      const mat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity, depthWrite: false, side: THREE.DoubleSide, fog: false });
-      const mesh = new THREE.Mesh(geo, mat);
-      mesh.frustumCulled = false;
-      mesh.castShadow = false;
-      mesh.receiveShadow = false;
-      mesh.renderOrder = 4;
-      return mesh;
-    };
+    const quads = (tiles: { x: number; y: number }[], color: number, opacity: number, lift: number): THREE.Mesh => this.tileQuads(tiles, color, opacity, lift);
     const reserved: { x: number; y: number }[] = [];
     const lanes: { x: number; y: number }[] = [];
     for (const p of w.places) {
@@ -693,6 +698,48 @@ export class Scenery {
     group.add(quads(lanes, 0xf2b04c, 0.4, 0.16));
     this.group.add(group);
     return group;
+  }
+
+  private zoneGroup: THREE.Group | null = null;
+  private zoneSig = '';
+
+  /**
+   * While a road or track tool is active, the land is washed green where one can be laid and red-orange where it cannot (a
+   * building, a town's own ground, ice). Sea is left bare so the land stands out from the water. Remade when anything changes.
+   */
+  setRoadZones(mode: 'road' | 'rail' | null, sig: string): void {
+    const w = this.world;
+    if (mode === null) {
+      if (this.zoneGroup) this.zoneGroup.visible = false;
+      return;
+    }
+    const key = `${mode}|${sig}`;
+    if (key !== this.zoneSig) {
+      this.zoneSig = key;
+      if (this.zoneGroup) {
+        this.group.remove(this.zoneGroup);
+        this.zoneGroup.traverse((o) => {
+          const m = o as THREE.Mesh;
+          if (m.geometry) m.geometry.dispose();
+          if (m.material) (m.material as THREE.Material).dispose();
+        });
+      }
+      const ok: { x: number; y: number }[] = [];
+      const no: { x: number; y: number }[] = [];
+      for (let y = 0; y < w.height; y++) {
+        for (let x = 0; x < w.width; x++) {
+          const t = terrainAt(w, x, y);
+          if (t === null || t === 'water') continue;
+          (t === 'ice' || siteAt(w, x, y) || townBlocks(w, x, y, mode) ? no : ok).push({ x, y });
+        }
+      }
+      const group = new THREE.Group();
+      group.add(this.tileQuads(ok, 0x2dffa0, 0.42, 0.13));
+      group.add(this.tileQuads(no, 0xff6f1f, 0.55, 0.15));
+      this.group.add(group);
+      this.zoneGroup = group;
+    }
+    if (this.zoneGroup) this.zoneGroup.visible = true;
   }
 
   private readonly gateMarkers: THREE.Group[] = [];

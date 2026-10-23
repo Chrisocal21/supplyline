@@ -1233,6 +1233,7 @@ export class Game3D {
     const usedNodes = new Set(w.sites.map((s) => s.nodeId).filter((n): n is number => n !== null));
     this.scenery.showMarkers(this.activeNodeKind(), usedNodes);
     this.scenery.showGates(this.isRouteTool());
+    this.scenery.setRoadZones(this.isRouteTool() ? this.routeMode : null, `${w.sites.length}.${w.places.map((p) => `${p.level}${Object.values(p.districtLots ?? {}).join('_')}`).join(',')}`);
     this.scenery.setParcels(this.isBuildTool() && !!w.landRules, String((w.owned ?? []).length));
     this.scenery.setReserved(this.isRouteTool() || this.isBuildTool() || isDistrictTool(this.tool), w.places.map((p) => `${p.level}.${Object.values(p.districtLots ?? {}).join('_')}`).join(',') + (this.growing.size > 0 ? 'g' : ''));
     this.scenery.setNodesUsed(usedNodes);
