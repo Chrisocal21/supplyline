@@ -6,6 +6,7 @@ import { GRAPHICS, type GraphicsQuality, type LightingMode } from '../r3d/graphi
 import {
   GOODS,
   LEVEL_MATERIALS,
+  BUILD_LUMBER,
   DRIVER_RANKS,
   MECHANIC_COST,
   MECHANIC_MAX,
@@ -47,6 +48,8 @@ import {
   upgradeCost,
   buyError,
   buyOptions,
+  depotLeft,
+  placeOf,
   runsOf,
   growthKinds,
   worldSteps,
@@ -2944,14 +2947,19 @@ export class HudScene extends Phaser.Scene {
     const cap = siteCap(world, s);
     let cy = y;
     const wide = w >= 380;
+    const yardPlace = SITE_DEFS[s.kind].dock === 'freight' ? placeOf(world, s) : undefined;
     for (const gd of dockDemand(world, s)) {
-      const n = stockOf(s, gd);
-      const dm = this.demand(s, gd);
+      // A yard is a store for building materials: show what it holds against what the town still needs.
+      const building = yardPlace && (yardPlace.stage ?? 2) === 0;
+      const held = building ? Math.floor(yardPlace!.build ?? 0) : Math.floor(s.depot?.[gd] ?? 0);
+      const target = building ? BUILD_LUMBER[0] : yardPlace ? held + Math.ceil(depotLeft(yardPlace, s, gd)) : 0;
+      const n = yardPlace ? held : stockOf(s, gd);
+      const dm = yardPlace ? { label: building ? `${held} of ${target} to build the yard` : `${held} of ${target} stored`, color: held >= target ? COLORS.good : COLORS.warn, want: 0 } : this.demand(s, gd);
       im.rect(2, x, cy, w, 30, 0x131a24, 1, 8);
       im.text(`dt${gd}n`, GOODS[gd].label, x + 10, cy + 8, { size: 12, bold: true, layer: 3 });
       const bx = x + 100;
       const bw = wide ? w - 100 - 210 : w - 100 - 76;
-      im.bar(3, bx, cy + 12, bw, 6, n / cap, dm.color);
+      im.bar(3, bx, cy + 12, bw, 6, yardPlace ? n / Math.max(1, target) : n / cap, dm.color);
       if (wide) im.text(`dt${gd}d`, dm.label, bx + bw + 12, cy + 8, { size: 11, color: dm.color, layer: 3 });
       im.text(`dt${gd}p`, `$${unitPrice(world, s, gd).toFixed(1)}`, x + w - 10, cy + 8, { size: 12, bold: true, color: COLORS.warn, align: 'right', layer: 3 });
       cy += 34;

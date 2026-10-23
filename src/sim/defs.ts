@@ -478,15 +478,11 @@ export const MARKET_DEMAND: Good[][] = [
   ['bread', 'cheese', 'paper', 'jam', 'coffee', 'mango', 'furniture', 'clothes', 'tools', 'books'],
   ['bread', 'cheese', 'paper', 'jam', 'coffee', 'mango', 'furniture', 'clothes', 'tools', 'books', 'machinery'],
 ];
-const FREIGHT_BASE: Good[] = ['logs', 'grain', 'cotton', 'stone', 'ore', 'coal', 'clay', 'sand', 'milk', 'fruit', 'sawdust', 'bran', 'whey', 'gravel', 'slag', 'feed', 'oil', 'lumber', 'flour'];
-/** Goods the Supply Yard wants by town level: raw goods, by-products and building materials. */
-export const FREIGHT_DEMAND: Good[][] = [
-  FREIGHT_BASE,
-  [...FREIGHT_BASE, 'ingots', 'cement', 'yarn', 'pellets'],
-  [...FREIGHT_BASE, 'ingots', 'cement', 'yarn', 'pellets', 'glass', 'tools'],
-  [...FREIGHT_BASE, 'ingots', 'cement', 'yarn', 'pellets', 'glass', 'tools', 'steel', 'bricks', 'concrete', 'blocks', 'cloth'],
-  [...FREIGHT_BASE, 'ingots', 'cement', 'yarn', 'pellets', 'glass', 'tools', 'steel', 'bricks', 'concrete', 'blocks', 'cloth'],
-];
+/** The goods a town gets a taste for (a price swing) among the raw and building goods. Only world generation reads it; keep it as is so towns look the same. */
+export const YARD_TASTE_GOODS: Good[] = ['logs', 'grain', 'cotton', 'stone', 'ore', 'coal', 'clay', 'sand', 'milk', 'fruit', 'sawdust', 'bran', 'whey', 'gravel', 'slag', 'feed', 'oil', 'lumber', 'flour', 'ingots', 'cement', 'yarn', 'pellets', 'glass', 'tools', 'steel', 'bricks', 'concrete', 'blocks', 'cloth'];
+
+/** Goods the Supply Yard buys by town level: none of its own. It is a store for building materials, so it only takes what the town still needs to build (see dockDemand). */
+export const FREIGHT_DEMAND: Good[][] = [[], [], [], [], []];
 
 /** Lumber a closed town needs delivered to build its Supply Yard, then its Market. */
 export const BUILD_LUMBER = [100, 150];

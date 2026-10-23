@@ -1,5 +1,5 @@
 // Named world features: regions, towns and resource nodes. Pure, seeded.
-import { FREIGHT_DEMAND, MARKET_DEMAND, STYLE_TASTE, TOWN_STYLES, type DistrictId, type NodeKind, type PathId, type Stock, type Terrain, type TownStyle } from './defs';
+import { MARKET_DEMAND, YARD_TASTE_GOODS, STYLE_TASTE, TOWN_STYLES, type DistrictId, type NodeKind, type PathId, type Stock, type Terrain, type TownStyle } from './defs';
 import { makeNamer } from './names';
 import { BLEND_REACH, BLEND_SHARE, blendPartner, blendRoll, footprint, plotCount, townLayout } from './townlayout';
 import { corridorTiles } from './corridors';
@@ -344,7 +344,7 @@ export function generateFeatures(terrain: Terrain[], width: number, height: numb
     const taste: Stock = {};
     // The island goods take their taste from the spot, not from the random stream, so adding them left every other town as it was.
     const EXTRA = ['coffee', 'mango', 'oil'];
-    for (const g of new Set([...MARKET_DEMAND[MARKET_DEMAND.length - 1], ...FREIGHT_DEMAND[FREIGHT_DEMAND.length - 1]])) {
+    for (const g of new Set([...MARKET_DEMAND[MARKET_DEMAND.length - 1], ...YARD_TASTE_GOODS])) {
       if (EXTRA.includes(g)) continue;
       taste[g] = Math.round((0.75 + namer.rand() * 0.7) * (STYLE_TASTE[style][g] ?? 1) * 100) / 100;
     }

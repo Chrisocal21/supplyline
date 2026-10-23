@@ -1302,8 +1302,9 @@ export function dockDemand(world: World, site: Site): Good[] {
     return withExtra(withExtra(MARKET_DEMAND[place.level - 1], districtDemand(place, 'market')), matsNeeded(place).map(([g]) => g));
   }
   if (stage < 1) return ['lumber'];
-  const need = matsNeeded(place);
-  return withExtra(withExtra(FREIGHT_DEMAND[Math.min(FREIGHT_DEMAND.length, place.level) - 1], districtDemand(place, 'freight')), need.map(([g]) => g));
+  // While the Market is being built the yard stores its lumber; afterwards only the materials for the next level.
+  const need = stage === 1 ? ([['lumber', 1]] as [Good, number][]) : matsNeeded(place);
+  return withExtra(withExtra(FREIGHT_DEMAND[Math.min(FREIGHT_DEMAND.length, place.level) - 1], districtDemand(place, 'freight').filter((g) => BUILD_GOODS.includes(g))), need.map(([g]) => g));
 }
 
 /** Materials the town still needs delivered to its Supply Yard before it can reach its next level, as [good, units left]. */
