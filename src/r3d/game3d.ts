@@ -1118,7 +1118,7 @@ export class Game3D {
   /** What the sound needs to know about the view: how close the camera is, what is moving nearby, and the time and season. */
   audioScene(): AudioScene {
     const w = this.world;
-    const sc: AudioScene = { dist: this.cam.dist, road: 0, rail: 0, sea: 0, air: 0, night: this.lightingMode === 'night', winter: !!w && seasonOf(w.tick).id === 'winter', town: 0, paused: this.speed === 0 };
+    const sc: AudioScene = { dist: this.cam.dist, road: 0, rail: 0, sea: 0, air: 0, night: this.lightingMode === 'night', winter: !!w && seasonOf(w.tick).id === 'winter', town: 0, paused: this.speed === 0, all: { road: 0, rail: 0, sea: 0, air: 0 } };
     if (!w || this.idle) return sc;
     const fx = ((this.cam.lon + Math.PI) / (Math.PI * 2)) * w.width;
     const fy = (0.5 - this.cam.lat / ((2 * Math.PI * w.height) / w.width)) * w.height;
@@ -1131,9 +1131,11 @@ export class Game3D {
       const route = vehicleRoute(w, v);
       const t = route?.path[v.idx];
       if (!route || !t) continue;
+      const mode = route.mode === 'rail' ? 'rail' : route.mode === 'sea' ? 'sea' : route.mode === 'air' ? 'air' : 'road';
+      sc.all[mode] += 1;
       const k = near(t.x, t.y, 26);
       if (k <= 0) continue;
-      sc[route.mode === 'rail' ? 'rail' : route.mode === 'sea' ? 'sea' : route.mode === 'air' ? 'air' : 'road'] += k * 0.5;
+      sc[mode] += k * 0.5;
     }
     for (const p of w.places) sc.town = Math.max(sc.town, near(p.x, p.y, 18));
     return sc;

@@ -17,6 +17,8 @@ export interface AudioScene {
   /** How near a town is to the view (0 to 1). */
   town: number;
   paused: boolean;
+  /** Every moving vehicle in the world by kind, for the soft bed of traffic heard from a wide view. */
+  all: { road: number; rail: number; sea: number; air: number };
 }
 
 interface Settings {
@@ -212,11 +214,16 @@ export class Sfx {
     const near = 1 - Math.max(0, Math.min(1, (sc.dist - 20) / 220));
     const live = sc.paused ? 0.25 : 1;
     const eng = near * live;
-    this.ease(this.road, Math.min(1, sc.road) * 0.16 * eng);
+    // Pulled back to see the whole network, a quiet bed of traffic: it grows slowly with how many are moving, never past a low
+    // ceiling, and fades out again toward space. Up close, the vehicles you are on top of stand out above it.
+    const wide = Math.max(0, Math.min(1, (sc.dist - 20) / 100)) * (1 - Math.max(0, Math.min(1, (sc.dist - 350) / 450))) * live;
+    const bed = (n: number, ceil: number): number => Math.min(ceil, Math.sqrt(n) * ceil * 0.3) * wide;
+    const close = 1 + near * 0.6;
+    this.ease(this.road, Math.max(Math.min(1, sc.road) * 0.16 * eng * close, bed(sc.all.road, 0.05)));
     if (this.roadOsc) this.roadOsc.frequency.setTargetAtTime(58 + Math.min(1, sc.road) * 18, ctx.currentTime, 0.4);
-    this.ease(this.rail, Math.min(1, sc.rail) * 0.2 * eng);
-    this.ease(this.sea, Math.min(1, sc.sea) * 0.12 * eng);
-    this.ease(this.air, Math.min(1, sc.air) * 0.07 * eng);
+    this.ease(this.rail, Math.max(Math.min(1, sc.rail) * 0.2 * eng * close, bed(sc.all.rail, 0.04)));
+    this.ease(this.sea, Math.max(Math.min(1, sc.sea) * 0.12 * eng, bed(sc.all.sea, 0.025)));
+    this.ease(this.air, Math.max(Math.min(1, sc.air) * 0.07 * eng, bed(sc.all.air, 0.015)));
     this.ease(this.wind, (sc.winter ? 0.12 : 0.05) * near);
     if (this.windFilter) this.windFilter.frequency.setTargetAtTime(sc.winter ? 700 : 420, ctx.currentTime, 0.5);
     this.ease(this.town, Math.min(1, sc.town) * 0.05 * near * (sc.night ? 0.5 : 1));
