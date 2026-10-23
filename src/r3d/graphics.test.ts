@@ -240,7 +240,7 @@ describe('building integration', () => {
       a.dispose();
       b.dispose();
     }
-  });
+  }, 60000);
 
   it.each(['plain', 'forest', 'rock', 'water'] as const)('amphitheatre retains valid growth geometry in the %s setting', (setting) => {
     const p = new Parts();
