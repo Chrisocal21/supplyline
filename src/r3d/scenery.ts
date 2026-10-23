@@ -720,8 +720,8 @@ export class Scenery {
         }
       }
       const group = new THREE.Group();
-      group.add(this.tileQuads(ok, 0x35f0a0, 0.38, 0.13));
-      group.add(this.tileQuads(no, 0xff7a2a, 0.5, 0.15));
+      group.add(this.tileQuads(ok, 0xa6ebc4, 0.32, 0.13));
+      group.add(this.tileQuads(no, 0xff8a45, 0.44, 0.15));
       group.add(this.zoneEdge(no, 0xffc27a, 0.17));
       this.group.add(group);
       this.zoneGroup = group;
