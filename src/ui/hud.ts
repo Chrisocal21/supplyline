@@ -4316,7 +4316,7 @@ export class HudScene extends Phaser.Scene {
       im.bar(2, x, cy + 2, w - 90, 8, bn.have / bn.need, COLORS.good);
       im.text('ppBld', `${fmt(bn.have)} / ${fmt(bn.need)} lumber`, x + w, cy - 2, { size: 12, color: COLORS.muted, align: 'right', layer: 2 });
       cy += 22;
-      im.text('ppBldT', bn.name === 'Supply Yard' ? 'Send lumber to this town. It builds the Supply Yard first, then the Market.' : 'The Supply Yard stands. Fill its store with lumber, then buy a truck at the yard to carry it to the Market site.', x, cy, { size: 12, color: COLORS.text, wrap: w, layer: 2 });
+      im.text('ppBldT', bn.name === 'Supply Yard' ? 'Send lumber to this town. It builds the Supply Yard first, then the Market.' : 'The Supply Yard stands and has a Box Truck. Fill its store with lumber and the truck carries it to the Market site.', x, cy, { size: 12, color: COLORS.text, wrap: w, layer: 2 });
       cy += 40;
     } else if (next) {
       const kinds = growthKinds(p);

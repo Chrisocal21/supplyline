@@ -1971,6 +1971,10 @@ export function sell(world: World, dock: Site, g: Good, amount: number): number 
       place.stage = stage = 1;
       addLog(world, `${place.name} built its Supply Yard`);
       linkTown(world, place);
+      // The yard opens with one Box Truck and a rookie, so there is always a way to carry building goods to the Market site.
+      const gift = VEHICLE_DEFS.boxtruck.cost;
+      world.money += gift;
+      if (buyVehicle(world, dock.id, 'boxtruck')) world.money -= gift;
     }
   }
   if (isYard && stage >= 1 && BUILD_GOODS.includes(g)) {
