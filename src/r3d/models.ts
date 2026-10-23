@@ -362,6 +362,20 @@ function depot(): THREE.BufferGeometry {
   return p.build();
 }
 
+/** A cleared building site: bare ground with a few stakes and a pile of boards, where a town's Supply Yard or Market will go up. */
+function foundation(kind: SiteKind): THREE.BufferGeometry {
+  const p = new Parts();
+  const big = kind === 'freight';
+  const w = big ? 2.4 : 1.9;
+  const d = big ? 2.0 : 1.6;
+  p.slab(w, d, 0x8f8a7c);
+  p.tex = 0;
+  for (const [x, z] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) p.box(0.06, 0.34, 0.06, C.wood, { x: x * (w / 2 - 0.12), y: 0.04, z: z * (d / 2 - 0.12) });
+  for (let i = 0; i < 3; i++) p.box(0.7, 0.06, 0.18, 0xc9a06a, { x: -0.3, y: 0.04 + i * 0.06, z: 0.2 + (i % 2) * 0.03 });
+  p.box(0.32, 0.12, 0.32, 0xb8b5ac, { x: 0.45, y: 0.04, z: -0.2 });
+  return p.build();
+}
+
 function market(): THREE.BufferGeometry {
   const p = new Parts();
   p.slab(1.9, 1.6, 0x9a968c);
@@ -837,6 +851,8 @@ function growAt(level: number): { raw: [number, number]; other: [number, number]
 export function siteGeometryAt(kind: SiteKind, rawLevel: number, withDepot = false): THREE.BufferGeometry {
   // Ports and airports stop at level 3. Everything else has ten looks: level 3 is the full set, and each level after adds a stage.
   const def = SITE_DEFS[kind];
+  // Level 0 is a town's building site: its Market or Supply Yard has not been built yet.
+  if (rawLevel <= 0 && def.dock) return foundation(kind);
   const level = def.port || def.airport ? Math.min(3, rawLevel) : Math.min(10, rawLevel);
   const base = withDepot && kind === 'hub' ? depot() : siteGeometry(kind);
   const grow = level >= 2 ? growAt(level) : undefined;

@@ -1195,7 +1195,7 @@ export class Game3D {
     // Roads change with the routes, and when a town grows its streets reach further.
     const roadSig = `${w.routes.length}:${w.places.map((p) => p.level).join('')}`;
     const sig = [
-      w.sites.map((s) => `${s.id}.${s.level}`).join(','),
+      w.sites.map((s) => `${s.id}.${s.level}`).join(',') + w.places.map((p) => p.stage ?? 2).join(''),
       roadSig,
       w.places.map((p) => `${p.level}${Object.values(p.districts ?? {}).join('')}${p.path ?? ''}`).join(''),
       w.vehicles.length,
@@ -1295,14 +1295,17 @@ export class Game3D {
       // A district is drawn with its town (a landmark on its lot), not as a building of its own.
       if (SITE_DEFS[s.kind].dock === 'civic') continue;
       let m = this.siteMeshes.get(s.id);
+      // A town's Supply Yard and Market are only a building site until the lumber has been delivered to build them.
+      const stage = SITE_DEFS[s.kind].dock ? this.world.places.find((q) => q.id === s.placeId)?.stage ?? 2 : 2;
+      const lvl = SITE_DEFS[s.kind].dock === 'freight' && stage < 1 ? 0 : SITE_DEFS[s.kind].dock === 'market' && stage < 2 ? 0 : s.level;
       const before = this.siteLevels.get(s.id);
-      this.siteLevels.set(s.id, s.level);
+      this.siteLevels.set(s.id, lvl);
       const isNew = !m && this.sitesShown;
       // A building going up a level shows its scaffolding, but never moves the camera or interrupts play.
-      if (before !== undefined && s.level > before && m && this.construction) this.construction.start(s.id, this.nowMs, '', null, this.siteGeometryFor(s.kind, s.level));
+      if (before !== undefined && lvl > before && m && this.construction) this.construction.start(s.id, this.nowMs, '', null, this.siteGeometryFor(s.kind, lvl));
       if (isNew && !SITE_DEFS[s.kind].dock && !SITE_DEFS[s.kind].station) this.onToast(`${s.name} is open`);
       if (!m) {
-        m = new THREE.Mesh(this.siteGeometryFor(s.kind, s.level), siteMaterial);
+        m = new THREE.Mesh(this.siteGeometryFor(s.kind, lvl), siteMaterial);
         m.castShadow = true;
         m.receiveShadow = true;
         m.matrixAutoUpdate = false;
@@ -1310,9 +1313,9 @@ export class Game3D {
         this.siteMeshes.set(s.id, m);
       }
       // An upgraded building gets its bigger model.
-      const geo = this.siteGeometryFor(s.kind, s.level);
+      const geo = this.siteGeometryFor(s.kind, lvl);
       if (m.geometry !== geo) m.geometry = geo;
-      this.syncSiteAnims(s.id, s.kind, s.level, m);
+      this.syncSiteAnims(s.id, s.kind, lvl, m);
       // Buildings in a town face the street they front.
       let yaw = 0;
       const plot = plotAt(this.world, s.x, s.y);
