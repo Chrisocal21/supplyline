@@ -20,6 +20,13 @@ export const STATIONS: Station[] = [
   { id: 'dusty', name: 'Dusty Roads', blurb: 'Jazzy keys over a head-nodding boom-bap beat' },
   { id: 'cassette', name: 'Cassette Dreams', blurb: 'Neon synth arpeggios and a gentle gated pad' },
   { id: 'fog', name: 'Morning Fog', blurb: 'Slow plucked notes in a big soft room, no drums' },
+  { id: 'porch', name: 'Slow Porch', blurb: 'Soft keys, a barely-there beat and warm tape hiss' },
+  { id: 'pillow', name: 'Pillow Talk', blurb: 'Very slow, round and hushed, with a heartbeat kick' },
+  { id: 'moss', name: 'Mossy Stones', blurb: 'Unhurried plucks falling into a big quiet room' },
+  { id: 'lantern', name: 'Lantern Walk', blurb: 'Gentle bells over a slow brushed shuffle' },
+  { id: 'tide', name: 'Low Tide', blurb: 'Deep warm pads that swell and fade, no beat' },
+  { id: 'harvest', name: 'Harvest Slow', blurb: 'Soft guitar-like plucks and a lazy loose groove' },
+  { id: 'nightshift', name: 'Night Shift', blurb: 'Hushed late-hour keys, easy and unhurried' },
 ];
 
 const KEY = 'sl-radio';
@@ -80,7 +87,7 @@ const pick = <T>(list: T[]): T => list[Math.floor(Math.random() * list.length)];
 
 /** Lo-Fi Chill: seventh chords on a soft electric piano, a lazy swung beat, a walking bass and crackle. */
 const lofi: Generator = (k) => {
-  const bpm = 74;
+  const bpm = 66;
   const beat = 60 / bpm;
   const chords = [[53, 57, 60, 64], [52, 55, 59, 62], [50, 53, 57, 60], [55, 59, 62, 65]];
   const roots = [41, 40, 38, 43];
@@ -341,6 +348,13 @@ const GROOVES: Record<string, Groove> = {
   golden: { bpm: 94, swing: 0.1, chords: [[57, 60, 64, 67], [50, 54, 57, 60], [55, 59, 62, 66], [48, 52, 55, 59]], roots: [45, 38, 43, 36], kick: 'x.....x...x.....', snare: '....x.o.....x..o', hat: 'x.o.x.o.x.o.x.o.', bass: 'r..r.5..r..r..5.', stab: '.x....x..x....x.', stabGain: 0.045, lead: { scale: [69, 72, 74, 76, 79], prob: 0.2, gain: 0.06 }, echo: 0.45 },
   dusty: { bpm: 84, swing: 0.16, chords: [[50, 53, 57, 60], [43, 50, 53, 57], [48, 52, 55, 59], [53, 57, 60, 64]], roots: [38, 43, 36, 41], kick: 'x.....x..x......', snare: '....x.......x...', hat: 'x.x.x.x.x.x.x.x.', bass: 'r.....r.5.....r.', stab: '.x.....x........', stabGain: 0.06, lead: { scale: [62, 65, 67, 69, 72], prob: 0.14, gain: 0.05 }, echo: 0.4, crackle: true, chordBars: 2 },
   cassette: { bpm: 108, chords: [[52, 55, 59, 64], [48, 52, 55, 60], [43, 47, 50, 55], [50, 54, 57, 62]], roots: [40, 36, 43, 38], kick: 'x...x...x...x...', snare: '....x.......x...', hat: '..x...x...x...x.', bass: '.r.r.r.r.r.r.r.r', bassType: 'sawtooth', arp: 'a.b.c.b.a.b.c.d.', arpType: 'sawtooth', arpCutoff: 1900, arpGain: 0.028, pad: { type: 'sawtooth', gain: 0.035, cutoff: 900 }, echo: 0.5, drums: 0.7, chordBars: 2 },
+  porch: { bpm: 64, swing: 0.14, chords: [[53, 57, 60, 64], [52, 55, 59, 62], [50, 53, 57, 60], [55, 59, 62, 65]], roots: [41, 40, 38, 43], kick: 'x.......o.......', snare: '........o.......', hat: 'o...o...o...o...', bass: 'r.......r.......', stab: '.x..............', stabGain: 0.04, lead: { scale: [65, 67, 69, 72, 74], prob: 0.16, gain: 0.04 }, echo: 0.5, crackle: true, drums: 0.55, chordBars: 2 },
+  pillow: { bpm: 56, chords: [[48, 52, 55, 59], [45, 48, 52, 55], [41, 45, 48, 52], [43, 47, 50, 55]], roots: [36, 33, 29, 31], kick: 'o...............', snare: '................', hat: '................', bass: 'r...............', arp: 'a.....b.....c...', arpCutoff: 2200, arpGain: 0.04, pad: { type: 'sine', gain: 0.07, cutoff: 1400 }, lead: { scale: [67, 69, 72, 74, 76], prob: 0.08, gain: 0.04 }, echo: 0.6, drums: 0.5, chordBars: 2 },
+  moss: { bpm: 52, chords: [[50, 53, 57, 62], [46, 50, 53, 58], [48, 52, 55, 60], [45, 48, 52, 57]], roots: [38, 34, 36, 33], kick: '................', snare: '................', hat: '................', bass: 'r...............', arp: 'a...c...b...d...', arpType: 'sine', arpCutoff: 2800, arpGain: 0.06, pad: { type: 'sine', gain: 0.045, cutoff: 1200 }, lead: { scale: [62, 65, 67, 69, 72], prob: 0.1, gain: 0.04 }, echo: 0.75, chordBars: 2 },
+  lantern: { bpm: 70, swing: 0.12, chords: [[55, 59, 62, 66], [52, 55, 59, 62], [48, 52, 55, 59], [50, 54, 57, 61]], roots: [43, 40, 36, 38], kick: 'x...............', snare: '........o.......', hat: 'o.o.o.o.o.o.o.o.', bass: 'r.......5.......', arp: 'a...b...c...b...', arpType: 'sine', arpCutoff: 3200, arpGain: 0.055, pad: { type: 'triangle', gain: 0.03, cutoff: 1000 }, echo: 0.55, drums: 0.5, chordBars: 2 },
+  tide: { bpm: 48, chords: [[45, 52, 57, 60], [43, 50, 55, 59], [41, 48, 53, 57], [43, 50, 55, 62]], roots: [33, 31, 29, 31], kick: '................', snare: '................', hat: '................', bass: 'r...............', pad: { type: 'sine', gain: 0.075, cutoff: 1300 }, lead: { scale: [69, 71, 74, 76, 81], prob: 0.06, gain: 0.04 }, echo: 0.7, chordBars: 2 },
+  harvest: { bpm: 76, swing: 0.15, chords: [[57, 60, 64, 67], [53, 57, 60, 64], [48, 52, 55, 59], [55, 59, 62, 65]], roots: [45, 41, 36, 43], kick: 'x.......x.......', snare: '........o.......', hat: 'o...o...o...o...', bass: 'r.......r.....5.', stab: '.x..........x...', stabGain: 0.04, lead: { scale: [69, 72, 74, 76, 79], prob: 0.14, gain: 0.045 }, echo: 0.45, drums: 0.55 },
+  nightshift: { bpm: 62, swing: 0.1, chords: [[50, 53, 57, 64], [48, 52, 55, 62], [46, 50, 53, 60], [49, 53, 56, 63]], roots: [38, 36, 34, 37], kick: 'o.......o.......', snare: '................', hat: '....o.......o...', bass: 'r.......r.......', stab: '.x..............', stabGain: 0.035, lead: { scale: [62, 65, 67, 69, 72], prob: 0.14, gain: 0.04 }, echo: 0.55, crackle: true, drums: 0.5, chordBars: 2 },
   fog: { bpm: 60, chords: [[48, 52, 55, 59], [45, 48, 52, 55], [41, 45, 48, 52], [43, 47, 50, 55]], roots: [36, 33, 29, 31], kick: '................', snare: '................', hat: '................', bass: 'r...............', arp: 'a.......b...c...', arpCutoff: 3400, arpGain: 0.06, pad: { type: 'sine', gain: 0.06, cutoff: 1800 }, lead: { scale: [72, 74, 76, 79, 81], prob: 0.1, gain: 0.05 }, echo: 0.7, chordBars: 2 },
 };
 
@@ -494,10 +508,11 @@ export class Radio {
         if (kind === 'kick') {
           const o = ctx.createOscillator();
           o.frequency.setValueAtTime(130, t);
-          o.frequency.exponentialRampToValueAtTime(42, t + 0.12);
+          o.frequency.exponentialRampToValueAtTime(42, t + 0.16);
           const g = ctx.createGain();
-          g.gain.setValueAtTime(0.4 * vel, t);
-          g.gain.exponentialRampToValueAtTime(0.0001, t + 0.28);
+          g.gain.setValueAtTime(0.0001, t);
+          g.gain.linearRampToValueAtTime(0.3 * vel, t + 0.006);
+          g.gain.exponentialRampToValueAtTime(0.0001, t + 0.3);
           o.connect(g).connect(bus);
           o.start(t);
           o.stop(t + 0.3);
@@ -509,14 +524,16 @@ export class Radio {
         const g = ctx.createGain();
         if (kind === 'hat') {
           f.type = 'highpass';
-          f.frequency.value = 7000;
-          g.gain.setValueAtTime(0.09 * vel, t);
-          g.gain.exponentialRampToValueAtTime(0.0001, t + 0.05);
+          f.frequency.value = 5500;
+          g.gain.setValueAtTime(0.0001, t);
+          g.gain.linearRampToValueAtTime(0.06 * vel, t + 0.004);
+          g.gain.exponentialRampToValueAtTime(0.0001, t + 0.07);
         } else {
           f.type = 'bandpass';
-          f.frequency.value = kind === 'clap' ? 1500 : 1800;
-          g.gain.setValueAtTime((kind === 'clap' ? 0.2 : 0.16) * vel, t);
-          g.gain.exponentialRampToValueAtTime(0.0001, t + (kind === 'clap' ? 0.16 : 0.13));
+          f.frequency.value = kind === 'clap' ? 1300 : 1500;
+          g.gain.setValueAtTime(0.0001, t);
+          g.gain.linearRampToValueAtTime((kind === 'clap' ? 0.14 : 0.11) * vel, t + 0.006);
+          g.gain.exponentialRampToValueAtTime(0.0001, t + (kind === 'clap' ? 0.2 : 0.17));
         }
         n.connect(f).connect(g).connect(bus);
         n.start(t, rand(0, 2));
