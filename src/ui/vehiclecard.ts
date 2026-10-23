@@ -1,7 +1,7 @@
 // The vehicle card: a garage plate for one vehicle, with its class ladder, its stats beside the next class up, and its driver's
 // rank. The way a trucking game shows a truck you can level up.
 import { DRIVER_RANKS, DRIVER_TRIPS, GOODS, SITE_DEFS, VEHICLE_DEFS, type VehicleKind } from '../sim/defs';
-import { driverLevel, PICK_LABEL, PICK_MODES, runsOf, sellVehicleValue, siteById, upgradeVehicleCost, upgradeVehicleError, vehicleTicks, type PickMode, type TruckRun, type Vehicle, type World } from '../sim/world';
+import { driverLevel, PICK_LABEL, PICK_MODES, runsOf, sellVehicleValue, siteById, upgradeVehicleCost, upgradeVehicleError, vehicleRoute, vehicleTicks, wrapDx, type PickMode, type TruckRun, type Vehicle, type World } from '../sim/world';
 import { button, fitSize, panel } from './company';
 import { COLORS, Im } from './imui';
 
@@ -9,7 +9,7 @@ const fmt = (n: number): string => Math.floor(n).toLocaleString('en-US');
 const MODE_COLOR: Record<string, number> = { road: 0xdfb66d, rail: 0x8cbace, sea: 0x5fc4c0, air: 0xb59ae0 };
 
 /** A small drawn picture for the kind of vehicle, in the badge. */
-function vehicleIcon(im: Im, mode: string, cx: number, cy: number, c: number): void {
+export function vehicleIcon(im: Im, mode: string, cx: number, cy: number, c: number): void {
   if (mode === 'road') {
     im.rect(4, cx - 14, cy - 8, 17, 13, c, 1, 1);
     im.rect(4, cx + 5, cy - 3, 9, 8, c, 1, 1);
@@ -50,7 +50,6 @@ export interface CardInfo {
 export interface CardActions {
   upgrade: () => void;
   copy: () => void;
-  toggle: () => void;
   /** Send this vehicle only to one buyer, or to any of them (0). */
   setDest: (siteId: number) => void;
   setPick: (pick: PickMode) => void;
@@ -72,14 +71,14 @@ function shownRuns(runs: TruckRun[], pinned: number): TruckRun[] {
 }
 
 /** Height of the route picture: a title row, the tiles (or a note when there are none), and the preference chips. */
-const routeHeight = (n: number): number => 30 + (n === 0 ? 44 : Math.min(n, MAX_TILES) * (TILE_H + TILE_GAP) - TILE_GAP) + (n > 1 ? 36 : 0) + 12;
+export const routeHeight = (n: number): number => 30 + (n === 0 ? 44 : Math.min(n, MAX_TILES) * (TILE_H + TILE_GAP) - TILE_GAP) + (n > 1 ? 36 : 0) + 12;
 
-export const vehicleCardHeight = (open: boolean, runs: number): number => 252 + routeHeight(runs) + (open ? 96 : 0);
+export const vehicleCardHeight = 300;
 
-export function vehicleCard(im: Im, world: World, v: Vehicle, name: string, homeLevel: number, x: number, y: number, w: number, open: boolean, info: CardInfo, act: CardActions): void {
+export function vehicleCard(im: Im, world: World, v: Vehicle, name: string, homeLevel: number, x: number, y: number, w: number, info: CardInfo, act: CardActions): void {
   const vd = VEHICLE_DEFS[v.kind];
   const color = MODE_COLOR[vd.mode] ?? COLORS.accent;
-  const h = vehicleCardHeight(open, Math.min(6, runsOf(world, v).length));
+  const h = vehicleCardHeight;
   panel(im, x, y, w, h, info.status.color);
   const px = x + 14;
   const iw = w - 28;
@@ -166,14 +165,8 @@ export function vehicleCard(im: Im, world: World, v: Vehicle, name: string, home
   const upLabel = !next ? 'TOP CLASS' : upErr ? upErr : `UPGRADE TO ${next.label.toUpperCase()}  ·  $${fmt(upgradeVehicleCost(v.kind))}`;
   button(im, `${id}u`, upLabel, px, by, upW, 38, !upErr && !!next, act.upgrade, 'main', true);
   button(im, `${id}k`, `COPY  $${fmt(info.copyCost)}`, px + upW + gapB, by, smW, 38, info.copyOk, act.copy, 'quiet');
-  button(im, `${id}m`, open ? 'LESS' : 'SETTINGS', px + upW + smW + gapB * 2, by, smW, 38, true, act.toggle, 'quiet');
-  routePicture(im, world, v, id, px, y + 252, iw, info, act);
-  if (open) {
-    let sy2 = y + 252 + routeHeight(runsOf(world, v).length) + 2;
-    button(im, `${id}r`, `Driver: ${info.driver}  ·  rename`, px, sy2, iw, 38, true, act.rename, 'quiet', true);
-    sy2 += 44;
-    button(im, `${id}x`, `SELL ${info.unit.toUpperCase()}  +$${fmt(sellVehicleValue(v))}`, px, sy2, iw, 38, true, act.sell, 'danger');
-  }
+  button(im, `${id}m`, 'RENAME DRIVER', px + upW + smW + gapB * 2, by, smW, 38, true, act.rename, 'quiet', true);
+  button(im, `${id}x`, `SELL ${info.unit.toUpperCase()}  +$${fmt(sellVehicleValue(v))}`, px, y + 252, iw, 38, true, act.sell, 'danger');
 }
 
 /**
@@ -181,7 +174,7 @@ export function vehicleCard(im: Im, world: World, v: Vehicle, name: string, home
  * by lines. Click a buyer to send the vehicle only there; click it again, or "Any buyer", to let it choose. With no buyer pinned
  * every tile is lit and a row of chips sets how it chooses.
  */
-function routePicture(im: Im, world: World, v: Vehicle, id: string, x: number, y: number, w: number, info: CardInfo, act: CardActions): void {
+export function routePicture(im: Im, world: World, v: Vehicle, id: string, x: number, y: number, w: number, info: CardInfo, act: CardActions): void {
   const home = siteById(world, v.homeId);
   const all = runsOf(world, v);
   const runs = shownRuns(all, v.destId);
@@ -261,4 +254,101 @@ function routePicture(im: Im, world: World, v: Vehicle, id: string, x: number, y
       im.text(`${id}pt${m}`, label, cx + cw / 2, cy + 7, { size: fitSize(label, cw - 8, 9, 6), bold: true, color: on ? 0x1b1204 : pinned ? COLORS.muted : COLORS.text, align: 'center', layer: 4 });
     });
   }
+}
+
+export const TRUCK_TILE_H = 92;
+
+/** One vehicle as a compact tile on the building's Trucks page: its picture, name, class and what it is doing. Click to open it. */
+export function vehicleTile(im: Im, v: Vehicle, name: string, x: number, y: number, w: number, info: { status: { text: string; color: number }; driver: string; condition: number }, open: () => void): void {
+  const vd = VEHICLE_DEFS[v.kind];
+  const color = MODE_COLOR[vd.mode] ?? COLORS.accent;
+  const id = `vt${v.id}`;
+  const hov = im.hit(id, x, y, w, TRUCK_TILE_H, open, 3);
+  panel(im, x, y, w, TRUCK_TILE_H, info.status.color, hov);
+  if (hov) im.rect(3, x, y, w, TRUCK_TILE_H, COLORS.accent, 0, 3, COLORS.accent, 1);
+  const px = x + 16;
+  im.rect(3, px, y + 12, 48, 48, 0x0b1117, 1, 3, color, 1);
+  vehicleIcon(im, vd.mode, px + 24, y + 36, color);
+  const textW = w - 16 - 64 - 34;
+  im.text(`${id}n`, name, px + 60, y + 10, { size: 15, bold: true, layer: 4 });
+  im.text(`${id}c`, vd.label.toUpperCase(), px + 60, y + 30, { size: 10, bold: true, color, layer: 4 });
+  im.text(`${id}s`, info.status.text, px + 60, y + 45, { size: fitSize(info.status.text, textW, 11, 8), color: info.status.color, layer: 4 });
+  // Bottom row: the load it carries, who drives it, and how worn it is.
+  const lv = driverLevel(v);
+  im.text(`${id}d`, `${vd.capacity} t  ·  ${info.driver}  ·  ${DRIVER_RANKS[lv - 1]}`, px, y + 71, { size: 10, color: COLORS.muted, layer: 4 });
+  const cond = info.condition;
+  const tint = cond > 0.6 ? COLORS.good : cond > 0.3 ? COLORS.warn : COLORS.bad;
+  const bw = 54;
+  im.rect(4, x + w - 16 - bw, y + 75, bw, 5, 0x0a0f14, 1, 1);
+  im.rect(4, x + w - 16 - bw, y + 75, bw * cond, 5, tint, 1, 1);
+  im.text(`${id}o`, `${Math.round(cond * 100)}%`, x + w - 16 - bw - 6, y + 71, { size: 9, bold: true, color: tint, align: 'right', layer: 4 });
+  im.text(`${id}k`, '›', x + w - 18, y + 28, { size: 26, bold: true, color: hov ? COLORS.accent : COLORS.muted, align: 'right', layer: 4 });
+}
+
+/**
+ * The circuit a vehicle drives, drawn as the real road: the route's own tiles scaled into the box, the loading building at one
+ * end and the buyer at the other, and the vehicle where it is now, with the way it is heading.
+ */
+export function circuitMap(im: Im, world: World, v: Vehicle, x: number, y: number, w: number, h: number): void {
+  const id = `cm${v.id}`;
+  const vd = VEHICLE_DEFS[v.kind];
+  const color = MODE_COLOR[vd.mode] ?? COLORS.accent;
+  im.rect(3, x, y, w, h, 0x0a1016, 1, 3, COLORS.line, 1);
+  const route = vehicleRoute(world, v);
+  if (!route || route.path.length < 2) {
+    im.text(`${id}n`, 'No circuit yet: join this building to a buyer and the truck will start running it.', x + w / 2, y + h / 2 - 8, { size: 12, color: COLORS.muted, align: 'center', wrap: w - 60, layer: 4 });
+    return;
+  }
+  // Unwrap the path across the seam of the map, then fit it into the box.
+  const pts: { x: number; y: number }[] = [];
+  route.path.forEach((t, i) => pts.push(i === 0 ? { x: t.x, y: t.y } : { x: pts[i - 1].x + wrapDx(world, route.path[i - 1].x, t.x), y: t.y }));
+  const minX = Math.min(...pts.map((p) => p.x));
+  const maxX = Math.max(...pts.map((p) => p.x));
+  const minY = Math.min(...pts.map((p) => p.y));
+  const maxY = Math.max(...pts.map((p) => p.y));
+  const pad = 44;
+  const scale = Math.min(56, (w - pad * 2) / Math.max(1, maxX - minX), (h - pad * 2) / Math.max(1, maxY - minY));
+  const ox = x + w / 2 - ((minX + maxX) / 2) * scale;
+  const oy = y + h / 2 - ((minY + maxY) / 2) * scale;
+  const at = (i: number): { x: number; y: number } => ({ x: ox + pts[i].x * scale, y: oy + pts[i].y * scale });
+  for (let i = 0; i < pts.length - 1; i++) {
+    const a = at(i);
+    const b = at(i + 1);
+    im.line(3, a.x, a.y, b.x, b.y, 0x222c38, 1, 9);
+  }
+  for (let i = 0; i < pts.length - 1; i++) {
+    const a = at(i);
+    const b = at(i + 1);
+    im.line(3, a.x, a.y, b.x, b.y, color, 0.85, 3);
+  }
+  const homeFirst = route.fromSiteId === v.homeId;
+  const hi = homeFirst ? 0 : pts.length - 1;
+  const bi = homeFirst ? pts.length - 1 : 0;
+  const home = siteById(world, v.homeId);
+  const buyer = siteById(world, homeFirst ? route.toSiteId : route.fromSiteId);
+  const node = (i: number, label: string, tint: number, tag: string): void => {
+    const p = at(i);
+    im.circle(4, p.x, p.y, 11, 0x0a1016, 1);
+    im.circle(4, p.x, p.y, 8, tint, 1);
+    // The name goes to the side of the building that faces away from the middle of the box, clear of the road.
+    const right = p.x >= x + w / 2;
+    const tx = right ? p.x + 18 : p.x - 18;
+    const al = right ? 'left' : 'right';
+    im.text(`${id}${tag}t`, tag === 'h' ? 'LOADS' : 'DELIVERS', tx, p.y - 15, { size: 8, bold: true, color: COLORS.muted, align: al, layer: 4 });
+    im.text(`${id}${tag}n`, label, tx, p.y - 4, { size: 12, bold: true, align: al, layer: 4 });
+  };
+  node(hi, home?.name ?? 'Home', COLORS.good, 'h');
+  node(bi, buyer?.name ?? 'Buyer', COLORS.accent, 'b');
+  // The vehicle itself.
+  const vi = Math.max(0, Math.min(pts.length - 1, v.idx));
+  const vp = at(vi);
+  im.circle(4, vp.x, vp.y, 11, 0xffffff, 0.2);
+  im.circle(4, vp.x, vp.y, 7, 0xffffff, 1);
+  im.circle(4, vp.x, vp.y, 4, color, 1);
+  const ni = Math.max(0, Math.min(pts.length - 1, vi + v.dir * 2));
+  if (ni !== vi) {
+    const np = at(ni);
+    im.line(4, vp.x, vp.y, np.x, np.y, 0xffffff, 1, 2);
+  }
+  im.text(`${id}l`, `${pts.length - 1} tiles each way`, x + 12, y + h - 22, { size: 10, color: COLORS.muted, layer: 4 });
 }

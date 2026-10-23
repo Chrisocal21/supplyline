@@ -75,6 +75,7 @@ import {
   type Tile,
   type Vehicle,
   vehicleRoute,
+  vehicleTicks,
   wrapDx,
 } from '../sim/world';
 import { nextQuest } from '../sim/quests';
@@ -87,7 +88,7 @@ import { Rates, Sheets, type SheetId } from './sheets';
 
 import { fitSize } from './company';
 import { SEASONAL, calendar, seasonIndex, seasonOf } from '../sim/seasons';
-import { vehicleCard, vehicleCardHeight } from './vehiclecard';
+import { type CardActions, type CardInfo, circuitMap, routeHeight, routePicture, TRUCK_TILE_H, vehicleCard, vehicleTile } from './vehiclecard';
 import { condition, driverName, renameDriver, serviceCost, serviceError, serviceVehicle } from '../sim/drivers';
 import { TITLE_SLIDES, Title, type TitleChoice } from './title';
 import { Radio, STATIONS } from '../audio/radio';
@@ -804,7 +805,10 @@ export class HudScene extends Phaser.Scene {
       this.growModal(W, H, growing);
     } else if (this.dash !== null) {
       this.panelRect = null;
-      this.dashboard(W, H);
+      if (this.truckDetail !== null) {
+        this.sheetCam.setVisible(false);
+        this.truckModal(W, H);
+      } else this.dashboard(W, H);
     } else {
       this.bottomBar(W, H);
       this.sheetCam.setVisible(false);
@@ -2568,6 +2572,7 @@ export class HudScene extends Phaser.Scene {
   private dashPageFor = -1;
 
   private openDash(id: number): void {
+    this.truckDetail = null;
     this.graphicsOpen = false;
     this.dash = id;
     this.dashScroll = 0;
@@ -3751,8 +3756,114 @@ export class HudScene extends Phaser.Scene {
     return th + 14;
   }
 
-  /** Which trucks have their extra buttons open. */
-  private truckOpen = new Set<number>();
+  /** The truck whose pop-out is open over the building dashboard, if any. */
+  private truckDetail: number | null = null;
+
+  /** What a truck's card shows and does, for the pop-out. */
+  private truckCard(v: Vehicle): { name: string; info: CardInfo; act: CardActions } {
+    const g = this.game3d;
+    const world = g.world;
+    const vd = VEHICLE_DEFS[v.kind];
+    const mode = v.pick ?? 'any';
+    const unit = vd.mode === 'rail' ? 'train' : vd.mode === 'air' ? 'plane' : vd.mode === 'sea' ? 'ship' : 'truck';
+    const n = fleetOf(world, v.homeId, v.line ?? 'main').findIndex((x) => x.id === v.id);
+    return {
+      name: `${vehicleLabel(v.kind, v.body)} ${n + 1}`,
+      info: {
+        status: this.truckStatus(v),
+        pick: mode,
+        copyOk: buyError(world, v.homeId, v.kind) === null,
+        copyCost: vd.cost,
+        unit,
+        driver: driverName(world, v),
+        condition: condition(v),
+        serviceCost: serviceCost(v),
+        serviceOk: serviceError(world, v.id) === null,
+      },
+      act: {
+        upgrade: () => g.upgradeVeh(v.id),
+        copy: () => g.duplicateVeh(v.id),
+        setDest: (id) => g.vehicleDest(v.id, id),
+        setPick: (m) => g.vehiclePick(v.id, m),
+        sell: () => {
+          g.sellVeh(v.id);
+          this.truckDetail = null;
+        },
+        service: () => this.toasts.push({ text: serviceVehicle(world, v.id) ?? `${driverName(world, v)}'s ${unit} is serviced`, until: this.time.now + 2400 }),
+        rename: () => {
+          const name = window.prompt('Name this driver', driverName(world, v));
+          if (name !== null) this.toasts.push({ text: renameDriver(world, v.id, name) ?? 'Driver renamed', until: this.time.now + 2000 });
+        },
+      },
+    };
+  }
+
+  /**
+   * A truck opened from the Trucks page: a full-screen pop-out with the truck itself on the left (class ladder, upgrade, driver,
+   * condition) and its circuit on the right, drawn as the real road with the truck on it, and every buyer it could run to.
+   */
+  private truckModal(W: number, H: number): void {
+    const im = this.im;
+    const world = this.game3d.world;
+    const v = world.vehicles.find((x) => x.id === this.truckDetail);
+    if (!v) {
+      this.truckDetail = null;
+      return;
+    }
+    const { name, info, act } = this.truckCard(v);
+    const home = siteById(world, v.homeId);
+    const close = (): void => {
+      this.truckDetail = null;
+    };
+    im.rect(1, 0, 0, W, H, 0x04070a, 0.86);
+    im.block({ x: 0, y: 0, w: W, h: H });
+    im.hit('tmScrim', 0, 0, W, H, close, 1);
+    const w = Math.min(W - 24, 1160);
+    const h = Math.min(H - TOP - 12, 800);
+    const x = Math.round((W - w) / 2);
+    const y = TOP + 6;
+    im.rect(2, x, y, w, h, 0x0b1117, 1, 4, COLORS.line, 1);
+    im.rect(2, x, y, w, 3, COLORS.accent, 0.9, 0);
+    im.hit('tmPanel', x, y, w, h, () => undefined, 2);
+    // Header: which truck, whose it is, and the way back.
+    im.text('tmT', name.toUpperCase(), x + 22, y + 16, { size: 22, bold: true, layer: 3 });
+    im.text('tmS', `${home?.name ?? 'Home'}  ·  ${info.status.text}`, x + 22, y + 44, { size: 12, color: info.status.color, wrap: w - 260, layer: 3 });
+    const bh = im.hit('tmBack', x + w - 214, y + 14, 130, 40, close, 4);
+    im.rect(3, x + w - 214, y + 14, 130, 40, bh ? 0x26364a : 0x131b25, 1, 3, bh ? COLORS.accent : COLORS.line, 1);
+    im.text('tmBackT', 'ALL TRUCKS', x + w - 149, y + 27, { size: 12, bold: true, align: 'center', layer: 4 });
+    const ch = im.hit('tmClose', x + w - 60, y + 14, 40, 40, close, 4);
+    im.rect(3, x + w - 60, y + 14, 40, 40, ch ? 0x2a3646 : 0x131b25, 1, 3, ch ? COLORS.accent : COLORS.line, 1);
+    im.line(4, x + w - 46, y + 28, x + w - 34, y + 40, COLORS.text, 1, 2.5);
+    im.line(4, x + w - 34, y + 28, x + w - 46, y + 40, COLORS.text, 1, 2.5);
+    im.line(3, x + 14, y + 70, x + w - 14, y + 70, COLORS.line, 1);
+    const top = y + 84;
+    const leftW = Math.min(470, Math.floor((w - 60) * 0.42));
+    vehicleCard(im, world, v, name, home?.level ?? 1, x + 20, top, leftW, info, act);
+    // The right side: the circuit, a few numbers about it, and the buyers.
+    const rx = x + 20 + leftW + 20;
+    const rw = w - leftW - 60;
+    const mapH = Math.max(170, Math.min(250, h - 84 - routeHeight(Math.min(6, runsOf(world, v).length)) - 110));
+    im.text('tmM', 'THE CIRCUIT', rx, top, { size: 11, bold: true, color: COLORS.muted, layer: 3 });
+    circuitMap(im, world, v, rx, top + 20, rw, mapH);
+    const route = vehicleRoute(world, v);
+    const oneWay = route ? route.path.length - 1 : 0;
+    const roundMin = oneWay > 0 ? (2 * oneWay * vehicleTicks(v) + 60) / 600 : 0;
+    const stats: [string, string][] = [
+      ['TRIPS DONE', fmt(v.trips ?? 0)],
+      ['ONE WAY', oneWay > 0 ? `${oneWay} tiles` : '-'],
+      ['ROUND TRIP', oneWay > 0 ? `about ${roundMin < 1 ? '<1' : roundMin.toFixed(1)} min` : '-'],
+      ['CARRYING', v.cargo > 0 && v.good ? `${Math.floor(v.cargo)} ${GOODS[v.good].label.toLowerCase()}` : 'nothing'],
+    ];
+    const sy = top + 20 + mapH + 10;
+    const sw = (rw - 3 * 8) / 4;
+    stats.forEach(([label, value], i) => {
+      const sx = rx + i * (sw + 8);
+      im.rect(3, sx, sy, sw, 46, 0x0f161d, 1, 3, COLORS.line, 1);
+      im.text(`tmSl${i}`, label, sx + 10, sy + 7, { size: 9, bold: true, color: COLORS.muted, layer: 4 });
+      im.text(`tmSv${i}`, value, sx + 10, sy + 21, { size: fitSize(value, sw - 20, 14, 9), bold: true, layer: 4 });
+    });
+    routePicture(im, world, v, `tm${v.id}`, rx, sy + 56, rw, info, act);
+  }
 
   private truckStatus(v: Vehicle): { text: string; color: number } {
     const world = this.game3d.world;
@@ -3805,48 +3916,22 @@ export class HudScene extends Phaser.Scene {
       im.text('trN', 'Lay track from this building to run trains.', x, cy, { size: 11, color: COLORS.muted, wrap: w, layer: 2 });
       cy += 24;
     }
-    const tCols = Math.max(1, Math.min(3, Math.floor((w + 12) / (420 + 12))));
+    // A summary line, then one compact tile per vehicle: click one to open it.
+    const out = fleet.filter((v) => v.state === 'moving' && v.routeId !== 0).length;
+    const still = fleet.length - out;
+    if (fleet.length > 0) {
+      im.text('trSum', `${fleet.length} in all  ·  ${out} on the road  ·  ${still} loading or waiting`, x, cy, { size: 12, bold: true, color: COLORS.muted, layer: 2 });
+      im.text('trHint', 'Click a truck to see its circuit, buyers and settings', x + w, cy, { size: 11, color: COLORS.muted, align: 'right', layer: 2 });
+      cy += 24;
+    }
+    const tCols = Math.max(1, Math.min(3, Math.floor((w + 12) / (360 + 12))));
     const tW = (w - 12 * (tCols - 1)) / tCols;
-    const cardH = (v: Vehicle): number => vehicleCardHeight(this.truckOpen.has(v.id), Math.min(6, runsOf(world, v).length));
-    const rowH: number[] = [];
-    fleet.forEach((v, k) => {
-      const row = Math.floor(k / tCols);
-      rowH[row] = Math.max(rowH[row] ?? 0, cardH(v));
-    });
-    const rowY = [0];
-    rowH.forEach((hh, k) => rowY.push(rowY[k] + hh + 10));
     fleet.forEach((v, n) => {
       const gx = x + (n % tCols) * (tW + 12);
-      const gy = cy + rowY[Math.floor(n / tCols)];
-      const vd = VEHICLE_DEFS[v.kind];
-      const open = this.truckOpen.has(v.id);
-      const mode = v.pick ?? 'any';
-      const unit = vd.mode === 'rail' ? 'train' : vd.mode === 'air' ? 'plane' : vd.mode === 'sea' ? 'ship' : 'truck';
-      vehicleCard(im, world, v, `${vehicleLabel(v.kind, v.body)} ${n + 1}`, s.level, gx, gy, tW, open, {
-        status: this.truckStatus(v),
-        pick: mode,
-        copyOk: buyError(world, s.id, v.kind) === null,
-        copyCost: vd.cost,
-        unit,
-        driver: driverName(world, v),
-        condition: condition(v),
-        serviceCost: serviceCost(v),
-        serviceOk: serviceError(world, v.id) === null,
-      }, {
-        upgrade: () => g.upgradeVeh(v.id),
-        copy: () => g.duplicateVeh(v.id),
-        toggle: () => (open ? this.truckOpen.delete(v.id) : this.truckOpen.add(v.id)),
-        setDest: (id) => g.vehicleDest(v.id, id),
-        setPick: (m) => g.vehiclePick(v.id, m),
-        sell: () => g.sellVeh(v.id),
-        service: () => this.toasts.push({ text: serviceVehicle(world, v.id) ?? `${driverName(world, v)}'s ${unit} is serviced`, until: this.time.now + 2400 }),
-        rename: () => {
-          const name = window.prompt('Name this driver', driverName(world, v));
-          if (name !== null) this.toasts.push({ text: renameDriver(world, v.id, name) ?? 'Driver renamed', until: this.time.now + 2000 });
-        },
-      });
+      const gy = cy + Math.floor(n / tCols) * (TRUCK_TILE_H + 10);
+      vehicleTile(im, v, `${vehicleLabel(v.kind, v.body)} ${n + 1}`, gx, gy, tW, { status: this.truckStatus(v), driver: driverName(world, v), condition: condition(v) }, () => (this.truckDetail = v.id));
     });
-    cy += (rowY[rowH.length] ?? 0);
+    cy += Math.ceil(fleet.length / tCols) * (TRUCK_TILE_H + 10);
     return cy - y;
   }
 
