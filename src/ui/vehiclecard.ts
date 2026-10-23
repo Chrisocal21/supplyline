@@ -61,7 +61,7 @@ export interface CardActions {
 
 const TILE_H = 46;
 const TILE_GAP = 6;
-const MAX_TILES = 6;
+const MAX_TILES = 60;
 
 /** The buyers shown on a card: at most six, and the pinned one is always among them. */
 function shownRuns(runs: TruckRun[], pinned: number): TruckRun[] {

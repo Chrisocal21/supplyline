@@ -364,7 +364,10 @@ export class HudScene extends Phaser.Scene {
         return;
       }
       if (p.wasTouch && this.dash !== null) {
-        if (p.isDown) this.dashScroll += p.prevPosition.y - p.y;
+        if (p.isDown) {
+          if (this.truckDetail !== null) this.truckScroll += p.prevPosition.y - p.y;
+          else this.dashScroll += p.prevPosition.y - p.y;
+        }
         return;
       }
       if (p.wasTouch && p.isDown && !this.dragging && this.panelRect && p.prevPosition.x >= this.panelRect.x && p.prevPosition.x <= this.panelRect.x + this.panelRect.w && p.prevPosition.y >= this.panelRect.y && p.prevPosition.y <= this.panelRect.y + this.panelRect.h) this.panelScroll += p.prevPosition.y - p.y;
@@ -381,7 +384,10 @@ export class HudScene extends Phaser.Scene {
     this.input.on('wheel', (p: Phaser.Input.Pointer, _o: unknown, _dx: number, dy: number) => {
       if (this.title) return;
       if (this.sheet) this.sheets.scrollBy(dy);
-      else if (this.dash !== null) this.dashScroll += dy;
+      else if (this.dash !== null) {
+        if (this.truckDetail !== null) this.truckScroll += dy;
+        else this.dashScroll += dy;
+      }
       else if (this.panelRect && p.x >= this.panelRect.x && p.x <= this.panelRect.x + this.panelRect.w && p.y >= this.panelRect.y && p.y <= this.panelRect.y + this.panelRect.h) this.panelScroll += dy;
       else if (!this.im.blocked(p.x, p.y)) this.game3d.wheel(p.x, p.y, dy);
     });
@@ -3961,6 +3967,8 @@ export class HudScene extends Phaser.Scene {
 
   /** The truck whose pop-out is open over the building dashboard, if any. */
   private truckDetail: number | null = null;
+  private truckScroll = 0;
+  private truckMax = 0;
 
   /** What a truck's card shows and does, for the pop-out. */
   private truckCard(v: Vehicle): { name: string; info: CardInfo; act: CardActions } {
@@ -4039,15 +4047,21 @@ export class HudScene extends Phaser.Scene {
     im.line(4, x + w - 46, y + 28, x + w - 34, y + 40, COLORS.text, 1, 2.5);
     im.line(4, x + w - 34, y + 28, x + w - 46, y + 40, COLORS.text, 1, 2.5);
     im.line(3, x + 14, y + 70, x + w - 14, y + 70, COLORS.line, 1);
-    const top = y + 84;
+    // Everything under the header scrolls, so a long list of drop-off places is never cut off.
+    const bodyTop = y + 76;
+    const bodyBottom = y + h - 8;
+    this.cim.clipBox = { x, y: bodyTop, w, h: bodyBottom - bodyTop };
+    this.sheetCam.setVisible(true).setViewport(x, bodyTop, w, bodyBottom - bodyTop).setScroll(x, bodyTop);
+    const bim = this.cim;
+    const top = y + 84 - this.truckScroll;
     const leftW = Math.min(470, Math.floor((w - 60) * 0.42));
-    vehicleCard(im, world, v, name, home?.level ?? 1, x + 20, top, leftW, info, act);
+    vehicleCard(bim, world, v, name, home?.level ?? 1, x + 20, top, leftW, info, act);
     // The right side: the circuit, a few numbers about it, and the buyers.
     const rx = x + 20 + leftW + 20;
     const rw = w - leftW - 60;
-    const mapH = Math.max(170, Math.min(250, h - 84 - routeHeight(Math.min(6, runsOf(world, v).length)) - 110));
-    im.text('tmM', 'THE CIRCUIT', rx, top, { size: 11, bold: true, color: COLORS.muted, layer: 3 });
-    circuitMap(im, world, v, rx, top + 20, rw, mapH);
+    const mapH = Math.max(170, Math.min(250, h - 84 - routeHeight(Math.min(2, runsOf(world, v).length)) - 110));
+    bim.text('tmM', 'THE CIRCUIT', rx, top, { size: 11, bold: true, color: COLORS.muted, layer: 3 });
+    circuitMap(bim, world, v, rx, top + 20, rw, mapH);
     const route = vehicleRoute(world, v);
     const oneWay = route ? route.path.length - 1 : 0;
     const roundMin = oneWay > 0 ? (2 * oneWay * vehicleTicks(v) + 60) / 600 : 0;
@@ -4062,25 +4076,37 @@ export class HudScene extends Phaser.Scene {
     const sw = (rw - (stats.length - 1) * 8) / stats.length;
     stats.forEach(([label, value], i) => {
       const sx = rx + i * (sw + 8);
-      im.rect(3, sx, sy, sw, 46, 0x0f161d, 1, 3, COLORS.line, 1);
-      im.text(`tmSl${i}`, label, sx + 10, sy + 7, { size: 9, bold: true, color: COLORS.muted, layer: 4 });
-      im.text(`tmSv${i}`, value, sx + 10, sy + 21, { size: fitSize(value, sw - 20, 14, 9), bold: true, layer: 4 });
+      bim.rect(3, sx, sy, sw, 46, 0x0f161d, 1, 3, COLORS.line, 1);
+      bim.text(`tmSl${i}`, label, sx + 10, sy + 7, { size: 9, bold: true, color: COLORS.muted, layer: 4 });
+      bim.text(`tmSv${i}`, value, sx + 10, sy + 21, { size: fitSize(value, sw - 20, 14, 9), bold: true, layer: 4 });
     });
-    routePicture(im, world, v, `tm${v.id}`, rx, sy + 56, rw, info, act);
+    routePicture(bim, world, v, `tm${v.id}`, rx, sy + 56, rw, info, act);
     // Under the truck: what it has delivered lately, newest first.
     const ly = top + vehicleCardHeight + 16;
-    im.text('tmLh', 'RECENT DELIVERIES', x + 20, ly, { size: 11, bold: true, color: COLORS.muted, layer: 3 });
+    bim.text('tmLh', 'RECENT DELIVERIES', x + 20, ly, { size: 11, bold: true, color: COLORS.muted, layer: 3 });
     const runs = [...(v.runs ?? [])].reverse();
-    if (runs.length === 0) im.text('tmL0', 'None yet: it shows up here after its first sale.', x + 20, ly + 24, { size: 12, color: COLORS.muted, wrap: leftW, layer: 3 });
+    if (runs.length === 0) bim.text('tmL0', 'None yet: it shows up here after its first sale.', x + 20, ly + 24, { size: 12, color: COLORS.muted, wrap: leftW, layer: 3 });
     runs.slice(0, 5).forEach((r, i) => {
       const ry = ly + 22 + i * 30;
       const ago = Math.max(0, Math.round((world.tick - r.tick) / 600));
-      im.rect(3, x + 20, ry, leftW, 26, 0x0f161d, 1, 3, COLORS.line, 1);
+      bim.rect(3, x + 20, ry, leftW, 26, 0x0f161d, 1, 3, COLORS.line, 1);
       const to = siteById(world, r.toId)?.name ?? 'a buyer';
-      im.text(`tmLn${i}`, `${Math.floor(r.units)} ${GOODS[r.good].label.toLowerCase()} to ${to}`, x + 30, ry + 6, { size: fitSize(`${Math.floor(r.units)} ${GOODS[r.good].label.toLowerCase()} to ${to}`, leftW - 150, 12, 9), layer: 4 });
-      im.text(`tmLm${i}`, `+$${fmt(r.money)}`, x + 20 + leftW - 70, ry + 6, { size: 12, bold: true, color: COLORS.good, align: 'right', layer: 4 });
-      im.text(`tmLt${i}`, ago < 1 ? 'now' : `${ago} min ago`, x + 20 + leftW - 10, ry + 7, { size: 10, color: COLORS.muted, align: 'right', layer: 4 });
+      bim.text(`tmLn${i}`, `${Math.floor(r.units)} ${GOODS[r.good].label.toLowerCase()} to ${to}`, x + 30, ry + 6, { size: fitSize(`${Math.floor(r.units)} ${GOODS[r.good].label.toLowerCase()} to ${to}`, leftW - 150, 12, 9), layer: 4 });
+      bim.text(`tmLm${i}`, `+$${fmt(r.money)}`, x + 20 + leftW - 70, ry + 6, { size: 12, bold: true, color: COLORS.good, align: 'right', layer: 4 });
+      bim.text(`tmLt${i}`, ago < 1 ? 'now' : `${ago} min ago`, x + 20 + leftW - 10, ry + 7, { size: 10, color: COLORS.muted, align: 'right', layer: 4 });
     });
+    const leftEnd = ly + 22 + Math.max(1, Math.min(5, runs.length)) * 30;
+    const rightEnd = sy + 56 + routeHeight(runsOf(world, v).length);
+    const contentH = Math.max(leftEnd, rightEnd) + this.truckScroll - (y + 84) + 24;
+    this.truckMax = Math.max(0, contentH - (bodyBottom - (y + 84)));
+    this.truckScroll = Math.max(0, Math.min(this.truckMax, this.truckScroll));
+    if (this.truckMax > 0) {
+      const trackH = bodyBottom - bodyTop - 8;
+      const barH = Math.max(36, (trackH * (bodyBottom - bodyTop)) / (contentH + 8));
+      const by = bodyTop + 4 + (trackH - barH) * (this.truckScroll / this.truckMax);
+      this.im.rect(3, x + w - 10, bodyTop + 4, 4, trackH, 0xffffff, 0.06, 2);
+      this.im.rect(3, x + w - 10, by, 4, barH, 0xffffff, 0.3, 2);
+    }
   }
 
   private truckStatus(v: Vehicle): { text: string; color: number } {
@@ -4165,7 +4191,10 @@ export class HudScene extends Phaser.Scene {
     fleet.forEach((v, n) => {
       const gx = x + (n % tCols) * (tW + 12);
       const gy = cy + Math.floor(n / tCols) * (TRUCK_TILE_H + 10);
-      vehicleTile(im, v, `${vehicleLabel(v.kind, v.body)} ${n + 1}`, gx, gy, tW, { status: this.truckStatus(v), driver: driverName(world, v), condition: condition(v) }, () => (this.truckDetail = v.id));
+      vehicleTile(im, v, `${vehicleLabel(v.kind, v.body)} ${n + 1}`, gx, gy, tW, { status: this.truckStatus(v), driver: driverName(world, v), condition: condition(v) }, () => {
+        this.truckDetail = v.id;
+        this.truckScroll = 0;
+      });
     });
     cy += Math.ceil(fleet.length / tCols) * (TRUCK_TILE_H + 10);
     return cy - y;
