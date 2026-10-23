@@ -1,7 +1,7 @@
 // The vehicle card: a garage plate for one vehicle, with its class ladder, its stats beside the next class up, and its driver's
 // rank. The way a trucking game shows a truck you can level up.
-import { DRIVER_RANKS, DRIVER_TRIPS, VEHICLE_DEFS, type VehicleKind } from '../sim/defs';
-import { driverLevel, sellVehicleValue, upgradeVehicleCost, upgradeVehicleError, vehicleTicks, type Vehicle, type World } from '../sim/world';
+import { DRIVER_RANKS, DRIVER_TRIPS, GOODS, SITE_DEFS, VEHICLE_DEFS, type VehicleKind } from '../sim/defs';
+import { driverLevel, PICK_LABEL, PICK_MODES, runsOf, sellVehicleValue, siteById, upgradeVehicleCost, upgradeVehicleError, vehicleTicks, type PickMode, type TruckRun, type Vehicle, type World } from '../sim/world';
 import { button, fitSize, panel } from './company';
 import { COLORS, Im } from './imui';
 
@@ -35,10 +35,8 @@ function vehicleIcon(im: Im, mode: string, cx: number, cy: number, c: number): v
 
 export interface CardInfo {
   status: { text: string; color: number };
-  destLabel: string;
-  destOk: boolean;
-  pickLabel: string;
-  pickOk: boolean;
+  /** The preference when no buyer is pinned. */
+  pick: PickMode;
   copyOk: boolean;
   copyCost: number;
   unit: string;
@@ -53,19 +51,35 @@ export interface CardActions {
   upgrade: () => void;
   copy: () => void;
   toggle: () => void;
-  cycleDest: () => void;
-  cyclePick: () => void;
+  /** Send this vehicle only to one buyer, or to any of them (0). */
+  setDest: (siteId: number) => void;
+  setPick: (pick: PickMode) => void;
   sell: () => void;
   service: () => void;
   rename: () => void;
 }
 
-export const vehicleCardHeight = (open: boolean): number => (open ? 428 : 252);
+const TILE_H = 46;
+const TILE_GAP = 6;
+const MAX_TILES = 6;
+
+/** The buyers shown on a card: at most six, and the pinned one is always among them. */
+function shownRuns(runs: TruckRun[], pinned: number): TruckRun[] {
+  const list = runs.slice(0, MAX_TILES);
+  const pin = runs.find((r) => r.site.id === pinned);
+  if (pin && !list.includes(pin)) list[MAX_TILES - 1] = pin;
+  return list;
+}
+
+/** Height of the route picture: a title row, the tiles (or a note when there are none), and the preference chips. */
+const routeHeight = (n: number): number => 30 + (n === 0 ? 44 : Math.min(n, MAX_TILES) * (TILE_H + TILE_GAP) - TILE_GAP) + (n > 1 ? 36 : 0) + 12;
+
+export const vehicleCardHeight = (open: boolean, runs: number): number => 252 + routeHeight(runs) + (open ? 96 : 0);
 
 export function vehicleCard(im: Im, world: World, v: Vehicle, name: string, homeLevel: number, x: number, y: number, w: number, open: boolean, info: CardInfo, act: CardActions): void {
   const vd = VEHICLE_DEFS[v.kind];
   const color = MODE_COLOR[vd.mode] ?? COLORS.accent;
-  const h = vehicleCardHeight(open);
+  const h = vehicleCardHeight(open, Math.min(6, runsOf(world, v).length));
   panel(im, x, y, w, h, info.status.color);
   const px = x + 14;
   const iw = w - 28;
@@ -153,14 +167,98 @@ export function vehicleCard(im: Im, world: World, v: Vehicle, name: string, home
   button(im, `${id}u`, upLabel, px, by, upW, 38, !upErr && !!next, act.upgrade, 'main', true);
   button(im, `${id}k`, `COPY  $${fmt(info.copyCost)}`, px + upW + gapB, by, smW, 38, info.copyOk, act.copy, 'quiet');
   button(im, `${id}m`, open ? 'LESS' : 'SETTINGS', px + upW + smW + gapB * 2, by, smW, 38, true, act.toggle, 'quiet');
+  routePicture(im, world, v, id, px, y + 252, iw, info, act);
   if (open) {
-    let sy2 = y + 254;
+    let sy2 = y + 252 + routeHeight(runsOf(world, v).length) + 2;
     button(im, `${id}r`, `Driver: ${info.driver}  ·  rename`, px, sy2, iw, 38, true, act.rename, 'quiet', true);
     sy2 += 44;
-    button(im, `${id}d`, info.destLabel, px, sy2, iw, 38, info.destOk, act.cycleDest, 'quiet', true);
-    sy2 += 44;
-    button(im, `${id}p`, info.pickLabel, px, sy2, iw, 38, info.pickOk, act.cyclePick, 'quiet', true);
-    sy2 += 44;
     button(im, `${id}x`, `SELL ${info.unit.toUpperCase()}  +$${fmt(sellVehicleValue(v))}`, px, sy2, iw, 38, true, act.sell, 'danger');
+  }
+}
+
+/**
+ * The route picture: the building the vehicle loads at on the left, and each buyer it could run to as a tile on the right, joined
+ * by lines. Click a buyer to send the vehicle only there; click it again, or "Any buyer", to let it choose. With no buyer pinned
+ * every tile is lit and a row of chips sets how it chooses.
+ */
+function routePicture(im: Im, world: World, v: Vehicle, id: string, x: number, y: number, w: number, info: CardInfo, act: CardActions): void {
+  const home = siteById(world, v.homeId);
+  const all = runsOf(world, v);
+  const runs = shownRuns(all, v.destId);
+  const pinned = all.find((r) => r.site.id === v.destId);
+  im.line(3, x, y + 2, x + w, y + 2, COLORS.line, 1);
+  im.text(`${id}rh`, 'DELIVERS TO', x, y + 12, { size: 10, bold: true, color: COLORS.muted, layer: 4 });
+  im.text(`${id}rs`, pinned ? `ONLY TO ${pinned.site.name.toUpperCase()}` : all.length > 1 ? 'ANY BUYER  ·  CHOOSES BY' : '', x + 92, y + 12, { size: 10, bold: true, color: pinned ? COLORS.accent : COLORS.muted, layer: 4 });
+  const anyW = 112;
+  if (all.length > 0) button(im, `${id}ra`, pinned ? 'ANY BUYER' : 'ANY BUYER  (ON)', x + w - anyW, y + 7, anyW, 20, !!pinned, () => act.setDest(0), 'quiet');
+  else im.text(`${id}rn`, 'No buyer is joined to this building yet', x + w - 6, y + 12, { size: 10, color: COLORS.warn, align: 'right', layer: 4 });
+  const top = y + 34;
+  const fw = Math.max(96, Math.min(132, w * 0.3));
+  const tx = x + fw + 34;
+  const tw = w - fw - 34;
+  const bodyH = runs.length === 0 ? 44 : runs.length * (TILE_H + TILE_GAP) - TILE_GAP;
+  // The building the goods leave from.
+  const hc = home ? SITE_DEFS[home.kind].color : COLORS.muted;
+  const fh = Math.min(bodyH, 64);
+  const fy = top + (bodyH - fh) / 2;
+  im.rect(3, x, fy, fw, fh, 0x0e151c, 1, 3, hc, 1);
+  im.rect(3, x, fy, 4, fh, hc, 1, 0);
+  im.text(`${id}f1`, 'LOADS AT', x + 12, fy + 6, { size: 9, bold: true, color: COLORS.muted, layer: 4 });
+  const hn = home?.name ?? 'Home';
+  im.text(`${id}f2`, hn, x + 12, fy + 19, { size: fitSize(hn, fw - 20, 12, 8), bold: true, layer: 4 });
+  if (fh >= 58) im.text(`${id}f3`, home ? SITE_DEFS[home.kind].label : '', x + 12, fy + 37, { size: 9, color: COLORS.muted, layer: 4 });
+  const fx = x + fw;
+  const fcy = fy + fh / 2;
+  runs.forEach((r, i) => {
+    const ty = top + i * (TILE_H + TILE_GAP);
+    const pin = pinned?.site.id === r.site.id;
+    const on = !pinned || pin;
+    const col = SITE_DEFS[r.site.kind].color;
+    const live = r.goods.length > 0;
+    // The line from the loading building to this buyer, with an arrow head.
+    const lc = !on ? COLORS.line : live ? COLORS.good : COLORS.warn;
+    const lw = on ? 2 : 1;
+    const midx = fx + 14;
+    const my = ty + TILE_H / 2;
+    im.line(3, fx, fcy, midx, fcy, lc, 1, lw);
+    im.line(3, midx, fcy, midx, my, lc, 1, lw);
+    im.line(3, midx, my, tx - 2, my, lc, 1, lw);
+    im.line(3, tx - 8, my - 4, tx - 2, my, lc, 1, lw);
+    im.line(3, tx - 8, my + 4, tx - 2, my, lc, 1, lw);
+    const hov = im.hit(`${id}b${r.site.id}`, tx, ty, tw, TILE_H, () => act.setDest(pin ? 0 : r.site.id), 3);
+    im.rect(3, tx, ty, tw, TILE_H, pin ? 0x2a2411 : hov ? 0x1c2836 : on ? 0x111a23 : 0x0b1015, 1, 3, pin || hov ? COLORS.accent : COLORS.line, 1);
+    im.rect(3, tx, ty, 4, TILE_H, on ? col : COLORS.line, 1, 0);
+    const ink = on ? COLORS.text : COLORS.muted;
+    im.text(`${id}bn${r.site.id}`, r.site.name, tx + 12, ty + 6, { size: fitSize(r.site.name, tw - 100, 12, 8), bold: true, color: ink, layer: 4 });
+    im.text(`${id}bk${r.site.id}`, `${SITE_DEFS[r.site.kind].label}  ·  ${r.tiles} tiles`, tx + 12, ty + 23, { size: 9, color: COLORS.muted, layer: 4 });
+    const what = live ? r.goods.map((g) => GOODS[g].label).join(' + ') : 'wants nothing of ours yet';
+    im.text(`${id}bg${r.site.id}`, what, tx + 12, ty + 34, { size: 9, color: live ? (on ? COLORS.good : COLORS.muted) : COLORS.warn, layer: 4 });
+    // Right side: what it pays, and how much room it has.
+    const rx = tx + tw - 12;
+    if (live) {
+      im.text(`${id}bp${r.site.id}`, r.price > 0 ? `$${r.price.toFixed(1)}/t` : 'passes on', rx, ty + 6, { size: 11, bold: true, color: on ? COLORS.accent : COLORS.muted, align: 'right', layer: 4 });
+      const bw = 70;
+      im.rect(4, rx - bw, ty + 24, bw, 5, 0x0a0f14, 1, 1);
+      im.rect(4, rx - bw, ty + 24, bw * (1 - r.fill), 5, r.fill > 0.8 ? COLORS.warn : COLORS.good, 1, 1);
+      im.text(`${id}bf${r.site.id}`, r.fill > 0.8 ? 'nearly full' : 'wants more', rx, ty + 32, { size: 8, color: COLORS.muted, align: 'right', layer: 4 });
+    }
+  });
+  if (runs.length === 0) {
+    im.text(`${id}rz`, 'Lay a road, track or lane to a buyer and it shows up here.', tx, top + 14, { size: 11, color: COLORS.muted, wrap: tw, layer: 4 });
+  }
+  if (all.length > 1) {
+    // How it chooses while no buyer is pinned.
+    const cy = top + bodyH + 8;
+    const n = PICK_MODES.length;
+    const gap = 4;
+    const cw = (w - gap * (n - 1)) / n;
+    PICK_MODES.forEach((m, i) => {
+      const on = !pinned && info.pick === m;
+      const label = PICK_LABEL[m].toUpperCase();
+      const cx = x + i * (cw + gap);
+      const hov = im.hit(`${id}pk${m}`, cx, cy, cw, 24, () => !pinned && act.setPick(m), 3);
+      im.rect(3, cx, cy, cw, 24, on ? COLORS.accent : hov && !pinned ? 0x26364a : 0x121920, 1, 3, on ? COLORS.accent : COLORS.line, 1);
+      im.text(`${id}pt${m}`, label, cx + cw / 2, cy + 7, { size: fitSize(label, cw - 8, 9, 6), bold: true, color: on ? 0x1b1204 : pinned ? COLORS.muted : COLORS.text, align: 'center', layer: 4 });
+    });
   }
 }

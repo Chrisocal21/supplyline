@@ -3394,6 +3394,44 @@ export function destinationsOf(world: World, v: Vehicle): Site[] {
   return out;
 }
 
+/** One buyer a vehicle could run to, with what it would take there, for the truck card's route picture. */
+export interface TruckRun {
+  site: Site;
+  /** Its home's goods the buyer wants right now. */
+  goods: Good[];
+  /** Length of the road, track, sea or air lane in tiles. */
+  tiles: number;
+  /** About what a unit sells for there. */
+  price: number;
+  /** How full the buyer is of what we bring, 0 to 1: full buyers pay less and want little. */
+  fill: number;
+}
+
+/** Every buyer this vehicle may serve, nearest first, ignoring any pin so the card can show the choices. */
+export function runsOf(world: World, v: Vehicle): TruckRun[] {
+  const home = siteById(world, v.homeId);
+  if (!home) return [];
+  const out: TruckRun[] = [];
+  const free = { ...v, destId: 0 };
+  for (const r of world.routes) {
+    if (!laneOk(world, free, r)) continue;
+    const other = siteById(world, r.fromSiteId === v.homeId ? r.toSiteId : r.fromSiteId);
+    if (!other) continue;
+    const asked = wants(world, other);
+    const goods = lineGoods(home, v.line ?? 'main').filter((g) => asked.includes(g));
+    const cap = Math.max(1, siteCap(world, other));
+    const price = goods.length === 0 ? 0 : Math.max(...goods.map((g) => (SITE_DEFS[other.kind].dock ? unitPrice(world, other, g) : SITE_DEFS[other.kind].hub ? 0 : GOODS[g].price * 0.6)));
+    const fill = goods.length === 0 ? 1 : Math.min(1, Math.max(...goods.map((g) => stockOf(other, g))) / cap);
+    const at = out.findIndex((x) => x.site.id === other.id);
+    if (at >= 0) {
+      if (r.path.length < out[at].tiles) out[at].tiles = r.path.length;
+      continue;
+    }
+    out.push({ site: other, goods, tiles: r.path.length, price, fill });
+  }
+  return out.sort((a, b) => a.tiles - b.tiles);
+}
+
 // ---- joining buildings along the network ----
 
 /** The roads or tracks of one mode as a graph: tiles joined where a route runs from one to the next. */

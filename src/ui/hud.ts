@@ -41,7 +41,7 @@ import {
   upgradeCost,
   buyError,
   buyOptions,
-  destinationsOf,
+  runsOf,
   growthKinds,
   worldSteps,
   metroBonus,
@@ -60,8 +60,6 @@ import {
   growTown,
   readyToGrow,
   upgradeError,
-  PICK_LABEL,
-  PICK_MODES,
   bodyForLine,
   depotsNear,
   hasByLine,
@@ -3809,7 +3807,7 @@ export class HudScene extends Phaser.Scene {
     }
     const tCols = Math.max(1, Math.min(3, Math.floor((w + 12) / (420 + 12))));
     const tW = (w - 12 * (tCols - 1)) / tCols;
-    const cardH = (v: Vehicle): number => vehicleCardHeight(this.truckOpen.has(v.id));
+    const cardH = (v: Vehicle): number => vehicleCardHeight(this.truckOpen.has(v.id), Math.min(6, runsOf(world, v).length));
     const rowH: number[] = [];
     fleet.forEach((v, k) => {
       const row = Math.floor(k / tCols);
@@ -3822,16 +3820,11 @@ export class HudScene extends Phaser.Scene {
       const gy = cy + rowY[Math.floor(n / tCols)];
       const vd = VEHICLE_DEFS[v.kind];
       const open = this.truckOpen.has(v.id);
-      const dests = destinationsOf(world, v);
-      const pinned = dests.find((d) => d.id === v.destId);
       const mode = v.pick ?? 'any';
       const unit = vd.mode === 'rail' ? 'train' : vd.mode === 'air' ? 'plane' : vd.mode === 'sea' ? 'ship' : 'truck';
       vehicleCard(im, world, v, `${vehicleLabel(v.kind, v.body)} ${n + 1}`, s.level, gx, gy, tW, open, {
         status: this.truckStatus(v),
-        destLabel: pinned ? `Goes only to ${pinned.name}` : 'Goes to: any buyer',
-        destOk: dests.length > 0,
-        pickLabel: `Prefers: ${PICK_LABEL[mode]}`,
-        pickOk: dests.length > 1 && !v.destId,
+        pick: mode,
         copyOk: buyError(world, s.id, v.kind) === null,
         copyCost: vd.cost,
         unit,
@@ -3843,11 +3836,8 @@ export class HudScene extends Phaser.Scene {
         upgrade: () => g.upgradeVeh(v.id),
         copy: () => g.duplicateVeh(v.id),
         toggle: () => (open ? this.truckOpen.delete(v.id) : this.truckOpen.add(v.id)),
-        cycleDest: () => {
-          const ids = [0, ...dests.map((d) => d.id)];
-          g.vehicleDest(v.id, ids[(ids.indexOf(v.destId) + 1) % ids.length]);
-        },
-        cyclePick: () => g.vehiclePick(v.id, PICK_MODES[(PICK_MODES.indexOf(mode) + 1) % PICK_MODES.length]),
+        setDest: (id) => g.vehicleDest(v.id, id),
+        setPick: (m) => g.vehiclePick(v.id, m),
         sell: () => g.sellVeh(v.id),
         service: () => this.toasts.push({ text: serviceVehicle(world, v.id) ?? `${driverName(world, v)}'s ${unit} is serviced`, until: this.time.now + 2400 }),
         rename: () => {
