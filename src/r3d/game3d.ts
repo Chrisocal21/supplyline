@@ -170,7 +170,7 @@ const CARGO_AT: Record<VehicleKind, [number, number]> = {
 
 /** A town district being placed: 'd:' and the district's id. */
 export type DistrictTool = `d:${DistrictId}`;
-export type Tool = 'select' | 'route' | 'highway' | 'rail' | 'air' | 'sea' | 'demolish' | SiteKind | DistrictTool;
+export type Tool = 'select' | 'route' | 'auto' | 'highway' | 'rail' | 'air' | 'sea' | 'demolish' | SiteKind | DistrictTool;
 export const isDistrictTool = (t: Tool): t is DistrictTool => t.startsWith('d:');
 export const districtOfTool = (t: DistrictTool): DistrictId => t.slice(2) as DistrictId;
 export type Selection = { kind: 'site'; id: number } | { kind: 'place'; id: number } | null;
@@ -1239,7 +1239,7 @@ export class Game3D {
   }
 
   private activeNodeKind(): NodeKind | null {
-    if (this.isRouteTool() || this.tool === 'select' || this.tool === 'air' || this.tool === 'sea' || this.tool === 'demolish' || isDistrictTool(this.tool)) return null;
+    if (this.isRouteTool() || this.tool === 'select' || this.tool === 'auto' || this.tool === 'air' || this.tool === 'sea' || this.tool === 'demolish' || isDistrictTool(this.tool)) return null;
     return SITE_DEFS[this.tool as SiteKind].node ?? null;
   }
 
@@ -2056,7 +2056,7 @@ export class Game3D {
   }
 
   setTool(tool: Tool): void {
-    if (tool !== 'air' && tool !== 'sea') this.airFrom = null;
+    if (tool !== 'air' && tool !== 'sea' && tool !== 'auto') this.airFrom = null;
     this.tool = tool;
     this.pending = null;
     this.draft = null;
@@ -2110,7 +2110,7 @@ export class Game3D {
   }
 
   private isBuildTool(): boolean {
-    return this.tool !== 'select' && !this.isRouteTool() && this.tool !== 'air' && this.tool !== 'sea' && this.tool !== 'demolish' && !isDistrictTool(this.tool);
+    return this.tool !== 'select' && !this.isRouteTool() && this.tool !== 'auto' && this.tool !== 'air' && this.tool !== 'sea' && this.tool !== 'demolish' && !isDistrictTool(this.tool);
   }
 
   /** The stretch of road or track the demolish tool is pointing at, shown in red. */
@@ -2437,6 +2437,23 @@ export class Game3D {
       const site = siteAt(w, tile.x, tile.y);
       const place = placeAt(w, tile.x, tile.y);
       this.select(site ? { kind: 'site', id: site.id } : place ? { kind: 'place', id: place.id } : null);
+      return;
+    }
+    if (this.tool === 'auto') {
+      // One-click road: pick two buildings and the game finds the cheapest way and lays it, then starts selling along it.
+      const site = siteAt(w, tile.x, tile.y);
+      if (!site) {
+        this.onToast('Click a building to start the road from');
+        return;
+      }
+      if (this.airFrom === null || this.airFrom === site.id) {
+        this.airFrom = this.airFrom === site.id ? null : site.id;
+        if (this.airFrom !== null) this.onToast('Now click the building to build the road to');
+        return;
+      }
+      const from = this.airFrom;
+      this.airFrom = null;
+      this.roadTo(from, site.id);
       return;
     }
     if (this.tool === 'sea') {

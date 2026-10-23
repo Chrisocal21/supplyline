@@ -155,7 +155,7 @@ const TABS: Tab[] = [
   { id: 'manufacturing', label: 'Manufacturing', icon: 'thumb-workshop', blurb: 'Paper, textiles, furniture. Build these on a free plot in a town.', tools: sitesIn('manufacturing') },
   { id: 'heavy', label: 'Heavy Industry', icon: 'thumb-smelter', blurb: 'Stone, metal, glass and machinery. Build these on a free plot in a town.', tools: sitesIn('heavy') },
   { id: 'districts', label: 'Districts', icon: 'thumb-d:farmersmarket', blurb: 'Civic buildings that make a town earn. Point at a free lot beside a street, or a sports ground kept for it. Click one you have built to take it up a level.', tools: DISTRICT_ORDER.map((id) => `d:${id}` as Tool) },
-  { id: 'logistics', label: 'Logistics', icon: 'thumb-route', blurb: 'Roads, highways, rails, air and sea routes, hubs, yards, airports, ports and clearing the way', tools: ['route', 'highway', 'rail', 'air', 'sea', 'hub', 'railyard', 'airport', 'port', 'demolish'] },
+  { id: 'logistics', label: 'Logistics', icon: 'thumb-route', blurb: 'Roads, highways, rails, air and sea routes, hubs, yards, airports, ports and clearing the way', tools: ['route', 'auto', 'highway', 'rail', 'air', 'sea', 'hub', 'railyard', 'airport', 'port', 'demolish'] },
 ];
 
 const REGION_COLOR: Record<string, number> = {
@@ -1716,6 +1716,16 @@ export class HudScene extends Phaser.Scene {
         detail: ['Rail is its own network, apart from roads.', 'Trains reach a town through a Rail Yard: place one at the edge of town (Logistics, Tier 2), bring goods to it by truck, then run track from yard to yard. Out in the country, track can join any two buildings.', 'Where track meets a road it makes a level crossing, at a right angle on a straight stretch.', `Bridges and tunnels: up to ${[2, 4, 8, 16][Math.min(3, w.tier)]} tiles at Tier ${w.tier}.`],
       };
     }
+    if (tool === 'auto') {
+      return {
+        name: 'Auto Road',
+        cost: 'priced for you',
+        locked: null,
+        thumb: 'thumb-route',
+        blurb: 'Click one building, then another. The road is found and built for you.',
+        detail: ['It takes the cheapest way, going around buildings and over bridges and tunnels where it must, and shows the price in the message.', 'The first building starts selling to the second along it.', 'Prefer to draw it yourself? Use Road and drag.'],
+      };
+    }
     if (tool === 'air') {
       return {
         name: 'Air Route',
@@ -2037,6 +2047,7 @@ export class HudScene extends Phaser.Scene {
     } else if (g.tool === 'route') text = `Drag to lay a road. Finish on a building or road, or ${byInput('press Enter', 'tap Finish')}. Green: you can build. Orange: you cannot. Gold: town gates.`;
     else if (g.tool === 'highway') text = `Drag to lay a highway from anywhere. Finish on a building or on another road, or ${byInput('press Enter', 'tap Finish')}`;
     else if (g.tool === 'rail') text = `Drag to lay track from anywhere. Finish on a building or on other track, or ${byInput('press Enter', 'tap Finish')}`;
+    else if (g.tool === 'auto') text = g.airFrom === null ? `${byInput('Click', 'Tap')} a building, then ${byInput('click', 'tap')} the building to build a road to` : `Now ${byInput('click', 'tap')} the building to build a road to (${byInput('click', 'tap')} the same one to cancel)`;
     else if (g.tool === 'air') text = g.airFrom === null ? `${byInput('Click', 'Tap')} an airport, then ${byInput('click', 'tap')} the airport to fly to` : `Now ${byInput('click', 'tap')} the airport to fly to (${byInput('click', 'tap')} the same one to cancel)`;
     else if (g.tool === 'sea') text = g.airFrom === null ? `${byInput('Click', 'Tap')} a port, then ${byInput('click', 'tap')} the port to sail to` : `Now ${byInput('click', 'tap')} the port to sail to (${byInput('click', 'tap')} the same one to cancel)`;
     else if (g.tool === 'demolish') text = h?.site ? `${byInput('Click', 'Tap')} to demolish ${h.site.name}` : h?.route ? (h.error ? h.error : `${byInput('Click', 'Tap')} to remove this stretch of ${h.route.mode === 'rail' ? 'track' : h.route.grade === 'highway' ? 'highway' : 'road'} for $${fmt(routeRefund(w, h.route))} back`) : `${byInput('Click', 'Tap')} a building or a road to remove it`;
