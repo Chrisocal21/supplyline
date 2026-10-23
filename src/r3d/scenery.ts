@@ -5,7 +5,7 @@ import type { NodeKind } from '../sim/defs';
 import { tileLonLat } from '../sim/mapgen';
 import { parcelState, parcelsOf } from '../sim/land';
 import { seasonLook } from './season';
-import { layoutOf, plotTiles, reservedGround, siteAt, terrainAt, townBlocks, townGates, townGround, type World } from '../sim/world';
+import { plotTiles, reservedGround, siteAt, terrainAt, townBlocks, townGates, townGround, type World } from '../sim/world';
 import { HeightField, LAT_SPAN, R, basisMatrix, lonLatToVec } from './geo';
 import { Parts } from './parts';
 import { specialtyNodeProps } from './specialty';
@@ -520,35 +520,6 @@ export class Scenery {
     }
   }
 
-  private reserveShade: THREE.Group | null = null;
-  private reserveSig = '';
-  private reserveStrong = false;
-
-  /**
-   * A soft amber wash over ground that is set aside for a town or a district, always on at every height so the reserved
-   * land reads the same everywhere, and stronger while a building or road tool is active. The streets the town has planned
-   * run through it as gold lanes: roads may use those. Remade whenever a town grows or a district takes a lot.
-   */
-  setReserved(strong: boolean, sig: string): void {
-    if (sig !== this.reserveSig) {
-      this.reserveSig = sig;
-      if (this.reserveShade) {
-        this.group.remove(this.reserveShade);
-        this.reserveShade.traverse((o) => {
-          const m = o as THREE.Mesh;
-          if (m.geometry) m.geometry.dispose();
-          if (m.material) (m.material as THREE.Material).dispose();
-        });
-      }
-      this.reserveShade = this.buildReserveShade();
-      this.reserveStrong = !strong;
-    }
-    if (strong === this.reserveStrong || !this.reserveShade) return;
-    this.reserveStrong = strong;
-    const [soft, bold] = [[0.13, 0.26], [0.26, 0.46]];
-    this.reserveShade.children.forEach((m, i) => ((m as THREE.Mesh).material as THREE.MeshBasicMaterial).opacity = (strong ? bold : soft)[i]);
-  }
-
   private parcelGroup: THREE.Group | null = null;
   private parcelSig = '';
 
@@ -645,7 +616,6 @@ export class Scenery {
 
   /** Overlays that are drawn blended over the ground are left out of the ambient-occlusion pass, which would read them as solid. */
   hideOverlays(hide: boolean): void {
-    if (this.reserveShade) this.reserveShade.visible = !hide;
     if (this.zoneGroup && hide) this.zoneGroup.visible = false;
     if (this.parcelGroup) this.parcelGroup.children.forEach((c) => ((c as THREE.Mesh).isMesh ? (c.visible = !hide) : undefined));
   }
@@ -681,23 +651,39 @@ export class Scenery {
     return mesh;
   }
 
-  private buildReserveShade(): THREE.Group {
+  /** A thin bright line round the outside of a set of tiles, so a blocked area reads as one clean shape instead of a patchwork. */
+  private zoneEdge(tiles: { x: number; y: number }[], color: number, lift: number): THREE.LineSegments {
     const w = this.world;
-    const group = new THREE.Group();
-    const quads = (tiles: { x: number; y: number }[], color: number, opacity: number, lift: number): THREE.Mesh => this.tileQuads(tiles, color, opacity, lift);
-    const reserved: { x: number; y: number }[] = [];
-    const lanes: { x: number; y: number }[] = [];
-    for (const p of w.places) {
-      const planned = new Set(layoutOf(w, p).streets.map((t) => `${(((p.x + t.x) % w.width) + w.width) % w.width},${p.y + t.y}`));
-      for (const t of reservedGround(w, p)) {
-        if (planned.has(`${t.x},${t.y}`)) lanes.push(t);
-        else reserved.push(t);
+    const dLon = (Math.PI * 2) / w.width;
+    const dLat = (2 * LAT_SPAN) / w.height;
+    const has = new Set(tiles.map((t) => t.y * w.width + t.x));
+    const pos: number[] = [];
+    const v = new THREE.Vector3();
+    const corner = (lon: number, lat: number): void => {
+      lonLatToVec(lon, lat, R + this.hf.surface(lon, lat) + lift, v);
+      pos.push(v.x, v.y, v.z);
+    };
+    for (const t of tiles) {
+      const { lon, lat } = tileLonLat(w.width, w.height, t.x, t.y);
+      const sides: [number, number, [number, number], [number, number]][] = [
+        [-1, 0, [-0.5, -0.5], [-0.5, 0.5]],
+        [1, 0, [0.5, -0.5], [0.5, 0.5]],
+        [0, -1, [-0.5, -0.5], [0.5, -0.5]],
+        [0, 1, [-0.5, 0.5], [0.5, 0.5]],
+      ];
+      for (const [dx, dy, a, b] of sides) {
+        const nx = (((t.x + dx) % w.width) + w.width) % w.width;
+        if (has.has((t.y + dy) * w.width + nx)) continue;
+        corner(lon + a[0] * dLon, lat + a[1] * dLat);
+        corner(lon + b[0] * dLon, lat + b[1] * dLat);
       }
     }
-    group.add(quads(reserved, 0xe0883a, 0.22, 0.12));
-    group.add(quads(lanes, 0xf2b04c, 0.4, 0.16));
-    this.group.add(group);
-    return group;
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    const line = new THREE.LineSegments(geo, new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.9, depthWrite: false, fog: false }));
+    line.frustumCulled = false;
+    line.renderOrder = 5;
+    return line;
   }
 
   private zoneGroup: THREE.Group | null = null;
@@ -734,8 +720,9 @@ export class Scenery {
         }
       }
       const group = new THREE.Group();
-      group.add(this.tileQuads(ok, 0x2dffa0, 0.42, 0.13));
-      group.add(this.tileQuads(no, 0xff6f1f, 0.55, 0.15));
+      group.add(this.tileQuads(ok, 0x35f0a0, 0.38, 0.13));
+      group.add(this.tileQuads(no, 0xff7a2a, 0.5, 0.15));
+      group.add(this.zoneEdge(no, 0xffc27a, 0.17));
       this.group.add(group);
       this.zoneGroup = group;
     }
