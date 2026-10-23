@@ -10,6 +10,8 @@ import {
   TIERS,
   VEHICLE_DEFS,
   VEHICLE_ORDER,
+  VEHICLE_REACH,
+  DRIVER_REACH,
   type Good,
   type PathId,
   type QuestGoal,
@@ -21,6 +23,7 @@ import {
   buyOptions,
   buyVehicle,
   growTown,
+  matsNeeded,
   readyToGrow,
   createAirRoute,
   createRoute,
@@ -72,6 +75,15 @@ const DECIDE_EVERY = 100;
  * The chores a player does by hand once a chain is built: switch every factory on, switch on every sale a road allows,
  * and buy a truck (or train, or plane) at the supplying end of any route that has none. Returns what it did.
  */
+/** The smallest road vehicle the building can buy now whose rookie driver can still run a route this long. */
+function roadKindFor(w: World, siteId: number, r: { path: { x: number; y: number }[]; grade?: string }): 'boxtruck' | 'bigtruck' | 'rig' | 'convoy' | null {
+  const span = r.path.length * (r.grade === 'highway' ? 0.5 : 1);
+  for (const k of ['boxtruck', 'bigtruck', 'rig', 'convoy'] as const) {
+    if ((VEHICLE_REACH[k] ?? 0) * DRIVER_REACH[0] >= span && buyOptions(w, siteId).includes(k) && VEHICLE_DEFS[k].tier <= w.tier && (siteById(w, siteId)?.level ?? 1) >= VEHICLE_DEFS[k].needLevel) return k;
+  }
+  return null;
+}
+
 export function runChores(w: World): string[] {
   const did: string[] = [];
   for (const p of w.places) if (readyToGrow(p) && growTown(w, p.id) === null) did.push(`grew ${p.name}`);
@@ -92,7 +104,8 @@ export function runChores(w: World): string[] {
     const b = siteById(w, r.toSiteId)!;
     if (!supplies(w, a, b) && !supplies(w, b, a)) continue;
     const home = supplies(w, a, b) || !supplies(w, b, a) ? a : b;
-    const kind = r.mode === 'rail' ? 'train' : r.mode === 'air' ? 'plane' : 'boxtruck';
+    const kind = r.mode === 'rail' ? 'train' : r.mode === 'air' ? 'plane' : r.mode === 'road' ? roadKindFor(w, home.id, r) : 'boxtruck';
+    if (!kind) continue;
     // One vehicle per building and mode to start with, like a careful player; more come from the full-store rule.
     if (w.vehicles.some((v) => v.homeId === home.id && VEHICLE_DEFS[v.kind].mode === r.mode)) continue;
     if (buyVehicle(w, home.id, kind) === null) did.push(`bought a ${VEHICLE_DEFS[kind].label} at ${home.name}`);
@@ -203,6 +216,8 @@ export function playBot(seed: number, ticks: number, onNote?: (n: BotNote) => vo
       if (routeBetween(src, site)) continue;
       const path = findPath(w, src, site, 120000, 'road');
       if (!path) return 'fail';
+      // No truck on offer could run a road this long: a player would build somewhere closer.
+      if (!roadKindFor(w, src.id, { path })) return 'fail';
       const cost = 400 + path.length * 8;
       if (w.money < cost) return 'wait';
       const err = createRoute(w, path, 'road', 'street');
@@ -222,11 +237,35 @@ export function playBot(seed: number, ticks: number, onNote?: (n: BotNote) => vo
       const n = (tried.get(key) ?? 0) + 1;
       tried.set(key, n);
       if (n > 6) {
+        // Not noted: giving up is not an action, and must not use up the turn.
         failed.add(key);
-        note(`gave up on ${g} for ${town.name}`);
       }
     }
     return r === 'done';
+  };
+
+  /** One step towards getting a building material to a town's Supply Yard: make it, then a road from its maker to the yard. */
+  const matFail = new Map<string, number>();
+  const supplyYard = (g: Good, town: Place): void => {
+    // Materials are worth another try after a while: a town gains lots and money as it grows.
+    const key = `${g}@${town.id}`;
+    if (w.tick - (matFail.get(key) ?? -Infinity) < 6000) return;
+    const r = chainStep(g, town);
+    if (r === 'fail') matFail.set(key, w.tick);
+    if (r !== 'done') return;
+    const yard = w.sites.find((x) => x.kind === 'freight' && x.placeId === town.id);
+    const maker = siteFor(g, town);
+    if (!yard || !maker) return;
+    // A by-product has its own line: it needs a truck of its own once the road is there.
+    if (produces(maker)[0] !== g && routeBetween(maker, yard) && !w.vehicles.some((v) => v.homeId === maker.id && v.line === 'by')) {
+      if (buyVehicle(w, maker.id, 'boxtruck', 'by') === null) note(`bought a by-product truck at ${maker.name}`);
+      return;
+    }
+    if (routeBetween(maker, yard)) return;
+    if (w.places.some((p) => inTownOf(maker, p) && inTownOf(yard, p))) return;
+    const path = findPath(w, maker, yard, 120000, 'road');
+    if (!path || !roadKindFor(w, maker.id, { path }) || w.money < 400 + path.length * 8) return;
+    if (createRoute(w, path, 'road', 'street') === null) note(`road ${maker.name} to ${yard.name}`);
   };
 
   // ---- spending the surplus ----
@@ -407,6 +446,11 @@ export function playBot(seed: number, ticks: number, onNote?: (n: BotNote) => vo
       if (!(SITE_DEFS[producerKind(g)!]?.tier <= w.tier)) continue;
       for (const town of towns) if (idle()) chain(g, town);
     }
+    // Each town's next level asks for building materials at its Supply Yard.
+    for (const town of towns) {
+      if ((town.stage ?? 2) < 2) continue;
+      for (const [g] of matsNeeded(town)) if (idle() && SITE_DEFS[producerKind(g) ?? 'farm'].tier <= w.tier) supplyYard(g, town);
+    }
     if (idle()) pickPaths();
     if (idle()) districtSomething(400);
     if (idle() && w.money > 1500) upgradeSomething();
@@ -418,8 +462,8 @@ export function playBot(seed: number, ticks: number, onNote?: (n: BotNote) => vo
         // Only the main good: by-products have their own line and trucks, and pile up harmlessly without them.
         const main = produces(from)[0];
         const full = !!main && (from.stock[main] ?? 0) > SITE_DEFS[from.kind].cap * 0.8;
-        const kind = r.mode === 'road' ? 'boxtruck' : r.mode === 'rail' ? 'train' : 'plane';
-        if (full && !r.free && w.vehicles.filter((v) => v.routeId === r.id).length < 4 && buyVehicle(w, from.id, kind) === null) {
+        const kind = r.mode === 'road' ? roadKindFor(w, from.id, r) : r.mode === 'rail' ? 'train' : 'plane';
+        if (kind && full && !r.free && w.vehicles.filter((v) => v.routeId === r.id).length < 4 && buyVehicle(w, from.id, kind) === null) {
           note(`added a ${kind}`);
           break;
         }

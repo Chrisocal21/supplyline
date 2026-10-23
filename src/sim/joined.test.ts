@@ -5,7 +5,10 @@ import { createWorld, growthKinds, metroBonus, partnerOf, sell, type World } fro
 function joinedWorld(): World {
   for (let seed = 1; seed < 40; seed++) {
     const w = createWorld(seed, 288, 96);
-    if (w.places.some((p) => p.partnerId)) return w;
+    if (w.places.some((p) => p.partnerId)) {
+      for (const p of w.places) p.stage = 2;
+      return w;
+    }
   }
   throw new Error('no joined pair found');
 }

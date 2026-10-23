@@ -1,7 +1,7 @@
 // Why a building is stuck, in plain words, and the one thing to do about it. The menus, the Production list and the
 // top box all read this, so they never disagree. Plain rules over the world; the UI draws the buttons.
 import { GOODS, GOOD_LIST, SITE_DEFS, vehicleLabel, type Good, type VehicleKind } from './defs';
-import { bodyForLine, buyError, buyOptions, buyersFor, fleetOf, hasByLine, lineGoods, produces, siteCap, stockOf, upgradeError, wants, type Line, type Site, type World } from './world';
+import { bodyForLine, buyError, buyOptions, buyersFor, fleetOf, hasByLine, lineGoods, produces, routeSpan, siteCap, stockOf, upgradeError, vehicleReach, wants, type Line, type Site, type World } from './world';
 
 export type Fix =
   | { kind: 'start' }
@@ -51,6 +51,16 @@ export function diagnose(world: World, s: Site, line: Line = 'main'): Diagnosis 
     if (terminal) return { level: 'warn', text: 'Not joined to anything yet. Build a road from town to this terminal, then a line to a terminal in another town.' };
     if (def.hub) return { level: 'warn', text: 'Nothing is joined to this warehouse. Build a road to a market or a factory.' };
     return { level: 'warn', text: `Nobody nearby buys ${word} yet. Towns want more kinds of goods as they grow.` };
+  }
+
+  // Joined, but only by roads longer than any of this building's trucks can run.
+  const reaches = fleet.map((v) => vehicleReach(v));
+  if (fleet.length > 0 && reaches.length > 0) {
+    const mine = world.routes.filter((r) => !r.free && r.mode === 'road' && (r.fromSiteId === s.id || r.toSiteId === s.id));
+    const best = Math.max(...reaches);
+    if (mine.length > 0 && mine.every((r) => routeSpan(r) > best)) {
+      return { level: 'warn', text: `The road is ${Math.round(Math.min(...mine.map(routeSpan)))} tiles and your trucks reach ${Math.round(best)}. Buy a bigger truck, build nearer, or relay it through a warehouse.` };
+    }
   }
 
   const selling = joined.filter((b) => b.on);

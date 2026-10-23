@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import type { Terrain } from './defs';
 import { findPath } from './path';
-import { put } from './testutil';
+import { put, stockLevelMats } from './testutil';
 import { runChores } from './bot';
 import { SITE_DEFS } from './defs';
-import { needs as needsFn, removeRoute, routeAt, addDock, yardSpot, placeError, buildRoadTo, buyersFor, setHubOptions, buyOptions, siteCap, buyVehicle, roadPlan, setMaking, setSendTo, createBlankWorld, createRoute, demolishSite, airPath, createAirRoute, siteCenter, dockDemand, ensureStations, townSites, onNetwork, placeAt, placeSite, planRoute, siteAt, streetAt, step, stockOf, type World } from './world';
+import { needs as needsFn, wants as wantsFn, removeRoute, routeAt, addDock, yardSpot, placeError, buildRoadTo, buyersFor, setHubOptions, buyOptions, siteCap, buyVehicle, roadPlan, setMaking, setSendTo, createBlankWorld, createRoute, demolishSite, airPath, createAirRoute, siteCenter, dockDemand, ensureStations, townSites, onNetwork, placeAt, placeSite, planRoute, siteAt, streetAt, step, stockOf, type World } from './world';
 
 function open(): World {
   const w = 30;
@@ -213,10 +213,10 @@ describe('rail', () => {
     const w = crossed();
     const path = findPath(w, siteAt(w, 3, 6)!, siteAt(w, 9, 6)!, 120000, 'rail')!;
     const farm = siteAt(w, 3, 6)!;
-    expect(buyOptions(w, farm.id)).toEqual(['boxtruck']);
+    expect(buyOptions(w, farm.id)).toEqual(['boxtruck', 'bigtruck', 'rig', 'convoy']);
     expect(buyVehicle(w, farm.id, 'train')).toMatch(/cannot run/);
     createRoute(w, path, 'rail');
-    expect(buyOptions(w, farm.id)).toEqual(['boxtruck', 'train']);
+    expect(buyOptions(w, farm.id)).toEqual(['boxtruck', 'bigtruck', 'rig', 'convoy', 'train']);
     // A truck bought here has only a rail line to work with, so it waits at the gate.
     expect(buyVehicle(w, farm.id, 'boxtruck')).toBeNull();
     for (let i = 0; i < 100; i++) step(w);
@@ -249,6 +249,7 @@ describe('towns as districts', () => {
     w.places[0].freightTile = { x: 19, y: 7 };
     w.sites = [];
     addDock(w, w.places[0], 'market');
+    addDock(w, w.places[0], 'freight');
     return w;
   }
 
@@ -391,7 +392,7 @@ describe('cities, entrances and highways', () => {
         // Every town starts at the bottom, however big its footprint.
         expect(c.level).toBe(1);
         expect(c.growth).toBe(0);
-        expect(w.sites.some((s) => s.kind === 'freight' && s.placeId === c.id)).toBe(false);
+        expect(w.sites.some((s) => s.kind === 'freight' && s.placeId === c.id)).toBe(true);
       }
     }
   });
@@ -615,21 +616,21 @@ describe('air routes and station freight', () => {
     w.places[0].marketTile = { x: 21, y: 5 };
     w.sites = [];
     addDock(w, w.places[0], 'market');
-    expect(placeSite(w, 'sawmill', 19, 5)).toBeNull();
+    expect(placeSite(w, 'workshop', 19, 5)).toBeNull();
     ensureStations(w);
     const station = w.sites.find((s) => s.kind === 'station')!;
     const mill = siteAt(w, 19, 5)!;
     expect(townSites(w, w.places[0])).toContain(mill);
     placeSite(w, 'hub', 10, 3);
     const hub = siteAt(w, 10, 3)!;
-    hub.pull = ['lumber'];
+    hub.pull = ['furniture'];
     createRoute(w, findPath(w, hub, station, 120000, 'rail')!, 'rail');
     runChores(w);
-    mill.stock.lumber = 40;
+    mill.stock.furniture = 40;
     for (let i = 0; i < 1500; i++) step(w);
-    // The train carried lumber out of the platform: it reached the hub, or came back and was sold in town.
-    expect((hub.stock.lumber ?? 0) + (w.delivered.lumber ?? 0)).toBeGreaterThan(0);
-    expect(station.out?.lumber ?? 0).toBeLessThan(31);
+    // The train carried furniture out of the platform: it reached the hub, or came back and was sold in town.
+    expect((hub.stock.furniture ?? 0) + (w.delivered.furniture ?? 0)).toBeGreaterThan(0);
+    expect(station.out?.furniture ?? 0).toBeLessThan(31);
   });
 });
 
@@ -692,6 +693,7 @@ describe('growing towns and old saves', () => {
     expect(isHomePlot(p, firstHome)).toBe(true);
     p.growth = 1e9;
     p.delivered = { lumber: 1, flour: 1, bread: 1 };
+    stockLevelMats(p);
     expect(readyToGrow(p)).toBe(true);
     expect(growTown(w, p.id)).toBeNull();
     expect(lotsAt(p)).toBeGreaterThan(l1);
@@ -716,7 +718,7 @@ describe('growing towns and old saves', () => {
   });
 });
 
-const needsX = (w: World, hub: NonNullable<ReturnType<typeof siteAt>>, from: NonNullable<ReturnType<typeof siteAt>>): number => needsFn(w, hub, 'logs', from);
+const needsX = (w: World, hub: NonNullable<ReturnType<typeof siteAt>>, from: NonNullable<ReturnType<typeof siteAt>>): number => needsFn(w, hub, 'bread', from);
 
 const raw = (w: World, kind: Parameters<typeof put>[1], x: number, y: number): void => {
   w.sites.push({ id: w.nextId++, kind, name: `T${x}`, x, y, stock: {}, timer: 0, level: 1, nodeId: null, placeId: null, pull: [], making: false, sendTo: [] });
@@ -726,32 +728,25 @@ describe('warehouse rules', () => {
   it('a warehouse feeds a nearby business, and waits for a full supplier before taking the rest', () => {
     const w = open();
     w.money = 100000;
-    raw(w, 'sawmill', 9, 9);
-    raw(w, 'hub', 6, 9);
-    const saw = siteAt(w, 9, 9)!;
-    const dep = siteAt(w, 6, 9)!;
-    setMaking(w, saw.id, true);
-    dep.stock.logs = 40;
-    for (let i = 0; i < 600; i++) step(w);
-    expect((saw.stock.lumber ?? 0) + (w.produced.lumber ?? 0)).toBeGreaterThan(0);
-    expect(dep.fed).toContain('logs');
-    // Hub overflow mode.
-    raw(w, 'forestry', 3, 9);
-    raw(w, 'hub', 4, 5); siteAt(w, 4, 5)!.pull = ['logs'];
+    raw(w, 'bakery', 3, 9);
+    raw(w, 'hub', 4, 5);
+    // The Distribution Warehouse holds finished goods only: raw logs are never taken.
+    siteAt(w, 4, 5)!.pull = ['logs', 'bread'];
+    expect(wantsFn(w, siteAt(w, 4, 5)!)).toEqual(['bread']);
     const camp = siteAt(w, 3, 9)!;
     const hub = siteAt(w, 4, 5)!;
-    camp.stock.logs = 5;
+    camp.stock.bread = 5;
     expect(needsX(w, hub, camp)).toBe(0);
-    camp.stock.logs = 1000;
+    camp.stock.bread = 1000;
     // Nothing joined to the hub would take logs, so they are not stored.
     expect(needsX(w, hub, camp)).toBe(0);
     // What the factories next to it need is always taken.
-    hub.fed = ['logs'];
-    camp.stock.logs = 1;
+    hub.fed = ['bread'];
+    camp.stock.bread = 1;
     expect(needsX(w, hub, camp)).toBeGreaterThan(0);
     hub.fed = [];
     setHubOptions(w, hub.id, { hubMode: 'all' });
-    camp.stock.logs = 1;
+    camp.stock.bread = 1;
     expect(needsX(w, hub, camp)).toBeGreaterThan(0);
   });
 });

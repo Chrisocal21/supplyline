@@ -29,6 +29,7 @@ run('pacing report', () => {
   for (const v of w.vehicles) vk[v.kind] = (vk[v.kind] ?? 0) + 1;
   lines.push(`vehicles by kind ${JSON.stringify(vk)}  upkeep/min: sites ${Math.round(w.sites.reduce((n, s) => n + SITE_DEFS[s.kind].cost * s.level * SITE_UPKEEP, 0))} vehicles ${Math.round(w.vehicles.reduce((n, v) => n + VEHICLE_DEFS[v.kind].cost * VEHICLE_UPKEEP, 0))}`);
   lines.push(`towns: ${w.places.slice(0, 5).map((p) => `${p.name} L${p.level} growth ${Math.round(p.growth)} kinds ${Object.keys(p.delivered).length} sites ${w.sites.filter((s) => s.placeId === null && Math.hypot(s.x - p.x, s.y - p.y) < 6).length}`).join(' | ')}`);
+  lines.push(`fuel spent ${Math.floor(w.fuel ?? 0).toLocaleString()}  wear avg ${(w.vehicles.reduce((n, v) => n + (v.wear ?? 0), 0) / Math.max(1, w.vehicles.length)).toFixed(2)}`);
   const tier = TIERS[w.tier];
   if (tier) lines.push(`open quests in tier ${w.tier}: ${tier.quests.filter((q) => !questState(w, tier, q).done).map((q) => q.label).join('; ')}`);
   process.stdout.write(lines.join('\n') + '\n');

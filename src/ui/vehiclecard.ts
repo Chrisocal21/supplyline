@@ -1,7 +1,7 @@
 // The vehicle card: a garage plate for one vehicle, with its class ladder, its stats beside the next class up, and its driver's
 // rank. The way a trucking game shows a truck you can level up.
 import { DRIVER_RANKS, DRIVER_TRIPS, GOODS, SITE_DEFS, VEHICLE_DEFS, type VehicleKind } from '../sim/defs';
-import { driverLevel, PICK_LABEL, PICK_MODES, runsOf, sellVehicleValue, siteById, upgradeVehicleCost, upgradeVehicleError, vehicleRoute, vehicleTicks, wrapDx, type PickMode, type TruckRun, type Vehicle, type World } from '../sim/world';
+import { driverLevel, PICK_LABEL, PICK_MODES, runsOf, sellVehicleValue, siteById, vehicleRoute, vehicleTicks, wrapDx, type PickMode, type TruckRun, type Vehicle, type World } from '../sim/world';
 import { button, fitSize, panel } from './company';
 import { COLORS, Im } from './imui';
 
@@ -48,7 +48,8 @@ export interface CardInfo {
 }
 
 export interface CardActions {
-  upgrade: () => void;
+  /** Pick another driver for this vehicle. */
+  changeDriver: () => void;
   copy: () => void;
   /** Send this vehicle only to one buyer, or to any of them (0). */
   setDest: (siteId: number) => void;
@@ -133,7 +134,7 @@ export function vehicleCard(im: Im, world: World, v: Vehicle, name: string, home
   const svcW = 112;
   const barW = Math.max(40, iw - 100 - svcW - 10);
   im.rect(4, barX, cy + 5, barW, 6, 0x0a0f14, 1, 1);
-  im.rect(4, barX, cy + 5, barW * cond, 6, tint, 1, 1);
+  im.rect(4, barX, cy + 5, barW * Math.min(1, Math.max(0, cond)), 6, cond > 1 ? COLORS.accent : tint, 1, 1);
   button(im, `${id}v`, info.serviceCost > 0 ? `SERVICE  $${fmt(info.serviceCost)}` : 'NO SERVICE NEEDED', px + iw - svcW, cy - 2, svcW, 20, info.serviceOk, act.service, 'quiet');
 
   // The class ladder: where this vehicle is, and what the next step needs.
@@ -156,14 +157,12 @@ export function vehicleCard(im: Im, world: World, v: Vehicle, name: string, home
     im.text(`${id}lr${i}`, cur ? 'THIS ONE' : passed ? 'done' : need, cx + cw / 2, ly + 20, { size: 9, bold: cur, color: cur ? 0x10161c : need === 'Ready' ? COLORS.good : COLORS.warn, align: 'center', layer: 5 });
   });
 
-  // The buttons: upgrade is the big one.
+  // The buttons: the driver is the big one. A bigger vehicle is bought new, and the driver moved over to it.
   const by = y + 206;
-  const upErr = upgradeVehicleError(world, v.id);
   const gapB = 8;
   const upW = (iw - gapB * 2) * 0.52;
   const smW = (iw - gapB * 2 - upW) / 2;
-  const upLabel = !next ? 'TOP CLASS' : upErr ? upErr : `UPGRADE TO ${next.label.toUpperCase()}  ·  $${fmt(upgradeVehicleCost(v.kind))}`;
-  button(im, `${id}u`, upLabel, px, by, upW, 38, !upErr && !!next, act.upgrade, 'main', true);
+  button(im, `${id}u`, v.driverId === 0 ? 'ASSIGN A DRIVER' : 'CHANGE DRIVER', px, by, upW, 38, true, act.changeDriver, v.driverId === 0 ? 'main' : 'quiet', true);
   button(im, `${id}k`, `COPY  $${fmt(info.copyCost)}`, px + upW + gapB, by, smW, 38, info.copyOk, act.copy, 'quiet');
   button(im, `${id}m`, 'RENAME DRIVER', px + upW + smW + gapB * 2, by, smW, 38, true, act.rename, 'quiet', true);
   button(im, `${id}x`, `SELL ${info.unit.toUpperCase()}  +$${fmt(sellVehicleValue(v))}`, px, y + 252, iw, 38, true, act.sell, 'danger');

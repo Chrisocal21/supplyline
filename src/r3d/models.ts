@@ -514,6 +514,8 @@ export function siteGeometry(kind: SiteKind): THREE.BufferGeometry {
       return printery();
     case 'hub':
       return hub();
+    case 'garage':
+      return workshop();
     case 'market':
       return market();
     case 'freight':

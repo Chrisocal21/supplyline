@@ -108,6 +108,8 @@ export interface SiteDef {
   real?: string;
   /** Port: a hub on the coast that ships sail between. */
   port?: boolean;
+  /** Mechanic Shop: trucks that wear out go here, and come back repaired. */
+  garage?: boolean;
 }
 
 const raw = (label: string, blurb: string, cost: number, tier: number, node: NodeKind, good: Good, every: number, color: number, also: Good[] = []): SiteDef => ({
@@ -182,9 +184,9 @@ const DEFS = {
 
   // Logistics and town docks
   hub: {
-    label: 'Warehouse',
-    blurb: 'Keeps your goods safe. It holds the extra when buyers are full, and the factories next to it take what they need.',
-    real: 'Like a real warehouse: goods wait on the shelf until a store or a factory needs them.',
+    label: 'Distribution Warehouse',
+    blurb: 'Holds finished goods like food and furniture and sells them on to other towns. Raw and building goods go to a Supply Yard.',
+    real: 'Like a real distribution centre: finished goods wait on the shelf until a town buys them.',
     category: 'logistics',
     cost: 300,
     tier: 1,
@@ -192,6 +194,17 @@ const DEFS = {
     color: 0xd68a2e,
     hub: true,
     store: true,
+  } as SiteDef,
+  garage: {
+    label: 'Mechanic Shop',
+    blurb: 'Trucks that wear out go here and come back repaired. A better shop is quicker, and a better mechanic repairs past new for a while.',
+    real: 'Like a real truck garage: a mechanic fixes the worn ones and sends them back out.',
+    category: 'logistics',
+    cost: 700,
+    tier: 1,
+    cap: 60,
+    color: 0x9a7448,
+    garage: true,
   } as SiteDef,
   railyard: {
     label: 'Rail Yard',
@@ -229,7 +242,7 @@ const DEFS = {
   } as SiteDef,
   freight: {
     label: 'Supply Yard',
-    blurb: 'Where the town buys raw materials for its builders and factories: logs, grain, ore and leftovers.',
+    blurb: 'Where the town buys raw and building goods: logs, lumber, grain, ore, bricks, steel and leftovers.',
     category: null,
     cost: 0,
     tier: 0,
@@ -365,6 +378,24 @@ export const DRIVER_TRIPS = [0, 6, 20, 45, 90];
 /** Each driver level above the first takes this share off the time a vehicle needs for a tile. */
 export const DRIVER_SPEED = 0.04;
 export const DRIVER_RANKS = ['Rookie', 'Regular', 'Experienced', 'Veteran', 'Ace'];
+/** What a driver of each rank asks to be hired, and is paid every minute whether or not they have a truck. Draft numbers. */
+export const DRIVER_HIRE = [0, 60, 200, 500, 1200];
+export const DRIVER_WAGE = [2, 4, 7, 11, 16];
+/** How often the applicants change, in ticks. */
+export const APPLICANT_TICKS = 6000;
+
+/**
+ * How far a road vehicle can run a route, in tiles (a highway tile counts half). Past it, goods must be daisy-chained from
+ * warehouse to warehouse, or go by rail, sea or air. The driver's rank stretches it. Draft numbers.
+ */
+export const VEHICLE_REACH: Partial<Record<VehicleKind, number>> = { boxtruck: 30, bigtruck: 50, rig: 80, convoy: 120 };
+export const DRIVER_REACH = [0.8, 1, 1.15, 1.3, 1.5];
+/** Fuel the driver pays for on every tile driven, loaded or empty: about the same per unit of load for every class. Draft numbers. */
+export const FUEL_PER_TILE: Partial<Record<VehicleKind, number>> = { boxtruck: 0.1, bigtruck: 0.22, rig: 0.5, convoy: 1.4 };
+/** Wear per tile grows with the haul: a run at full reach wears this much more per tile than a short local one. */
+export const WEAR_LONG_HAUL = 2;
+/** A fully worn road vehicle carries this much less. */
+export const WEAR_LOAD_LOSS = 0.3;
 
 /** Running costs. Vehicles cost this share of their price every minute; buildings and districts a share of theirs per level. */
 export const VEHICLE_UPKEEP = 0.04;
@@ -439,23 +470,51 @@ export const TOWN_LEVELS: TownLevel[] = [
   { name: 'Metropolis', pop: 60000, growth: 80000 },
 ];
 
-/** Goods the Market wants at each town level. */
+/** Goods the Market wants at each town level: finished goods people use every day. Raw and building goods go to the Supply Yard. */
 export const MARKET_DEMAND: Good[][] = [
-  ['flour', 'bread', 'lumber', 'cheese'],
-  ['flour', 'bread', 'lumber', 'cheese', 'paper', 'pellets', 'jam', 'coffee', 'mango'],
-  ['flour', 'bread', 'lumber', 'cheese', 'paper', 'pellets', 'jam', 'coffee', 'mango', 'furniture', 'clothes', 'tools', 'glass'],
-  ['flour', 'bread', 'lumber', 'cheese', 'paper', 'pellets', 'jam', 'coffee', 'mango', 'furniture', 'clothes', 'tools', 'glass', 'books', 'bricks', 'concrete', 'blocks'],
-  ['flour', 'bread', 'lumber', 'cheese', 'paper', 'pellets', 'jam', 'coffee', 'mango', 'furniture', 'clothes', 'tools', 'glass', 'books', 'bricks', 'concrete', 'blocks', 'machinery'],
+  ['bread', 'cheese'],
+  ['bread', 'cheese', 'paper', 'jam', 'coffee', 'mango'],
+  ['bread', 'cheese', 'paper', 'jam', 'coffee', 'mango', 'furniture', 'clothes', 'tools'],
+  ['bread', 'cheese', 'paper', 'jam', 'coffee', 'mango', 'furniture', 'clothes', 'tools', 'books'],
+  ['bread', 'cheese', 'paper', 'jam', 'coffee', 'mango', 'furniture', 'clothes', 'tools', 'books', 'machinery'],
 ];
-const FREIGHT_BASE: Good[] = ['logs', 'grain', 'cotton', 'stone', 'ore', 'coal', 'clay', 'sand', 'milk', 'fruit', 'sawdust', 'bran', 'whey', 'gravel', 'slag', 'feed', 'oil'];
-/** Goods the Supply Yard wants by town level (it appears at level 2). Raw materials and by-products find a buyer here. */
+const FREIGHT_BASE: Good[] = ['logs', 'grain', 'cotton', 'stone', 'ore', 'coal', 'clay', 'sand', 'milk', 'fruit', 'sawdust', 'bran', 'whey', 'gravel', 'slag', 'feed', 'oil', 'lumber', 'flour'];
+/** Goods the Supply Yard wants by town level: raw goods, by-products and building materials. */
 export const FREIGHT_DEMAND: Good[][] = [
-  [],
   FREIGHT_BASE,
-  [...FREIGHT_BASE, 'ingots', 'cement', 'yarn'],
-  [...FREIGHT_BASE, 'ingots', 'cement', 'yarn', 'steel'],
-  [...FREIGHT_BASE, 'ingots', 'cement', 'yarn', 'steel'],
+  [...FREIGHT_BASE, 'ingots', 'cement', 'yarn', 'pellets'],
+  [...FREIGHT_BASE, 'ingots', 'cement', 'yarn', 'pellets', 'glass', 'tools'],
+  [...FREIGHT_BASE, 'ingots', 'cement', 'yarn', 'pellets', 'glass', 'tools', 'steel', 'bricks', 'concrete', 'blocks', 'cloth'],
+  [...FREIGHT_BASE, 'ingots', 'cement', 'yarn', 'pellets', 'glass', 'tools', 'steel', 'bricks', 'concrete', 'blocks', 'cloth'],
 ];
+
+/** Lumber a closed town needs delivered to build its Supply Yard, then its Market. */
+export const BUILD_LUMBER = [100, 150];
+
+/**
+ * Materials a town needs delivered to its Supply Yard for each level-up (index 0 is level 1 to 2), by town style.
+ * Each level asks for harder goods. A level only asks for what its tier can make: tier 2 (concrete, glass, cement) opens when a town reaches level 4, steel at tier 3, so the first three levels use tier 0 and 1 goods. Draft numbers, to tune by playing.
+ */
+export const LEVEL_MATERIALS: Record<TownStyle, Stock[]> = {
+  nordic: [{ lumber: 200, stone: 100 }, { lumber: 500, stone: 300, blocks: 100 }, { lumber: 500, blocks: 300, bricks: 300 }, { steel: 1200, concrete: 2000, glass: 800, tools: 100 }],
+  temperate: [{ lumber: 150, bricks: 150 }, { bricks: 400, lumber: 300, blocks: 100 }, { bricks: 500, blocks: 300, lumber: 400 }, { steel: 1000, concrete: 1800, glass: 700, tools: 100 }],
+  mediterranean: [{ stone: 150, bricks: 150 }, { blocks: 300, bricks: 300, lumber: 150 }, { blocks: 500, bricks: 500, stone: 300 }, { steel: 1000, concrete: 1800, blocks: 800, glass: 600 }],
+  tropical: [{ lumber: 250, sand: 100 }, { lumber: 400, sand: 200, bricks: 150 }, { lumber: 400, bricks: 400, sand: 300 }, { steel: 1100, cement: 300, concrete: 2000, glass: 800 }],
+  arid: [{ bricks: 200, sand: 100 }, { bricks: 400, sand: 200, blocks: 100 }, { bricks: 500, blocks: 300, sand: 300 }, { steel: 1000, concrete: 1800, glass: 900, tools: 100 }],
+};
+
+/** Goods a Supply Yard keeps in store for building: lumber for the Market, and the level materials. Its own trucks carry them to the Market site. */
+/** The mechanic's skill is trained apart from the shop. What each level costs to train, and how far past new a repair takes a truck. Draft numbers. */
+export const MECHANIC_MAX = 5;
+export const MECHANIC_COST = [0, 400, 900, 1800, 3500, 7000];
+export const MECHANIC_BUFF = 0.08;
+/** A truck that is fully worn waits this long for the shop, faster with a better shop, slower with distance. Ticks. */
+export const SHOP_WAIT = 900;
+
+export const BUILD_GOODS: Good[] = ['lumber', 'stone', 'blocks', 'bricks', 'sand', 'cement', 'concrete', 'glass', 'steel', 'tools'];
+
+/** What a Warehouse (the Distribution Warehouse) may hold: finished goods only. Tools can go in both it and the Supply Yard. */
+export const WAREHOUSE_GOODS: Good[] = ['bread', 'cheese', 'jam', 'clothes', 'furniture', 'books', 'paper', 'coffee', 'mango', 'machinery', 'tools'];
 
 // ---- specialisation paths and districts ----
 
@@ -727,7 +786,7 @@ export const TIERS: TierDef[] = [
       { id: 't0-mill', label: 'Build a Sawmill in a town', hint: 'Open Processing, pick Sawmill, then click a for-sale lot beside a town street.', goal: { kind: 'build', site: 'sawmill', count: 1 }, reward: 150 },
       { id: 't0-road', label: 'Join them with a road', hint: 'Open Logistics, pick Road, then drag from the camp to the mill. The truck sets off by itself.', goal: { kind: 'route', mode: 'road', count: 1 }, reward: 150 },
       { id: 't0-making', label: 'Switch the Sawmill on', hint: 'Click the Sawmill and turn on Lumber under Production. Nothing is made until you do.', goal: { kind: 'making', count: 1 }, reward: 100 },
-      { id: 't0-selling', label: 'Sell lumber to the Market', hint: 'Click the Sawmill, buy a truck, and switch the Market on under Sell to. The street already links them.', goal: { kind: 'selling', count: 1 }, reward: 150 },
+      { id: 't0-selling', label: 'Sell lumber to the Supply Yard', hint: 'Click the Sawmill, buy a truck, and switch the Supply Yard on under Sell to. The street already links them.', goal: { kind: 'selling', count: 1 }, reward: 150 },
       { id: 't0-sell', label: 'Sell 100 lumber', hint: 'Lumber sells as the truck brings it. Add a second truck if it piles up.', goal: { kind: 'deliver', good: 'lumber', amount: 100 }, reward: 500 },
     ],
   },

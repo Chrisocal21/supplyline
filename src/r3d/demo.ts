@@ -4,7 +4,6 @@ import { buildDistrict } from '../sim/town';
 import { findPath } from '../sim/path';
 import { runChores } from '../sim/bot';
 import {
-  addDock,
   buyVehicle,
   createAirRoute,
   createRoute,
@@ -100,8 +99,8 @@ export function buildDemo(world: World): Tile | null {
   const levels = [3, 5, 4, 2];
   world.places.slice(0, levels.length).forEach((p, i) => {
     p.level = levels[i];
-    if (p.level >= 2) addDock(world, p, 'freight');
   });
+  for (const p of world.places) p.stage = 2;
 
   const nearest = (kind: 'forest' | 'farmland' | 'quarry', min = 0) =>
     world.nodes

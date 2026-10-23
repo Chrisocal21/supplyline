@@ -26,6 +26,7 @@ import {
   type SiteKind,
 } from './defs';
 import { upkeepMult } from './perks';
+import { tendDrivers, wagesPerMinute } from './drivers';
 import type { Place } from './features';
 import { freeCivicLot, layoutOf, routeAt, siteAt, syncDistrictSite, wrapDx, wrapX, type World } from './world';
 import { civicFootprint } from './townlayout';
@@ -260,12 +261,14 @@ export function upkeepPerMinute(world: World): number {
   let total = 0;
   for (const s of world.sites) total += SITE_DEFS[s.kind].cost * s.level * SITE_UPKEEP;
   for (const v of world.vehicles) total += VEHICLE_DEFS[v.kind].cost * VEHICLE_UPKEEP * upkeepMult(world);
+  total += wagesPerMinute(world);
   for (const p of world.places) for (const { def, level } of builtDistricts(p)) total += def.cost * level * DISTRICT_UPKEEP;
   return total;
 }
 
 /** Called once a second: district income comes in and running costs go out. Returns the net change. */
 export function stepEconomy(world: World): void {
+  tendDrivers(world);
   let gain = 0;
   for (const p of world.places) gain += districtRevenue(world, p);
   gain /= TICKS_PER_MINUTE / 10;

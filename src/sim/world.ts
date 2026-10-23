@@ -4,6 +4,10 @@ import {
   DISTRICT_ORDER,
   type DistrictId,
   FREIGHT_DEMAND,
+  WAREHOUSE_GOODS,
+  BUILD_LUMBER,
+  BUILD_GOODS,
+  LEVEL_MATERIALS,
   PATH_TOWN_LEVEL,
   GOODS,
   GOOD_LIST,
@@ -12,7 +16,12 @@ import {
   MARKET_DEMAND,
   MOUNTAIN_ELEV,
   fleetLimit,
+  DRIVER_REACH,
   DRIVER_SPEED,
+  FUEL_PER_TILE,
+  VEHICLE_REACH,
+  WEAR_LONG_HAUL,
+  WEAR_LOAD_LOSS,
   DRIVER_TRIPS,
   maxLevelOf,
   NODE_QUALITY,
@@ -58,7 +67,7 @@ import { blendPartner, civicFootprint, footprint, plotCount, streetReach, townLa
 import { generateLand } from './mapgen';
 import { checkQuests } from './quests';
 import { stepBank, type BankState } from './bank';
-import { WEAR_SLOWDOWN, WEAR_TILES } from './drivers';
+import { WEAR_SLOWDOWN, WEAR_TILES, stepBreakdown, applicants, assignDriver, driverById, hireDriver, hireFee, type Driver } from './drivers';
 import { saleMult, wearMult } from './perks';
 import { seasonMult } from './seasons';
 import { districtDemand, stepEconomy, townGrowthMult, townLoadMult, townPriceMult, townSpeedMult, townStorageMult } from './town';
@@ -149,6 +158,10 @@ export interface Site {
   extra?: number[];
   /** Distribution Hubs: 'overflow' only takes goods from a supplier whose store is filling up; 'all' takes everything on offer. */
   hubMode?: 'overflow' | 'all';
+  /** Mechanic Shops: the mechanic's level, trained apart from the shop's own. */
+  mech?: number;
+  /** Supply Yards: building goods held in store for the town's Market site, until its own trucks carry them there. */
+  depot?: Stock;
   /** Overflow mode: how full a supplier's store must be (0 to 1) before this hub takes its goods. */
   trigger?: number;
   /** Storage Depots: the inputs of the businesses in reach, refreshed as they come and go. The depot asks suppliers for these. */
@@ -304,6 +317,10 @@ export interface Vehicle {
   kind: VehicleKind;
   /** Deliveries made to a buyer, which raise the driver's level and make it faster. */
   trips?: number;
+  /** Set while a worn-out vehicle waits at its building for the Mechanic Shop: the tick it is repaired. */
+  repairAt?: number;
+  /** The driver at the wheel (see drivers.ts). Older vehicles are given one on first use. */
+  driverId?: number;
   /** Money this vehicle has brought in from sales, and its last few deliveries (newest last), for its pop-out. */
   earned?: number;
   runs?: { tick: number; good: Good; units: number; money: number; toId: number }[];
@@ -311,6 +328,8 @@ export interface Vehicle {
   driver?: string;
   /** How worn the vehicle is, 0 (new) to 1 (worn out). It grows with the ground covered and a service sets it back. */
   wear?: number;
+  /** Fuel this vehicle has used, in money. */
+  fuel?: number;
   /**
    * Set when the road it was on is taken out from under it: the old line, kept here (not in world.routes) so it can
    * drive on to its home along it instead of vanishing. Cleared when it gets there.
@@ -396,6 +415,12 @@ export interface World {
   logSeq: number;
   /** Running costs paid since the start, and money that districts have earned. */
   upkeep?: number;
+  /** Money spent on fuel in all. */
+  fuel?: number;
+  /** Everyone the company employs to drive, with or without a vehicle. */
+  drivers?: Driver[];
+  /** The applicant slots already hired from in the current period. */
+  hired?: { day: number; keys: number[] };
   districtIncome?: number;
   /** Resource node layout version (see NODE_LAYOUT). */
   layout?: number;
@@ -481,7 +506,8 @@ export function* worldSteps(seed = Math.floor(Math.random() * 1e9), width = 192,
   carvePasses(world);
   for (const p of world.places) {
     addDock(world, p, 'market');
-    if (p.level >= 2) addDock(world, p, 'freight');
+    addDock(world, p, 'freight');
+    p.stage = 0;
   }
   return world;
 }
@@ -585,7 +611,8 @@ export function createWorldFromMap(map: MapData): World {
   world.mapId = map.id;
   for (const p of world.places) {
     addDock(world, p, 'market');
-    if (p.level >= 2) addDock(world, p, 'freight');
+    addDock(world, p, 'freight');
+    p.stage = 0;
   }
   return world;
 }
@@ -660,6 +687,11 @@ export function prepareRealisticWorld(world: World): void {
 function addLog(world: World, text: string): void {
   world.log.push({ seq: ++world.logSeq, text });
   if (world.log.length > 40) world.log.shift();
+}
+
+/** Older saves: towns that had no Supply Yard yet (it used to open at level 2) get one. */
+export function ensureYards(world: World): void {
+  for (const p of world.places) if (!world.sites.some((q) => q.placeId === p.id && q.kind === 'freight')) addDock(world, p, 'freight');
 }
 
 export function addDock(world: World, place: Place, kind: 'market' | 'freight'): Site {
@@ -1214,6 +1246,9 @@ function take(site: Site, good: Good, n: number): void {
   if (SITE_DEFS[site.kind].station) {
     const out = (site.out ??= {});
     out[good] = Math.max(0, (out[good] ?? 0) - n);
+  } else if (SITE_DEFS[site.kind].dock === 'freight') {
+    const d = (site.depot ??= {});
+    d[good] = Math.max(0, (d[good] ?? 0) - n);
   } else addStock(site, good, -n);
 }
 
@@ -1258,8 +1293,43 @@ export function dockDemand(world: World, site: Site): Good[] {
   if (!place) return [];
   const def = SITE_DEFS[site.kind];
   if (def.dock === 'civic') return site.districtId ? [...DISTRICTS[site.districtId].goods] : [];
-  if (def.dock === 'market') return withExtra(MARKET_DEMAND[place.level - 1], districtDemand(place, 'market'));
-  return withExtra(FREIGHT_DEMAND[Math.min(FREIGHT_DEMAND.length, place.level) - 1], districtDemand(place, 'freight'));
+  const stage = place.stage ?? 2;
+  if (def.dock === 'market') {
+    // Until the Market is built it asks only for lumber, from the Supply Yard's own trucks. Afterwards it also takes the
+    // materials for the town's next level, which only those trucks bring.
+    if (stage < 2) return stage === 1 ? ['lumber'] : [];
+    return withExtra(withExtra(MARKET_DEMAND[place.level - 1], districtDemand(place, 'market')), matsNeeded(place).map(([g]) => g));
+  }
+  if (stage < 1) return ['lumber'];
+  const need = matsNeeded(place);
+  return withExtra(withExtra(FREIGHT_DEMAND[Math.min(FREIGHT_DEMAND.length, place.level) - 1], districtDemand(place, 'freight')), need.map(([g]) => g));
+}
+
+/** Materials the town still needs delivered to its Supply Yard before it can reach its next level, as [good, units left]. */
+export function matsNeeded(place: Place): [Good, number][] {
+  const want = LEVEL_MATERIALS[place.style]?.[place.level - 1];
+  if (!want) return [];
+  return (Object.keys(want) as Good[]).map((g): [Good, number] => [g, Math.max(0, (want[g] ?? 0) - (place.mats?.[g] ?? 0))]).filter(([, n]) => n > 0);
+}
+
+/** Units of a building good still to reach the Market site: lumber for the Market, then the level materials. */
+export function buildLeft(place: Place, g: Good): number {
+  const stage = place.stage ?? 2;
+  if (stage === 1) return g === 'lumber' ? Math.max(0, BUILD_LUMBER[1] - (place.build ?? 0)) : 0;
+  if (stage >= 2) return matsNeeded(place).find(([mg]) => mg === g)?.[1] ?? 0;
+  return 0;
+}
+
+/** Units of a building good the yard can still take into store: what the Market site still needs, less what is already held. */
+export function depotLeft(place: Place, yard: Site, g: Good): number {
+  return Math.max(0, buildLeft(place, g) - (yard.depot?.[g] ?? 0));
+}
+
+/** What the town is building now and how far along: the Supply Yard, then the Market. Null once both stand. */
+export function buildingNow(place: Place): { name: string; have: number; need: number } | null {
+  const stage = place.stage ?? 2;
+  if (stage >= 2) return null;
+  return { name: stage === 0 ? 'Supply Yard' : 'Market', have: Math.floor(place.build ?? 0), need: BUILD_LUMBER[stage] };
 }
 
 /** Price per unit a dock pays right now: base, town level bonus, and how stocked it already is. */
@@ -1279,6 +1349,8 @@ export function produces(site: Site): Good[] {
   const def = SITE_DEFS[site.kind];
   if (def.produce) return [def.produce.good, ...(def.produce.also ?? []).map((x) => x.good)];
   if (def.recipe) return Object.keys(def.recipe.outputs) as Good[];
+  if (def.store) return WAREHOUSE_GOODS;
+  if (def.dock === 'freight') return BUILD_GOODS;
   if (def.hub || def.station) return GOOD_LIST;
   return [];
 }
@@ -1307,7 +1379,7 @@ export function hasByLine(site: Site): boolean {
 export function wants(world: World, site: Site): Good[] {
   const def = SITE_DEFS[site.kind];
   if (def.recipe) return site.making ? (Object.keys(def.recipe.inputs) as Good[]) : [];
-  if (def.store) return Array.from(new Set([...site.pull, ...(site.fed ?? [])]));
+  if (def.store) return Array.from(new Set([...site.pull, ...(site.fed ?? [])])).filter((g) => WAREHOUSE_GOODS.includes(g));
   if (def.hub) return site.pull;
   if (def.dock) return dockDemand(world, site);
   if (def.station) {
@@ -1321,6 +1393,7 @@ export function wants(world: World, site: Site): Good[] {
 /** Units of `good` this site has ready to ship. */
 export function offers(site: Site, good: Good): number {
   if (SITE_DEFS[site.kind].station) return Math.floor(site.out?.[good] ?? 0);
+  if (SITE_DEFS[site.kind].dock === 'freight') return Math.floor(site.depot?.[good] ?? 0);
   return produces(site).includes(good) ? Math.floor(stockOf(site, good)) : 0;
 }
 
@@ -1330,6 +1403,22 @@ export function needs(world: World, site: Site, good: Good, from?: Site): number
   const cap = siteCap(world, site);
   const room = Math.floor(cap - stockOf(site, good));
   if (room <= 0) return 0;
+  const sdock = SITE_DEFS[site.kind].dock;
+  if (from && SITE_DEFS[from.kind].dock === 'freight') {
+    // The yard's trucks carry building goods to the Market site, and nothing else.
+    if (sdock !== 'market') return 0;
+    const pl = placeOf(world, site);
+    return pl ? Math.min(room, Math.ceil(buildLeft(pl, good))) : 0;
+  }
+  if (sdock === 'market' && (site.placeId !== null) && BUILD_GOODS.includes(good)) {
+    const pl = placeOf(world, site);
+    if (pl && buildLeft(pl, good) > 0 && !MARKET_DEMAND[pl.level - 1]?.includes(good)) return 0;
+  }
+  if (sdock === 'freight') {
+    // A yard stores only what the town still needs for building, and is a plain buyer for the rest.
+    const pl = placeOf(world, site);
+    if (pl && (pl.stage ?? 2) >= 1 && !FREIGHT_DEMAND[Math.min(FREIGHT_DEMAND.length, pl.level) - 1].includes(good) && depotLeft(pl, site, good) <= 0) return 0;
+  }
   // Hubs only pass goods to another hub when the sender is fuller, so goods flow downhill instead of ping-ponging.
   // A warehouse always takes what the factories next to it need. Anything else only when a supplier is filling up, and only
   // if there is somewhere for it to go, so by-products with no buyer cannot clog the shelves.
@@ -1379,7 +1468,8 @@ export function sendAllowed(a: Site, b: Site, line: Line = 'main'): boolean {
 /** Whether `a` makes or passes on something `b` asks for, and is allowed to send it. */
 export function supplies(world: World, a: Site, b: Site, line: Line = 'main'): boolean {
   if (!sendAllowed(a, b, line)) return false;
-  const asked = wants(world, b);
+  if (SITE_DEFS[a.kind].dock === 'freight' && SITE_DEFS[b.kind].dock !== 'market') return false;
+  const asked = askedOf(world, b, a);
   return lineGoods(a, line).some((g) => asked.includes(g));
 }
 
@@ -1389,13 +1479,24 @@ function wantsEver(world: World, site: Site): Good[] {
   return def.recipe ? (Object.keys(def.recipe.inputs) as Good[]) : wants(world, site);
 }
 
+/** What `b` asks of `a`: a Market asks for building goods only of a Supply Yard's trucks, never of a sawmill's or a factory's. */
+function askedOf(world: World, b: Site, a: Site): Good[] {
+  const asked = wantsEver(world, b);
+  if (SITE_DEFS[b.kind].dock !== 'market' || SITE_DEFS[a.kind].dock === 'freight') return asked;
+  const place = placeOf(world, b);
+  if (!place) return asked;
+  return asked.filter((g) => !BUILD_GOODS.includes(g) || (MARKET_DEMAND[place.level - 1] ?? []).includes(g));
+}
+
 /** Whether the two sites could ever trade, so a route between them makes sense. */
 export function canHaul(world: World, a: Site, b: Site): boolean {
   const defA = SITE_DEFS[a.kind];
   const defB = SITE_DEFS[b.kind];
   if (defA.hub || defB.hub) return true;
-  const ab = produces(a).some((g) => wantsEver(world, b).includes(g));
-  const ba = produces(b).some((g) => wantsEver(world, a).includes(g));
+  const yardA = defA.dock === 'freight';
+  const yardB = defB.dock === 'freight';
+  const ab = (!yardA || defB.dock === 'market') && produces(a).some((g) => askedOf(world, b, a).includes(g));
+  const ba = (!yardB || defA.dock === 'market') && produces(b).some((g) => askedOf(world, a, b).includes(g));
   return ab || ba;
 }
 
@@ -1742,7 +1843,7 @@ function stepSite(world: World, site: Site): void {
 export function readyToGrow(place: Place): boolean {
   const next = TOWN_LEVELS[place.level];
   if (!next) return false;
-  return place.growth >= next.growth && growthKinds(place) >= place.level;
+  return (place.stage ?? 2) >= 2 && place.growth >= next.growth && growthKinds(place) >= place.level && matsNeeded(place).length === 0;
 }
 
 /** A town does not grow by itself: once it has earned it, the player is told, and finishes the upgrade with growTown. */
@@ -1782,7 +1883,7 @@ export function growPreview(place: Place): GrowPreview | null {
   if (!next) return null;
   const lv = place.level;
   const market = (l: number): Good[] => MARKET_DEMAND[l - 1] ?? [];
-  const freight = (l: number): Good[] => (l >= 2 ? FREIGHT_DEMAND[Math.min(FREIGHT_DEMAND.length, l) - 1] : []);
+  const freight = (l: number): Good[] => FREIGHT_DEMAND[Math.min(FREIGHT_DEMAND.length, l) - 1];
   const store = (l: number): number => Math.round(SITE_DEFS.market.cap * l * (radiusOf(place) > 3 ? 2 : 1) * townStorageMult(place));
   return {
     from: TOWN_LEVELS[lv - 1].name,
@@ -1790,8 +1891,8 @@ export function growPreview(place: Place): GrowPreview | null {
     popFrom: TOWN_LEVELS[lv - 1].pop,
     popTo: next.pop,
     newMarket: market(lv + 1).filter((g) => !market(lv).includes(g)),
-    newFreight: lv + 1 >= 2 ? freight(lv + 1).filter((g) => !freight(lv).includes(g)) : [],
-    freightOpens: lv + 1 === 2,
+    newFreight: freight(lv + 1).filter((g) => !freight(lv).includes(g)),
+    freightOpens: false,
     priceFrom: Math.round(12 * (lv - 1)),
     priceTo: Math.round(12 * lv),
     storeFrom: store(lv),
@@ -1810,8 +1911,8 @@ export function growTown(world: World, placeId: number): string | null {
   if (!readyToGrow(place)) return `${place.name} is not ready to grow yet`;
   const next = TOWN_LEVELS[place.level];
   place.level += 1;
+  place.mats = {};
   addLog(world, `${place.name} grew into a ${next.name}`);
-  if (place.level === 2) addDock(world, place, 'freight');
   linkTown(world, place);
   checkTown(world, place);
   return null;
@@ -1856,6 +1957,25 @@ export function sell(world: World, dock: Site, g: Good, amount: number): number 
   world.earned += gain;
   world.delivered[g] = (world.delivered[g] ?? 0) + amount;
   place.delivered[g] = (place.delivered[g] ?? 0) + amount;
+  if (SITE_DEFS[dock.kind].dock === 'freight' && BUILD_GOODS.includes(g)) {
+    // Building goods are paid for as usual and also kept in store, for the Market site, up to what it still needs.
+    const keep = Math.min(amount, depotLeft(place, dock, g));
+    if (keep > 0) (dock.depot ??= {})[g] = (dock.depot[g] ?? 0) + keep;
+  }
+  const stage = place.stage ?? 2;
+  if (stage < 2) {
+    // A closed town spends the lumber on building: first its Supply Yard, then its Market.
+    if (g === 'lumber' && stage === 0 && SITE_DEFS[dock.kind].dock === 'freight') {
+      place.build = (place.build ?? 0) + amount;
+      if (place.build >= BUILD_LUMBER[stage]) {
+        place.build = 0;
+        place.stage = stage + 1;
+        addLog(world, `${place.name} built its Supply Yard`);
+        linkTown(world, place);
+      }
+    }
+    return gain;
+  }
   const earned = amount * GOODS[g].price * townGrowthMult(place);
   place.growth += earned;
   checkTown(world, place);
@@ -1869,6 +1989,27 @@ export function sell(world: World, dock: Site, g: Good, amount: number): number 
     checkTown(world, mate);
   }
   return gain;
+}
+
+/** A Supply Yard truck unloads at the Market site: no sale, the goods go into building the Market or the town's next level. */
+function buildDeliver(world: World, market: Site, g: Good, amount: number): void {
+  const place = placeOf(world, market);
+  if (!place) return;
+  const stage = place.stage ?? 2;
+  if (stage === 1) {
+    if (g !== 'lumber') return;
+    place.build = (place.build ?? 0) + amount;
+    if (place.build >= BUILD_LUMBER[1]) {
+      place.build = 0;
+      place.stage = 2;
+      addLog(world, `${place.name} built its Market`);
+    }
+    return;
+  }
+  const left = matsNeeded(place).find(([mg]) => mg === g);
+  if (!left) return;
+  (place.mats ??= {})[g] = (place.mats[g] ?? 0) + Math.min(amount, left[1]);
+  checkTown(world, place);
 }
 
 /** How much of a good a building has room to take right now. */
@@ -1892,6 +2033,13 @@ function deliver(world: World, site: Site, v: Vehicle, all = true): number {
   v.cargo = total - amount;
   if (v.cargo <= 0) v.good = null;
   if (amount <= 0) return v.cargo;
+  const origin = v.fromId === undefined ? undefined : siteById(world, v.fromId);
+  if (SITE_DEFS[site.kind].dock === 'market' && origin && SITE_DEFS[origin.kind].dock === 'freight') {
+    buildDeliver(world, site, g, amount);
+    (v.runs ??= []).push({ tick: world.tick, good: g, units: amount, money: 0, toId: site.id });
+    if (v.runs.length > 6) v.runs.shift();
+    return v.cargo;
+  }
   if (SITE_DEFS[site.kind].dock) {
     const gain = sell(world, site, g, amount);
     v.earned = (v.earned ?? 0) + gain;
@@ -1946,9 +2094,34 @@ export function driverLevel(v: { trips?: number }): number {
   return lv;
 }
 
+/** How many tiles of road a route counts for: highway tiles are half. */
+export function routeSpan(route: Pick<Route, 'path' | 'grade'>): number {
+  return route.path.length * (route.grade === 'highway' ? 0.5 : 1);
+}
+
+/** The longest road route a vehicle can run, in tiles: its class's reach, stretched by its driver's rank. Infinity off the road. */
+export function vehicleReach(v: { kind: VehicleKind; trips?: number }): number {
+  const base = VEHICLE_REACH[v.kind];
+  return base === undefined ? Infinity : base * DRIVER_REACH[driverLevel(v) - 1];
+}
+
+/** One tile driven: wear (more on a long haul) and the fuel the driver pays for. */
+function driveTile(world: World, v: Vehicle, route: Route): void {
+  let wear = wearMult(world) / WEAR_TILES;
+  const reach = VEHICLE_REACH[v.kind];
+  if (reach !== undefined) {
+    wear *= 1 + WEAR_LONG_HAUL * Math.min(1, routeSpan(route) / vehicleReach(v));
+    const fuel = Math.min(world.money, FUEL_PER_TILE[v.kind] ?? 0);
+    world.money -= fuel;
+    world.fuel = (world.fuel ?? 0) + fuel;
+    v.fuel = (v.fuel ?? 0) + fuel;
+  }
+  v.wear = Math.min(1, (v.wear ?? 0) + wear);
+}
+
 /** Ticks a vehicle needs for a tile: its class's time, less what its driver's experience saves. */
 export function vehicleTicks(v: { kind: VehicleKind; trips?: number; wear?: number }): number {
-  return VEHICLE_DEFS[v.kind].ticksPerTile * (1 - DRIVER_SPEED * (driverLevel(v) - 1)) * (1 + WEAR_SLOWDOWN * (v.wear ?? 0));
+  return VEHICLE_DEFS[v.kind].ticksPerTile * (1 - DRIVER_SPEED * (driverLevel(v) - 1)) * (1 + WEAR_SLOWDOWN * Math.max(0, v.wear ?? 0));
 }
 
 export function routeTicks(route: Route, base: number): number {
@@ -1965,6 +2138,7 @@ export function laneOk(world: World, v: Vehicle, route: Route): boolean {
   if (route.free || route.mode !== VEHICLE_DEFS[v.kind].mode) return false;
   if (route.mode === 'sea' && (VEHICLE_DEFS[v.kind].draft ?? 0) > (route.draft ?? 2)) return false;
   if (route.fromSiteId !== v.homeId && route.toSiteId !== v.homeId) return false;
+  if (route.mode === 'road' && routeSpan(route) > vehicleReach(v)) return false;
   const home = siteById(world, v.homeId);
   const other = siteById(world, route.fromSiteId === v.homeId ? route.toSiteId : route.fromSiteId);
   if (!home || !other) return false;
@@ -2029,6 +2203,11 @@ export function setVehiclePick(world: World, vehicleId: number, pick: PickMode):
 }
 
 function stepVehicle(world: World, v: Vehicle): void {
+  // Worn out: it stops where it is and waits for a Mechanic Shop, or for the player to service it.
+  if (VEHICLE_DEFS[v.kind].mode === 'road' && (v.wear ?? 0) >= 1) {
+    stepBreakdown(world, v);
+    return;
+  }
   if (v.back) {
     stepRetreat(world, v);
     return;
@@ -2047,6 +2226,8 @@ function stepVehicle(world: World, v: Vehicle): void {
 
   switch (v.state) {
     case 'loading': {
+      // No driver, no work: the vehicle waits at its building until the player assigns one.
+      if (v.driverId === 0) break;
       // Looking for a load is the costly part of a tick, so each vehicle does it a few times a second, not every tick.
       if ((world.tick + v.id) % LOAD_CHECK_EVERY !== 0) {
         v.moveTimer += 1;
@@ -2082,14 +2263,16 @@ function stepVehicle(world: World, v: Vehicle): void {
         }
       }
       const hereTown = siteTown(world, here);
-      const capacity = Math.floor(vdef.capacity * (hereTown ? townLoadMult(hereTown) : 1));
+      const capacity = Math.max(1, Math.floor(vdef.capacity * (hereTown ? townLoadMult(hereTown) : 1) * (vdef.mode === 'road' ? 1 - WEAR_LOAD_LOSS * Math.max(0, v.wear ?? 0) : 1)));
       const pick = pickCargo(world, here, there, capacity, atHome ? v.line ?? 'main' : undefined, atHome ? v.body : undefined);
       // A full load is the vehicle's capacity, or nine tenths of what the building can hold when that is smaller, so it can always fill.
       // The same goes for the buyer: it can never take more than it can hold, so a small buyer sets the size of a full load.
       const fullLoad = Math.max(1, Math.min(capacity, Math.floor(siteCap(world, here) * 0.9), Math.floor(siteCap(world, there) * 0.9)));
       const waited = v.moveTimer;
       // Leaving home always takes a full load: the vehicle waits until it has one. Only a backhaul from the far end may go part full.
-      const enough = pick !== null && (atHome ? pick.amount >= fullLoad * LOAD_WAIT_FRACTION : pick.amount >= capacity * 0.4);
+      // A Supply Yard truck also goes when it carries everything the Market site still needs.
+      const finishing = pick !== null && SITE_DEFS[here.kind].dock === 'freight' && pick.amount >= needs(world, there, pick.good, here);
+      const enough = pick !== null && (finishing || (atHome ? pick.amount >= fullLoad * LOAD_WAIT_FRACTION : pick.amount >= capacity * 0.4));
       // Having come all this way for it (home has nothing to send back), take whatever is waiting.
       const fetch = pick !== null && !atHome && !pickCargo(world, there, here, capacity);
       if (pick && (enough || fetch)) {
@@ -2120,7 +2303,7 @@ function stepVehicle(world: World, v: Vehicle): void {
       if (v.moveTimer < routeTicks(route, vehicleTicks(v))) break;
       v.moveTimer = 0;
       v.idx += v.dir;
-      v.wear = Math.min(1, (v.wear ?? 0) + wearMult(world) / WEAR_TILES);
+      driveTile(world, v, route);
       if (v.idx <= 0 || v.idx >= last) {
         v.idx = v.idx <= 0 ? 0 : last;
         v.state = 'unloading';
@@ -2131,7 +2314,11 @@ function stepVehicle(world: World, v: Vehicle): void {
       const atHomeEnd = (v.idx === 0) === (homeEnd(route, v) === 0);
       const site = v.idx === 0 ? from : to;
       // Arriving at a buyer with a load is a trip: it counts toward the driver's rank.
-      if (!atHomeEnd && v.cargo > 0) v.trips = (v.trips ?? 0) + 1;
+      if (!atHomeEnd && v.cargo > 0) {
+        v.trips = (v.trips ?? 0) + 1;
+        const dr = driverById(world, v.driverId);
+        if (dr) dr.trips = v.trips;
+      }
       if (atHomeEnd) {
         if (v.cargo > 0 && v.good && v.fromId === v.homeId) {
           // Back home still carrying what the buyer could not take: try the next best buyer before loading again.
@@ -2819,7 +3006,7 @@ export function placeSite(world: World, kind: SiteKind, x: number, y: number, ro
     level: 1,
     nodeId: node?.id ?? null,
     placeId: null,
-    pull: def.hub ? [...GOOD_LIST] : [],
+    pull: def.store ? [...WAREHOUSE_GOODS] : def.hub ? [...GOOD_LIST] : [],
     making: def.recipe ? false : undefined,
     sendTo: [],
     ...(turn !== undefined ? { rot: turn } : {}),
@@ -3063,7 +3250,7 @@ function stepRetreat(world: World, v: Vehicle): void {
   if (v.moveTimer < routeTicks(route, vehicleTicks(v))) return;
   v.moveTimer = 0;
   v.idx += v.dir;
-  v.wear = Math.min(1, (v.wear ?? 0) + wearMult(world) / WEAR_TILES);
+  driveTile(world, v, route);
   const last = route.path.length - 1;
   if ((v.dir === -1 && v.idx <= 0) || (v.dir === 1 && v.idx >= last)) {
     // Home: the load goes back in the store, and the vehicle waits for a road like any other.
@@ -3281,10 +3468,11 @@ export function buyOptions(world: World, siteId: number): VehicleKind[] {
   const site = siteById(world, siteId);
   if (!site) return [];
   const def = SITE_DEFS[site.kind];
+  if (def.dock === 'freight') return (placeOf(world, site)?.stage ?? 2) >= 1 ? ['boxtruck'] : [];
   if (def.dock) return [];
   if (def.airport) return ['plane'];
   const out: VehicleKind[] = [];
-  if (!def.station) out.push('boxtruck');
+  if (!def.station) out.push('boxtruck', 'bigtruck', 'rig', 'convoy');
   if (def.port) out.push('barge', 'boat');
   if (def.station || hasRail(world, siteId)) out.push('train');
   return out;
@@ -3305,13 +3493,28 @@ export function buyError(world: World, siteId: number, kind: VehicleKind): strin
 }
 
 /** Buy a vehicle that works for a building. It waits there until a route it may run exists. */
-export function buyVehicle(world: World, siteId: number, kind: VehicleKind, line: Line = 'main'): string | null {
+export function buyVehicle(world: World, siteId: number, kind: VehicleKind, line: Line = 'main', who?: { use?: number; hire?: number }): string | null {
   const err = buyError(world, siteId, kind);
   if (err) return err;
   const owner = siteById(world, siteId)!;
   if (fleetOf(world, siteId, line).length >= fleetLimit(owner.level)) return `This line runs ${fleetLimit(owner.level)} vehicles at level ${owner.level}. Upgrade the building to run more`;
+  // The driver is the player's pick: someone waiting for a vehicle, or an applicant to hire. Without a pick, a rookie comes with it.
+  let driver: Driver | undefined;
+  if (who?.use !== undefined) {
+    driver = driverById(world, who.use);
+    if (!driver || driver.vehicleId !== null) return 'That driver is not free';
+  }
+  if (who?.hire !== undefined) {
+    const a = applicants(world).find((x) => x.key === who.hire);
+    if (!a) return 'That person has found another job';
+    if (world.money < VEHICLE_DEFS[kind].cost + hireFee(a)) return `Need $${(VEHICLE_DEFS[kind].cost + hireFee(a)).toLocaleString('en-US')} for the vehicle and ${a.name}`;
+    const hired = hireDriver(world, who.hire);
+    if ('error' in hired) return hired.error;
+    driver = hired.driver;
+  }
   world.money -= VEHICLE_DEFS[kind].cost;
   const v = newVehicle(world, siteId, kind);
+  if (driver) assignDriver(world, v.id, driver.id);
   const site = siteById(world, siteId);
   if (line === 'by' && site && hasByLine(site)) v.line = 'by';
   if (site && VEHICLE_DEFS[kind].mode === 'road') {

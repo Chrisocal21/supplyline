@@ -3,7 +3,7 @@
 import { describe, expect, it } from 'vitest';
 import { HIGHWAY_TIER, SITE_DEFS, type SiteKind } from './defs';
 import { findPath } from './path';
-import { civicAt, createRoute, createWorld, padAt, placeError, placeSite, siteTiles, streetAt, townTiles, wrapX, type World } from './world';
+import { civicAt, createRoute, createWorld, padAt, placeError, plotAt, placeSite, siteTiles, streetAt, townTiles, wrapX, type World } from './world';
 
 function rng(seed: number): () => number {
   let a = seed >>> 0;
@@ -76,6 +76,8 @@ describe('placing buildings', () => {
       const x = Math.floor(r() * w.width);
       const y = 4 + Math.floor(r() * (w.height - 8));
       if (placeError(w, kind, x, y) !== null) continue;
+      // A town's own plots are where a building may stand inside its footprint.
+      if (plotAt(w, x, y)) continue;
       expect(grown.has(y * w.width + wrapX(w, x)), `${kind} at ${x},${y} is in a town's grown footprint`).toBe(false);
     }
   });

@@ -57,6 +57,12 @@ export interface Place {
   partnerDelivered?: Stock;
   /** The level at which "ready to grow" was last announced, so it is said once. */
   readyAt?: number;
+  /** How far the town is built: 0 has nothing yet (the Supply Yard is next), 1 has the yard (the Market is next), 2 or unset is complete. */
+  stage?: number;
+  /** Lumber delivered toward the building now under way (the yard or the Market). */
+  build?: number;
+  /** Materials delivered toward the town's next level, up to what it asks for. */
+  mats?: Stock;
   /** The ground kept clear for this town's airport (its middle and facing), until the town has one. */
   airportPad?: { x: number; y: number; rot: 0 | 1 | 2 | 3 } | null;
 }

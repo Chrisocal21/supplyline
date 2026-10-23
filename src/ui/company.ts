@@ -11,7 +11,6 @@ import {
   bottlenecks,
   buyError,
   buyOptions,
-  buyVehicle,
   fleetOf,
   sellVehicle,
   sellVehicleValue,
@@ -38,6 +37,8 @@ export interface PageHooks {
   hasTexture: (key: string) => boolean;
   toast: (text: string) => void;
   income: () => number;
+  /** Buying a vehicle asks who drives it first. */
+  pickDriver: (siteId: number, kind: VehicleKind) => void;
   open: (page: 'production' | 'fleet' | 'towns' | 'bank' | 'quests') => void;
 }
 
@@ -385,7 +386,7 @@ export function fleetPage(im: Im, world: World, v: PageView, scroll: number, hoo
         const full = fleet.length >= 3 + 2 * s.level;
         const why = err ?? (full ? 'This yard is full: upgrade the building to run more' : null);
         if (why && !reason) reason = why;
-        button(im, `fl-b${s.id}${kind}`, `+ ${VEHICLE_DEFS[kind].label} ${money(VEHICLE_DEFS[kind].cost)}`, bx, ry, 210, 32, !why, () => hooks.toast(buyVehicle(world, s.id, kind) ?? `${VEHICLE_DEFS[kind].label} bought`), 'quiet');
+        button(im, `fl-b${s.id}${kind}`, `+ ${VEHICLE_DEFS[kind].label} ${money(VEHICLE_DEFS[kind].cost)}`, bx, ry, 210, 32, !why, () => hooks.pickDriver(s.id, kind), 'quiet');
         bx += 218;
       }
       if (reason) im.text(`fl-be${s.id}`, reason, v.x0, ry + 38, { size: 10, color: COLORS.warn, wrap: W, layer: 4 });

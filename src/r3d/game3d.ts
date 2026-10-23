@@ -32,11 +32,12 @@ import { Parts } from './parts';
 import { GROW_MS, growMaterial } from './grow';
 import { tileLonLat } from '../sim/mapgen';
 import { LEVEL_CAP } from '../sim/defs';
+import { assignDriver, hireDriver } from '../sim/drivers';
 import { findPath } from '../sim/path';
 import {
   buyVehicle,
   buildRoadTo,
-  relayoutNodes,
+  relayoutNodes, ensureYards,
   prepareRealisticWorld,
   homesNow,
   upgradeVehicle,
@@ -728,6 +729,7 @@ export class Game3D {
     w.questsDone ??= [];
     // Spots from an older layout move to level, spaced-out ground (ones with a building stay put).
     relayoutNodes(w);
+    ensureYards(w);
     this.loadWorld(w);
   }
 
@@ -2799,6 +2801,30 @@ export class Game3D {
     const site = siteById(this.world, offer.siteId);
     const err = acceptOffer(this.world, offer);
     this.onToast(err ?? `${vehicleLabel(offer.kind, site ? bodyForLine(site, offer.line) : 'box')} bought`);
+  }
+
+  /** Buy a vehicle with the driver the player picked: someone waiting, or an applicant to hire. */
+  buyWith(siteId: number, kind: VehicleKind, line: Line, who?: { use?: number; hire?: number }): boolean {
+    const err = buyVehicle(this.world, siteId, kind, line, who);
+    const site = siteById(this.world, siteId);
+    this.onToast(err ?? `${vehicleLabel(kind, site ? bodyForLine(site, line) : 'box')} bought`);
+    return err === null;
+  }
+
+  /** Give a vehicle another driver: someone waiting, or an applicant to hire. */
+  giveDriver(vehicleId: number, who: { use?: number; hire?: number }): boolean {
+    let id = who.use;
+    if (who.hire !== undefined) {
+      const r = hireDriver(this.world, who.hire);
+      if ('error' in r) {
+        this.onToast(r.error);
+        return false;
+      }
+      id = r.driver.id;
+    }
+    const err = id === undefined ? 'Pick a driver' : assignDriver(this.world, vehicleId, id);
+    this.onToast(err ?? 'New driver at the wheel');
+    return err === null;
   }
 
   duplicateVeh(id: number): void {

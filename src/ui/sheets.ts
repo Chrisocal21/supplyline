@@ -17,11 +17,12 @@ import {
   TIERS,
   TOWN_LEVELS,
   type Good,
+  type VehicleKind,
 } from '../sim/defs';
 import { BANK_TIER, DAY_TICKS, bankReport, FUND_FEE, LOAN_RATE, REAL_MONEY_ENABLED, SAVINGS_RATE, bankOf, borrow, creditLimit, deposit, divest, fundValue, invest, netWorth, repay, withdraw } from '../sim/bank';
 import { pathMastered, pathQuestState, questState, tierUnlocks } from '../sim/quests';
 import { buildDistrict, choosePath, districtBoost, districtCost, districtError, districtLevel, districtRevenue, districtSatisfaction, pathError, townUpkeep } from '../sim/town';
-import { campusSites, dockDemand, growthKinds, isHomePlot, metroBonus, partnerOf, plotTiles, radiusOf, produces, siteCap, stockOf, unitPrice, wants, type Place, type Site, type World } from '../sim/world';
+import { buildingNow, campusSites, dockDemand, growthKinds, matsNeeded, isHomePlot, metroBonus, partnerOf, plotTiles, radiusOf, produces, siteCap, stockOf, unitPrice, wants, type Place, type Site, type World } from '../sim/world';
 import { button, companyPage, fleetPage, panel, sectionHead, stat } from './company';
 import { COLORS, Im } from './imui';
 import { isTouch } from './inputmode';
@@ -278,6 +279,7 @@ export interface SheetHooks {
   income: () => number;
   clip: (x: number, y: number, w: number, h: number) => void;
   toast: (text: string) => void;
+  pickDriver: (siteId: number, kind: VehicleKind) => void;
 }
 
 export class Sheets {
@@ -389,6 +391,7 @@ export class Sheets {
       hasTexture: this.hooks.hasTexture,
       toast: this.hooks.toast,
       income: this.hooks.income,
+      pickDriver: this.hooks.pickDriver,
       open: (p: SheetId): void => select(p),
     };
     const contentH =
@@ -650,10 +653,14 @@ export class Sheets {
     // What it needs to level up, in words.
     const n = this.townNeeds(world, p);
     const ny = y + 100;
-    if (next) {
+    const bn = buildingNow(p);
+    if (bn) {
+      im.text(`tw-next-${p.id}`, `Building the ${bn.name}: ${fmt(bn.have)} / ${fmt(bn.need)} lumber. ${bn.name === 'Supply Yard' ? 'Send lumber to this town.' : 'Fill the yard store, then send a yard truck.'}`, x + 16, ny, { size: 12, color: COLORS.warn, wrap: w - 32, layer: 3 });
+    } else if (next) {
       const lines: string[] = [];
       if (n.moreKinds > 0) lines.push(`Needs ${n.moreKinds} more kind${n.moreKinds > 1 ? 's' : ''} of good${n.fresh.length ? `: try ${n.fresh.slice(0, 3).map((g) => GOODS[g].label).join(', ')}` : ''}`);
       if (p.growth < next.growth) lines.push(`${fmt(next.growth - p.growth)} more in sales`);
+      if (matsNeeded(p).length > 0) lines.push(`Supply Yard needs ${matsNeeded(p).slice(0, 3).map(([g, n]) => `${fmt(n)} ${GOODS[g].label.toLowerCase()}`).join(', ')}`);
       im.text(`tw-next-${p.id}`, lines.length ? `To level up: ${lines.join('  ·  ')}` : 'Ready to level up: the next delivery does it', x + 16, ny, { size: 12, color: lines.length ? COLORS.text : COLORS.good, wrap: w - 32, layer: 3 });
     }
     let cy = ny + (next ? 24 : 0);
@@ -765,12 +772,19 @@ export class Sheets {
     const cost = townUpkeep(p);
     if (vis(y, 84)) {
       im.rect(3, x, y, w, 76, COLORS.panelAlt, 1, 14, COLORS.line, 1);
-      if (next) {
+      const bn = buildingNow(p);
+      if (bn) {
+        im.text('td-gh', `BUILDING THE ${bn.name.toUpperCase()}`, x + 16, y + 12, { size: 10, bold: true, color: COLORS.muted, layer: 3 });
+        im.bar(3, x + 16, y + 34, Math.min(420, w - 330), 8, bn.have / bn.need, COLORS.good);
+        im.text('td-g', `${fmt(bn.have)} / ${fmt(bn.need)} lumber`, x + 16 + Math.min(420, w - 330) + 12, y + 29, { size: 12, color: COLORS.muted, layer: 3 });
+        im.text('td-v', bn.name === 'Supply Yard' ? 'Send lumber to this town. It builds the Supply Yard.' : 'Fill the Supply Yard store with lumber, then send a yard truck to the Market site.', x + 16, y + 50, { size: 12, color: COLORS.warn, layer: 3 });
+      } else if (next) {
         im.text('td-gh', `GROWING INTO A ${next.name.toUpperCase()}`, x + 16, y + 12, { size: 10, bold: true, color: COLORS.muted, layer: 3 });
         im.bar(3, x + 16, y + 34, Math.min(420, w - 330), 8, p.growth / next.growth, COLORS.good);
         im.text('td-g', `${fmt(p.growth)} / ${fmt(next.growth)}`, x + 16 + Math.min(420, w - 330) + 12, y + 29, { size: 12, color: COLORS.muted, layer: 3 });
         const ok = kinds >= p.level;
-        im.text('td-v', `Variety ${kinds}/${p.level} different goods delivered`, x + 16, y + 50, { size: 12, color: ok ? COLORS.good : COLORS.warn, layer: 3 });
+        const need = matsNeeded(p);
+        im.text('td-v', `Variety ${kinds}/${p.level} different goods delivered${need.length ? `  ·  Supply Yard needs ${need.slice(0, 4).map(([g, n]) => `${fmt(n)} ${GOODS[g].label.toLowerCase()}`).join(', ')}` : '  ·  materials delivered'}`, x + 16, y + 50, { size: 12, color: ok && !need.length ? COLORS.good : COLORS.warn, layer: 3 });
       } else {
         im.text('td-gh', 'FULLY GROWN', x + 16, y + 12, { size: 10, bold: true, color: COLORS.good, layer: 3 });
         im.text('td-v', 'The districts below are how this town keeps getting better.', x + 16, y + 34, { size: 12, color: COLORS.muted, layer: 3 });

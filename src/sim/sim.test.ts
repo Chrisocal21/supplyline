@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { MOUNTAIN_ELEV, VEHICLE_DEFS } from './defs';
-import { put } from './testutil';
+import { put, stockLevelMats } from './testutil';
 import { runChores } from './bot';
 import type { Terrain } from './defs';
 import { generateLand } from './mapgen';
@@ -178,11 +178,12 @@ describe('roads, bridges and tunnels', () => {
 describe('logistics loop', () => {
   function buildChain(): World {
     const w = testWorld();
+    addDock(w, w.places[0], 'freight');
     w.money = 100000;
     placeSite(w, 'forestry', 3, 4);
     put(w, 'sawmill', 9, 4);
     expect(createRoute(w, row(3, 9, 4))).toBeNull();
-    expect(createRoute(w, [...row(9, 14, 4), ...col(14, 5, 10), { x: 15, y: 10 }, { x: 15, y: 9 }])).toBeNull();
+    expect(createRoute(w, [...col(9, 5, 10), ...row(10, 13, 10), { x: 13, y: 11 }])).toBeNull();
     runChores(w);
     return w;
   }
@@ -194,13 +195,13 @@ describe('logistics loop', () => {
     expect(w.tier).toBe(1);
     // The Village threshold is higher than the first quest, so keep selling until the town grows.
     // A town waits for the player to finish its upgrade.
+    stockLevelMats(w.places[0]);
     for (let i = 0; i < 30000 && !readyToGrow(w.places[0]); i++) step(w);
     expect(w.places[0].level).toBe(1);
     expect(w.log.some((l) => /ready to grow/.test(l.text))).toBe(true);
     expect(growTown(w, w.places[0].id)).toBeNull();
     expect(w.places[0].level).toBeGreaterThanOrEqual(2);
     expect(w.log.some((l) => /grew into/.test(l.text))).toBe(true);
-    // growing to level 2 opens the freight yard
     expect(w.sites.some((s) => s.kind === 'freight')).toBe(true);
     expect(w.earned).toBeGreaterThan(0);
   });
@@ -274,9 +275,11 @@ describe('towns and levels', () => {
     const p = w.places[0];
     p.growth = 1e7;
     p.delivered = { lumber: 500 };
+    stockLevelMats(p);
     expect(readyToGrow(p)).toBe(true);
     expect(growTown(w, p.id)).toBeNull();
     expect(p.level).toBe(2); // one kind is enough for level 2, but not level 3
+    stockLevelMats(p);
     expect(growTown(w, p.id)).toMatch(/not ready/);
     p.delivered = { lumber: 500, flour: 500 };
     expect(growPreview(p)?.to).toBe('Town');
