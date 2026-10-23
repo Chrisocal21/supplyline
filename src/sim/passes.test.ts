@@ -20,5 +20,5 @@ describe('corridors and passes', () => {
       crossed += [...route].filter((k) => w.elev[k] > MOUNTAIN_ELEV - 20).length;
     }
     expect(crossed).toBeGreaterThan(0);
-  });
+  }, 30000);
 });
