@@ -174,8 +174,11 @@ varying vec3 vSurfacePosition;`)
   float seasonLand = 1.0 - surfaceWater;
   diffuseColor.rgb *= mix(vec3(1.0), uSeasonTint, seasonLand);
   float seaLevelHeight = length(vSurfacePosition) - uSeaR;
-  float snowScore = seaLevelHeight * 0.35 + abs(vSurfacePosition.y) / length(vSurfacePosition) * 1.15 + (grain - 0.5) * 0.5;
-  float snow = uSnow * smoothstep(0.58, 0.86, snowScore);
+  // Snow lies in patches, not as a blanket: only the far north and south and the high ground, broken up by a coarse noise so
+  // under half of the land in winter is white.
+  float patch = texture2D(detailMap, vMapUv * 2.5).g;
+  float snowScore = seaLevelHeight * 0.5 + abs(vSurfacePosition.y) / length(vSurfacePosition) * 1.0 + (patch - 0.5) * 1.3 + (grain - 0.5) * 0.3;
+  float snow = uSnow * smoothstep(0.8, 0.98, snowScore);
   diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.93, 0.96, 1.0), snow * seasonLand * 0.9);`,
       )
       .replace(
