@@ -2829,7 +2829,7 @@ export class HudScene extends Phaser.Scene {
           ['trucks', `Trucks  ·  ${fleetOf(world, s.id).length}`],
         ]
       : def.dock
-        ? [['buys', 'What it buys'], ['sellers', `Who sells here  ·  ${this.suppliersOf(s).length}`], ['town', 'The town']]
+        ? [['buys', 'What it buys'], ['sellers', `Who sells here  ·  ${this.suppliersOf(s).length}`], ...(def.dock === 'freight' ? [['trucks', `Trucks  ·  ${fleetOf(world, s.id).length}`] as [string, string]] : []), ['town', 'The town']]
         : [];
     if (!pages.some(([id]) => id === this.dashPage) && pages.length) this.dashPage = pages[0][0];
     let tabsH = 0;
@@ -2900,6 +2900,8 @@ export class HudScene extends Phaser.Scene {
         add(info);
       } else if (this.dashPage === 'sellers') {
         add((cx, yy, ww) => this.suppliersSection(s, cx, yy + 6, ww) + 6);
+      } else if (this.dashPage === 'trucks') {
+        add((cx, yy, ww) => this.truckSection(s, cx, yy + 6, ww) + 6);
       } else {
         add((cx, yy, ww) => this.townSection(s, cx, yy + 6, ww) + 6);
       }
@@ -4106,7 +4108,7 @@ export class HudScene extends Phaser.Scene {
     const g = this.game3d;
     const world = g.world;
     const def = SITE_DEFS[s.kind];
-    if (def.dock) return 0;
+    if (def.dock && def.dock !== 'freight') return 0;
     const line = this.lineOf(s);
     const fleet = fleetOf(world, s.id, line);
     const forWhat = line === 'by' ? ` FOR ${lineGoods(s, 'by').map((gd) => GOODS[gd].label.toUpperCase()).join(' + ')}` : hasByLine(s) ? ` FOR ${lineGoods(s, 'main').map((gd) => GOODS[gd].label.toUpperCase()).join(' + ')}` : '';
@@ -4115,10 +4117,13 @@ export class HudScene extends Phaser.Scene {
     const gap = 8;
     // The switch and the buy buttons share one row.
     const nBtn = options.length + (options.length && !def.hub ? 1 : 0);
-    if (nBtn > 0) {
+    if (def.dock && options.length === 0) {
+      im.text('trN', 'Build the Supply Yard first. Then you can buy a truck here to carry building goods to the Market site.', x, cy, { size: 11, color: COLORS.muted, wrap: w, layer: 2 });
+      cy += 36;
+    } else if (nBtn > 0) {
       const bw = (w - gap * (nBtn - 1)) / nBtn;
       let bx = x;
-      if (options.length && !def.hub) {
+      if (options.length && !def.hub && !def.dock) {
         const on = !!s.autoBuy;
         this.button('trAuto', on ? 'Ask me about trucks: ON' : 'Ask me about trucks: off', bx, cy, bw, 38, true, () => g.autoBuy(s.id, !on), on ? 'on' : 'plain');
         bx += bw + gap;
@@ -4316,7 +4321,7 @@ export class HudScene extends Phaser.Scene {
       im.bar(2, x, cy + 2, w - 90, 8, bn.have / bn.need, COLORS.good);
       im.text('ppBld', `${fmt(bn.have)} / ${fmt(bn.need)} lumber`, x + w, cy - 2, { size: 12, color: COLORS.muted, align: 'right', layer: 2 });
       cy += 22;
-      im.text('ppBldT', bn.name === 'Supply Yard' ? 'Send lumber to this town. It builds the Supply Yard first, then the Market.' : 'The Supply Yard stands and has a Box Truck. Fill its store with lumber and the truck carries it to the Market site.', x, cy, { size: 12, color: COLORS.text, wrap: w, layer: 2 });
+      im.text('ppBldT', bn.name === 'Supply Yard' ? 'Send lumber to this town. It builds the Supply Yard first, then the Market.' : 'The Supply Yard stands. Fill its store with lumber, then open the yard, go to Trucks and buy a Box Truck to carry it to the Market site.', x, cy, { size: 12, color: COLORS.text, wrap: w, layer: 2 });
       cy += 40;
     } else if (next) {
       const kinds = growthKinds(p);
