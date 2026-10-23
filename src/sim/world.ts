@@ -3518,7 +3518,7 @@ export function buyVehicle(world: World, siteId: number, kind: VehicleKind, line
   let driver: Driver | undefined;
   if (who?.use !== undefined) {
     driver = driverById(world, who.use);
-    if (!driver || driver.vehicleId !== null) return 'That driver is not free';
+    if (!driver) return 'That driver is not on your books';
   }
   if (who?.hire !== undefined) {
     const a = applicants(world).find((x) => x.key === who.hire);

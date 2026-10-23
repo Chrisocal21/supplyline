@@ -16,3 +16,25 @@ describe('yard truck', () => {
     expect(p.stage).toBe(2);
   });
 });
+
+describe('moving a driver to a new truck', () => {
+  it('parks the old truck without a driver', async () => {
+    const { buyVehicle: buy, createWorld: make } = await import('./world');
+    const w = make(11);
+    w.money = 1e6;
+    const camp = w.sites.find((s) => s.placeId !== null)!;
+    const home = w.sites.find((s) => s.kind === 'freight')!;
+    void camp;
+    const p = w.places[0];
+    p.stage = 2;
+    expect(buy(w, home.id, 'boxtruck')).toBeNull();
+    const first = w.vehicles[0];
+    for (let i = 0; i < 30; i++) step(w);
+    const driver = first.driverId;
+    expect(driver).not.toBe(0);
+    expect(buy(w, home.id, 'boxtruck', 'main', { use: driver })).toBeNull();
+    const second = w.vehicles[1];
+    expect(second.driverId).toBe(driver);
+    expect(first.driverId).toBe(0);
+  });
+});

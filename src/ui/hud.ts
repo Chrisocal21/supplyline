@@ -1556,9 +1556,12 @@ export class HudScene extends Phaser.Scene {
     const pad = 22;
     const inner = w - pad * 2;
     const idle = idleDrivers(world);
+    // Drivers already at a wheel can move to this vehicle: the one they leave is parked until someone else takes it.
+    const skip = pick.mode === 'swap' ? world.vehicles.find((q) => q.id === pick.vehicleId)?.driverId ?? 0 : 0;
+    const working = (world.drivers ?? []).filter((d) => d.vehicleId !== null && d.id !== skip);
     const apps = applicants(world);
     const rowH = 50;
-    const h = Math.min(H - TOP - 12, 150 + (pick.mode === 'buy' ? 58 : 0) + (idle.length ? 30 + idle.length * (rowH + 6) : 0) + 30 + apps.length * (rowH + 6) + 60);
+    const h = Math.min(H - TOP - 12, 150 + (pick.mode === 'buy' ? 58 : 0) + (idle.length ? 30 + idle.length * (rowH + 6) : 0) + (working.length ? 30 + working.length * (rowH + 6) : 0) + 30 + apps.length * (rowH + 6) + 60);
     const y = Math.max(TOP + 6, Math.round((H - h) / 2));
     im.rect(2, x, y, w, h, COLORS.panel, 1, 18, COLORS.accent, 1, 2);
     im.hit('dpPanel', x, y, w, h, () => undefined, 2);
@@ -1595,6 +1598,15 @@ export class HudScene extends Phaser.Scene {
       cy += 22;
       idle.forEach((d) => {
         row(`dpI${d.id}`, cy, d.name, rankOf(d.trips), d.trips, wageOf(d), 'USE', 0, true, () => run({ use: d.id }));
+        cy += rowH + 6;
+      });
+      cy += 6;
+    }
+    if (working.length) {
+      im.text('dpWh', 'DRIVING NOW  (their vehicle is parked without a driver)', x + pad, cy, { size: 11, bold: true, color: COLORS.muted, layer: 5 });
+      cy += 22;
+      working.forEach((d) => {
+        row(`dpW${d.id}`, cy, d.name, rankOf(d.trips), d.trips, wageOf(d), 'MOVE HERE', 0, true, () => run({ use: d.id }));
         cy += rowH + 6;
       });
       cy += 6;
