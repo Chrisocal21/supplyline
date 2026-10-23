@@ -698,6 +698,8 @@ export type QuestGoal =
   | { kind: 'making'; count: number }
   /** Buildings with a sale switched on to someone. */
   | { kind: 'selling'; count: number }
+  /** Towns built up to a stage: 1 has its Supply Yard, 2 its Market too. */
+  | { kind: 'townbuilt'; stage: 1 | 2; count: number }
   /** Units of one good sold to towns. */
   | { kind: 'deliver'; good: Good; amount: number }
   /** Different goods sold to towns. */
@@ -786,8 +788,9 @@ export const TIERS: TierDef[] = [
       { id: 't0-mill', label: 'Build a Sawmill in a town', hint: 'Open Processing, pick Sawmill, then click a for-sale lot beside a town street.', goal: { kind: 'build', site: 'sawmill', count: 1 }, reward: 150 },
       { id: 't0-road', label: 'Join them with a road', hint: 'Open Logistics, pick Road, then drag from the camp to the mill. The truck sets off by itself.', goal: { kind: 'route', mode: 'road', count: 1 }, reward: 150 },
       { id: 't0-making', label: 'Switch the Sawmill on', hint: 'Click the Sawmill and turn on Lumber under Production. Nothing is made until you do.', goal: { kind: 'making', count: 1 }, reward: 100 },
-      { id: 't0-selling', label: 'Sell lumber to the Supply Yard', hint: 'Click the Sawmill, buy a truck, and switch the Supply Yard on under Sell to. The street already links them.', goal: { kind: 'selling', count: 1 }, reward: 150 },
-      { id: 't0-sell', label: 'Sell 100 lumber', hint: 'Lumber sells as the truck brings it. Add a second truck if it piles up.', goal: { kind: 'deliver', good: 'lumber', amount: 100 }, reward: 500 },
+      { id: 't0-selling', label: 'Send lumber to the Supply Yard site', hint: 'Click the Sawmill, buy a truck, and switch the Supply Yard on under Sell to. The street already links them. The lumber builds the yard: it is not sold, so it pays nothing.', goal: { kind: 'selling', count: 1 }, reward: 150 },
+      { id: 't0-yard', label: 'Build the Supply Yard: 100 lumber', hint: 'Keep the lumber coming. When 100 has arrived the yard is built.', goal: { kind: 'townbuilt', stage: 1, count: 1 }, reward: 500 },
+      { id: 't0-market', label: 'Build the Market', hint: 'Fill the yard store with 150 more lumber, buy a Box Truck at the Supply Yard, and carry it to the Market site.', goal: { kind: 'townbuilt', stage: 2, count: 1 }, reward: 500 },
     ],
   },
   {

@@ -454,6 +454,8 @@ describe('tier quests', () => {
     const w = open();
     w.tier = 0;
     w.money = 0;
+    // A closed town: its yard and Market are quests of their own.
+    w.places[0].stage = 0;
     const log: string[] = [];
     checkQuests(w, (t) => log.push(t));
     expect(w.questsDone).toHaveLength(0);
@@ -481,7 +483,7 @@ describe('tier quests', () => {
     expect(buyVehicle(w, siteAt(w, 3, 9)!.id, 'boxtruck')).toBeNull();
     setMaking(w, siteAt(w, 9, 9)!.id, true);
     setSendTo(w, siteAt(w, 9, 9)!.id, siteAt(w, 22, 6)!.id, true);
-    w.delivered.lumber = 100;
+    w.places[0].stage = 2;
     checkQuests(w, (t) => log.push(t));
     expect(w.tier).toBe(1);
     expect(log.some((l) => /Tier 1 unlocked/.test(l))).toBe(true);

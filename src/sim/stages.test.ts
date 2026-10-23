@@ -61,4 +61,23 @@ describe('closed towns', () => {
     expect(p.level).toBe(2);
     expect(matsNeeded(p).length).toBeGreaterThan(0);
   });
+
+  it('pay nothing for the lumber that builds the yard or fills its store, and only pay for the surplus', () => {
+    const w = createWorld(11);
+    const p = w.places[0];
+    const yard = dockOf(w, p.id, 'freight');
+    const before = w.money;
+    expect(sell(w, yard, 'lumber', 60)).toBe(0);
+    expect(sell(w, yard, 'lumber', 60)).toBe(0);
+    expect(p.stage).toBe(1);
+    // 20 of the second delivery went past the 100 the yard needed: it is kept in store for the Market, also unpaid.
+    expect(yard.depot?.lumber).toBe(20);
+    expect(w.money).toBe(before);
+    expect(w.earned).toBe(0);
+    // The store only holds what the Market still needs: a delivery beyond that is a sale.
+    const paid = sell(w, yard, 'lumber', BUILD_LUMBER[1] + 50);
+    expect(yard.depot?.lumber).toBe(BUILD_LUMBER[1]);
+    expect(paid).toBeGreaterThan(0);
+    expect(w.money).toBeCloseTo(before + paid);
+  });
 });

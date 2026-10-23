@@ -332,6 +332,42 @@ function build(env: LayoutEnv, place: Place): TownLayout {
       }
     }
   }
+  // Every town has a few district lots from its first level, so the first district can always be built. Cities and some small
+  // towns would otherwise have none until they grew: their first lots go to plots. These come last, so no lot already
+  // numbered (and no district built on one) moves.
+  const EARLY_LOTS = 3;
+  const levelOfStreetAll = new Map(list.map((st) => [key(st), st.level]));
+  let early = civic.filter((c) => !c.campus && c.level <= 1).length;
+  if (early < EARLY_LOTS) {
+    const campusKeys = new Set(civic.filter((c) => c.campus).flatMap((c) => [...civicFootprint(c), ...(c.campus ? [c.campus.gate] : [])]).map(key));
+    for (const c of ordered) {
+      if (early >= EARLY_LOTS) break;
+      if (c.entry.level > 1 || plotKeys.has(key(c)) || campusKeys.has(key(c)) || civic.some((q) => key(q) === key(c))) continue;
+      civic.push({ x: c.x, y: c.y, entry: { x: c.entry.x, y: c.entry.y }, level: 1 });
+      const at = homes.findIndex((h) => key(h) === key(c));
+      if (at >= 0) homes.splice(at, 1);
+      early += 1;
+    }
+    // Still short: a first-level plot and the farthest lot swap places, tile for tile. Nothing is renumbered, so no plot, lot or
+    // district already built moves, and the town keeps every plot it had.
+    for (let i = plots.length - 1; i >= 2 && early < EARLY_LOTS; i--) {
+      if ((levelOfStreetAll.get(key(plots[i].entry)) ?? 1) > 1) continue;
+      let far = -1;
+      for (let j = 0; j < civic.length; j++) if (!civic[j].campus && civic[j].level > 1 && (far < 0 || civic[j].level > civic[far].level)) far = j;
+      if (far < 0) break;
+      const lot = civic[far];
+      const plot = plots[i];
+      civic[far] = { x: plot.x, y: plot.y, entry: { x: plot.entry.x, y: plot.entry.y }, level: 1 };
+      plots[i] = { x: lot.x, y: lot.y, entry: { x: lot.entry.x, y: lot.entry.y } };
+      early += 1;
+    }
+    // A very small town has no far lot to swap with: its last plots (never the first seven) become lots instead.
+    while (early < EARLY_LOTS && plots.length > 7) {
+      const plot = plots.pop()!;
+      civic.push({ x: plot.x, y: plot.y, entry: { x: plot.entry.x, y: plot.entry.y }, level: 1 });
+      early += 1;
+    }
+  }
   // Spare homes: a back row behind the lots, so a district taking a lot never costs the town a home. They come last and
   // after the campuses, so no lot, plot or street is moved by them.
   const blocked = new Set<string>([...list, ...plots, ...homes, ...civic.flatMap(civicFootprint), ...civic.flatMap((c) => (c.campus ? [c.campus.gate] : []))].map(key));

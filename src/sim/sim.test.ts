@@ -179,6 +179,8 @@ describe('logistics loop', () => {
   function buildChain(): World {
     const w = testWorld();
     addDock(w, w.places[0], 'freight');
+    // A town whose next level already has its materials: what the sawmill sends is sold, not kept for building.
+    w.places[0].mats = { lumber: 999, bricks: 999 };
     w.money = 100000;
     placeSite(w, 'forestry', 3, 4);
     put(w, 'sawmill', 9, 4);
@@ -190,8 +192,8 @@ describe('logistics loop', () => {
 
   it('turns logs into lumber, sells it to the town, grows it and unlocks tier 1', () => {
     const w = buildChain();
-    for (let i = 0; i < 20000 && w.tier === 0; i++) step(w);
-    expect(w.delivered.lumber ?? 0).toBeGreaterThanOrEqual(100);
+    for (let i = 0; i < 6000; i++) step(w);
+    expect(w.delivered.lumber ?? 0).toBeGreaterThan(20);
     expect(w.tier).toBe(1);
     // The Village threshold is higher than the first quest, so keep selling until the town grows.
     // A town waits for the player to finish its upgrade.

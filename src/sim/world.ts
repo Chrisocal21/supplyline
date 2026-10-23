@@ -1948,36 +1948,48 @@ export function metroBonus(world: World, place: Place): number {
   return q && place.level >= 3 && q.level >= 3 ? 1 + 0.02 * Math.min(place.level, q.level) : 1;
 }
 
-/** A town dock buys `amount` of a good: money in, and the town grows. */
+/**
+ * A town dock buys `amount` of a good: money in, and the town grows. Goods that go into building are not sold and pay nothing:
+ * the first 100 lumber that builds a closed town's Supply Yard, and the building goods the yard keeps in store for its trucks to
+ * carry to the Market site. Only what is left over is sold.
+ */
 export function sell(world: World, dock: Site, g: Good, amount: number): number {
   const place = placeOf(world, dock);
-  addStock(dock, g, amount);
-  if (!place) return 0;
-  const gain = amount * unitPrice(world, dock, g);
-  world.money += gain;
-  world.earned += gain;
+  if (!place) {
+    addStock(dock, g, amount);
+    return 0;
+  }
+  const isYard = SITE_DEFS[dock.kind].dock === 'freight';
+  let stage = place.stage ?? 2;
+  let building = 0;
+  if (isYard && stage === 0 && g === 'lumber') {
+    const used = Math.min(amount, Math.max(0, BUILD_LUMBER[0] - (place.build ?? 0)));
+    place.build = (place.build ?? 0) + used;
+    building += used;
+    if (place.build >= BUILD_LUMBER[0]) {
+      place.build = 0;
+      place.stage = stage = 1;
+      addLog(world, `${place.name} built its Supply Yard`);
+      linkTown(world, place);
+    }
+  }
+  if (isYard && stage >= 1 && BUILD_GOODS.includes(g)) {
+    const keep = Math.min(amount - building, depotLeft(place, dock, g));
+    if (keep > 0) {
+      (dock.depot ??= {})[g] = (dock.depot[g] ?? 0) + keep;
+      building += keep;
+    }
+  }
   world.delivered[g] = (world.delivered[g] ?? 0) + amount;
   place.delivered[g] = (place.delivered[g] ?? 0) + amount;
-  if (SITE_DEFS[dock.kind].dock === 'freight' && BUILD_GOODS.includes(g)) {
-    // Building goods are paid for as usual and also kept in store, for the Market site, up to what it still needs.
-    const keep = Math.min(amount, depotLeft(place, dock, g));
-    if (keep > 0) (dock.depot ??= {})[g] = (dock.depot[g] ?? 0) + keep;
-  }
-  const stage = place.stage ?? 2;
-  if (stage < 2) {
-    // A closed town spends the lumber on building: first its Supply Yard, then its Market.
-    if (g === 'lumber' && stage === 0 && SITE_DEFS[dock.kind].dock === 'freight') {
-      place.build = (place.build ?? 0) + amount;
-      if (place.build >= BUILD_LUMBER[stage]) {
-        place.build = 0;
-        place.stage = stage + 1;
-        addLog(world, `${place.name} built its Supply Yard`);
-        linkTown(world, place);
-      }
-    }
-    return gain;
-  }
-  const earned = amount * GOODS[g].price * townGrowthMult(place);
+  const sold = amount - building;
+  if (sold <= 0) return 0;
+  addStock(dock, g, sold);
+  const gain = sold * unitPrice(world, dock, g);
+  world.money += gain;
+  world.earned += gain;
+  if (stage < 2) return gain;
+  const earned = sold * GOODS[g].price * townGrowthMult(place);
   place.growth += earned;
   checkTown(world, place);
   // A town that has grown into another shares what it earns: the smaller of the two catches up faster, and the variety of
@@ -1986,7 +1998,7 @@ export function sell(world: World, dock: Site, g: Good, amount: number): number 
   if (mate) {
     const behind = Math.max(0, Math.min(3, place.level - mate.level));
     mate.growth += earned * (JOIN_SHARE + JOIN_CATCH_UP * behind);
-    (mate.partnerDelivered ??= {})[g] = (mate.partnerDelivered[g] ?? 0) + amount;
+    (mate.partnerDelivered ??= {})[g] = (mate.partnerDelivered[g] ?? 0) + sold;
     checkTown(world, mate);
   }
   return gain;

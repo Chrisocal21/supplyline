@@ -28,9 +28,13 @@ it('the first tier plays through on a generated world, following the quests', ()
   expect(w.money).toBeGreaterThan(0);
   // What a player does by hand now: switch the sawmill on, buy a truck, switch the sale on.
   runChores(w);
-  // Quest 4: sell 100 lumber. About ten minutes of game time is plenty.
-  for (let i = 0; i < 9000 && w.tier === 0; i++) step(w);
-  expect(w.delivered.lumber ?? 0).toBeGreaterThanOrEqual(100);
+  // Quests 4 to 6: the lumber builds the Supply Yard, fills its store, and a yard truck carries it to build the Market. A player
+  // buys that truck when the yard stands: the chores do the same.
+  for (let i = 0; i < 30000 && w.tier === 0; i++) {
+    step(w);
+    if (i % 100 === 0) runChores(w);
+  }
+  expect(w.places[0].stage).toBe(2);
   expect(w.tier).toBe(1);
-  expect(w.questsDone).toEqual(expect.arrayContaining(['t0-camp', 't0-truck', 't0-mill', 't0-road', 't0-making', 't0-selling', 't0-sell']));
+  expect(w.questsDone).toEqual(expect.arrayContaining(['t0-camp', 't0-truck', 't0-mill', 't0-road', 't0-making', 't0-selling', 't0-yard', 't0-market']));
 });

@@ -61,6 +61,10 @@ export function questProgress(world: World, goal: QuestGoal): Progress {
       have = world.sites.filter((s) => sellTargets(world, s).some((t) => t.on)).length;
       need = goal.count;
       break;
+    case 'townbuilt':
+      have = world.places.filter((p) => (p.stage ?? 2) >= goal.stage).length;
+      need = goal.count;
+      break;
     case 'deliver':
       have = world.delivered[goal.good] ?? 0;
       need = goal.amount;
