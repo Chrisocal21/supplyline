@@ -23,7 +23,7 @@ describe('reach', () => {
 
   it('keeps a small truck off a route that is too long for it, but not a big one', () => {
     const w = createWorld(11);
-    const route: Route = { id: 99, mode: 'road', fromSiteId: 1, toSiteId: 2, path: path(100) };
+    const route: Route = { id: 99, mode: 'road', fromSiteId: 1, toSiteId: 2, path: path(1000) };
     const a = w.sites[0];
     const b = w.sites[1];
     route.fromSiteId = a.id;
