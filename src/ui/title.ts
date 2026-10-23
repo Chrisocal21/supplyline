@@ -48,10 +48,13 @@ export class Title {
     /** Which of the pictures have loaded. */
     private readonly ready: (key: string) => boolean,
     private readonly version: string,
+    /** In the Windows app: what the update check is doing, or null once it is finished and the game may start. */
+    private readonly gate: () => string | null = () => null,
   ) {}
 
   /** Enter: start with the first choice. */
   primary(): void {
+    if (this.gate()) return;
     this.pick(this.hasSave ? 'continue' : 'new');
   }
 
@@ -166,12 +169,13 @@ export class Title {
         ? [{ id: 'continue', label: 'Continue', primary: true }, { id: 'new', label: 'New game', primary: false }]
         : [{ id: 'new', label: 'New game', primary: true }];
       const by0 = Math.round(H * 0.5);
+      const wait = this.gate();
       items.forEach((it, i) => {
-        const k = ease((t - 0.9 - i * 0.15) / 0.5);
+        const k = ease((t - 0.9 - i * 0.15) / 0.5) * (wait ? 0.4 : 1);
         if (k <= 0) return;
         const bx = Math.round((W - bw) / 2);
         const by = Math.round(by0 + i * (bh + gap) + (1 - k) * 16);
-        const hov = im.hit(`tl-b${it.id}`, bx, by, bw, bh, () => k > 0.9 && this.pick(it.id), 3);
+        const hov = im.hit(`tl-b${it.id}`, bx, by, bw, bh, () => k > 0.9 && !this.gate() && this.pick(it.id), 3);
         if (it.primary) {
           const pulse = 0.5 + 0.5 * Math.sin(t * 2.6);
           im.rect(2, bx - 6, by - 6, bw + 12, bh + 12, COLORS.accent, (0.1 + 0.1 * pulse + (hov ? 0.12 : 0)) * k, 12);
@@ -184,7 +188,7 @@ export class Title {
       });
       const hintA = ease((t - 1.6) / 0.8) * (0.55 + 0.35 * Math.sin(t * 2.2));
       const hintY = by0 + items.length * (bh + gap) + 6;
-      im.text('tl-hint', 'Press Enter to start', W / 2, hintY, { size: 13, color: 0xdbe3ec, align: 'center', alpha: hintA, layer: 3 });
+      im.text('tl-hint', wait ?? 'Press Enter to start', W / 2, hintY, { size: wait ? 15 : 13, bold: !!wait, color: wait ? COLORS.accent : 0xdbe3ec, align: 'center', alpha: wait ? 1 : hintA, layer: 3 });
     } else {
       // Loading: a bar that keeps moving while the world is made, and a tip.
       const bw = Math.min(420, W - 80);

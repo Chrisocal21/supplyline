@@ -14,8 +14,11 @@ let win = null;
 let updater = null;
 let pending = null;
 let checkNow = null;
+// What the updater last said. The game asks for it when it starts, since the check begins before the page is ready to listen.
+let lastUpdate = { state: app.isPackaged ? 'checking' : 'none' };
 
 function send(channel, payload) {
+  if (channel === 'update') lastUpdate = payload;
   if (win && !win.isDestroyed()) win.webContents.send(channel, payload);
 }
 
@@ -40,7 +43,7 @@ function startUpdater() {
   const check = () => updater.checkForUpdates().catch(() => undefined);
   checkNow = check;
   check();
-  setInterval(check, 10 * 60 * 1000);
+  setInterval(check, 5 * 60 * 1000);
 }
 
 function createWindow() {
@@ -104,6 +107,7 @@ app.whenReady().then(() => {
     else if (checkNow) checkNow();
     else send('update', { state: 'error', message: 'Updates only run in the installed app' });
   });
+  ipcMain.handle('update:state', () => lastUpdate);
   ipcMain.handle('app:info', () => ({ version: app.getVersion(), packaged: app.isPackaged }));
   createWindow();
   startUpdater();

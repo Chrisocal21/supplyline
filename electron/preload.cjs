@@ -4,6 +4,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('supplyline', {
   desktop: true,
   onUpdate: (cb) => ipcRenderer.on('update', (_e, info) => cb(info)),
+  getUpdate: () => ipcRenderer.invoke('update:state'),
   checkUpdate: () => ipcRenderer.send('update:check'),
   installUpdate: () => ipcRenderer.send('update:install'),
 });

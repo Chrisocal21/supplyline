@@ -385,7 +385,8 @@ export class HudScene extends Phaser.Scene {
 
     // The opening screen: the showcase world flies by behind it until the player starts.
     if (this.game3d.showcase) {
-      this.title = new Title(this.game3d.hasSave(), (c) => this.startGame(c), (key) => this.textures.exists(key), VERSION);
+      this.wireDesktop();
+      this.title = new Title(this.game3d.hasSave(), (c) => this.startGame(c), (key) => this.textures.exists(key), VERSION, () => this.updateGateText());
       return;
     }
     // A first-time player gets the guide straight away. Screenshot and demo links skip it.
@@ -661,27 +662,61 @@ export class HudScene extends Phaser.Scene {
   /** In the Windows app, the update downloads in the background and a restart applies it. */
   private desktopReady = false;
   private desktopWired = false;
+  /** The Windows app looks for an update before the game starts: what it is doing, or null once it is done. */
+  private updateGate: string | null = null;
+  private updateGateAt = 0;
   /** What the desktop updater is doing, shown under the Menu's update button. */
   private desktopStatus = '';
+
+  /** What the title screen says while the update check runs, or null when the game may start. */
+  private updateGateText(): string | null {
+    if (this.updateGate !== null && this.time.now - this.updateGateAt > 15000) this.updateGate = null;
+    return this.updateGate;
+  }
+
+  /**
+   * In the Windows app, listen to the updater from the very start. While it is checking or downloading, the title screen waits;
+   * if an update arrives before the player has started, it installs and restarts at once, so they never play an old build.
+   */
+  private wireDesktop(): void {
+    type Info = { state: string; version?: string; percent?: number; message?: string };
+    const desk = (window as unknown as { supplyline?: { onUpdate: (cb: (i: Info) => void) => void; getUpdate?: () => Promise<Info>; installUpdate: () => void } }).supplyline;
+    if (!desk || this.desktopWired) return;
+    this.desktopWired = true;
+    this.updateGateAt = this.time.now;
+    this.updateGate = 'Checking for updates...';
+    const apply = (i: Info): void => {
+      if (i.state === 'checking') this.desktopStatus = 'Looking for an update...';
+      else if (i.state === 'none') this.desktopStatus = `You have the newest build (v${VERSION})`;
+      else if (i.state === 'downloading') this.desktopStatus = i.percent !== undefined ? `Downloading the update, ${i.percent}%` : `Downloading ${i.version ?? 'the update'}...`;
+      else if (i.state === 'error') this.desktopStatus = `Could not check: ${i.message ?? 'no connection'}`;
+      if (this.title) {
+        this.updateGateAt = this.time.now;
+        if (i.state === 'checking') this.updateGate = 'Checking for updates...';
+        else if (i.state === 'downloading') this.updateGate = i.percent !== undefined ? `Downloading an update, ${i.percent}%` : `Downloading ${i.version ?? 'an update'}...`;
+        else if (i.state === 'ready') this.updateGate = 'Installing the update...';
+        else this.updateGate = null;
+      }
+      if (i.state !== 'ready' || !i.version || this.latest === i.version) return;
+      this.latest = i.version;
+      this.desktopReady = true;
+      this.desktopStatus = '';
+      // Still on the title screen: nothing to save, so apply it now.
+      if (this.title) {
+        desk.installUpdate();
+        return;
+      }
+      this.flashUntil = this.time.now + 4800;
+      this.toasts.push({ text: `Update ${i.version} is ready. Menu, then Restart to update`, until: this.time.now + 7000 });
+    };
+    desk.onUpdate(apply);
+    void desk.getUpdate?.().then(apply).catch(() => undefined);
+  }
 
   private checkVersion(now: number): void {
     const desk = (window as unknown as { supplyline?: { onUpdate: (cb: (i: { state: string; version?: string; percent?: number; message?: string }) => void) => void } }).supplyline;
     if (desk) {
-      if (!this.desktopWired) {
-        this.desktopWired = true;
-        desk.onUpdate((i: { state: string; version?: string; percent?: number; message?: string }) => {
-          if (i.state === 'checking') this.desktopStatus = 'Looking for an update...';
-          else if (i.state === 'none') this.desktopStatus = `You have the newest build (v${VERSION})`;
-          else if (i.state === 'downloading') this.desktopStatus = i.percent !== undefined ? `Downloading the update, ${i.percent}%` : `Downloading ${i.version ?? 'the update'}...`;
-          else if (i.state === 'error') this.desktopStatus = `Could not check: ${i.message ?? 'no connection'}`;
-          if (i.state !== 'ready' || !i.version || this.latest === i.version) return;
-          this.desktopStatus = '';
-          this.latest = i.version;
-          this.desktopReady = true;
-          this.flashUntil = this.time.now + 4800;
-          this.toasts.push({ text: `Update ${i.version} is ready. Menu, then Restart to update`, until: this.time.now + 7000 });
-        });
-      }
+      this.wireDesktop();
       return;
     }
     if (now - this.versionAt < 60000 || location.hash.includes('shot')) return;
