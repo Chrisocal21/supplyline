@@ -40,6 +40,7 @@ function load(): Settings {
 }
 
 const rand = (a: number, b: number): number => a + Math.random() * (b - a);
+const pick = <T>(list: T[]): T => list[Math.floor(Math.random() * list.length)];
 
 export class Sfx {
   private s: Settings = load();
@@ -55,6 +56,7 @@ export class Sfx {
   private windFilter: BiquadFilterNode | null = null;
   private town: GainNode | null = null;
   private nextBird = 0;
+  private nextHorn = { road: 0, rail: 0, sea: 0, air: 0 };
   private nextCricket = 0;
   private lastClick = 0;
 
@@ -227,6 +229,20 @@ export class Sfx {
     this.ease(this.wind, (sc.winter ? 0.12 : 0.05) * near);
     if (this.windFilter) this.windFilter.frequency.setTargetAtTime(sc.winter ? 700 : 420, ctx.currentTime, 0.5);
     this.ease(this.town, Math.min(1, sc.town) * 0.05 * near * (sc.night ? 0.5 : 1));
+    // Now and then a horn or whistle from the traffic: louder near the camera, a faint far-off note from a wide view. The gap
+    // between them is long and only shortens a little with a busy network, so it stays a touch of life and never a din.
+    if (!sc.paused) {
+      const now = ctx.currentTime;
+      (['road', 'rail', 'sea', 'air'] as const).forEach((m) => {
+        const n = sc.all[m];
+        if (n <= 0 || now < this.nextHorn[m]) return;
+        this.nextHorn[m] = now + (rand(7, 18) * (m === 'road' ? 1 : 1.8)) / (1 + 0.12 * Math.sqrt(n));
+        const level = Math.max(Math.min(1, sc[m]) * near * 0.06, wide * 0.02);
+        if (level < 0.004) return;
+        const far = Math.min(1, sc[m]) * near < 0.3;
+        this.horn(m, level, far ? 700 : 1800);
+      });
+    }
     // Birds by day and crickets by night, when you are down among the fields.
     if (near > 0.5 && !sc.paused) {
       const now = ctx.currentTime;
@@ -255,6 +271,43 @@ export class Sfx {
     o.connect(g).connect(this.master);
     o.start(t);
     o.stop(t + dur + 0.05);
+  }
+
+  /** One horn note: a few detuned notes through a low-pass, which is how a far-off horn sounds. */
+  private horn(mode: 'road' | 'rail' | 'sea' | 'air', gain: number, cutoff: number): void {
+    const ctx = this.ctx;
+    if (!ctx || !this.master) return;
+    const t = ctx.currentTime + 0.05;
+    // Notes in Hz, a start gap and a length for each kind of horn.
+    const voices: Record<typeof mode, { notes: number[]; dur: number; again: number; type: OscillatorType }> = {
+      road: { notes: pick([[392, 494], [330, 415], [440, 554]]), dur: rand(0.12, 0.3), again: Math.random() < 0.4 ? 0.28 : 0, type: 'square' },
+      rail: { notes: [330, 415, 494], dur: rand(1.1, 1.8), again: Math.random() < 0.5 ? 1.9 : 0, type: 'sawtooth' },
+      sea: { notes: [98, 123], dur: rand(1.8, 2.6), again: 0, type: 'sawtooth' },
+      air: { notes: [880, 1175], dur: rand(0.5, 0.9), again: 0, type: 'sine' },
+    };
+    const v = voices[mode];
+    const f = ctx.createBiquadFilter();
+    f.type = 'lowpass';
+    f.frequency.value = mode === 'sea' ? Math.min(cutoff, 500) : cutoff;
+    f.connect(this.master);
+    for (const at of v.again ? [0, v.again] : [0]) {
+      v.notes.forEach((hz) => {
+        const o = ctx.createOscillator();
+        o.type = v.type;
+        o.frequency.value = hz * rand(0.995, 1.005);
+        const g = ctx.createGain();
+        const s = t + at;
+        const peak = gain / v.notes.length;
+        g.gain.setValueAtTime(0.0001, s);
+        g.gain.linearRampToValueAtTime(peak, s + (mode === 'road' ? 0.02 : 0.15));
+        g.gain.setValueAtTime(peak, s + v.dur);
+        g.gain.exponentialRampToValueAtTime(0.0001, s + v.dur + (mode === 'road' ? 0.08 : 0.5));
+        o.connect(g).connect(f);
+        o.start(s);
+        o.stop(s + v.dur + 0.7);
+      });
+    }
+    window.setTimeout(() => f.disconnect(), (v.dur + (v.again || 0) + 1.5) * 1000);
   }
 
   private chirp(gain: number): void {
