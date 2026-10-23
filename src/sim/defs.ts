@@ -388,7 +388,7 @@ export const APPLICANT_TICKS = 6000;
  * How far a road vehicle can run a route, in tiles (a highway tile counts half). Past it, goods must be daisy-chained from
  * warehouse to warehouse, or go by rail, sea or air. The driver's rank stretches it. Draft numbers.
  */
-export const VEHICLE_REACH: Partial<Record<VehicleKind, number>> = { boxtruck: 30, bigtruck: 50, rig: 80, convoy: 120 };
+export const VEHICLE_REACH: Partial<Record<VehicleKind, number>> = { boxtruck: 90, bigtruck: 140, rig: 220, convoy: 330 };
 export const DRIVER_REACH = [0.8, 1, 1.15, 1.3, 1.5];
 /** Fuel the driver pays for on every tile driven, loaded or empty: about the same per unit of load for every class. Draft numbers. */
 export const FUEL_PER_TILE: Partial<Record<VehicleKind, number>> = { boxtruck: 0.1, bigtruck: 0.22, rig: 0.5, convoy: 1.4 };

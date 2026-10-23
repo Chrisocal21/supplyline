@@ -8,10 +8,10 @@ Reach = vehicle base x driver rank.
 
 | Vehicle | Base reach |
 |---|---|
-| Box Truck | 30 |
-| Big Box Truck | 50 |
-| Big Rig | 80 |
-| Truck Fleet | 120 |
+| Box Truck | 90 |
+| Big Box Truck | 140 |
+| Big Rig | 220 |
+| Truck Fleet | 330 |
 
 | Driver rank | Multiplier |
 |---|---|
