@@ -157,7 +157,7 @@ const GUIDE: GuideSection[] = [
         icon: 'thumb-market',
       },
       { title: 'Running costs', sum: 'What your stuff costs every minute.', body: 'Buildings, vehicles and districts cost a little each minute.\nThe number under your money is what is left after costs.\nBigger vehicles carry more but cost more.', todo: 'If that number goes red, sell more or sell a vehicle.' },
-      { title: 'Bank: Loan', sum: 'Borrow money now, pay it back later.', body: 'Open Bank (unlocks at Tier 1).\nYou can borrow up to your limit.\nThe limit grows as you do well.\nIt costs 1% every minute until paid back.', todo: 'Borrow to build, then pay it back fast.' },
+      { title: 'Bank: Loan', sum: 'Borrow money now, pay it back later.', body: 'Open Bank (open from the start).\nYou can borrow up to your limit.\nThe limit grows as you do well.\nIt costs 1% every minute until paid back.', todo: 'Borrow to build, then pay it back fast.' },
       { title: 'Bank: Savings', sum: 'Park money and earn a little. Safe.', body: 'Put money in the savings account.\nIt earns 0.4% every minute.\nTake it out any time.', todo: 'Good for money you are not using yet.' },
       { title: 'Bank: Fund', sum: 'Buy shares. The price goes up and down.', body: 'Buy shares when you think the price is low.\nSell when it is high.\nYou can win or lose.\nSelling costs a 2% fee.', todo: 'Only use money you can spare.' },
     ],

@@ -3,7 +3,7 @@
 import type { World } from './world';
 
 /** The bank opens at this tier. */
-export const BANK_TIER = 1;
+export const BANK_TIER = 0;
 /** Loan interest per game minute, added to what is owed. */
 export const LOAN_RATE = 0.01;
 /** Savings interest per game minute. */

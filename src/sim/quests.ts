@@ -1,6 +1,7 @@
 // Tier quests: how far along each one is, paying them out, and what the next tier unlocks.
 // Progress is read straight from the world, so a quest can never fall out of step with what has really been built.
 import {
+  BUILD_LUMBER,
   BUILD_ORDER,
   GOOD_LIST,
   HIGHWAY_TIER,
@@ -62,8 +63,19 @@ export function questProgress(world: World, goal: QuestGoal): Progress {
       need = goal.count;
       break;
     case 'townbuilt':
-      have = world.places.filter((p) => (p.stage ?? 2) >= goal.stage).length;
-      need = goal.count;
+      // One town is built when this reaches the full amount; until then show the lumber of the furthest-along town.
+      if (world.places.some((p) => (p.stage ?? 2) >= goal.stage)) {
+        have = need = BUILD_LUMBER[goal.stage - 1];
+      } else {
+        need = BUILD_LUMBER[goal.stage - 1];
+        for (const p of world.places) {
+          const stage = p.stage ?? 2;
+          let got = stage === goal.stage - 1 ? (p.build ?? 0) : 0;
+          // At the Market stage, lumber waiting in the yard's store counts too.
+          if (goal.stage === 2 && stage === 1) got += world.sites.find((s) => s.placeId === p.id && SITE_DEFS[s.kind].dock === 'freight')?.depot?.lumber ?? 0;
+          have = Math.max(have, Math.min(got, need - 1));
+        }
+      }
       break;
     case 'deliver':
       have = world.delivered[goal.good] ?? 0;

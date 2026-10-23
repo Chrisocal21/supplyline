@@ -12,6 +12,7 @@ const rich = () => {
 describe('bank', () => {
   it('stays closed below its tier', () => {
     const w = createWorld(1);
+    w.tier = -1;
     expect(borrow(w, 1000)).toMatch(/Tier/);
     expect(deposit(w, 1000)).toMatch(/Tier/);
     expect(invest(w, 1000)).toMatch(/Tier/);
