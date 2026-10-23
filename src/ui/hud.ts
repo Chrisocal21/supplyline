@@ -81,7 +81,7 @@ import {
 import { nextQuest } from '../sim/quests';
 import { Game3D, districtOfTool, isDistrictTool, type HoverInfo, type OverlayItem, type Tool } from '../r3d/game3d';
 import { DISTRICTS, DISTRICT_ORDER } from '../sim/defs';
-import { districtCost } from '../sim/town';
+import { districtCost, upkeepPerMinute } from '../sim/town';
 import { COLORS, Im } from './imui';
 import { VERSION, VERSION_NOTE } from '../version';
 import { Rates, Sheets, type SheetId } from './sheets';
@@ -3289,6 +3289,24 @@ export class HudScene extends Phaser.Scene {
       im.circle(2, wx + 18, y2 + h2 / 2, 5, COLORS.info);
       im.text('waitT', narrow ? `${this.waitCount} waiting` : `${this.waitCount} waiting on supply`, wx + 34, y2 + 6, { size: 12, bold: true, color: COLORS.text, layer: 2 });
     }
+    this.cashBadge(x, y + h + 6 + (this.waitCount > 0 && !narrow ? 34 : 0), narrow ? Math.min(w, 220) : w);
+  }
+
+  /**
+   * Quiet help, never a penalty: when cash is nearly gone and running costs are outrunning sales, say so and how to fix it. It
+   * shows only while that is true and goes away by itself once money is coming in again.
+   */
+  private cashBadge(x: number, y: number, w: number): void {
+    const im = this.im;
+    const world = this.game3d.world;
+    if (world.sites.length === 0 || world.vehicles.length === 0) return;
+    const cost = upkeepPerMinute(world);
+    if (world.money >= cost * 1.5 || this.income > 0 || cost <= 0) return;
+    const h = 28;
+    const hov = im.hit('btnCash', x, y, w, h, () => this.toasts.push({ text: `Running costs are $${fmt(cost)} a minute and sales are not covering them. Sell more goods, or sell a truck you do not need. Nothing is lost.`, until: this.time.now + 6500 }), 1);
+    im.rect(1, x, y, w, h, hov ? 0x3a2f14 : 0x2a2312, 0.95, h / 2, COLORS.warn, 1);
+    im.circle(2, x + 18, y + h / 2, 5, COLORS.warn);
+    im.text('cashT', 'Low on cash: tap for help', x + 34, y + 6, { size: 12, bold: true, color: COLORS.text, layer: 2 });
   }
 
   private problemAt = -1;
