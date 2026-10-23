@@ -2153,7 +2153,7 @@ function stepVehicle(world: World, v: Vehicle): void {
 }
 
 /** Every so often one good swings in price: a demand surge or a glut. Keeps the market feeling alive. */
-const EVENT_EVERY = 600;
+const EVENT_EVERY = 3000;
 const EVENT_LENGTH = 1800;
 
 function nextRandom(world: World): number {
