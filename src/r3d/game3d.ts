@@ -1378,16 +1378,21 @@ export class Game3D {
         occupied: !!siteAt(w, p.x + t.x, p.y + t.y),
         home: homePlots.includes(i),
       }));
-      // A district lot no district has taken yet is homes like the rest.
+      // A district lot no district has taken yet stands empty and fenced, like a plot for sale: nothing is ever torn down for a
+      // district, and the homes around it (the town has spare ones behind its lots) keep their places.
       const taken = new Set(Object.values(p.districtLots ?? {}));
-      const wanted = [...layout.homes, ...layout.civic.filter((c, i) => !c.campus && !taken.has(i))].filter((h) => h.level <= p.level);
+      layout.civic.forEach((c, i) => {
+        if (c.campus || taken.has(i) || c.level > p.level) return;
+        plots.push({ x: c.x, y: c.y, ex: c.entry.x, ey: c.entry.y, ok: landOk(p.x + c.x, p.y + c.y), occupied: !!siteAt(w, p.x + c.x, p.y + c.y), home: false });
+      });
+      const wanted = layout.homes.filter((h) => h.level <= p.level);
       const clear = (x: number, y: number): boolean => landOk(p.x + x, p.y + y) && !routeAt(w, p.x + x, p.y + y) && !siteAt(w, p.x + x, p.y + y);
       // A home whose ground a road or building has taken is not lost: it shifts to the nearest free tile on a street.
       const used = new Set<string>([...wanted, ...layout.plots, ...layout.streets, ...layout.civic].map((t) => `${t.x},${t.y}`));
       const onStreet = new Set(streets.map((s) => `${s.x},${s.y}`));
       const fronts = (x: number, y: number): boolean => [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([a, b]) => onStreet.has(`${x + a},${y + b}`));
       const homes = wanted.map((h) => {
-        if (clear(h.x, h.y)) return { x: h.x, y: h.y, ok: true };
+        if (clear(h.x, h.y)) return { x: h.x, y: h.y, ok: true, face: h.face };
         let best: { x: number; y: number } | null = null;
         let bd = Infinity;
         for (let dy = -4; dy <= 4; dy++) {

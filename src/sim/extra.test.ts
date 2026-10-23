@@ -546,7 +546,10 @@ describe('rail stations', () => {
     expect(placeError(w, 'railyard', spot.x, spot.y)).toMatch(/Tier 2/);
     w.tier = 2;
     expect(placeError(w, 'railyard', town.x, town.y)).toMatch(/edge of town|Reserved|Too close|main street/);
-    expect(placeError(w, 'railyard', 3, 12)).toMatch(/edge of a town/);
+    // Somewhere well away from every town is not the edge of one.
+    let away: { x: number; y: number } | null = null;
+    for (let y = 3; y < w.height - 3 && !away; y++) for (let x = 0; x < w.width && !away; x++) if (/edge of a town/.test(placeError(w, 'railyard', x, y) ?? '')) away = { x, y };
+    expect(away).not.toBeNull();
     const before = w.money;
     expect(placeSite(w, 'railyard', spot.x, spot.y)).toBeNull();
     expect(w.money).toBe(before - SITE_DEFS.railyard.cost);

@@ -78,13 +78,18 @@ export interface TownModelOptions {
   /** The district plots, in order: offset, the street tile the drive meets, dry land, built on, still homes. */
   plots: { x: number; y: number; ex: number; ey: number; ok: boolean; occupied: boolean; home: boolean }[];
   /** The tiles beside the streets where homes stand (as far as the town has grown), and whether each can be built on. */
-  homes: { x: number; y: number; ok: boolean }[];
+  homes: { x: number; y: number; ok: boolean; face?: { x: number; y: number } }[];
   /** Districts the town has built, each a building on its own lot beside a street: the lot, and the street tile its door meets. */
   districts?: { id: DistrictId; level: number; x: number; y: number; ex: number; ey: number; setting?: Setting; campus?: boolean }[];
 }
 
 export function townGeometry(o: TownModelOptions): THREE.BufferGeometry {
-  const r = rng(o.seed * 7919 + 13);
+  const base = rng(o.seed * 7919 + 13);
+  // Each house tile draws from its own stream, so what stands on one tile never depends on what happens to the others: taking
+  // a lot, or a home shifting, cannot reshuffle the houses around it.
+  let stream = base;
+  const r = (): number => stream();
+  const cellRng = (x: number, y: number): (() => number) => rng((o.seed * 7919 + Math.imul(x + 97, 73856093) + Math.imul(y + 97, 19349663)) >>> 0);
   const p = new Parts();
   const look = STYLE_LOOKS[o.style];
   const city = o.city;
@@ -240,13 +245,18 @@ export function townGeometry(o: TownModelOptions): THREE.BufferGeometry {
   };
 
   /** The streets a tile fronts, as unit steps toward them; the main street first. */
-  const fronts = (x: number, y: number): [number, number][] =>
-    DIRS.filter(([a, b]) => isStreet(x + a, y + b)).sort(([a, b], [c, d]) => (streetMap.get(tkey(x + c, y + d))!.main ? 1 : 0) - (streetMap.get(tkey(x + a, y + b))!.main ? 1 : 0));
+  const faces = new Map(o.homes.filter((h) => h.face).map((h) => [tkey(h.x, h.y), [h.face!.x - h.x, h.face!.y - h.y] as [number, number]]));
+  const fronts = (x: number, y: number): [number, number][] => {
+    const onStreet = DIRS.filter(([a, b]) => isStreet(x + a, y + b)).sort(([a, b], [c, d]) => (streetMap.get(tkey(x + c, y + d))!.main ? 1 : 0) - (streetMap.get(tkey(x + a, y + b))!.main ? 1 : 0));
+    // A spare home behind the lots has no street: it faces the lot beside it.
+    const face = faces.get(tkey(x, y));
+    return onStreet.length === 0 && face ? [face] : onStreet;
+  };
   const yawToward = (a: number, b: number): number => (a > 0 ? YAW.E : a < 0 ? YAW.W : b > 0 ? YAW.S : YAW.N);
 
   // ---- homes along the streets, nearest the centre first ----
   const around = o.homes
-    .map((t, i) => ({ t, i, d: Math.hypot(t.x, t.y) + r() * 0.5 }))
+    .map((t, i) => ({ t, i, d: Math.hypot(t.x, t.y) + cellRng(t.x, t.y)() * 0.5 }))
     .filter((h) => h.t.ok && fronts(h.t.x, h.t.y).length > 0)
     .sort((a, b) => a.d - b.d);
   const fillFrac = city ? [0.7, 0.8, 0.9, 1, 1][level - 1] : [0.7, 0.85, 1, 1, 1][level - 1];
@@ -288,6 +298,7 @@ export function townGeometry(o: TownModelOptions): THREE.BufferGeometry {
 
   const built: { x: number; y: number }[] = [];
   around.forEach((h, idx) => {
+    stream = cellRng(h.t.x, h.t.y);
     const [a, b] = fronts(h.t.x, h.t.y)[0];
     const yaw = yawToward(a, b);
     if (idx >= filled && idx < filled + frontier) {
@@ -302,14 +313,17 @@ export function townGeometry(o: TownModelOptions): THREE.BufferGeometry {
     }
     built.push(h.t);
   });
+  stream = base;
 
   // Homes stand shoulder to shoulder along the street in front of each built-up tile, facing it behind a small front
   // garden, with the gardens running back behind them. In a big city the centre climbs into blocks and towers.
   for (const t of built) {
     const fr = fronts(t.x, t.y);
     if (fr.length === 0) continue;
+    stream = cellRng(t.x, t.y);
     for (const [a, b] of fr) {
-      const main = streetMap.get(tkey(t.x + a, t.y + b))!.main;
+      const main = streetMap.get(tkey(t.x + a, t.y + b))?.main ?? false;
+      const onStreet = streetMap.has(tkey(t.x + a, t.y + b));
       const along: [number, number] = [-b, a];
       const span = along[0] !== 0 ? TILE * sq : TILE;
       // The street's centre line, and the frontage line just off it on this tile's side.
@@ -327,7 +341,7 @@ export function townGeometry(o: TownModelOptions): THREE.BufferGeometry {
         s += w + gap;
         if (mid + w / 2 > span / 2 + 0.2) break;
         if (r() < 0.08) continue;
-        const setback = (main ? 0.5 : 0.42) + 0.16 + d / 2;
+        const setback = (onStreet ? (main ? 0.5 : 0.42) : 0.5) + 0.16 + d / 2;
         const x = along[0] !== 0 ? X(t.x) + mid : sx - a * setback;
         const z = along[0] !== 0 ? sz - b * setback : Z(t.y) + mid;
         const hx = (along[0] !== 0 ? w : d) / 2;
@@ -359,6 +373,8 @@ export function townGeometry(o: TownModelOptions): THREE.BufferGeometry {
       if (free(cx - 0.3, cz - 0.3, cx + 0.3, cz + 0.3) && offRoad(cx, cz, 0.3, 0.3)) home(cx, cz, yawToward(-fr[0][0], -fr[0][1]), 0.42, 0.4, 0.26);
     }
   }
+
+  stream = base;
 
   // ---- the crossing at the centre, and lamps along the main street ----
   if (DIRS.filter(([a, b]) => isStreet(a, b)).length >= 3) {

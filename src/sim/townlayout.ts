@@ -32,6 +32,8 @@ export interface LayoutPlot extends Tile {
 }
 export interface LayoutHome extends Tile {
   level: number;
+  /** A spare home in the back row has no street in front of it: it faces this neighbouring tile (a lot) instead. */
+  face?: Tile;
 }
 /** A lot held for a district building (see DISTRICTS): a tile beside a street, entered from its door like a plot. */
 export interface LayoutCivic extends LayoutPlot {
@@ -42,7 +44,7 @@ export interface LayoutCivic extends LayoutPlot {
 export interface TownLayout {
   streets: LayoutStreet[];
   plots: LayoutPlot[];
-  /** Lots for district buildings. Until a district takes one, it is homes like the rest. */
+  /** Lots for district buildings. Until a district takes one it stands empty and fenced: nothing is ever torn down for it. */
   civic: LayoutCivic[];
   homes: LayoutHome[];
   /** The main street runs mostly east-west ('h') or north-south ('v'). */
@@ -330,6 +332,28 @@ function build(env: LayoutEnv, place: Place): TownLayout {
       }
     }
   }
+  // Spare homes: a back row behind the lots, so a district taking a lot never costs the town a home. They come last and
+  // after the campuses, so no lot, plot or street is moved by them.
+  const blocked = new Set<string>([...list, ...plots, ...homes, ...civic.flatMap(civicFootprint), ...civic.flatMap((c) => (c.campus ? [c.campus.gate] : []))].map(key));
+  const streetKeys = new Set(list.map(key));
+  const levelOfStreet = new Map(list.map((s) => [key(s), s.level]));
+  const spare = new Map<string, LayoutHome & { rank: number }>();
+  const fronts: { c: Tile; level: number }[] = [
+    ...civic.filter((c) => !c.campus).map((c) => ({ c: c as Tile, level: c.level })),
+    ...plots.slice(2).map((c) => ({ c: c as Tile, level: levelOfStreet.get(key(c.entry)) ?? 1 })),
+    ...homes.map((h) => ({ c: h as Tile, level: h.level })),
+  ];
+  for (const f of fronts) {
+    for (const n of neighbours(f.c)) {
+      if (blocked.has(key(n)) || !buildable(n.x, n.y)) continue;
+      if (neighbours(n).some((m) => streetKeys.has(key(m)))) continue;
+      const rank = f.level * 100 + Math.hypot(n.x, n.y) + Math.atan2(n.y, n.x) * 0.001;
+      const have = spare.get(key(n));
+      if (!have || rank < have.rank) spare.set(key(n), { x: n.x, y: n.y, level: f.level, face: { x: f.c.x, y: f.c.y }, rank });
+    }
+  }
+  const extra = [...spare.values()].sort((a, b) => a.rank - b.rank).slice(0, city ? CITY_CIVIC_LOTS : CIVIC_LOTS);
+  for (const e of extra) homes.push({ x: e.x, y: e.y, level: e.level, face: e.face });
   return { streets: list, plots, civic, homes, axis };
 }
 
