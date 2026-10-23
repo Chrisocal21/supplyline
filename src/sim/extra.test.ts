@@ -358,8 +358,7 @@ describe('production chains', () => {
       const made = defs.some((d) => (d.produce && d.produce.good === g) || (d.recipe && g in d.recipe.outputs));
       const used = defs.some((d) => d.recipe && g in d.recipe.inputs) || MARKET_DEMAND.some((l) => l.includes(g)) || FREIGHT_DEMAND.some((l) => l.includes(g)) || Object.values(LEVEL_MATERIALS).some((t) => t.some((m) => g in m)) || g === 'lumber';
       expect({ g, made }).toEqual({ g, made: true });
-      // Crude oil, pellets and feed have no user yet: the Supply Yard no longer buys them. It comes back with the new goods work.
-      if (!['oil', 'pellets', 'feed'].includes(g)) expect({ g, used }).toEqual({ g, used: true });
+      expect({ g, used }).toEqual({ g, used: true });
     }
   });
 

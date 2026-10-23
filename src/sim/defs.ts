@@ -473,10 +473,10 @@ export const TOWN_LEVELS: TownLevel[] = [
 /** Goods the Market wants at each town level: finished goods people use every day. Raw and building goods go to the Supply Yard. */
 export const MARKET_DEMAND: Good[][] = [
   ['bread', 'cheese'],
-  ['bread', 'cheese', 'paper', 'jam', 'coffee', 'mango'],
-  ['bread', 'cheese', 'paper', 'jam', 'coffee', 'mango', 'furniture', 'clothes', 'tools'],
-  ['bread', 'cheese', 'paper', 'jam', 'coffee', 'mango', 'furniture', 'clothes', 'tools', 'books'],
-  ['bread', 'cheese', 'paper', 'jam', 'coffee', 'mango', 'furniture', 'clothes', 'tools', 'books', 'machinery'],
+  ['bread', 'cheese', 'paper', 'jam', 'coffee', 'mango', 'pellets', 'feed'],
+  ['bread', 'cheese', 'paper', 'jam', 'coffee', 'mango', 'pellets', 'feed', 'oil', 'furniture', 'clothes', 'tools'],
+  ['bread', 'cheese', 'paper', 'jam', 'coffee', 'mango', 'pellets', 'feed', 'oil', 'furniture', 'clothes', 'tools', 'books'],
+  ['bread', 'cheese', 'paper', 'jam', 'coffee', 'mango', 'pellets', 'feed', 'oil', 'furniture', 'clothes', 'tools', 'books', 'machinery'],
 ];
 /** The goods a town gets a taste for (a price swing) among the raw and building goods. Only world generation reads it; keep it as is so towns look the same. */
 export const YARD_TASTE_GOODS: Good[] = ['logs', 'grain', 'cotton', 'stone', 'ore', 'coal', 'clay', 'sand', 'milk', 'fruit', 'sawdust', 'bran', 'whey', 'gravel', 'slag', 'feed', 'oil', 'lumber', 'flour', 'ingots', 'cement', 'yarn', 'pellets', 'glass', 'tools', 'steel', 'bricks', 'concrete', 'blocks', 'cloth'];
@@ -510,7 +510,7 @@ export const SHOP_WAIT = 900;
 export const BUILD_GOODS: Good[] = ['lumber', 'stone', 'blocks', 'bricks', 'sand', 'cement', 'concrete', 'glass', 'steel', 'tools'];
 
 /** What a Warehouse (the Distribution Warehouse) may hold: finished goods only. Tools can go in both it and the Supply Yard. */
-export const WAREHOUSE_GOODS: Good[] = ['bread', 'cheese', 'jam', 'clothes', 'furniture', 'books', 'paper', 'coffee', 'mango', 'machinery', 'tools'];
+export const WAREHOUSE_GOODS: Good[] = ['bread', 'cheese', 'jam', 'clothes', 'furniture', 'books', 'paper', 'coffee', 'mango', 'machinery', 'tools', 'pellets', 'feed', 'oil'];
 
 // ---- specialisation paths and districts ----
 

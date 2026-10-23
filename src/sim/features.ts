@@ -344,7 +344,7 @@ export function generateFeatures(terrain: Terrain[], width: number, height: numb
     const taste: Stock = {};
     // The island goods take their taste from the spot, not from the random stream, so adding them left every other town as it was.
     const EXTRA = ['coffee', 'mango', 'oil'];
-    for (const g of new Set([...MARKET_DEMAND[MARKET_DEMAND.length - 1], ...YARD_TASTE_GOODS])) {
+    for (const g of new Set([...MARKET_DEMAND[MARKET_DEMAND.length - 1].filter((x) => !['pellets', 'feed', 'oil'].includes(x)), ...YARD_TASTE_GOODS])) {
       if (EXTRA.includes(g)) continue;
       taste[g] = Math.round((0.75 + namer.rand() * 0.7) * (STYLE_TASTE[style][g] ?? 1) * 100) / 100;
     }
