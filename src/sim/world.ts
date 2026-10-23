@@ -67,6 +67,7 @@ import { blendPartner, civicFootprint, footprint, plotCount, streetReach, townLa
 import { generateLand } from './mapgen';
 import { checkQuests } from './quests';
 import { stepBank, type BankState } from './bank';
+import { SHORTCUT_EVERY, optimizeRoutes } from './shortcuts';
 import { WEAR_SLOWDOWN, WEAR_TILES, stepBreakdown, applicants, assignDriver, driverById, hireDriver, hireFee, type Driver } from './drivers';
 import { saleMult, wearMult } from './perks';
 import { seasonMult } from './seasons';
@@ -2111,7 +2112,8 @@ function driveTile(world: World, v: Vehicle, route: Route): void {
   const reach = VEHICLE_REACH[v.kind];
   if (reach !== undefined) {
     wear *= 1 + WEAR_LONG_HAUL * Math.min(1, routeSpan(route) / vehicleReach(v));
-    const fuel = Math.min(world.money, FUEL_PER_TILE[v.kind] ?? 0);
+    // An experienced driver wastes less fuel: 4 percent less for every rank above rookie.
+    const fuel = Math.min(world.money, (FUEL_PER_TILE[v.kind] ?? 0) * (1 - 0.04 * (driverLevel(v) - 1)));
     world.money -= fuel;
     world.fuel = (world.fuel ?? 0) + fuel;
     v.fuel = (v.fuel ?? 0) + fuel;
@@ -2372,6 +2374,8 @@ function stepEvents(world: World): void {
 
 export function step(world: World): void {
   world.tick += 1;
+  // Drivers look at the roads again now and then and take any quicker way they find.
+  if (world.tick % SHORTCUT_EVERY === SHORTCUT_EVERY / 2) optimizeRoutes(world);
   stepEvents(world);
   for (const s of world.sites) stepSite(world, s);
   for (const v of world.vehicles) stepVehicle(world, v);
