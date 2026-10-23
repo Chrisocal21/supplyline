@@ -69,6 +69,13 @@ function createWindow() {
     if (/^https?:/.test(url)) shell.openExternal(url);
     return { action: 'deny' };
   });
+  // Maximising goes to true full screen, which drops the title bar and its buttons. F11 (or leaving full screen) returns to a window.
+  win.on('maximize', () => {
+    if (!win.isFullScreen()) win.setFullScreen(true);
+  });
+  win.on('leave-full-screen', () => {
+    if (win.isMaximized()) win.unmaximize();
+  });
   win.webContents.on('before-input-event', (e, input) => {
     if (input.type === 'keyDown' && input.key === 'F11') win.setFullScreen(!win.isFullScreen());
   });
