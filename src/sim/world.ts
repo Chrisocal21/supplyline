@@ -304,6 +304,9 @@ export interface Vehicle {
   kind: VehicleKind;
   /** Deliveries made to a buyer, which raise the driver's level and make it faster. */
   trips?: number;
+  /** Money this vehicle has brought in from sales, and its last few deliveries (newest last), for its pop-out. */
+  earned?: number;
+  runs?: { tick: number; good: Good; units: number; money: number; toId: number }[];
   /** The driver's name, once the player has given one. Until then a name is made from the vehicle (see drivers.ts). */
   driver?: string;
   /** How worn the vehicle is, 0 (new) to 1 (worn out). It grows with the ground covered and a service sets it back. */
@@ -347,6 +350,8 @@ export interface World {
   version: 4;
   /** New worlds reserve measured, multi-tile sports campuses. Missing means the legacy layout. */
   realisticLots?: boolean;
+  /** Chosen at game start. 'hard' is the opt-in pressure mode; nothing reads it yet, so both play the same for now. Missing means relaxed. */
+  difficulty?: 'relaxed' | 'hard';
   /** New games: a building outside a town needs its land plot bought first (see land.ts). Missing means build anywhere. */
   landRules?: boolean;
   /** Land plots the player owns, by plot id. */
@@ -1889,6 +1894,9 @@ function deliver(world: World, site: Site, v: Vehicle, all = true): number {
   if (amount <= 0) return v.cargo;
   if (SITE_DEFS[site.kind].dock) {
     const gain = sell(world, site, g, amount);
+    v.earned = (v.earned ?? 0) + gain;
+    (v.runs ??= []).push({ tick: world.tick, good: g, units: amount, money: gain, toId: site.id });
+    if (v.runs.length > 6) v.runs.shift();
     const src = v.fromId === undefined ? undefined : siteById(world, v.fromId);
     if (src) {
       const rec = ((src.sales ??= {})[site.id] ??= { units: 0, money: 0 });

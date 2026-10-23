@@ -88,7 +88,7 @@ import { Rates, Sheets, type SheetId } from './sheets';
 
 import { fitSize } from './company';
 import { SEASONAL, calendar, seasonIndex, seasonOf } from '../sim/seasons';
-import { type CardActions, type CardInfo, circuitMap, routeHeight, routePicture, TRUCK_TILE_H, vehicleCard, vehicleTile } from './vehiclecard';
+import { type CardActions, type CardInfo, circuitMap, routeHeight, routePicture, TRUCK_TILE_H, vehicleCard, vehicleCardHeight, vehicleTile } from './vehiclecard';
 import { condition, driverName, renameDriver, serviceCost, serviceError, serviceVehicle } from '../sim/drivers';
 import { TITLE_SLIDES, Title, type TitleChoice } from './title';
 import { Radio, STATIONS } from '../audio/radio';
@@ -1427,6 +1427,8 @@ export class HudScene extends Phaser.Scene {
 
   /** The world size window: which kind of world a new game starts on. 'start' follows the title screen and cannot be cancelled. */
   private sizePick: 'start' | 'menu' | null = null;
+  /** How hard the new game is: chosen with the world. Relaxed has no punishment; Hard is the opt-in pressure mode. */
+  private difficulty: 'relaxed' | 'hard' = 'relaxed';
   /** The world being built, step by step, with what it is doing now. The screen repaints between steps so the bar moves. */
   private building: { name: string; step: number; total: number; label: string } | null = null;
 
@@ -1445,7 +1447,8 @@ export class HudScene extends Phaser.Scene {
       this.building = null;
       this.activeTab = 'select';
       g.speed = 1;
-      this.toasts.push({ text: `New ${def.label} world started`, until: this.time.now + 2500 });
+      g.world.difficulty = this.difficulty;
+      this.toasts.push({ text: `New ${def.label} world started (${this.difficulty === 'hard' ? 'Hard' : 'Relaxed'})`, until: this.time.now + 2500 });
     };
     if (def.made) {
       this.building = { name: def.label, step: 0, total: 1, label: 'Building the terrain, roads and trees' };
@@ -1484,9 +1487,9 @@ export class HudScene extends Phaser.Scene {
     const x = (W - w) / 2;
     const pad = 22;
     const inner = w - pad * 2;
-    const rowH = 74;
+    const rowH = 88;
     const cancel = this.sizePick === 'menu' && !this.building;
-    const h = this.building ? 96 + 130 + pad : 96 + WORLD_SIZES.length * (rowH + 8) + (cancel ? 56 : 14) + pad;
+    const h = this.building ? 96 + 130 + pad : 96 + 84 + WORLD_SIZES.length * (rowH + 8) + (cancel ? 56 : 14) + pad;
     const y = Math.max(TOP + 6, (H - h) / 2);
     im.rect(4, x, y, w, h, COLORS.panel, 1, 18, COLORS.accent, 1, 2);
     let cy = y + pad;
@@ -1505,6 +1508,19 @@ export class HudScene extends Phaser.Scene {
       im.text('szHint', 'Larger worlds have more land to lay out, so they take longer.', bx, by + 84, { size: 11, color: COLORS.muted, wrap: inner, layer: 4 });
       return;
     }
+    // How the game plays: relaxed by default, hard as the opt-in pressure mode.
+    im.text('dfH', 'HOW YOU PLAY', x + pad, cy, { size: 11, bold: true, color: COLORS.muted, layer: 4 });
+    cy += 18;
+    const dw = (inner - 8) / 2;
+    ([['relaxed', 'Relaxed', 'No punishment. Build at your own pace.'], ['hard', 'Hard', 'Pressure mode. Its harsher rules are coming in later updates.']] as ['relaxed' | 'hard', string, string][]).forEach(([id, label, blurb], i) => {
+      const dx = x + pad + i * (dw + 8);
+      const on = this.difficulty === id;
+      const dh = im.hit(`df${id}`, dx, cy, dw, 56, () => (this.difficulty = id), 4);
+      im.rect(4, dx, cy, dw, 56, on ? 0x2a2411 : dh ? 0x1f2b3a : 0x131a24, 1, 12, on || dh ? COLORS.accent : COLORS.line, on ? 2 : 1);
+      im.text(`df${id}n`, label, dx + 14, cy + 8, { size: 15, bold: true, color: on ? COLORS.accent : COLORS.text, layer: 4 });
+      im.text(`df${id}b`, blurb, dx + 14, cy + 28, { size: 10, color: COLORS.muted, wrap: dw - 28, layer: 4 });
+    });
+    cy += 66;
     for (const def of WORLD_SIZES) {
       const tiles = Math.round((def.width * (def.width / 2)) / 1000);
       const hov = !this.building && im.hit(`sz${def.id}`, x + pad, cy, inner, rowH, () => this.beginWorld(def.id), 4);
@@ -3853,9 +3869,10 @@ export class HudScene extends Phaser.Scene {
       ['ONE WAY', oneWay > 0 ? `${oneWay} tiles` : '-'],
       ['ROUND TRIP', oneWay > 0 ? `about ${roundMin < 1 ? '<1' : roundMin.toFixed(1)} min` : '-'],
       ['CARRYING', v.cargo > 0 && v.good ? `${Math.floor(v.cargo)} ${GOODS[v.good].label.toLowerCase()}` : 'nothing'],
+      ['EARNED', `$${fmt(v.earned ?? 0)}`],
     ];
     const sy = top + 20 + mapH + 10;
-    const sw = (rw - 3 * 8) / 4;
+    const sw = (rw - (stats.length - 1) * 8) / stats.length;
     stats.forEach(([label, value], i) => {
       const sx = rx + i * (sw + 8);
       im.rect(3, sx, sy, sw, 46, 0x0f161d, 1, 3, COLORS.line, 1);
@@ -3863,6 +3880,20 @@ export class HudScene extends Phaser.Scene {
       im.text(`tmSv${i}`, value, sx + 10, sy + 21, { size: fitSize(value, sw - 20, 14, 9), bold: true, layer: 4 });
     });
     routePicture(im, world, v, `tm${v.id}`, rx, sy + 56, rw, info, act);
+    // Under the truck: what it has delivered lately, newest first.
+    const ly = top + vehicleCardHeight + 16;
+    im.text('tmLh', 'RECENT DELIVERIES', x + 20, ly, { size: 11, bold: true, color: COLORS.muted, layer: 3 });
+    const runs = [...(v.runs ?? [])].reverse();
+    if (runs.length === 0) im.text('tmL0', 'None yet: it shows up here after its first sale.', x + 20, ly + 24, { size: 12, color: COLORS.muted, wrap: leftW, layer: 3 });
+    runs.slice(0, 5).forEach((r, i) => {
+      const ry = ly + 22 + i * 30;
+      const ago = Math.max(0, Math.round((world.tick - r.tick) / 600));
+      im.rect(3, x + 20, ry, leftW, 26, 0x0f161d, 1, 3, COLORS.line, 1);
+      const to = siteById(world, r.toId)?.name ?? 'a buyer';
+      im.text(`tmLn${i}`, `${Math.floor(r.units)} ${GOODS[r.good].label.toLowerCase()} to ${to}`, x + 30, ry + 6, { size: fitSize(`${Math.floor(r.units)} ${GOODS[r.good].label.toLowerCase()} to ${to}`, leftW - 150, 12, 9), layer: 4 });
+      im.text(`tmLm${i}`, `+$${fmt(r.money)}`, x + 20 + leftW - 70, ry + 6, { size: 12, bold: true, color: COLORS.good, align: 'right', layer: 4 });
+      im.text(`tmLt${i}`, ago < 1 ? 'now' : `${ago} min ago`, x + 20 + leftW - 10, ry + 7, { size: 10, color: COLORS.muted, align: 'right', layer: 4 });
+    });
   }
 
   private truckStatus(v: Vehicle): { text: string; color: number } {
