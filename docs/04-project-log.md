@@ -865,3 +865,8 @@ What changed:
 ## 0.137: resource nodes stay visible from far out
 
 - 0.132 hid each node's detailed scene beyond 4 times the tree detail distance, so zooming out left only the painted patch on the ground, while roads and towns stayed. Now every node that is not drawn in full gets a coloured pin (forest green, field gold, pasture light green, quarry grey, mine rust, coal black, clay orange, oil black, coffee brown, mango orange), all in one draw call, shown out to the same distance as town models (450). Built-on nodes show no pin.
+
+## 0.138: building a road no longer freezes the game
+
+- Every new road made `regrade()` in `globeMesh.ts` recompute normals for the whole globe (millions of triangles on Map 3), a visible hitch. It now recomputes only the normals of the changed tiles and a one-tile ring (`renormal`), matching the old area-weighted result and keeping the date-line seam shared. The bounding sphere is no longer rebuilt either.
+- Not found: a single heavy step when a sheet (Production) opens. Still to check if it freezes after this.

@@ -270,8 +270,57 @@ varying vec3 vSurfacePosition;`)
   sg.setAttribute('position', new THREE.BufferAttribute(sp, 3));
   const stars = new THREE.Points(sg, new THREE.PointsMaterial({ color: 0xdfe8ff, size: 2.2, sizeAttenuation: false, transparent: true, opacity: 0.9, fog: false }));
 
+  /** Refresh the normals of just these vertices (and nothing else), the same area-weighted way computeVertexNormals does. */
+  const renormal = (verts: Set<number>): void => {
+    for (const k of [...verts]) {
+      const i = k % cols;
+      if (i === 0) verts.add(k + lonSeg);
+      else if (i === lonSeg) verts.add(k - lonSeg);
+    }
+    const acc = new Map<number, [number, number, number]>();
+    for (const k of verts) acc.set(k, [0, 0, 0]);
+    const quads = new Set<number>();
+    for (const k of verts) {
+      const i = k % cols;
+      const j = (k - i) / cols;
+      for (const qj of [j - 1, j]) {
+        if (qj < 0 || qj >= latSeg) continue;
+        for (const qi of [i - 1, i]) if (qi >= 0 && qi < lonSeg) quads.add(qj * cols + qi);
+      }
+    }
+    const face = (a: number, b: number, c: number): void => {
+      const ax = pos[a * 3], ay = pos[a * 3 + 1], az = pos[a * 3 + 2];
+      const ux = pos[b * 3] - ax, uy = pos[b * 3 + 1] - ay, uz = pos[b * 3 + 2] - az;
+      const vx = pos[c * 3] - ax, vy = pos[c * 3 + 1] - ay, vz = pos[c * 3 + 2] - az;
+      const nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx;
+      for (const v of [a, b, c]) {
+        const s = acc.get(v);
+        if (s) {
+          s[0] += nx;
+          s[1] += ny;
+          s[2] += nz;
+        }
+      }
+    };
+    for (const q of quads) {
+      face(q, q + cols, q + 1);
+      face(q + 1, q + cols, q + cols + 1);
+    }
+    for (const [k, s] of acc) {
+      const i = k % cols;
+      const twin = i === 0 ? k + lonSeg : i === lonSeg ? k - lonSeg : -1;
+      const t = twin >= 0 ? acc.get(twin) : undefined;
+      const x = s[0] + (t ? t[0] : 0);
+      const y = s[1] + (t ? t[1] : 0);
+      const z = s[2] + (t ? t[2] : 0);
+      const l = Math.hypot(x, y, z) || 1;
+      nrm.setXYZ(k, x / l, y / l, z / l);
+    }
+  };
+
   const regrade = (tiles: Iterable<number>): void => {
     let any = false;
+    const touched = new Set<number>();
     for (const t of tiles) {
       const tx = t % world.width;
       const ty = Math.floor(t / world.width);
@@ -293,13 +342,16 @@ varying vec3 vSurfacePosition;`)
           }
         }
       }
+      // The normals of the tile's vertices and the ring round them change with the heights.
+      for (let j = Math.max(0, j0 - 1); j <= Math.min(latSeg, j0 + SUB + 1); j++) {
+        for (let i = tx * SUB - 1; i <= tx * SUB + SUB + 1; i++) touched.add(j * cols + ((i + lonSeg) % lonSeg));
+      }
       any = true;
     }
     if (!any) return;
     geo.getAttribute('position').needsUpdate = true;
-    smooth();
+    renormal(touched);
     nrm.needsUpdate = true;
-    geo.computeBoundingSphere();
   };
 
   return {
