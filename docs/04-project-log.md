@@ -662,3 +662,7 @@ New games now lay out land as a patchwork of plots (src/sim/land.ts): a fixed gr
 
 - Farmland, pasture and orchard nodes are no longer places on the map (SOFT_NODES in defs.ts): no painted field, meadow or orchard ground, no props, no ring markers, and they never block building. A Farm, Ranch, Orchard or any crop or animal farm stands on any open ground or town plot and brings its own fields, paddock or trees in its model. The world data still holds those nodes (so worlds do not change) but nodeAt ignores them.
 - Forest, quarry, mine, coal, clay, oil, coffee and mango nodes are permanent spots again: the site that works them must stand on the node (needsNode). A node of one kind blocks every other building, factories included (before, a factory could be placed on any node).
+
+## 0.102: smarter "sell to" choices
+
+- A truck set to best price, best earnings, highest demand or closest now judges a run by what the load would really earn when it arrives: the buyer's price after trucks already on their way have filled the gap (inbound loads count), less the fuel for the round trip. Best earnings is money a minute for a full round trip. Highest demand and closest break ties by distance. A truck only changes run between trips when the new one is clearly better (8%), so it does not flip back and forth.

@@ -103,6 +103,48 @@ describe('vehicle preferences', () => {
   });
 });
 
+describe('vehicle preferences: smart picking', () => {
+  const setup = async () => {
+    const { assignVehicle, setVehiclePick } = await import('./world');
+    const w = world();
+    const camp = add(w, 'forestry', 3, 5);
+    const near = add(w, 'sawmill', 6, 5);
+    const far = add(w, 'sawmill', 14, 5);
+    near.making = far.making = true;
+    const line = (to: typeof near) => w.routes.push({ id: w.nextId++, mode: 'road', fromSiteId: camp.id, toSiteId: to.id, over: true, path: Array.from({ length: to.x - 2 }, (_, i) => ({ x: 3 + i, y: 5 })) } as never);
+    line(near);
+    line(far);
+    expect(buyVehicle(w, camp.id, 'boxtruck')).toBeNull();
+    const v = w.vehicles[0];
+    const target = (): number => w.routes.find((r) => r.id === v.routeId)!.toSiteId;
+    const pick = (mode: 'price' | 'earn' | 'demand'): number => {
+      setVehiclePick(w, v.id, mode);
+      v.routeId = 0;
+      assignVehicle(w, v);
+      return target();
+    };
+    return { w, camp, near, far, v, pick };
+  };
+
+  it('best price and best earnings do not drive far for the same money', async () => {
+    const { near, far, pick } = await setup();
+    expect(pick('price')).toBe(near.id);
+    expect(pick('earn')).toBe(near.id);
+    void far;
+  });
+
+  it('highest demand looks past a buyer that trucks are already filling', async () => {
+    const { w, camp, near, far, pick } = await setup();
+    near.stock.logs = 4;
+    far.stock.logs = 4;
+    expect(pick('demand')).toBe(near.id);
+    // Two loaded trucks are already on their way to the nearer buyer.
+    const nearRoute = w.routes.find((r) => r.toSiteId === near.id)!;
+    for (let i = 0; i < 3; i++) w.vehicles.push({ ...w.vehicles[0], id: w.nextId++, homeId: camp.id, routeId: nearRoute.id, cargo: 12, good: 'logs', state: 'moving' } as never);
+    expect(pick('demand')).toBe(far.id);
+  });
+});
+
 describe('two lines', () => {
   it('a main truck carries only the main good and a by-product truck only the by-product', () => {
     const w = world();

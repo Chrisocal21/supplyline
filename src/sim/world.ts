@@ -2188,7 +2188,25 @@ export function laneOk(world: World, v: Vehicle, route: Route): boolean {
   return supplies(world, home, other, v.line ?? 'main');
 }
 
-/** How good a run looks to a vehicle with a preference: higher is better. Unset or 'any' scores every run the same. */
+/** Units of a good already on their way to a building, so several trucks do not all chase the same gap. */
+function inbound(world: World, v: Vehicle, other: Site, g: Good): number {
+  let n = 0;
+  for (const x of world.vehicles) {
+    if (x.id === v.id || x.cargo <= 0 || x.good !== g || x.homeId === other.id) continue;
+    const r = world.routes.find((q) => q.id === x.routeId);
+    if (r && (r.fromSiteId === other.id || r.toSiteId === other.id)) n += x.cargo;
+  }
+  return n;
+}
+
+/** The price factor a dock applies for how full it is (see unitPrice). */
+const fillFactor = (fill: number): number => Math.min(1.3, Math.max(0.4, 1.3 - fill));
+
+/**
+ * How good a run looks to a vehicle with a preference: higher is better. Unset or 'any' scores every run the same (then the
+ * least busy run wins, which spreads trucks out). The others look at what a load would really earn: the buyer's price once the
+ * trucks already on their way have arrived, less the fuel for the round trip.
+ */
 function routeScore(world: World, v: Vehicle, r: Route): number {
   const mode = v.pick ?? 'any';
   if (mode === 'any') return 0;
@@ -2198,12 +2216,26 @@ function routeScore(world: World, v: Vehicle, r: Route): number {
   const asked = wants(world, other);
   const goods = lineGoods(home, v.line ?? 'main').filter((g) => asked.includes(g));
   if (goods.length === 0) return -1;
-  const fill = (g: Good): number => stockOf(other, g) / Math.max(1, siteCap(world, other));
-  const price = (g: Good): number => (SITE_DEFS[other.kind].dock ? unitPrice(world, other, g) : SITE_DEFS[other.kind].hub ? 0 : GOODS[g].price * 0.6);
-  if (mode === 'demand') return Math.max(...goods.map((g) => 1 - fill(g)));
-  if (mode === 'price') return Math.max(...goods.map(price));
-  if (mode === 'near') return -r.path.length;
-  return Math.max(...goods.map((g) => price(g) * Math.max(0.15, 1 - fill(g)))) / (r.path.length + 10);
+  const vdef = VEHICLE_DEFS[v.kind];
+  const cap = Math.max(1, siteCap(world, other));
+  const tiles = r.path.length * (r.grade === 'highway' ? HIGHWAY_TIME : 1);
+  const fuelPerUnit = ((FUEL_PER_TILE[v.kind] ?? 0) * 2 * r.path.length) / Math.max(1, vdef.capacity);
+  const dock = !!SITE_DEFS[other.kind].dock;
+  const hub = !!SITE_DEFS[other.kind].hub;
+  const fillAfter = (g: Good): number => (stockOf(other, g) + inbound(world, v, other, g) + vdef.capacity * 0.5) / cap;
+  /** What a unit sells for when this load gets there. */
+  const price = (g: Good): number => {
+    if (hub) return 0;
+    if (!dock) return GOODS[g].price * 0.6;
+    const now = fillFactor(stockOf(other, g) / cap);
+    return (unitPrice(world, other, g) * fillFactor(fillAfter(g))) / now;
+  };
+  if (mode === 'demand') return Math.max(...goods.map((g) => 1 - fillAfter(g))) - tiles * 0.0004;
+  if (mode === 'near') return -tiles;
+  const net = Math.max(...goods.map((g) => price(g) - fuelPerUnit));
+  if (mode === 'price') return net - tiles * 0.002;
+  // Best earnings: money a minute for a full round trip.
+  return (net * Math.min(vdef.capacity, cap * 0.9)) / (2 * tiles * vdef.ticksPerTile + 60);
 }
 
 /** The run a vehicle should be on: its preferred one, and among equals the least busy. */
@@ -2300,7 +2332,9 @@ function stepVehicle(world: World, v: Vehicle): void {
       // A vehicle with a preference looks again at home between trips, so it follows demand and prices as they change.
       if (atHome && v.pick && v.pick !== 'any' && !v.destId) {
         const better = bestRoute(world, v);
-        if (better && better.id !== route.id && routeScore(world, v, better) > routeScore(world, v, route) + 1e-9) {
+        const mine = routeScore(world, v, route);
+        // Only a clearly better run is worth changing for, or the vehicle would flip back and forth as prices wobble.
+        if (better && better.id !== route.id && routeScore(world, v, better) > mine + Math.abs(mine) * 0.08 + 1e-9) {
           v.routeId = better.id;
           v.idx = homeEnd(better, v) === 0 ? 0 : better.path.length - 1;
           v.dir = v.idx === 0 ? 1 : -1;
