@@ -90,13 +90,13 @@ for (let y = 0; y < H; y++) {
     landField[at(x, y)] = v + (fbm(x, y, 11, 205) - 0.5) * 0.34 + (fbm(x, y, 4, 206) - 0.5) * 0.12;
   }
 }
-// The threshold that makes about 41% of the world land.
+// The threshold that makes about 54% of the world land.
 const rowsOk = [];
 for (let y = NORTH_SEA; y < H - SOUTH_SEA; y++) rowsOk.push(y);
 const sorted = [];
 for (const y of rowsOk) for (let x = 0; x < W; x += 2) sorted.push(landField[at(x, y)]);
 sorted.sort((a, b) => a - b);
-const THRESH = sorted[Math.floor(sorted.length * 0.59)];
+const THRESH = sorted[Math.floor(sorted.length * 0.46)];
 
 const terrain = new Array(W * H);
 const elev = new Array(W * H).fill(0);

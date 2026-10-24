@@ -724,3 +724,7 @@ What changed:
 
 - The Map 3 preview is drawn with a grid: columns A to X, rows 1 to 8, each cell 32 tiles (A1 top left). Pointing at the map shows the cell and the tile. Use the cell name (for example "K4") to say where something is. `src/sim/grid.ts` has `gridId` and `gridRange`.
 - "Try it (test build)" on the preview starts Map 3 as a playable test. It may be slow: the ground picture is still capped at 4096 pixels across (5 pixels a tile), and the trees and lookups are not yet tuned for the size.
+
+## 0.110: more land on Map 3
+
+- Map 3 is now 50% land (was 38%): 181 towns (17 cities), 16 land masses, 24 rivers, with the inland sea and ocean channels kept. Same coasts and shapes, wider.
