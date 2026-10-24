@@ -1,5 +1,5 @@
 // Named world features: regions, towns and resource nodes. Pure, seeded.
-import { MARKET_DEMAND, YARD_TASTE_GOODS, STYLE_TASTE, TOWN_STYLES, type DistrictId, type NodeKind, type PathId, type Stock, type Terrain, type TownStyle } from './defs';
+import { YARD_TASTE_GOODS, STYLE_TASTE, TOWN_STYLES, type DistrictId, type NodeKind, type PathId, type Stock, type Terrain, type TownStyle } from './defs';
 import { makeNamer } from './names';
 import { BLEND_REACH, BLEND_SHARE, blendPartner, blendRoll, footprint, plotCount, townLayout } from './townlayout';
 import { corridorTiles } from './corridors';
@@ -344,7 +344,9 @@ export function generateFeatures(terrain: Terrain[], width: number, height: numb
     const taste: Stock = {};
     // The island goods take their taste from the spot, not from the random stream, so adding them left every other town as it was.
     const EXTRA = ['coffee', 'mango', 'oil'];
-    for (const g of new Set([...MARKET_DEMAND[MARKET_DEMAND.length - 1].filter((x) => !['pellets', 'feed', 'oil'].includes(x)), ...YARD_TASTE_GOODS])) {
+    // Only the goods that had a taste when worlds were first made. New goods have none (a price swing of 1), so adding goods never changes a world.
+    const OLD_MARKET_TASTE = ['bread', 'cheese', 'paper', 'jam', 'coffee', 'mango', 'furniture', 'clothes', 'tools', 'books', 'machinery'] as const;
+    for (const g of new Set([...OLD_MARKET_TASTE, ...YARD_TASTE_GOODS])) {
       if (EXTRA.includes(g)) continue;
       taste[g] = Math.round((0.75 + namer.rand() * 0.7) * (STYLE_TASTE[style][g] ?? 1) * 100) / 100;
     }

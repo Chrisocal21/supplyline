@@ -1381,6 +1381,7 @@ export function hasByLine(site: Site): boolean {
 export function wants(world: World, site: Site): Good[] {
   const def = SITE_DEFS[site.kind];
   if (def.recipe) return site.making ? (Object.keys(def.recipe.inputs) as Good[]) : [];
+  if (def.recycle) return GOOD_LIST.filter((g) => GOODS[g].kind === 'byproduct');
   if (def.store) return Array.from(new Set([...site.pull, ...(site.fed ?? [])])).filter((g) => WAREHOUSE_GOODS.includes(g));
   if (def.hub) return site.pull;
   if (def.dock) return dockDemand(world, site);
@@ -1722,6 +1723,9 @@ export function bottlenecks(world: World): Bottleneck[] {
   return out.sort((a, b) => b.lostPerMin - a.lostPerMin);
 }
 
+/** What a Recycling Yard pays for a unit of by-product, as a share of its price. */
+const RECYCLE_PRICE = 0.5;
+
 function stepSite(world: World, site: Site): void {
   const def = SITE_DEFS[site.kind];
   const cap = siteCap(world, site);
@@ -1781,6 +1785,19 @@ function stepSite(world: World, site: Site): void {
         site.stock[g as Good] = Math.min(cap, stockOf(site, g as Good) + (n ?? 0));
         world.produced[g as Good] = (world.produced[g as Good] ?? 0) + (n ?? 0);
       }
+    }
+    return;
+  }
+  if (def.recycle) {
+    // A few units of each by-product a minute, for a few cents each: the safety net that keeps a by-product from jamming a chain.
+    if (world.tick % 100 !== 0) return;
+    for (const g of GOOD_LIST) {
+      if (GOODS[g].kind !== 'byproduct' || stockOf(site, g) < 1) continue;
+      addStock(site, g, -1);
+      const cents = GOODS[g].price * RECYCLE_PRICE;
+      world.money += cents;
+      world.earned += cents;
+      world.consumed[g] = (world.consumed[g] ?? 0) + 1;
     }
     return;
   }

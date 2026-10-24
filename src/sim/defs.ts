@@ -11,6 +11,8 @@ const GOOD_IDS = [
   'bread', 'cheese', 'jam', 'clothes', 'furniture', 'books', 'pellets', 'feed', 'tools', 'machinery',
   // by-products
   'sawdust', 'bran', 'whey', 'gravel', 'slag',
+  // made from by-products
+  'mulch',
 ] as const;
 export type Good = (typeof GOOD_IDS)[number];
 export type Stock = Partial<Record<Good, number>>;
@@ -72,6 +74,7 @@ export const GOODS: Record<Good, { label: string; price: number; color: number; 
   whey: { label: 'Whey', price: 1, color: 0xe6e2c8, kind: 'byproduct' },
   gravel: { label: 'Gravel', price: 3, color: 0x9d9a92, kind: 'byproduct' },
   slag: { label: 'Slag', price: 2, color: 0x58545a, kind: 'byproduct' },
+  mulch: { label: 'Mulch', price: 6, color: 0x6b4a2e, kind: 'product' },
 };
 
 export interface SiteDef {
@@ -110,6 +113,8 @@ export interface SiteDef {
   port?: boolean;
   /** Mechanic Shop: trucks that wear out go here, and come back repaired. */
   garage?: boolean;
+  /** Recycling Yard: takes any by-product, a few units a minute, for a few cents each, so no by-product can ever jam a chain. */
+  recycle?: boolean;
 }
 
 const raw = (label: string, blurb: string, cost: number, tier: number, node: NodeKind, good: Good, every: number, color: number, also: Good[] = []): SiteDef => ({
@@ -160,6 +165,18 @@ const DEFS = {
   dairy: proc('processing', 'Dairy', 'Milk in, cheese out. Whey is the by-product.', 280, 0, { milk: 2 }, { cheese: 1, whey: 1 }, 22, 0xe8c04a),
   jamfactory: proc('processing', 'Jam Factory', 'Fruit in, jam out.', 300, 1, { fruit: 2 }, { jam: 2 }, 20, 0x9a2f4a),
   feedmill: proc('processing', 'Feed Mill', 'Bran and whey in, animal feed out. Puts two by-products to work.', 300, 1, { bran: 2, whey: 1 }, { feed: 2 }, 20, 0xb7a35a),
+  gardensupply: proc('processing', 'Garden Supply', 'Sawdust and bran in, mulch out. A second life for two by-products.', 320, 1, { sawdust: 2, bran: 1 }, { mulch: 2 }, 20, 0x7a8a4a),
+  scrapyard: {
+    label: 'Recycling Yard',
+    blurb: 'Takes any by-product, a few units a minute, for a few cents each. Nothing can jam a chain when it has a Recycling Yard to go to.',
+    category: 'processing',
+    cost: 150,
+    tier: 0,
+    cap: 120,
+    inTown: true,
+    color: 0x7d8a6a,
+    recycle: true,
+  } as SiteDef,
   pelletmill: proc('processing', 'Pellet Mill', 'Presses sawdust into heating pellets.', 380, 1, { sawdust: 3 }, { pellets: 1 }, 22, 0x9a7448),
 
   // Manufacturing
@@ -174,7 +191,7 @@ const DEFS = {
   brickworks: proc('heavy', 'Brickworks', 'Clay in, bricks out.', 420, 1, { clay: 2 }, { bricks: 1 }, 22, 0xa4523f),
   stonecutter: proc('heavy', 'Stonecutter', 'Stone in, cut blocks out. Gravel is the by-product.', 380, 1, { stone: 2 }, { blocks: 1, gravel: 1 }, 24, 0xb8b5ac),
   cementworks: proc('heavy', 'Cement Works', 'Gravel and coal in, cement out.', 600, 2, { gravel: 2, coal: 1 }, { cement: 1 }, 26, 0x9a9a96),
-  concrete: proc('heavy', 'Concrete Plant', 'Cement and sand in, concrete out.', 650, 2, { cement: 1, sand: 1 }, { concrete: 2 }, 24, 0xb2b2ae),
+  concrete: proc('heavy', 'Concrete Plant', 'Cement, sand and gravel in, concrete out. Puts gravel to work.', 650, 2, { cement: 1, sand: 1, gravel: 1 }, { concrete: 3 }, 24, 0xb2b2ae),
   glassworks: proc('heavy', 'Glassworks', 'Sand and coal in, glass out.', 700, 2, { sand: 2, coal: 1 }, { glass: 1 }, 28, 0x9fd0e0),
   smelter: proc('heavy', 'Smelter', 'Ore and coal in, iron ingots out. Slag is the by-product.', 800, 2, { ore: 2, coal: 1 }, { ingots: 1, slag: 1 }, 30, 0x6f7a86),
   toolworks: proc('heavy', 'Toolworks', 'Ingots and lumber in, tools out.', 750, 2, { ingots: 1, lumber: 1 }, { tools: 1 }, 30, 0x6a7480),
@@ -473,10 +490,10 @@ export const TOWN_LEVELS: TownLevel[] = [
 /** Goods the Market wants at each town level: finished goods people use every day. Raw and building goods go to the Supply Yard. */
 export const MARKET_DEMAND: Good[][] = [
   ['bread', 'cheese'],
-  ['bread', 'cheese', 'paper', 'jam', 'coffee', 'mango', 'pellets', 'feed'],
-  ['bread', 'cheese', 'paper', 'jam', 'coffee', 'mango', 'pellets', 'feed', 'oil', 'furniture', 'clothes', 'tools'],
-  ['bread', 'cheese', 'paper', 'jam', 'coffee', 'mango', 'pellets', 'feed', 'oil', 'furniture', 'clothes', 'tools', 'books'],
-  ['bread', 'cheese', 'paper', 'jam', 'coffee', 'mango', 'pellets', 'feed', 'oil', 'furniture', 'clothes', 'tools', 'books', 'machinery'],
+  ['bread', 'cheese', 'paper', 'jam', 'coffee', 'mango', 'pellets', 'feed', 'mulch'],
+  ['bread', 'cheese', 'paper', 'jam', 'coffee', 'mango', 'pellets', 'feed', 'mulch', 'oil', 'furniture', 'clothes', 'tools'],
+  ['bread', 'cheese', 'paper', 'jam', 'coffee', 'mango', 'pellets', 'feed', 'mulch', 'oil', 'furniture', 'clothes', 'tools', 'books'],
+  ['bread', 'cheese', 'paper', 'jam', 'coffee', 'mango', 'pellets', 'feed', 'mulch', 'oil', 'furniture', 'clothes', 'tools', 'books', 'machinery'],
 ];
 /** The goods a town gets a taste for (a price swing) among the raw and building goods. Only world generation reads it; keep it as is so towns look the same. */
 export const YARD_TASTE_GOODS: Good[] = ['logs', 'grain', 'cotton', 'stone', 'ore', 'coal', 'clay', 'sand', 'milk', 'fruit', 'sawdust', 'bran', 'whey', 'gravel', 'slag', 'feed', 'oil', 'lumber', 'flour', 'ingots', 'cement', 'yarn', 'pellets', 'glass', 'tools', 'steel', 'bricks', 'concrete', 'blocks', 'cloth'];
@@ -510,7 +527,7 @@ export const SHOP_WAIT = 900;
 export const BUILD_GOODS: Good[] = ['lumber', 'stone', 'blocks', 'bricks', 'sand', 'cement', 'concrete', 'glass', 'steel', 'tools'];
 
 /** What a Warehouse (the Distribution Warehouse) may hold: finished goods only. Tools can go in both it and the Supply Yard. */
-export const WAREHOUSE_GOODS: Good[] = ['bread', 'cheese', 'jam', 'clothes', 'furniture', 'books', 'paper', 'coffee', 'mango', 'machinery', 'tools', 'pellets', 'feed', 'oil'];
+export const WAREHOUSE_GOODS: Good[] = ['bread', 'cheese', 'jam', 'clothes', 'furniture', 'books', 'paper', 'coffee', 'mango', 'machinery', 'tools', 'pellets', 'feed', 'oil', 'mulch'];
 
 // ---- specialisation paths and districts ----
 
