@@ -50,20 +50,23 @@ function card(e: GoodEntry): string {
         ? 'only as an input to other goods'
         : '<span class="none">nothing uses it</span>';
   const groups = e.groups.map((g) => GROUPS.find((x) => x.id === g)?.label ?? g).join(', ');
-  return `<div class="card${e.planned ? ' planned' : ''}" id="g-${e.id}">
-    <h3><span class="dot" style="background:${colorOf(e)}"></span>${esc(e.label)}${e.planned ? '<span class="badge">Not in game</span>' : ''}</h3>
-    <div class="meta"><span class="tag ${e.kind}">${KIND[e.kind]}</span><span>${e.planned ? 'about ' : ''}$${e.price} each</span><span>${e.depth === 0 ? 'from the ground' : `step ${e.depth} from the ground`}</span></div>
-    <div class="meta">${esc(groups)}</div>
-    ${e.note ? `<div class="row note">${esc(e.note)}</div>` : ''}
-    <div class="row"><b>${e.planned ? 'Would be made by' : 'Made by'}</b>${made || '<span class="none">nothing makes it yet</span>'}</div>
-    ${uses ? `<div class="row"><b>${e.planned ? 'Would go into' : 'Goes into'}</b>${uses}</div>` : ''}
-    <div class="row"><b>Sold to</b>${end}</div>
-  </div>`;
+  // Folded: the name, what kind of good it is and its price. Open it for how it is made and who buys it.
+  return `<details class="card fold${e.planned ? ' planned' : ''}" id="g-${e.id}">
+    <summary><span class="dot" style="background:${colorOf(e)}"></span><h3>${esc(e.label)}</h3><span class="tag ${e.kind}">${KIND[e.kind]}</span>${e.planned ? '<span class="badge" style="margin-left:0">Not in game</span>' : ''}<span class="price">${e.planned ? 'about ' : ''}$${e.price}</span></summary>
+    <div class="inner">
+      <div class="meta"><span>${e.depth === 0 ? 'from the ground' : `step ${e.depth} from the ground`}</span><span>${esc(groups)}</span></div>
+      ${e.note ? `<div class="row note">${esc(e.note)}</div>` : ''}
+      <div class="row"><b>${e.planned ? 'Would be made by' : 'Made by'}</b>${made || '<span class="none">nothing makes it yet</span>'}</div>
+      ${uses ? `<div class="row"><b>${e.planned ? 'Would go into' : 'Goes into'}</b>${uses}</div>` : ''}
+      <div class="row"><b>Sold to</b>${end}</div>
+    </div>
+  </details>`;
 }
 
 type Mode = 'az' | 'chain';
 type Status = 'all' | 'game' | 'planned';
 let mode: Mode = 'az';
+let showAll = false;
 let status: Status = 'all';
 const groupOn = new Set<GoodGroup>();
 const kindOn = new Set<GoodEntry['kind']>();
@@ -82,8 +85,22 @@ function drawChips(base: GoodEntry[]): void {
     KIND_ORDER.map((k) => chip('k', k, KIND[k], kindOn.has(k), base.filter((e) => inGroups(e) && e.kind === k).length)).join('');
 }
 
+/** The first screen: a tile for each type of good, so nobody starts in front of eighty cards. */
+function drawTiles(): void {
+  $('tiles').innerHTML = GROUPS.map((g) => {
+    const inType = all.filter((e) => e.groups.includes(g.id));
+    const dots = inType.filter((e) => !e.planned).slice(0, 5).map((e) => `<i style="background:${colorOf(e)}"></i>`).join('');
+    const planned = inType.filter((e) => e.planned).length;
+    return `<button class="tile" data-tile="${g.id}"><div class="swatch">${dots}</div><b>${esc(g.label)}</b><span>${inType.length} goods${planned ? `, ${planned} planned` : ''}</span></button>`;
+  }).join('');
+}
+
 function render(): void {
   const q = ($('q') as HTMLInputElement).value.trim().toLowerCase();
+  const open = showAll || groupOn.size > 0 || q.length > 0;
+  ($('home') as HTMLElement).hidden = open;
+  ($('listview') as HTMLElement).hidden = !open;
+  if (!open) return;
   const base = all.filter((e) => (status === 'all' || (status === 'planned') === e.planned) && (!q || haystack(e).includes(q)));
   drawChips(base);
   const list = base.filter((e) => (!groupOn.size || e.groups.some((g) => groupOn.has(g))) && (!kindOn.size || kindOn.has(e.kind)));
@@ -122,6 +139,25 @@ const toggle = <T>(set: Set<T>, v: T): void => {
 };
 
 $('q').addEventListener('input', render);
+$('tiles').addEventListener('click', (ev) => {
+  const g = (ev.target as HTMLElement).closest('button')?.dataset.tile;
+  if (!g) return;
+  groupOn.clear();
+  groupOn.add(g as GoodGroup);
+  render();
+  window.scrollTo(0, 0);
+});
+$('showall').addEventListener('click', () => {
+  showAll = true;
+  render();
+});
+$('back').addEventListener('click', () => {
+  showAll = false;
+  groupOn.clear();
+  kindOn.clear();
+  ($('q') as HTMLInputElement).value = '';
+  render();
+});
 $('mode').addEventListener('click', (ev) => {
   const m = (ev.target as HTMLElement).dataset.m as Mode | undefined;
   if (!m) return;
@@ -150,5 +186,14 @@ $('kinds').addEventListener('click', (ev) => {
   else toggle(kindOn, k as GoodEntry['kind']);
   render();
 });
-render();
-if (location.hash.startsWith('#g-')) document.getElementById(location.hash.slice(1))?.scrollIntoView();
+drawTiles();
+// A link to one good opens straight to it.
+if (location.hash.startsWith('#g-')) {
+  showAll = true;
+  render();
+  const el = document.getElementById(location.hash.slice(1)) as HTMLDetailsElement | null;
+  if (el) {
+    el.open = true;
+    el.scrollIntoView();
+  }
+} else render();

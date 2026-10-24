@@ -61,6 +61,22 @@
       .none { color: var(--red); }
       .note { color: var(--muted); font-size: 0.85rem; font-style: italic; }
       .empty { color: var(--muted); padding: 30px 0; }
+      [hidden] { display: none !important; }
+      .tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; margin: 22px 0 6px; }
+      .tile { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 18px 16px; text-align: left; color: var(--text); cursor: pointer; font: inherit; }
+      .tile:hover { border-color: var(--gold); transform: translateY(-2px); }
+      .tile b { display: block; font-size: 1.1rem; }
+      .tile span { color: var(--muted); font-size: 0.86rem; }
+      .tile .swatch { display: flex; gap: 4px; margin-bottom: 10px; }
+      .tile .swatch i { width: 14px; height: 14px; border-radius: 50%; border: 1px solid rgba(255, 255, 255, 0.3); }
+      .allrow { margin: 14px 0 0; }
+      .card.fold { padding: 0; }
+      .card.fold > summary { list-style: none; padding: 12px 16px; cursor: pointer; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+      .card.fold > summary::-webkit-details-marker { display: none; }
+      .card.fold > summary .price { margin-left: auto; color: var(--muted); font-size: 0.85rem; }
+      .card.fold > summary h3 { flex: 1 1 auto; }
+      .card.fold .inner { padding: 0 16px 14px; border-top: 1px solid var(--line); }
+      .card.fold[open] { border-color: var(--gold); }
       footer { border-top: 1px solid var(--line); padding: 28px 0 48px; color: var(--muted); font-size: 0.9rem; text-align: center; margin-top: 40px; }
       footer a { color: var(--gold); text-decoration: none; }
     </style>
@@ -70,7 +86,7 @@
       <div class="wrap">
         <a class="brand" href="/">SUPPLY<span>LINE</span></a>
         <div class="links">
-          <a href="/#world">The game</a>
+          <a href="/#game">The game</a>
           <a href="/goods/">Goods</a>
           <a class="play" href="/play/">Play now</a>
         </div>
@@ -79,22 +95,29 @@
     <div class="wrap">
       <header class="page">
         <div class="kicker">Build <span id="build"></span></div>
-        <h1>Every good in SupplyLine, A to Z</h1>
-        <p class="lead">From the raw materials in the ground to the finished products on the shelf: what makes each one, what it goes into, and which town Market buys it. Goods marked <b>not in game</b> are placeholders for things we plan to add. The rest is made from the game's own rules, so it always matches what the game does.</p>
+        <h1>Every good in SupplyLine</h1>
+        <p class="lead">Pick a type to see what is in it, how it is made and who buys it. Goods marked <b>not in game</b> are planned, not built yet.</p>
         <span id="gaps" class="check"></span>
       </header>
+      <div id="home">
+        <div class="tiles" id="tiles"></div>
+        <p class="allrow"><button class="chip" id="showall">Show every good, A to Z</button></p>
+      </div>
+      <div id="listview" hidden>
       <div class="tools">
         <div class="top">
+          <button class="chip" id="back">&larr; All types</button>
           <input id="q" type="search" placeholder="Search goods or buildings..." autocomplete="off" />
           <div class="seg" id="mode"><button data-m="az" class="on">A to Z</button><button data-m="chain">Raw to built</button></div>
           <div class="seg" id="status"><button data-s="all" class="on">All</button><button data-s="game">In the game</button><button data-s="planned">Not in game yet</button></div>
         </div>
-        <div class="chips" id="groups"></div>
         <div class="chips" id="kinds"></div>
+        <div class="chips" id="groups" hidden></div>
         <div class="count" id="count"></div>
       </div>
       <div class="letters" id="letters"></div>
       <div id="list"></div>
+      </div>
     </div>
     <footer>
       <p>SupplyLine is in development. <a href="/play/">Play the early build</a> · <a href="/">Back to the main page</a></p>

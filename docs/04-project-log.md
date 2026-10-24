@@ -850,3 +850,8 @@ What changed:
 ## 0.135: town names appear as the pointer passes
 
 - Town and city names are no longer all on screen at once. A name fades in as the pointer comes within about 150 pixels of the town (a little further for bigger towns, up to about 290 for a metropolis) and fades out as it leaves; the selected town keeps its name. Region names are unchanged.
+
+## Website: sections you click, a trail roadmap, and a goods page that starts small
+
+- The landing page shows one section at a time (The game, How it plays, Maps, Roadmap, Updates, Questions) from a button bar under the hero; the address (#maps, #road ...) picks the section, and without JavaScript every section shows. Text is shorter and plainer. The roadmap is a trail of twelve named stops (Done, Now, Next, Later). How it plays has the first ten minutes as five numbered steps and the five tiers, with the early build ending at Tier 2.
+- The goods page opens on nine type tiles (Food, Drink, Minerals and metals ...) instead of the full list. A tile, a search or "Show every good" opens the list, whose cards are folded to a name, kind and price; open one for how it is made and who buys it. "All types" goes back. A link to one good (#g-lumber) opens it.
