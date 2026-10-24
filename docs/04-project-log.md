@@ -942,3 +942,7 @@ What changed:
 - In `townGeometry` only districts were kept off by homes; the held lots (the tan pads with orange stakes), the Market and Supply Yard plots and the building sites near the finished houses were not, so houses could stand half on a pad. Every lot, the first two plots and each building site now go on the `placed` list first, and homes and sites are only put where they clear it and clear the roads. A building site with no room is skipped.
 - `geo.userData.footprints` lists every footprint, and a test checks that no two overlap and every lot is listed, across all styles, levels and city or town.
 - I could not reproduce the exact overlap from the Map 3 screenshot on screen, so this is checked by that test and not by a picture of the same town.
+
+## 0.152: model and art brief
+
+- `docs/09-model-and-art-brief.md`: what the game is, technical rules for models (glTF, triangle budgets, toggle and animation naming), the 91 buildings merged into hybrid families (Crop Farm with crop toggles, Livestock Farm, Plantation, Extraction Site, processor shells), the annex kit for levels 4 to 10, vehicle parts, towns in five regional styles, 25 districts, roads and scenery, UI icons and Steam art, a work order and a prompt template for ChatGPT.
