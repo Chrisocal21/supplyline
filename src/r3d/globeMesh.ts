@@ -1,6 +1,7 @@
 // The globe itself: displaced terrain mesh with the painted texture, plus atmosphere and stars.
 import * as THREE from 'three';
 import type { World } from '../sim/world';
+import { isExplored } from '../sim/explore';
 import { CAP_ROWS, HeightField, MESH_SUB, R, lonLatToVec, textureRows } from './geo';
 import type { Pixels } from './paint';
 import { seasonLook } from './season';
@@ -70,7 +71,43 @@ export interface Globe {
   regrade(tiles: Iterable<number>): void;
   atmosphere: THREE.Mesh;
   stars: THREE.Points;
+  /** Redraw the fog over unexplored ground from the world's explored squares. */
+  setFog(world: World, all?: boolean): void;
   dispose(): void;
+}
+
+/** The fog mask: one texel for every few tiles, 1 where the ground has been seen, softened so the edge of the fog fades. */
+const FOG_TEXEL = 4;
+function fogPixels(world: World, all = false): { data: Uint8Array; w: number; h: number } {
+  const rows = textureRows(world);
+  const w = Math.ceil(world.width / FOG_TEXEL);
+  const h = Math.ceil(rows / FOG_TEXEL);
+  let v = new Float32Array(w * h);
+  for (let j = 0; j < h; j++) {
+    const ty = Math.min(world.height - 1, Math.max(0, Math.floor((j + 0.5) * FOG_TEXEL) - CAP_ROWS));
+    for (let i = 0; i < w; i++) {
+      const tx = Math.min(world.width - 1, Math.floor((i + 0.5) * FOG_TEXEL));
+      v[j * w + i] = all || isExplored(world, tx, ty) ? 1 : 0;
+    }
+  }
+  // Two soft passes, wrapping round the world sideways.
+  for (let pass = 0; pass < 2; pass++) {
+    const out = new Float32Array(w * h);
+    for (let j = 0; j < h; j++) {
+      for (let i = 0; i < w; i++) {
+        let sum = 0;
+        for (let dj = -1; dj <= 1; dj++) {
+          const jj = Math.min(h - 1, Math.max(0, j + dj));
+          for (let di = -1; di <= 1; di++) sum += v[jj * w + ((i + di + w) % w)];
+        }
+        out[j * w + i] = sum / 9;
+      }
+    }
+    v = out;
+  }
+  const data = new Uint8Array(w * h);
+  for (let i = 0; i < data.length; i++) data[i] = Math.round(v[i] * 255);
+  return { data, w, h };
 }
 
 export function buildGlobe(world: World, hf: HeightField, color: Pixels, rough: Pixels, maxAnisotropy: number): Globe {
@@ -144,6 +181,14 @@ export function buildGlobe(world: World, hf: HeightField, color: Pixels, rough: 
 
   const material = new THREE.MeshStandardMaterial({ map, roughnessMap: roughMap, roughness: 1, metalness: 0.0 });
   const repeat = new THREE.Vector2(world.width * 4, rows * 4);
+  const fog0 = fogPixels(world);
+  const fogMap = new THREE.DataTexture(fog0.data, fog0.w, fog0.h, THREE.RedFormat, THREE.UnsignedByteType);
+  fogMap.magFilter = THREE.LinearFilter;
+  fogMap.minFilter = THREE.LinearFilter;
+  fogMap.wrapS = THREE.RepeatWrapping;
+  fogMap.wrapT = THREE.ClampToEdgeWrapping;
+  fogMap.needsUpdate = true;
+  const fogUniform = { value: fogMap };
   const time = { value: 0 };
   material.onBeforeCompile = (shader) => {
     shader.uniforms.detailMap = { value: detail };
@@ -152,6 +197,7 @@ export function buildGlobe(world: World, hf: HeightField, color: Pixels, rough: 
     shader.uniforms.uSnow = seasonLook.snow;
     shader.uniforms.uSeasonTint = seasonLook.tint;
     shader.uniforms.uSeaR = { value: R };
+    shader.uniforms.uFog = fogUniform;
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', '#include <common>\nvarying vec3 vSurfacePosition;')
       .replace('#include <begin_vertex>', '#include <begin_vertex>\nvSurfacePosition = position;');
@@ -163,6 +209,7 @@ uniform float surfaceTime;
 uniform float uSnow;
 uniform vec3 uSeasonTint;
 uniform float uSeaR;
+uniform sampler2D uFog;
 varying vec3 vSurfacePosition;`)
       .replace(
         '#include <map_fragment>',
@@ -179,7 +226,17 @@ varying vec3 vSurfacePosition;`)
   float snowPatch = texture2D(detailMap, vMapUv * 2.5).g;
   float snowScore = seaLevelHeight * 0.5 + abs(vSurfacePosition.y) / length(vSurfacePosition) * 1.0 + (snowPatch - 0.5) * 1.3 + (grain - 0.5) * 0.3;
   float snow = uSnow * smoothstep(0.8, 0.98, snowScore);
-  diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.93, 0.96, 1.0), snow * seasonLand * 0.9);`,
+  diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.93, 0.96, 1.0), snow * seasonLand * 0.9);
+  // Ground nobody has seen lies under a pale mist, thicker in drifts.
+  float fogSeen = texture2D(uFog, vMapUv).r;
+  float fogDrift = texture2D(detailMap, vMapUv * 24.0).g;
+  float fogAmt = 1.0 - smoothstep(0.3, 0.8, fogSeen + (fogDrift - 0.5) * 0.3);
+  diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.66, 0.72, 0.80), fogAmt * 0.94);`,
+      )
+      .replace(
+        '#include <emissivemap_fragment>',
+        `#include <emissivemap_fragment>
+  totalEmissiveRadiance += vec3(0.30, 0.34, 0.40) * fogAmt;`,
       )
       .replace(
         '#include <normal_fragment_maps>',
@@ -287,7 +344,13 @@ varying vec3 vSurfacePosition;`)
     regrade,
     atmosphere,
     stars,
+    setFog(w, all = false) {
+      const p = fogPixels(w, all);
+      fogMap.image = { data: p.data, width: p.w, height: p.h };
+      fogMap.needsUpdate = true;
+    },
     dispose() {
+      fogMap.dispose();
       geo.dispose();
       map.dispose();
       roughMap.dispose();

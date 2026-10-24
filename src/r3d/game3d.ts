@@ -120,6 +120,7 @@ import { siteGeometry, siteGeometryAt, trainUnits, vehicleGeometry } from './mod
 import { BUILD_MS, Construction } from './construction';
 import { packSave, saveFileName, unpackSave } from '../sim/saveio';
 import { compactWorld, expandWorld } from '../sim/compact';
+import { isExplored } from '../sim/explore';
 import { buildDistrict, buildDistrictAt, districtSpotAt, type DistrictSpot } from '../sim/town';
 import map1 from '../maps/map1.json';
 import map2 from '../maps/map2.json';
@@ -1866,7 +1867,23 @@ export class Game3D {
   private reachCos = -1;
 
   /** Work out how far around the view things are awake: the visible horizon, trimmed by the graphics level. */
+  private fogStamp = -1;
+  private fogWorld: World | null = null;
+
+  /** Keep the drawn fog in step with the world's explored squares. */
+  private updateFog(): void {
+    // Screenshots and the opening show everything.
+    const open = this.shot || this.showcase;
+    const stamp = (this.world.exploreStamp ?? 0) * 2 + (open ? 1 : 0);
+    if (stamp === this.fogStamp && this.fogWorld === this.world) return;
+    this.fogStamp = stamp;
+    this.fogWorld = this.world;
+    this.globe?.setFog(this.world, open);
+    this.scenery.setFog((x, y) => open || isExplored(this.world, x, y));
+  }
+
   private updateReach(): void {
+    this.updateFog();
     const d = this.cam.dist;
     const horizon = Math.acos(R / (R + d));
     const wide = ((d * 0.9 + 30) / R) * GRAPHICS[this.graphicsQuality].reach;
@@ -1891,7 +1908,7 @@ export class Game3D {
       const place = this.world.places.find((q) => q.id === id);
       if (!place) continue;
       const { lon, lat } = tileLonLat(this.world.width, this.world.height, place.x, place.y);
-      const on = lonLatToVec(lon, lat, 1).dot(this.reachDir) >= townCos;
+      const on = lonLatToVec(lon, lat, 1).dot(this.reachDir) >= townCos && (this.shot || this.showcase || isExplored(this.world, place.x, place.y));
       if (t.mesh.visible !== on) t.mesh.visible = on;
       if (!on) asleep++;
     }

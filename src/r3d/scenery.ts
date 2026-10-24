@@ -188,6 +188,11 @@ interface TreeChunk {
   far: THREE.InstancedMesh | null;
   center: THREE.Vector3;
   radius: number;
+  /** A tile inside the block, to ask the fog about. */
+  tx: number;
+  ty: number;
+  /** False while the block's ground is under fog: nothing of it is drawn. */
+  seen: boolean;
 }
 
 export class Scenery {
@@ -243,7 +248,26 @@ export class Scenery {
 
   /** Hide the scene on nodes that have a building on them. */
   setNodesUsed(used: Set<number>): void {
-    for (const [id, m] of this.props) m.visible = !used.has(id);
+    this.usedNodes = used;
+    this.showProps();
+  }
+
+  private usedNodes = new Set<number>();
+  private seenAt: ((x: number, y: number) => boolean) | null = null;
+
+  private showProps(): void {
+    const nodes = new Map(this.world.nodes.map((n) => [n.id, n]));
+    for (const [id, m] of this.props) {
+      const n = nodes.get(id);
+      m.visible = !this.usedNodes.has(id) && (!this.seenAt || !n || this.seenAt(n.x, n.y));
+    }
+  }
+
+  /** The fog changed: trees, rocks and the scenes on resource nodes under it are not drawn. */
+  setFog(seen: (x: number, y: number) => boolean): void {
+    this.seenAt = seen;
+    for (const c of this.chunks) c.seen = seen(c.tx, c.ty);
+    this.showProps();
   }
 
   private tileIndex(x: number, y: number): number {
@@ -431,7 +455,8 @@ export class Scenery {
         this.group.add(far);
       }
       const sphere = mesh.boundingSphere ?? new THREE.Sphere();
-      this.chunks.push({ near: mesh, far, center: sphere.center.clone(), radius: sphere.radius });
+      const t0 = list[0].tile;
+      this.chunks.push({ near: mesh, far, center: sphere.center.clone(), radius: sphere.radius, tx: t0 % w.width, ty: Math.floor(t0 / w.width), seen: true });
     }
   }
 
@@ -833,7 +858,7 @@ export class Scenery {
     for (const c of this.chunks) {
       toEye.subVectors(eye, c.center);
       up.copy(c.center).normalize();
-      const visible = toEye.dot(up) > -c.radius;
+      const visible = c.seen && toEye.dot(up) > -c.radius;
       const near = visible && toEye.length() - c.radius < this.treeDetailDistance;
       c.near.visible = visible && (near || !c.far);
       if (c.far) c.far.visible = visible && !near;

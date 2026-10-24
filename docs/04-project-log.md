@@ -746,3 +746,9 @@ What changed:
 ## 0.114: About page
 
 - Menu > About: the game (version, web or Windows app, download size about 31 MB), what it needs (draft: smallest, comfortable, best looks), this computer (graphics card, threads, memory, screen), how it runs right now (fps, frame time, logic and draw time, draw calls, triangles, quality) and this world (map, size, towns, buildings, vehicles, crew, save size). The needs numbers are guesses until more machines are tried.
+
+## 0.115: fog over unexplored ground
+
+- New games on every map start with the whole world under a pale mist. The ground round the first town (40 tiles) is open; it opens around the company's own buildings (26 tiles), along every road, track and lane (11 tiles), and wherever a route reaches a town. Town docks and district buildings do not open it.
+- Fogged ground draws no trees, rocks, resource-node scenes or towns, so a big world costs only what is open. Old saves have no fog (everything counts as seen). Screenshots and the opening show everything.
+- The fog is kept as one 0 or 1 for every 12-tile square (`explored` in the save; `src/sim/explore.ts`), drawn as a softened mask over the ground (`globeMesh.ts`). Placing a building in the fog is still allowed and opens the ground. The minimap does not show the fog yet.

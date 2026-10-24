@@ -1,4 +1,5 @@
 // Simulation core: plain TypeScript, no graphics, no renderer imports.
+import { startExploring, stepExplore } from './explore';
 import {
   DISTRICTS,
   DISTRICT_ORDER,
@@ -438,6 +439,10 @@ export interface World {
   blend?: boolean;
   /** The made map this world was started from, if it was not generated. */
   mapId?: string;
+  /** The fog: one 0 or 1 for each square of the world (see explore.ts). Missing in old saves, where everything counts as seen. */
+  explored?: number[];
+  /** Goes up whenever the fog opens, so the drawing knows to look again. Not part of the game itself. */
+  exploreStamp?: number;
   /** Loans, savings and the market fund. Opened the first time the bank sheet is used. */
   bank?: BankState;
 }
@@ -519,6 +524,7 @@ export function* worldSteps(seed = Math.floor(Math.random() * 1e9), width = 192,
     addDock(world, p, 'freight');
     p.stage = 0;
   }
+  startExploring(world);
   return world;
 }
 
@@ -628,6 +634,7 @@ export function createWorldFromMap(map: MapData): World {
     addDock(world, p, 'freight');
     p.stage = 0;
   }
+  startExploring(world);
   return world;
 }
 
@@ -2607,6 +2614,7 @@ export function step(world: World): void {
     sendToDistricts(world);
   }
   if (world.tick % 300 === 0) stepAutoBuy(world);
+  stepExplore(world);
   checkQuests(world, (text) => addLog(world, text));
 }
 
