@@ -6,7 +6,7 @@ dev.log
 release
 
 release-demo
-electron/demo.flag
+
 
 web/.next
 web/out

@@ -914,3 +914,9 @@ What changed:
 - The site is now a Next.js static export in `web/` (App Router, plain CSS using the game's palette: slate panels, warm text, gold accent, pill top bar, small caps labels). Pages: `/` (hero, the game, screenshots, how it plays, demo vs full game table, maps, 3D artists call, roadmap, updates, FAQ) and `/steam/` (store page preview). All copy lives in `web/app/content.ts`; download and Steam addresses are `LINKS` there.
 - `/goods/`, `/play/` and `/dockside/` are still Vite pages. The Vite build runs the site build and merges `web/out` into `dist` only on Vercel or with `SL_SITE=1`, so the desktop installers still ship just the game. The build number comes from `src/version.ts` automatically.
 - Locally: `npm run site` for the site on port 3001; `SL_SITE=1 npx vite build` for the full merged output. The old root `index.html` and `steam/index.html` are gone.
+
+## 0.147: the full download was locked as the demo
+
+- Chris's installed full game offered only Map 1. Its `app.asar` held `electron/demo.flag`: the demo build wrote that file into the project folder, so a full build made around the same time packed it and the app took itself for the demo.
+- The demo is now marked by `slDemo: true` in its own packaged package.json (`-c.extraMetadata.slDemo=true` in `tools/build-demo.cjs`), read by `electron/main.cjs`. Nothing is written to the project folder. Checked with a test pack: the flag is in, and no demo.flag file.
+- The affected installer is v0.140.0. A new tagged release replaces it, and installed copies update themselves.

@@ -11,8 +11,9 @@ app.commandLine.appendSwitch('force_high_performance_gpu');
 app.commandLine.appendSwitch('ignore-gpu-blocklist');
 
 const DIST = path.join(__dirname, '..', 'dist');
-// The demo installer is the same app with this file packed in (tools/build-demo.cjs).
-const DEMO = fs.existsSync(path.join(__dirname, 'demo.flag'));
+// The demo installer is the same app with slDemo set in its packaged package.json (tools/build-demo.cjs). Nothing is written to the
+// project folder, so a full build made at the same time can never pick it up.
+const DEMO = require('../package.json').slDemo === true;
 let win = null;
 let updater = null;
 let pending = null;
