@@ -846,3 +846,7 @@ What changed:
 ## 0.134: a lighter far view
 
 - Chris's F3 on 0.132: far view 24 fps with 3.7M triangles (ground 2.4M, towns 1.2M), close view 69 fps, and 3 fps for the first moments after a new game starts (a loading stall, to watch). From more than 350 units out the ground now draws with a quarter of its triangles (the same vertices, one quad a tile), and from more than 450 units out town models are not drawn (their names stay). Both switch back as the camera comes in.
+
+## 0.135: town names appear as the pointer passes
+
+- Town and city names are no longer all on screen at once. A name fades in as the pointer comes within about 150 pixels of the town (a little further for bigger towns, up to about 290 for a metropolis) and fades out as it leaves; the selected town keeps its name. Region names are unchanged.

@@ -2662,10 +2662,19 @@ export class HudScene extends Phaser.Scene {
     this.buyerArrows();
 
     // Towns, largest first, then regions in whatever space is left.
+    // Names come up as the pointer passes over them, as on a map: the nearer the pointer, the clearer the name. Bigger towns
+    // show from a little further off, and the selected town always keeps its name.
+    const ptr = this.input.activePointer;
+    const selected = this.game3d.selection;
     const towns = items.filter((i) => i.kind === 'town').sort((a, b) => b.value - a.value);
     for (const it of towns) {
+      const reach = 150 + it.value * 28;
+      const away = Math.hypot(it.x - ptr.x, it.y - ptr.y);
+      const kept = selected?.kind === 'place' && selected.id === it.id;
+      const show = kept ? 1 : Math.max(0, Math.min(1, (reach - away) / (reach * 0.45)));
+      if (show <= 0.02) continue;
       const size = 12 + it.value * 0.8;
-      const t = im.text(`town${it.id}`, it.text, it.x, it.y - 24, { size, bold: true, stroke: 0x0b1118, align: 'center', layer: 0 });
+      const t = im.text(`town${it.id}`, it.text, it.x, it.y - 24, { size, bold: true, stroke: 0x0b1118, align: 'center', alpha: show, layer: 0 });
       const r = { x0: it.x - t.w / 2 - 4, y0: it.y - 26, x1: it.x + t.w / 2 + 4, y1: it.y - 26 + t.h + 2 };
       if (free(r)) placed.push(r);
       else im.text(`town${it.id}`, '', -999, -999, { size, layer: 0 });
