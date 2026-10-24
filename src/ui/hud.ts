@@ -64,6 +64,7 @@ import {
   ratePerMin,
   HISTORY_JOBS,
   buyersFor,
+  reachShortfalls,
   roadPlan,
   routeRefund,
   siteById,
@@ -4319,6 +4320,8 @@ export class HudScene extends Phaser.Scene {
     const line = this.lineOf(s);
     let cy = this.sectionHead('byH', `WHO BUYS YOUR ${def.hub ? 'GOODS' : lineGoods(s, line).slice(0, 3).map((gd) => GOODS[gd].label.toUpperCase()).join(' + ')}`, x, y, w);
     const allBuyers = buyersFor(world, s, 3, line);
+    // Joined buyers whose road is longer than any truck here can run: a bigger truck would reach them.
+    const short = reachShortfalls(world, s, line);
     if (allBuyers.length === 0) {
       im.text('byN', def.hub ? 'Nobody yet. Build a road from this warehouse to a market or a factory.' : 'Nobody nearby buys this yet. Towns want more kinds of goods as they grow.', x, cy, { size: 11, color: COLORS.muted, wrap: w, layer: 2 });
       return cy + 40 - y + (def.store ? feeds(cy + 40) : 0);
@@ -4336,6 +4339,7 @@ export class HudScene extends Phaser.Scene {
         rank,
         type,
         status: !b.connected ? 'unjoined' : b.on ? 'on' : 'off',
+        short: short.get(b.site.id),
         price: d.dock && gd ? unitPrice(world, b.site, gd) : 0,
         sold: s.sales?.[b.site.id]?.units ?? 0,
         far: this.tilesApart(s, b.site),
@@ -4345,7 +4349,7 @@ export class HudScene extends Phaser.Scene {
     type Row = (typeof rows)[number];
     const passes = (r: Row, skip: keyof ListFilter | null): boolean =>
       (skip === 'q' || !f.q.trim() || f.q.toLowerCase().trim().split(/\s+/).every((word) => r.text.includes(word))) &&
-      (skip === 'status' || f.status === 'all' || r.status === f.status) &&
+      (skip === 'status' || f.status === 'all' || (f.status === 'reach' ? !!r.short : r.status === f.status)) &&
       (skip === 'type' || f.type === 'all' || r.type === f.type) &&
       (skip === 'good' || f.good === 'all' || r.b.goods.includes(f.good as Good));
     const count = (skip: keyof ListFilter, test: (r: Row) => boolean): number => rows.filter((r) => passes(r, skip) && test(r)).length;
@@ -4362,6 +4366,7 @@ export class HudScene extends Phaser.Scene {
         { v: 'on', label: def.hub ? 'Selling to' : 'Joined', n: count('status', (r) => r.status === 'on') },
         ...(def.hub ? [{ v: 'off', label: 'Switched off', n: count('status', (r) => r.status === 'off') }] : []),
         { v: 'unjoined', label: 'Not joined yet', n: count('status', (r) => r.status === 'unjoined') },
+        ...(short.size > 0 || f.status === 'reach' ? [{ v: 'reach', label: 'Out of reach', n: count('status', (r) => !!r.short) }] : []),
       ], f.status, set('status')],
       ['type', 'TYPE', [{ v: 'all', label: 'All', n: count('type', () => true) }, ...types.map((t) => ({ v: t, label: TYPE_LABEL[t], n: count('type', (r) => r.type === t) }))], f.type, set('type')],
       ['good', 'GOODS', [{ v: 'all', label: 'All' }, ...goodsHere.map((gd) => ({ v: gd, label: GOODS[gd].label, n: count('good', (r) => r.b.goods.includes(gd)), color: GOODS[gd].color })).filter((o) => o.n > 0 || o.v === f.good)], f.good, set('good')],
@@ -4406,6 +4411,7 @@ export class HudScene extends Phaser.Scene {
         this.button(`${id}b`, cost === null ? 'No way' : `Road  $${cost === undefined ? '...' : fmt(cost)}`, bx, by, 100, 32, !!cost && world.money >= cost, () => g.roadTo(s.id, b.site.id));
       } else {
         const wanted = wants(world, b.site).includes(gd);
+        const sf = short.get(b.site.id);
         // A hub is storage, not a customer: say where the goods go next so it never looks like a giveaway.
         const onward = store ? sellTargets(world, b.site).filter((t) => t.on && t.site.id !== s.id) : [];
         const held = store ? Math.floor(stockOf(b.site, gd)) : 0;
@@ -4415,15 +4421,19 @@ export class HudScene extends Phaser.Scene {
             ? { label: `Stores ${held}/${hubCap}. Sells on to ${onward[0].site.name}${onward.length > 1 ? ` +${onward.length - 1}` : ''}`, color: COLORS.info, want: held / hubCap }
             : { label: `Stores ${held}/${hubCap}. Paid only once it sells on`, color: COLORS.warn, want: held / hubCap }
           : wanted ? this.demand(b.site, gd) : { label: 'Not buying right now', color: COLORS.muted, want: 0 };
+        if (sf) {
+          const label = `Road ${Math.round(sf.span)} tiles, truck reaches ${Math.round(sf.best)}. ${sf.need ? `Needs a ${VEHICLE_DEFS[sf.need].label}${sf.blocked ? ` (${sf.blocked})` : ''}` : 'Relay via a warehouse'}`;
+          Object.assign(dm, { label, color: COLORS.warn });
+        }
         im.text(`${id}s`, dm.label, x + 10, cy + 28, { size: 11, color: dm.color, wrap: w - 130, layer: 3 });
-        im.bar(3, x + 10, cy + 46, w - 140, 6, dm.want, dm.color);
+        if (!sf) im.bar(3, x + 10, cy + 46, w - 140, 6, dm.want, dm.color);
         if (def.hub) {
           // A warehouse or terminal picks who it sells to, like the old Distribution Hub: tap to start or stop.
           this.button(`${id}b`, b.on ? (store ? 'Storing' : 'Selling') : 'Sell here', bx, by, 100, 32, true, () => g.sendTo(s.id, b.site.id, !b.on), b.on ? 'on' : 'plain');
         } else {
           // No switch to flip: every joined buyer is a destination, and each truck's Settings pick who it goes to.
-          im.rect(3, bx, by, 100, 32, 0x17382c, 1, 8, COLORS.good, 1);
-          im.text(`${id}b`, store ? 'Storing here' : 'Selling here', bx + 50, by + 8, { size: 12, bold: true, color: COLORS.good, align: 'center', layer: 4 });
+          im.rect(3, bx, by, 100, 32, sf ? 0x2a2312 : 0x17382c, 1, 8, sf ? COLORS.warn : COLORS.good, 1);
+          im.text(`${id}b`, sf ? 'Out of reach' : store ? 'Storing here' : 'Selling here', bx + 50, by + 8, { size: 12, bold: true, color: sf ? COLORS.warn : COLORS.good, align: 'center', layer: 4 });
         }
       }
       const rec = s.sales?.[b.site.id];

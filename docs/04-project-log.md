@@ -920,3 +920,9 @@ What changed:
 - Chris's installed full game offered only Map 1. Its `app.asar` held `electron/demo.flag`: the demo build wrote that file into the project folder, so a full build made around the same time packed it and the app took itself for the demo.
 - The demo is now marked by `slDemo: true` in its own packaged package.json (`-c.extraMetadata.slDemo=true` in `tools/build-demo.cjs`), read by `electron/main.cjs`. Nothing is written to the project folder. Checked with a test pack: the flag is in, and no demo.flag file.
 - The affected installer is v0.140.0. A new tagged release replaces it, and installed copies update themselves.
+
+## 0.148: out-of-reach buyers
+
+- `reachShortfalls(world, site, line)` in world.ts: joined buyers whose road is longer than the best truck the building has (or a box truck if none), with the smallest truck class that reaches them and why it cannot be bought yet (tier, level, money).
+- The Who buys list gets an "Out of reach" status filter (shown only when there is one), and those cards say "Road N tiles, truck reaches M. Needs a Big Box Truck (reason)" with an amber "Out of reach" badge instead of "Selling here".
+- Not seen on screen yet: real reaches (720 tiles for a rookie box truck, up to 4950 for a Truck Fleet driver) are longer than any road a map allows, so the list is normally empty; the test shrinks the box truck's reach to exercise it.

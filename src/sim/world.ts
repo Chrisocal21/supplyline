@@ -2315,6 +2315,45 @@ export function vehicleReach(v: { kind: VehicleKind; trips?: number }): number {
   return base === undefined ? Infinity : base * DRIVER_REACH[driverLevel(v) - 1];
 }
 
+/** A joined buyer that none of a building's trucks can reach by road, and the truck class that would. */
+export interface Shortfall {
+  /** Tiles of the shortest road to it. */
+  span: number;
+  /** How far the building's best truck reaches now. */
+  best: number;
+  /** The smallest truck class that reaches it, or null when none does. */
+  need: VehicleKind | null;
+  /** Why that class cannot be bought yet (tier, building level, money), or null when it can. */
+  blocked: string | null;
+}
+
+/**
+ * The buyers a building is joined to by road that its trucks cannot reach: the road is longer than the best truck it has runs
+ * (or than a box truck, if it has none yet). Keyed by the buyer's site id. Shows where a bigger truck is needed.
+ */
+export function reachShortfalls(world: World, site: Site, line: Line = 'main'): Map<number, Shortfall> {
+  const out = new Map<number, Shortfall>();
+  if (SITE_DEFS[site.kind].dock) return out;
+  const road: VehicleKind[] = (['boxtruck', 'bigtruck', 'rig', 'convoy'] as VehicleKind[]).filter((k) => buyOptions(world, site.id).includes(k));
+  if (road.length === 0) return out;
+  const owned = fleetOf(world, site.id, line).filter((v) => VEHICLE_DEFS[v.kind].mode === 'road').map((v) => vehicleReach(v));
+  const best = owned.length > 0 ? Math.max(...owned) : vehicleReach({ kind: road[0] });
+  const spans = new Map<number, number>();
+  for (const r of world.routes) {
+    if (r.free || r.mode !== 'road' || (r.fromSiteId !== site.id && r.toSiteId !== site.id)) continue;
+    const other = r.fromSiteId === site.id ? r.toSiteId : r.fromSiteId;
+    spans.set(other, Math.min(spans.get(other) ?? Infinity, routeSpan(r)));
+  }
+  for (const t of sellTargets(world, site, line)) {
+    const span = spans.get(t.site.id);
+    if (span === undefined || span <= best) continue;
+    // A driver's rank stretches a truck, so the class is the smallest whose reach a rookie has, else one a top driver has.
+    const need = road.find((k) => (VEHICLE_REACH[k] ?? 0) * DRIVER_REACH[0] >= span) ?? road.find((k) => (VEHICLE_REACH[k] ?? 0) * DRIVER_REACH[DRIVER_REACH.length - 1] >= span) ?? null;
+    out.set(t.site.id, { span, best, need, blocked: need ? buyError(world, site.id, need) : null });
+  }
+  return out;
+}
+
 /** One tile driven: wear (more on a long haul) and the fuel the driver pays for. */
 function driveTile(world: World, v: Vehicle, route: Route): void {
   let wear = wearMult(world) / WEAR_TILES;
