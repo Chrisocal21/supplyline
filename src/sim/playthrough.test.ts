@@ -1,7 +1,7 @@
 import { expect, it } from 'vitest';
 import { findPath } from './path';
 import { runChores } from './bot';
-import { buyVehicle, createRoute, createWorld, placeError, placeSite, plotTiles, step, wrapX } from './world';
+import { buyVehicle, createRoute, createWorld, placeSite, step } from './world';
 
 it('the first tier plays through on a generated world, following the quests', () => {
   const w = createWorld(11);
@@ -17,18 +17,13 @@ it('the first tier plays through on a generated world, following the quests', ()
   // Quest 1: a Forestry Camp on the nearest forest spot.
   const node = w.nodes.filter((n) => n.kind === 'forest').sort((a, b) => d2(a, town) - d2(b, town))[0];
   expect(placeSite(w, 'forestry', node.x, node.y)).toBeNull();
-  // Quest 2: a Sawmill on the first lot that is for sale.
-  const lot = plotTiles(w, town)
-    .map((t) => ({ x: wrapX(w, t.x), y: t.y }))
-    .find((t) => placeError(w, 'sawmill', t.x, t.y) === null)!;
-  expect(placeSite(w, 'sawmill', lot.x, lot.y)).toBeNull();
-  // Quest 3: a road between them. The town's streets do the rest.
+  // Quest 3: a road from the camp to the town's Supply Yard site.
   const camp = w.sites.find((s) => s.kind === 'forestry')!;
-  const mill = w.sites.find((s) => s.kind === 'sawmill')!;
+  const mill = w.sites.find((s) => s.kind === 'freight' && s.placeId === town.id)!;
   expect(buyVehicle(w, camp.id, 'boxtruck')).toBeNull();
   expect(createRoute(w, findPath(w, camp, mill, 120000, 'road')!, 'road', 'street')).toBeNull();
   expect(w.money).toBeGreaterThan(0);
-  // What a player does by hand now: switch the sawmill on, buy a truck, switch the sale on.
+  // What a player does by hand now: buy a truck, switch the sale on.
   runChores(w);
   // Quests 4 to 6: the lumber builds the Supply Yard, fills its store, and a yard truck carries it to build the Market. A player
   // buys that truck when the yard stands: the chores do the same.
@@ -38,5 +33,5 @@ it('the first tier plays through on a generated world, following the quests', ()
   }
   expect(w.places[0].stage).toBe(2);
   expect(w.tier).toBe(1);
-  expect(w.questsDone).toEqual(expect.arrayContaining(['t0-camp', 't0-truck', 't0-mill', 't0-road', 't0-making', 't0-selling', 't0-yard', 't0-market']));
+  expect(w.questsDone).toEqual(expect.arrayContaining(['t0-camp', 't0-truck', 't0-road', 't0-selling', 't0-yard', 't0-market']));
 });

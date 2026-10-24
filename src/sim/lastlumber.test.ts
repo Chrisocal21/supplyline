@@ -6,6 +6,7 @@ import { createWorldFromMap, needs, pickCargo, siteCap, type MapData } from './w
 describe('the last lumber for the Market', () => {
   const setup = () => {
     const w = createWorldFromMap(map3 as unknown as MapData);
+    w.tier = 1;
     const p = w.places[0];
     const yard = w.sites.find((s) => s.kind === 'freight' && s.placeId === p.id)!;
     const market = w.sites.find((s) => s.kind === 'market' && s.placeId === p.id)!;

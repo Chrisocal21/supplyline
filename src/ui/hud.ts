@@ -41,6 +41,7 @@ import {
   buildCost,
   demolishRefund,
   dockDemand,
+  woodName,
   produces,
   siteCap,
   siteSpeed,
@@ -4780,9 +4781,9 @@ export class HudScene extends Phaser.Scene {
       im.text('ppBldH', `BUILDING THE ${bn.name.toUpperCase()}`, x, cy, { size: 11, bold: true, color: COLORS.muted, layer: 2 });
       cy += 20;
       im.bar(2, x, cy + 2, w - 90, 8, bn.have / bn.need, COLORS.good);
-      im.text('ppBld', `${fmt(bn.have)} / ${fmt(bn.need)} lumber`, x + w, cy - 2, { size: 12, color: COLORS.muted, align: 'right', layer: 2 });
+      im.text('ppBld', `${fmt(bn.have)} / ${fmt(bn.need)} ${woodName(world)}`, x + w, cy - 2, { size: 12, color: COLORS.muted, align: 'right', layer: 2 });
       cy += 22;
-      im.text('ppBldT', bn.name === 'Supply Yard' ? 'Send lumber to this town. It builds the Supply Yard first, then the Market.' : 'The Supply Yard stands. Fill its store with lumber, then open the yard, go to Trucks and buy a Box Truck to carry it to the Market site.', x, cy, { size: 12, color: COLORS.text, wrap: w, layer: 2 });
+      im.text('ppBldT', bn.name === 'Supply Yard' ? `Send ${woodName(world)} to this town. It builds the Supply Yard first, then the Market.` : `The Supply Yard stands. Fill its store with ${woodName(world)}, then open the yard, go to Trucks and buy a Box Truck to carry it to the Market site.`, x, cy, { size: 12, color: COLORS.text, wrap: w, layer: 2 });
       cy += 40;
     } else if (next) {
       const kinds = growthKinds(p);

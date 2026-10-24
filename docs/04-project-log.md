@@ -797,3 +797,9 @@ What changed:
 ## 0.125: a longer Tier 0
 
 - Six quests join Tier 0: Run 3 Forestry Camps (before the Supply Yard), then after the Market: build a Dairy Ranch, sell 40 milk, build an Orchard, sell 40 fruit, earn $400 from sales. They add the first real income (the Market buys milk, eggs, fruit, vegetables and potatoes straight from the farm) and about 8 to 10 minutes of a human's play before Tier 1; the test bot reaches Tier 1 at 9.8 minutes (was 8.2) and Tier 2 at 43.7 on Map 2. The tests that finish Tier 0 count the new quests done.
+
+## 0.126: logs in Tier 0, lumber from Tier 1
+
+- A closed town's Supply Yard and Market are built from raw logs in Tier 0 and from sawn lumber from Tier 1 (`buildWood` in world.ts). The amounts stay 80 and 120. Logs join BUILD_GOODS so a yard stores them for its trucks. When Tier 1 opens, logs left in a yard store are turned into lumber, so nothing is stranded. Screen text names the right wood.
+- The Sawmill opens at Tier 1 (was Tier 0). Tier 0 quests lose "Build a Sawmill" and "Switch the Sawmill on"; the road, selling and yard quests now say logs. Tier 1 gains "Build a Sawmill in a town" and "Make 60 lumber" at the start. The tutorial moves its sawmill and switch-on steps to Tier 1.
+- Bot (Map 2, 1 h): Tier 1 at 5.0 min (was 9.8; no sawmill step and logs need half the wood), Tier 2 at 41.3. Tier 0 is now short for the bot; tuning left to Chris.

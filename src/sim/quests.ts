@@ -83,7 +83,7 @@ export function questProgress(world: World, goal: QuestGoal): Progress {
           let yard: (typeof world.sites)[number] | undefined;
           if (goal.stage === 2 && stage === 1) {
             yard = world.sites.find((s) => s.placeId === p.id && SITE_DEFS[s.kind].dock === 'freight');
-            stored = Math.floor(yard?.depot?.lumber ?? 0);
+            stored = Math.floor((yard?.depot?.lumber ?? 0) + (yard?.depot?.logs ?? 0));
           }
           const score = Math.min(got, need - 1) + stored / 1000;
           if (score > best) {
@@ -236,6 +236,11 @@ export function checkQuests(world: World, log: (text: string) => void): void {
     const next = TIERS[world.tier + 1];
     if (!all || !next) return;
     world.tier = next.tier;
+    // From Tier 1 a closed town builds from lumber: logs already in a yard's store are sawn into it, so nothing is stranded.
+    if (next.tier === 1) for (const s of world.sites) if (s.depot?.logs) {
+      s.depot.lumber = (s.depot.lumber ?? 0) + s.depot.logs;
+      delete s.depot.logs;
+    }
     log(`Tier ${next.tier} unlocked: ${next.name}`);
   }
 }

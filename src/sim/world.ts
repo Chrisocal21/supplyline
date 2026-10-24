@@ -1410,6 +1410,14 @@ function cityOf(world: World, site: Site): boolean {
   return !!pl && radiusOf(pl) > 3;
 }
 
+/** The wood a closed town is built from: raw logs in Tier 0, sawn lumber from Tier 1 on. */
+export function buildWood(world: World): Good {
+  return world.tier >= 1 ? 'lumber' : 'logs';
+}
+
+/** The name of the wood a closed town is built from now, lower case, for screen text. */
+export const woodName = (world: World): string => GOODS[buildWood(world)].label.toLowerCase();
+
 const withExtra = (base: Good[], extra: Good[]): Good[] => (extra.length === 0 ? base : [...base, ...extra.filter((g) => !base.includes(g))]);
 
 /** Goods a town dock currently wants. */
@@ -1424,13 +1432,13 @@ export function dockDemand(world: World, site: Site): Good[] {
   if (def.dock === 'market') {
     // Until the Market is built it asks only for lumber, from the Supply Yard's own trucks. Afterwards it also takes the
     // materials for the town's next level, which only those trucks bring.
-    if (stage < 2) return stage === 1 ? ['lumber'] : [];
+    if (stage < 2) return stage === 1 ? [buildWood(world)] : [];
     // Every by-product has a buyer at the Market too, at a salvage price (see deliver), so no line can jam for want of a buyer.
     return withExtra(withExtra(withExtra(MARKET_DEMAND[place.level - 1], districtDemand(place, 'market')), matsNeeded(place).map(([g]) => g)), BYPRODUCTS);
   }
-  if (stage < 1) return ['lumber'];
-  // While the Market is being built the yard stores its lumber; afterwards only the materials for the next level.
-  const need = stage === 1 ? ([['lumber', 1]] as [Good, number][]) : matsNeeded(place);
+  if (stage < 1) return [buildWood(world)];
+  // While the Market is being built the yard stores its wood; afterwards only the materials for the next level.
+  const need = stage === 1 ? ([[buildWood(world), 1]] as [Good, number][]) : matsNeeded(place);
   return withExtra(withExtra(FREIGHT_DEMAND[Math.min(FREIGHT_DEMAND.length, place.level) - 1], districtDemand(place, 'freight').filter((g) => BUILD_GOODS.includes(g))), need.map(([g]) => g));
 }
 
@@ -1444,7 +1452,7 @@ export function matsNeeded(place: Place): [Good, number][] {
 /** Units of a building good still to reach the Market site: lumber for the Market, then the level materials. */
 export function buildLeft(place: Place, g: Good): number {
   const stage = place.stage ?? 2;
-  if (stage === 1) return g === 'lumber' ? Math.max(0, BUILD_LUMBER[1] - (place.build ?? 0)) : 0;
+  if (stage === 1) return g === 'lumber' || g === 'logs' ? Math.max(0, BUILD_LUMBER[1] - (place.build ?? 0)) : 0;
   if (stage >= 2) return matsNeeded(place).find(([mg]) => mg === g)?.[1] ?? 0;
   return 0;
 }
@@ -2132,7 +2140,7 @@ export function sell(world: World, dock: Site, g: Good, amount: number): number 
   const isYard = SITE_DEFS[dock.kind].dock === 'freight';
   let stage = place.stage ?? 2;
   let building = 0;
-  if (isYard && stage === 0 && g === 'lumber') {
+  if (isYard && stage === 0 && (g === 'lumber' || g === 'logs')) {
     const used = Math.min(amount, Math.max(0, BUILD_LUMBER[0] - (place.build ?? 0)));
     place.build = (place.build ?? 0) + used;
     building += used;
@@ -2184,7 +2192,7 @@ function buildDeliver(world: World, market: Site, g: Good, amount: number): void
   if (!place) return;
   const stage = place.stage ?? 2;
   if (stage === 1) {
-    if (g !== 'lumber') return;
+    if (g !== 'lumber' && g !== 'logs') return;
     place.build = (place.build ?? 0) + amount;
     if (place.build >= BUILD_LUMBER[1]) {
       place.build = 0;

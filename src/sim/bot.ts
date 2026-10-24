@@ -26,6 +26,7 @@ import {
   buyVehicle,
   growTown,
   matsNeeded,
+  buildWood,
   readyToGrow,
   createAirRoute,
   createRoute,
@@ -312,11 +313,11 @@ export function playBot(seed: number, ticks: number, onNote?: (n: BotNote) => vo
     for (const town of focus) {
       if (!idle()) return;
       if ((town.stage ?? 2) < 2) {
-        supplyYard('lumber', town);
+        supplyYard(buildWood(w), town);
         // Nothing sells until the Market stands and a level 2 building needs Tier 1, so the starting money goes into more lumber:
         // a second and third Forestry Camp, each with its road to the mill. One camp feeds less than a third of a Sawmill.
         if (idle() && home === town) {
-          const mill = w.sites.find((x) => x.kind === 'sawmill');
+          const mill = w.sites.find((x) => x.kind === 'freight' && x.placeId === town.id);
           const camps = w.sites.filter((x) => x.kind === 'forestry');
           if (mill && camps.length < 4 && w.money > reserve + 700) {
             const spot = nodeFor('forestry', town);
@@ -459,7 +460,7 @@ export function playBot(seed: number, ticks: number, onNote?: (n: BotNote) => vo
       case 'route': {
         if (goal.mode === 'road') {
           const camp = siteFor('logs', home);
-          const mill = w.sites.find((s) => s.kind === 'sawmill');
+          const mill = w.sites.find((s) => s.kind === 'sawmill') ?? w.sites.find((s) => s.kind === 'freight' && s.placeId === home.id);
           if (camp && mill) {
             const path = w.money > 1500 ? findPath(w, camp, mill, 120000, 'road') : null;
             if (path && createRoute(w, path, 'road', goal.grade ?? 'street') === null) note(`built a ${goal.grade ?? 'street'} route`);

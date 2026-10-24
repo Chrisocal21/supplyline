@@ -415,8 +415,8 @@ const DEFS = {
  * and kitchen chains, then the specialist plants. A building opens no earlier than the buildings that make its ingredients.
  */
 const OPENS: Record<number, string[]> = {
-  0: ['forestry', 'farm', 'ranch', 'orchard', 'quarry', 'sawmill', 'mill', 'bakery', 'dairy', 'woodyard'],
-  1: ['claypit', 'waterpump', 'chickenfarm', 'vegfarm', 'potatofarm', 'sandpit', 'coalmine', 'harbor', 'sugarfarm',
+  0: ['forestry', 'farm', 'ranch', 'orchard', 'quarry', 'mill', 'bakery', 'dairy', 'woodyard'],
+  1: ['sawmill', 'claypit', 'waterpump', 'chickenfarm', 'vegfarm', 'potatofarm', 'sandpit', 'coalmine', 'harbor', 'sugarfarm',
     'jamfactory', 'feedmill', 'creamery', 'juicepress', 'sugarrefinery', 'gardensupply', 'scrapyard',
     'brickworks', 'stonecutter', 'granitecutter', 'hub', 'garage', 'pelletmill'],
   2: ['cottonfarm', 'papermill', 'spinmill', 'oremine', 'barleyfarm', 'oilseedfarm', 'pigfarm', 'sheepfarm', 'apiary', 'vineyard', 'saltpan', 'coffeefarm', 'mangogrove', 'oilwell',
@@ -667,7 +667,7 @@ export const MECHANIC_CHEAPER = 0.05;
 /** A truck that is fully worn waits this long for a mechanic, faster with a better shop and rank, slower with distance. Ticks. */
 export const SHOP_WAIT = 900;
 
-export const BUILD_GOODS: Good[] = ['lumber', 'stone', 'granite', 'blocks', 'bricks', 'sand', 'gravel', 'cement', 'concrete', 'glass', 'steel', 'tools'];
+export const BUILD_GOODS: Good[] = ['logs', 'lumber', 'stone', 'granite', 'blocks', 'bricks', 'sand', 'gravel', 'cement', 'concrete', 'glass', 'steel', 'tools'];
 
 /** What a Warehouse (the Distribution Warehouse) may hold: finished goods only. Tools can go in both it and the Supply Yard. */
 export const WAREHOUSE_GOODS: Good[] = ['smokedfish', 'cannedfish', 'bread', 'pastry', 'pizza', 'pasta', 'cheese', 'butter', 'icecream', 'jam', 'juice', 'canned', 'crisps', 'meat', 'sausage', 'beer', 'wine', 'spirits', 'soda', 'chocolate', 'candles', 'pillows', 'paper', 'books', 'clothes', 'furniture', 'tools', 'machinery', 'pellets', 'feed', 'cookoil', 'fuel', 'oil', 'mulch', 'coffee', 'mango', 'honey'];
@@ -939,17 +939,15 @@ export const TIERS: TierDef[] = [
   {
     tier: 0,
     name: 'Startup',
-    blurb: 'Camps, a mill and a town to build, then your first farm goods sold to its Market.',
+    blurb: 'Camps and a town to build from logs, then your first farm goods sold to its Market.',
     quests: [
-      { id: 't0-camp', label: 'Build a Forestry Camp', hint: 'Open Production, pick Forestry Camp, then click a ringed forest spot. (A Farm works the same way, with a Flour Mill in place of the Sawmill.)', goal: { kind: 'build', site: 'forestry', count: 1 }, reward: 100 },
+      { id: 't0-camp', label: 'Build a Forestry Camp', hint: 'Open Production, pick Forestry Camp, then click a ringed forest spot. Logs build your first town, so you need no mill yet.', goal: { kind: 'build', site: 'forestry', count: 1 }, reward: 100 },
       { id: 't0-truck', label: 'Buy a delivery truck', hint: 'Click the camp and press Buy Box Truck. It waits at the gate until a road leads somewhere that wants logs.', goal: { kind: 'fleet', count: 1 }, reward: 100 },
-      { id: 't0-mill', label: 'Build a Sawmill in a town', hint: 'Open Processing, pick Sawmill, then click a for-sale lot beside a town street.', goal: { kind: 'build', site: 'sawmill', count: 1 }, reward: 150 },
-      { id: 't0-road', label: 'Join them with a road', hint: 'Open Logistics, pick Road, then drag from the camp to the mill. The truck sets off by itself.', goal: { kind: 'route', mode: 'road', count: 1 }, reward: 150 },
-      { id: 't0-making', label: 'Switch the Sawmill on', hint: 'Click the Sawmill and turn on Lumber under Production. Nothing is made until you do.', goal: { kind: 'making', count: 1 }, reward: 100 },
-      { id: 't0-camps', label: 'Run 3 Forestry Camps', hint: 'One camp makes only about 9 lumber a minute. Build two more Forestry Camps on ringed forest spots and road each one to the Sawmill, so the yard and Market get built sooner.', goal: { kind: 'build', site: 'forestry', count: 3 }, reward: 200 },
-      { id: 't0-selling', label: 'Send lumber to the Supply Yard site', hint: 'Click the Sawmill, buy a truck, and switch the Supply Yard on under Sell to. The street already links them. The lumber builds the yard: it is not sold, so it pays nothing.', goal: { kind: 'selling', count: 1 }, reward: 150 },
-      { id: 't0-yard', label: 'Build the Supply Yard: 80 lumber', hint: 'Keep the lumber coming. One camp makes only about 9 lumber a minute, so build two or three Forestry Camps and join each to the Sawmill. When 80 has arrived the yard is built.', goal: { kind: 'townbuilt', stage: 1, count: 1 }, reward: 500 },
-      { id: 't0-market', label: 'Build the Market', hint: 'Fill the yard store with 120 more lumber, buy a Box Truck at the Supply Yard, and carry it to the Market site.', goal: { kind: 'townbuilt', stage: 2, count: 1 }, reward: 500 },
+      { id: 't0-road', label: 'Road the camp to the town', hint: 'Open Logistics, pick Road, then drag from the camp to the town. The truck sets off by itself.', goal: { kind: 'route', mode: 'road', count: 1 }, reward: 150 },
+      { id: 't0-camps', label: 'Run 3 Forestry Camps', hint: 'One camp makes only about 9 logs a minute. Build two more Forestry Camps on ringed forest spots and road each one to the town, so the yard and Market get built sooner.', goal: { kind: 'build', site: 'forestry', count: 3 }, reward: 200 },
+      { id: 't0-selling', label: 'Send logs to the Supply Yard site', hint: 'Click a Forestry Camp and switch the Supply Yard on under Sell to. The logs build the yard: they are not sold, so they pay nothing.', goal: { kind: 'selling', count: 1 }, reward: 150 },
+      { id: 't0-yard', label: 'Build the Supply Yard: 80 logs', hint: 'Keep the logs coming. One camp makes only about 9 a minute, so build two or three Forestry Camps and road each to the town. When 80 has arrived the yard is built.', goal: { kind: 'townbuilt', stage: 1, count: 1 }, reward: 500 },
+      { id: 't0-market', label: 'Build the Market', hint: 'Fill the yard store with 120 more logs, buy a Box Truck at the Supply Yard, and carry it to the Market site.', goal: { kind: 'townbuilt', stage: 2, count: 1 }, reward: 500 },
       { id: 't0-ranch', label: 'Build a Dairy Ranch', hint: 'Open Production, pick Dairy Ranch and click open ground near the town: a ranch brings its own pasture. The Market buys milk, eggs, fruit, vegetables and potatoes straight from the farm.', goal: { kind: 'build', site: 'ranch', count: 1 }, reward: 150 },
       { id: 't0-milk', label: 'Sell 40 milk to the Market', hint: 'Join the Dairy Ranch to the town with a road. Its trucks carry milk to the Market, which pays for it. Your first real income.', goal: { kind: 'deliver', good: 'milk', amount: 40 }, reward: 300 },
       { id: 't0-orchard', label: 'Build an Orchard', hint: 'Production tab. An orchard brings its own trees and can stand on any open ground. Fruit sells to the Market too.', goal: { kind: 'build', site: 'orchard', count: 1 }, reward: 150 },
@@ -962,6 +960,8 @@ export const TIERS: TierDef[] = [
     name: 'Regional Supplier',
     blurb: 'The town is growing and wants more than planks. Widen the range, keep the trucks running and build the town up.',
     quests: [
+      { id: 't1-sawmill', label: 'Build a Sawmill in a town', hint: 'Open Processing, pick Sawmill, then click a for-sale lot beside a town street. From Tier 1 a town grows from lumber, not raw logs.', goal: { kind: 'build', site: 'sawmill', count: 1 }, reward: 150 },
+      { id: 't1-lumber', label: 'Make 60 lumber', hint: 'Road a Forestry Camp to the Sawmill, then click the Sawmill and turn on Lumber under Production. Nothing is made until you do.', goal: { kind: 'make', good: 'lumber', amount: 60 }, reward: 200 },
       { id: 't1-farm', label: 'Build a Farm', hint: 'Open Production, pick Farm and click open ground near the town: a farm brings its own fields. Grain is the start of flour and bread.', goal: { kind: 'build', site: 'farm', count: 1 }, reward: 150 },
       { id: 't1-mill', label: 'Build a Flour Mill', hint: 'Open Processing, pick Flour Mill and click a for-sale lot beside a town street. Join the farm to it with a road, then switch Flour on.', goal: { kind: 'build', site: 'mill', count: 1 }, reward: 150 },
       { id: 't1-bakery', label: 'Build a Bakery', hint: 'Processing tab. Flour in, bread out, and every town Market buys bread. Road the mill to the bakery and the bakery to the Market.', goal: { kind: 'build', site: 'bakery', count: 1 }, reward: 250 },

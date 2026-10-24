@@ -22,7 +22,7 @@ import {
 import { BANK_TIER, DAY_TICKS, bankReport, FUND_FEE, LOAN_RATE, REAL_MONEY_ENABLED, SAVINGS_RATE, bankOf, borrow, creditLimit, deposit, divest, fundValue, invest, netWorth, repay, withdraw } from '../sim/bank';
 import { pathMastered, pathQuestState, questState, tierUnlocks } from '../sim/quests';
 import { buildDistrict, choosePath, districtBoost, districtCost, districtError, districtLevel, districtRevenue, districtSatisfaction, pathError, townUpkeep } from '../sim/town';
-import { buildingNow, campusSites, dockDemand, growthKinds, matsNeeded, isHomePlot, metroBonus, partnerOf, plotTiles, radiusOf, produces, siteCap, stockOf, unitPrice, wants, type Place, type Site, type World } from '../sim/world';
+import { woodName, buildingNow, campusSites, dockDemand, growthKinds, matsNeeded, isHomePlot, metroBonus, partnerOf, plotTiles, radiusOf, produces, siteCap, stockOf, unitPrice, wants, type Place, type Site, type World } from '../sim/world';
 import { button, companyPage, fleetPage, panel, sectionHead, stat } from './company';
 import { COLORS, Im } from './imui';
 import { isTouch } from './inputmode';
@@ -655,7 +655,7 @@ export class Sheets {
     const ny = y + 100;
     const bn = buildingNow(p);
     if (bn) {
-      im.text(`tw-next-${p.id}`, `Building the ${bn.name}: ${fmt(bn.have)} / ${fmt(bn.need)} lumber. ${bn.name === 'Supply Yard' ? 'Send lumber to this town.' : 'Fill the yard store, then send a yard truck.'}`, x + 16, ny, { size: 12, color: COLORS.warn, wrap: w - 32, layer: 3 });
+      im.text(`tw-next-${p.id}`, `Building the ${bn.name}: ${fmt(bn.have)} / ${fmt(bn.need)} ${woodName(world)}. ${bn.name === 'Supply Yard' ? `Send ${woodName(world)} to this town.` : 'Fill the yard store, then send a yard truck.'}`, x + 16, ny, { size: 12, color: COLORS.warn, wrap: w - 32, layer: 3 });
     } else if (next) {
       const lines: string[] = [];
       if (n.moreKinds > 0) lines.push(`Needs ${n.moreKinds} more kind${n.moreKinds > 1 ? 's' : ''} of good${n.fresh.length ? `: try ${n.fresh.slice(0, 3).map((g) => GOODS[g].label).join(', ')}` : ''}`);
@@ -776,8 +776,8 @@ export class Sheets {
       if (bn) {
         im.text('td-gh', `BUILDING THE ${bn.name.toUpperCase()}`, x + 16, y + 12, { size: 10, bold: true, color: COLORS.muted, layer: 3 });
         im.bar(3, x + 16, y + 34, Math.min(420, w - 330), 8, bn.have / bn.need, COLORS.good);
-        im.text('td-g', `${fmt(bn.have)} / ${fmt(bn.need)} lumber`, x + 16 + Math.min(420, w - 330) + 12, y + 29, { size: 12, color: COLORS.muted, layer: 3 });
-        im.text('td-v', bn.name === 'Supply Yard' ? 'Send lumber to this town. It builds the Supply Yard.' : 'Fill the Supply Yard store with lumber, then send a yard truck to the Market site.', x + 16, y + 50, { size: 12, color: COLORS.warn, layer: 3 });
+        im.text('td-g', `${fmt(bn.have)} / ${fmt(bn.need)} ${woodName(world)}`, x + 16 + Math.min(420, w - 330) + 12, y + 29, { size: 12, color: COLORS.muted, layer: 3 });
+        im.text('td-v', bn.name === 'Supply Yard' ? `Send ${woodName(world)} to this town. It builds the Supply Yard.` : `Fill the Supply Yard store with ${woodName(world)}, then send a yard truck to the Market site.`, x + 16, y + 50, { size: 12, color: COLORS.warn, layer: 3 });
       } else if (next) {
         im.text('td-gh', `GROWING INTO A ${next.name.toUpperCase()}`, x + 16, y + 12, { size: 10, bold: true, color: COLORS.muted, layer: 3 });
         im.bar(3, x + 16, y + 34, Math.min(420, w - 330), 8, p.growth / next.growth, COLORS.good);

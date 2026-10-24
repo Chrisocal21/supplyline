@@ -1,22 +1,44 @@
 // A closed town builds its Supply Yard and then its Market from delivered lumber, then asks for materials to level up.
 import { describe, expect, it } from 'vitest';
-import { BUILD_LUMBER, LEVEL_MATERIALS } from './defs';
+import { BUILD_LUMBER, LEVEL_MATERIALS, TIERS } from './defs';
+import { checkQuests } from './quests';
 import { buildingNow, buyVehicle, createWorld, dockDemand, growTown, linkTown, matsNeeded, readyToGrow, sell, step } from './world';
 
 describe('closed towns', () => {
   const dockOf = (w: ReturnType<typeof createWorld>, id: number, kind: string) => w.sites.find((s) => s.placeId === id && s.kind === kind)!;
 
-  it('start with nothing built, and want only lumber for the Supply Yard', () => {
+  it('start with nothing built, and want only logs for the Supply Yard in Tier 0, lumber from Tier 1', () => {
     const w = createWorld(11);
     const p = w.places[0];
     expect(p.stage).toBe(0);
+    expect(dockDemand(w, dockOf(w, p.id, 'freight'))).toEqual(['logs']);
+    w.tier = 1;
     expect(dockDemand(w, dockOf(w, p.id, 'freight'))).toEqual(['lumber']);
+    w.tier = 0;
     expect(dockDemand(w, dockOf(w, p.id, 'market'))).toEqual([]);
     expect(buildingNow(p)).toEqual({ name: 'Supply Yard', have: 0, need: BUILD_LUMBER[0] });
   });
 
+  it('build the Supply Yard and Market from logs in Tier 0, and sawn lumber is swapped in when Tier 1 opens', () => {
+    const w = createWorld(11);
+    const p = w.places[0];
+    const yard = dockOf(w, p.id, 'freight');
+    sell(w, yard, 'logs', BUILD_LUMBER[0]);
+    expect(p.stage).toBe(1);
+    expect(dockDemand(w, dockOf(w, p.id, 'market'))).toEqual(['logs']);
+    sell(w, yard, 'logs', 50);
+    expect(yard.depot?.logs).toBe(50);
+    w.questsDone = TIERS[0].quests.map((q) => q.id).filter((id) => id !== 't0-market');
+    w.places.forEach((q, i) => i > 0 || (q.stage = 2));
+    checkQuests(w, () => {});
+    expect(w.tier).toBe(1);
+    expect(yard.depot?.logs).toBeUndefined();
+    expect(yard.depot?.lumber).toBe(50);
+  });
+
   it('build the yard from lumber, keep more lumber in its store, and the yard own truck builds the Market', () => {
     const w = createWorld(11);
+    w.tier = 1;
     w.money = 1e6;
     const p = w.places[0];
     const yard = dockOf(w, p.id, 'freight');
@@ -41,6 +63,7 @@ describe('closed towns', () => {
 
   it('need the level materials carried from the yard to the Market site as well as growth', () => {
     const w = createWorld(11);
+    w.tier = 1;
     w.money = 1e6;
     const p = w.places[0];
     p.stage = 2;
@@ -64,6 +87,7 @@ describe('closed towns', () => {
 
   it('pay nothing for the lumber that builds the yard or fills its store, and only pay for the surplus', () => {
     const w = createWorld(11);
+    w.tier = 1;
     const p = w.places[0];
     const yard = dockOf(w, p.id, 'freight');
     const before = w.money;

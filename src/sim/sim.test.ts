@@ -88,6 +88,7 @@ function col(x: number, y0: number, y1: number): Tile[] {
 describe('building', () => {
   it('requires nodes for extraction; industry goes on open ground or a town plot', () => {
     const w = testWorld();
+    w.tier = 1;
     // Forests, quarries and the like are permanent spots: only a farm, ranch or orchard goes on open ground.
     expect(placeError(w, 'forestry', 5, 5)).toMatch(/forest node/);
     expect(placeError(w, 'sawmill', 3, 4)).toMatch(/forest node/);

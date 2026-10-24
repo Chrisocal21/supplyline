@@ -462,24 +462,27 @@ describe('tier quests', () => {
     expect(w.questsDone).toHaveLength(0);
     expect(nextQuest(w)?.quest.id).toBe('t0-camp');
 
-    // A sawmill counts as soon as it stands; the reward is paid once only.
-    put(w, 'sawmill', 9, 6);
+    // A camp counts as soon as it stands; the reward is paid once only.
+    w.nodes.push({ id: 2, kind: 'forest', x: 3, y: 9, quality: 1, regionId: 0 });
+    w.money = 1e6;
+    put(w, 'forestry', 3, 9);
     const before = w.money;
     checkQuests(w, (t) => log.push(t));
     checkQuests(w, (t) => log.push(t));
-    expect(w.questsDone).toEqual(['t0-mill']);
-    expect(w.money - before).toBe(TIERS[0].quests.find((q) => q.id === 't0-mill')!.reward);
+    expect(w.questsDone).toEqual(['t0-camp']);
+    expect(w.money - before).toBe(TIERS[0].quests.find((q) => q.id === 't0-camp')!.reward);
     expect(log.filter((l) => /Quest complete/.test(l))).toHaveLength(1);
 
     // A finished quest stays finished after the building is gone.
-    w.sites = w.sites.filter((s) => s.kind !== 'sawmill');
-    expect(questState(w, TIERS[0], TIERS[0].quests.find((q) => q.id === 't0-mill')!).done).toBe(true);
+    w.sites = w.sites.filter((s) => s.kind !== 'forestry');
+    expect(questState(w, TIERS[0], TIERS[0].quests.find((q) => q.id === 't0-camp')!).done).toBe(true);
 
     // The rest of tier 0, by the book.
-    w.nodes.push({ id: 2, kind: 'forest', x: 3, y: 9, quality: 1, regionId: 0 });
     w.money = 1e6;
-    placeSite(w, 'forestry', 3, 9);
+    put(w, 'forestry', 3, 9);
+    w.tier = 1;
     put(w, 'sawmill', 9, 9);
+    w.tier = 0;
     expect(createRoute(w, findPath(w, siteAt(w, 3, 9)!, siteAt(w, 9, 9)!)!)).toBeNull();
     expect(buyVehicle(w, siteAt(w, 3, 9)!.id, 'boxtruck')).toBeNull();
     setMaking(w, siteAt(w, 9, 9)!.id, true);
@@ -490,7 +493,7 @@ describe('tier quests', () => {
     checkQuests(w, (t) => log.push(t));
     expect(w.tier).toBe(1);
     expect(log.some((l) => /Tier 1 unlocked/.test(l))).toBe(true);
-    expect(nextQuest(w)?.quest.id).toBe('t1-farm');
+    expect(nextQuest(w)?.quest.id).toBe('t1-lumber');
   });
 
   it('only asks for things that are unlocked at that tier', async () => {
