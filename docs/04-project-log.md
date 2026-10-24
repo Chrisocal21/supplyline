@@ -793,3 +793,7 @@ What changed:
 
 - A tutorial of 19 short steps runs beside the quests (`src/sim/tutorial.ts`): 14 for Tier 0 (look around, zoom, the Towns sheet, camp, sawmill, truck, road, switch on, more camps, speed and pause, the Company sheet, the Supply Yard, a yard truck, the Market) and 5 for Tier 1 (make food, where goods go, the Fleet and Production sheets, by-products, mechanics). A step is done when the world shows it (a building, a road) or the player has done it on screen (moved, zoomed, paused, opened a sheet, picked a building). The quests stay what advances the game; the tutorial never blocks anything.
 - It shows as a card in the bottom left (step number, title, a line of help, Skip and Turn off), and rings the build button a step needs (and, in Tier 0 and 1, the button the current quest needs). Menu > Game > Tutorial switches it on and off; the choice is kept for every game. The old ring's X now turns the tutorial off. Steps are saved with the game; a game begun before this, or well under way, starts with the Tier 0 steps done.
+
+## 0.125: a longer Tier 0
+
+- Six quests join Tier 0: Run 3 Forestry Camps (before the Supply Yard), then after the Market: build a Dairy Ranch, sell 40 milk, build an Orchard, sell 40 fruit, earn $400 from sales. They add the first real income (the Market buys milk, eggs, fruit, vegetables and potatoes straight from the farm) and about 8 to 10 minutes of a human's play before Tier 1; the test bot reaches Tier 1 at 9.8 minutes (was 8.2) and Tier 2 at 43.7 on Map 2. The tests that finish Tier 0 count the new quests done.

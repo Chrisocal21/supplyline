@@ -187,6 +187,8 @@ describe('logistics loop', () => {
     put(w, 'sawmill', 9, 4);
     expect(createRoute(w, row(3, 9, 4))).toBeNull();
     expect(createRoute(w, [...col(9, 5, 10), ...row(10, 13, 10), { x: 13, y: 11 }])).toBeNull();
+    // The farm-goods quests at the end of Tier 0 are not what this chain tests.
+    (w.questsDone ??= []).push(...['t0-camps', 't0-ranch', 't0-milk', 't0-orchard', 't0-fruit', 't0-earn']);
     runChores(w);
     return w;
   }
