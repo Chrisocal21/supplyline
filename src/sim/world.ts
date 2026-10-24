@@ -1530,14 +1530,21 @@ export function needs(world: World, site: Site, good: Good, from?: Site): number
   if (!wants(world, site).includes(good)) return 0;
   const cap = siteCap(world, site);
   const room = Math.floor(cap - stockOf(site, good));
-  if (room <= 0) return 0;
   const sdock = SITE_DEFS[site.kind].dock;
   if (from && SITE_DEFS[from.kind].dock === 'freight') {
-    // The yard's trucks carry building goods to the Market site, and nothing else.
+    // The yard's trucks carry building goods to the Market site, and nothing else. What goes into building is not stored, so a
+    // shelf already full of something sold there cannot hold the last of it back.
     if (sdock !== 'market') return 0;
     const pl = placeOf(world, site);
-    return pl ? Math.min(room, Math.ceil(buildLeft(pl, good))) : 0;
+    return pl ? Math.ceil(buildLeft(pl, good)) : 0;
   }
+  // A Supply Yard keeps what the town still needs for building in its own store, apart from its shelf: the shelf being full of
+  // what it has bought (lumber, say) must not stop the last of the Market's lumber being taken in.
+  if (sdock === 'freight' && room <= 0) {
+    const pl = placeOf(world, site);
+    if (pl && (pl.stage ?? 2) >= 1 && BUILD_GOODS.includes(good)) return Math.ceil(depotLeft(pl, site, good));
+  }
+  if (room <= 0) return 0;
   if (sdock === 'market' && (site.placeId !== null) && BUILD_GOODS.includes(good)) {
     const pl = placeOf(world, site);
     if (pl && buildLeft(pl, good) > 0 && !MARKET_DEMAND[pl.level - 1]?.includes(good)) return 0;
@@ -2500,7 +2507,11 @@ function stepVehicle(world: World, v: Vehicle): void {
       const waited = v.moveTimer;
       // Leaving home always takes a full load: the vehicle waits until it has one. Only a backhaul from the far end may go part full.
       // A Supply Yard truck also goes when it carries everything the Market site still needs.
-      const finishing = pick !== null && SITE_DEFS[here.kind].dock === 'freight' && pick.amount >= needs(world, there, pick.good, here);
+      // So does any truck that brings a Supply Yard the last of the building goods it is waiting for.
+      const finishing =
+        pick !== null &&
+        (SITE_DEFS[here.kind].dock === 'freight' || (SITE_DEFS[there.kind].dock === 'freight' && BUILD_GOODS.includes(pick.good))) &&
+        pick.amount >= needs(world, there, pick.good, here);
       const enough = pick !== null && (finishing || (atHome ? pick.amount >= fullLoad * LOAD_WAIT_FRACTION : pick.amount >= capacity * 0.4));
       // Having come all this way for it (home has nothing to send back), take whatever is waiting.
       const fetch = pick !== null && !atHome && !pickCargo(world, there, here, capacity);
