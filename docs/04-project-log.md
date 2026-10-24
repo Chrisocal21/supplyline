@@ -728,3 +728,9 @@ What changed:
 ## 0.110: more land on Map 3
 
 - Map 3 is now 50% land (was 38%): 181 towns (17 cities), 16 land masses, 24 rivers, with the inland sea and ocean channels kept. Same coasts and shapes, wider.
+
+## 0.111: smoothness first steps
+
+- The frame readout (F3) also shows draw calls and thousands of triangles for the whole frame, so slowness can be traced to what is drawn.
+- The web page starts on Balanced (no ambient occlusion, bloom or extra antialiasing, pixel ratio 1); the desktop app still starts on High on a good card. A saved choice still wins.
+- Slow play (under 24 fps) lowers the quality step after 4 seconds instead of 7.

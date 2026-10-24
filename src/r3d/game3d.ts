@@ -429,7 +429,7 @@ export class Game3D {
   private acc = 0;
   private last = 0;
   /** How the game is running, for the on-screen readout (F3): worked out from the last couple of seconds of frames. */
-  readonly perf = { fps: 0, avgMs: 0, p95Ms: 0, simMs: 0, drawMs: 0, workMs: 0, asleep: 0 };
+  readonly perf = { fps: 0, avgMs: 0, p95Ms: 0, simMs: 0, drawMs: 0, workMs: 0, asleep: 0, calls: 0, tris: 0 };
   private perfGaps: number[] = [];
   /** Lower the graphics by itself when the game runs slowly. Off once the player picks a quality. */
   autoQuality = readAutoQuality();
@@ -796,7 +796,7 @@ export class Game3D {
       return;
     }
     if (this.slowSince === 0) this.slowSince = now;
-    if (now - this.slowSince < 7000) return;
+    if (now - this.slowSince < 4000) return;
     this.slowSince = 0;
     const order: GraphicsQuality[] = ['low', 'balanced', 'high', 'ultra'];
     const at = order.indexOf(this.graphicsQuality);
@@ -1044,8 +1044,13 @@ export class Game3D {
   /** Draw the frame: with ambient occlusion when close to the ground, straight to the screen from space. */
   private draw(): void {
     const settings = GRAPHICS[this.graphicsQuality];
+    // Count the whole frame, not just its last pass.
+    this.renderer.info.autoReset = false;
+    this.renderer.info.reset();
     if (this.cam.dist > 150 || !settings.aoSamples) {
       this.renderer.render(this.scene, this.camera);
+      this.perf.calls = this.renderer.info.render.calls;
+      this.perf.tris = this.renderer.info.render.triangles;
       return;
     }
     if (!this.composer) {
@@ -1080,6 +1085,8 @@ export class Game3D {
     // Reach and strength follow the view height, so a wide view is not smeared dark.
     this.ao!.updateGtaoMaterial({ radius: THREE.MathUtils.clamp(this.cam.dist * 0.012, 0.12, 0.5) });
     this.composer.render();
+    this.perf.calls = this.renderer.info.render.calls;
+    this.perf.tris = this.renderer.info.render.triangles;
   }
 
   resize(): void {

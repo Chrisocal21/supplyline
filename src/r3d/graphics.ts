@@ -11,7 +11,8 @@ export const nightLight = { value: 0 };
 const KEY = 'supplyline.graphics.v1';
 
 export function readGraphics(): { quality: GraphicsQuality; lighting: LightingMode } {
-  const defaults = { quality: window.matchMedia('(pointer: coarse)').matches || weakGpu() ? 'balanced' as const : 'high' as const, lighting: 'day' as const };
+  // The browser version may end up the demo, so it starts light; the desktop app starts high on a good graphics card.
+  const defaults = { quality: inBrowser() || window.matchMedia('(pointer: coarse)').matches || weakGpu() ? 'balanced' as const : 'high' as const, lighting: 'day' as const };
   try {
     const raw = localStorage.getItem(KEY);
     if (!raw) return defaults;
@@ -25,6 +26,9 @@ export function readGraphics(): { quality: GraphicsQuality; lighting: LightingMo
     return defaults;
   }
 }
+
+/** True in a web page, false in the desktop app (which exposes `supplyline` from its preload script). */
+export const inBrowser = (): boolean => !(window as unknown as { supplyline?: unknown }).supplyline;
 
 /** A graphics chip that is built into the processor (or software) cannot take the High preset, so a first run starts lower. */
 function weakGpu(): boolean {
