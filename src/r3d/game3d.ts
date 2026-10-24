@@ -119,6 +119,7 @@ import { buildGlobe, type Globe } from './globeMesh';
 import { siteGeometry, siteGeometryAt, trainUnits, vehicleGeometry } from './models';
 import { BUILD_MS, Construction } from './construction';
 import { packSave, saveFileName, unpackSave } from '../sim/saveio';
+import { compactWorld, expandWorld } from '../sim/compact';
 import { buildDistrict, buildDistrictAt, districtSpotAt, type DistrictSpot } from '../sim/town';
 import map1 from '../maps/map1.json';
 import map2 from '../maps/map2.json';
@@ -671,7 +672,7 @@ export class Game3D {
 
   save(): boolean {
     try {
-      localStorage.setItem(SAVE_KEY, JSON.stringify(this.world));
+      localStorage.setItem(SAVE_KEY, JSON.stringify(compactWorld(this.world)));
       this.lastSave = performance.now();
       this.savedAt = Date.now();
       this.saveOk = true;
@@ -704,7 +705,7 @@ export class Game3D {
     const w = this.world;
     const info: SlotInfo = { savedAt: Date.now(), town: w.places[0]?.name ?? 'World', tier: w.tier, money: Math.floor(w.money), earned: Math.floor(w.earned), minutes: Math.floor(w.tick / (TICKS_PER_SECOND * 60)), towns: w.places.filter((p) => p.level >= 2).length };
     try {
-      localStorage.setItem(this.slotKey(i), JSON.stringify(w));
+      localStorage.setItem(this.slotKey(i), JSON.stringify(compactWorld(w)));
       localStorage.setItem(`${this.slotKey(i)}.meta`, JSON.stringify(info));
       return true;
     } catch {
@@ -741,7 +742,7 @@ export class Game3D {
       if (slot === undefined) return { name: saveFileName(this.world), text: packSave(this.world) };
       const raw = localStorage.getItem(this.slotKey(slot));
       if (!raw) return null;
-      const w = JSON.parse(raw) as World;
+      const w = expandWorld(JSON.parse(raw) as World);
       return { name: saveFileName(w), text: packSave(w) };
     } catch {
       return null;
@@ -766,7 +767,7 @@ export class Game3D {
     try {
       const raw = localStorage.getItem(key);
       if (!raw) return false;
-      const w = JSON.parse(raw) as World;
+      const w = expandWorld(JSON.parse(raw) as World);
       if (w.version !== 4) return false;
       this.adopt(w);
       return true;

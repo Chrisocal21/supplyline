@@ -738,3 +738,7 @@ What changed:
 ## 0.112: grid in the game
 
 - On worlds 600 or more tiles wide (Map 3) a badge at the top left always shows the grid cell the view is centred on and its tile (for example "GRID K4  330, 100"). The world map header shows the same, and the world map has grid lines, with cell names when opened large (ENLARGE).
+
+## 0.113: compact saves (Map 3 groundwork)
+
+- A world of 100,000 tiles or more (Map 3) is saved with its ground (terrain, heights, regions) packed into short strings: about 3.2 MB down to under 1 MB, so the autosave and five slots fit browser storage and saving no longer stalls the game. Older and smaller saves load as before. See `src/sim/compact.ts`.
