@@ -53,10 +53,10 @@ describe('pathfinding', () => {
     expect(path![path!.length - 1]).toEqual({ x: 22, y: 6 });
     // inside the town it keeps to the streets
     expect(path!.slice(1, -1).every((t) => !placeAt(w, t.x, t.y) || streetAt(w, t.x, t.y))).toBe(true);
-    // a farm sends grain, which a market does not want, so the plan is refused for that reason alone
+    // a farm's bran now has a buyer at the Market, so this is a real supply route and not a free road
     const plan = planRoute(w, path!);
     expect(plan.error).toBeNull();
-    expect(plan.free).toBe(true);
+    expect(plan.free).toBe(false);
   });
 
   it('routes grain farm to mill and the plan is accepted', () => {

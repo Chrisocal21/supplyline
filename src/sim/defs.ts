@@ -409,6 +409,24 @@ const DEFS = {
   } as SiteDef,
 };
 
+/**
+ * When each building opens. The menu grows with the game instead of arriving all at once: the staples first, then the wider farm
+ * and kitchen chains, then the specialist plants. A building opens no earlier than the buildings that make its ingredients.
+ */
+const OPENS: Record<number, string[]> = {
+  0: ['forestry', 'farm', 'claypit', 'ranch', 'orchard', 'quarry', 'sawmill', 'mill', 'bakery', 'dairy', 'woodyard'],
+  1: ['waterpump', 'chickenfarm', 'vegfarm', 'potatofarm', 'cottonfarm', 'sandpit', 'coalmine', 'oremine', 'harbor', 'sugarfarm',
+    'jamfactory', 'feedmill', 'creamery', 'juicepress', 'sugarrefinery', 'gardensupply', 'scrapyard', 'papermill', 'spinmill',
+    'brickworks', 'stonecutter', 'granitecutter', 'hub', 'garage'],
+  2: ['barleyfarm', 'hopfarm', 'oilseedfarm', 'pigfarm', 'sheepfarm', 'apiary', 'vineyard', 'saltpan', 'coffeefarm', 'mangogrove', 'oilwell',
+    'smokehouse', 'fishcannery', 'fishmeal', 'oilpress', 'pastrykitchen', 'noodlemaker', 'cannery', 'butcher', 'woolmill', 'compostyard',
+    'silage', 'pelletmill', 'weavery', 'tailor', 'workshop', 'printery', 'winery', 'distillery', 'cementworks', 'concrete', 'glassworks',
+    'smelter', 'toolworks', 'railyard', 'port'],
+  3: ['spicefarm', 'cocoafarm', 'pizzeria', 'brewery', 'sodaplant', 'icecreamplant', 'crispfryer', 'sausagemaker', 'chocolatier',
+    'candlemaker', 'pillowmaker', 'refinery', 'steelworks', 'slagcrusher', 'machinery', 'airport'],
+};
+for (const [tier, kinds] of Object.entries(OPENS)) for (const k of kinds) (DEFS as Record<string, SiteDef>)[k].tier = Number(tier);
+
 export type SiteKind = keyof typeof DEFS;
 export const SITE_DEFS: Record<SiteKind, SiteDef> = DEFS;
 
@@ -604,6 +622,11 @@ export const MARKET_DEMAND: Good[][] = [
   ['bread', 'cheese', 'milk', 'eggs', 'fruit', 'vegetables', 'potatoes', 'firewood', 'fish', 'butter', 'jam', 'juice', 'pastry', 'pasta', 'canned', 'smokedfish', 'cannedfish', 'crisps', 'meat', 'honey', 'water', 'mulch', 'pellets', 'feed', 'paper', 'coffee', 'mango', 'pizza', 'beer', 'wine', 'soda', 'icecream', 'sausage', 'chocolate', 'candles', 'pillows', 'cookoil', 'fuel', 'oil', 'furniture', 'clothes', 'tools', 'books', 'spirits'],
   ['bread', 'cheese', 'milk', 'eggs', 'fruit', 'vegetables', 'potatoes', 'firewood', 'fish', 'butter', 'jam', 'juice', 'pastry', 'pasta', 'canned', 'smokedfish', 'cannedfish', 'crisps', 'meat', 'honey', 'water', 'mulch', 'pellets', 'feed', 'paper', 'coffee', 'mango', 'pizza', 'beer', 'wine', 'soda', 'icecream', 'sausage', 'chocolate', 'candles', 'pillows', 'cookoil', 'fuel', 'oil', 'furniture', 'clothes', 'tools', 'books', 'spirits', 'machinery'],
 ];
+// Every food the Market can sell on to its customers is in its list, so no ingredient or crop is left without a buyer.
+for (const [from, goods] of [[1, ['flour', 'sugar', 'salt']], [2, ['spices', 'pork', 'grapes']]] as [number, Good[]][]) {
+  for (let l = from; l < MARKET_DEMAND.length; l++) for (const g of goods) if (!MARKET_DEMAND[l].includes(g)) MARKET_DEMAND[l].push(g);
+}
+
 /** The goods a town gets a taste for (a price swing) among the raw and building goods. Only world generation reads it; keep it as is so towns look the same. */
 export const YARD_TASTE_GOODS: Good[] = ['logs', 'grain', 'cotton', 'stone', 'ore', 'coal', 'clay', 'sand', 'milk', 'fruit', 'sawdust', 'bran', 'whey', 'gravel', 'slag', 'feed', 'oil', 'lumber', 'flour', 'ingots', 'cement', 'yarn', 'pellets', 'glass', 'tools', 'steel', 'bricks', 'concrete', 'blocks', 'cloth'];
 

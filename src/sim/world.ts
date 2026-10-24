@@ -1299,6 +1299,8 @@ function cityOf(world: World, site: Site): boolean {
 const withExtra = (base: Good[], extra: Good[]): Good[] => (extra.length === 0 ? base : [...base, ...extra.filter((g) => !base.includes(g))]);
 
 /** Goods a town dock currently wants. */
+const BYPRODUCTS: Good[] = GOOD_LIST.filter((g) => GOODS[g].kind === 'byproduct');
+
 export function dockDemand(world: World, site: Site): Good[] {
   const place = placeOf(world, site);
   if (!place) return [];
@@ -1309,7 +1311,8 @@ export function dockDemand(world: World, site: Site): Good[] {
     // Until the Market is built it asks only for lumber, from the Supply Yard's own trucks. Afterwards it also takes the
     // materials for the town's next level, which only those trucks bring.
     if (stage < 2) return stage === 1 ? ['lumber'] : [];
-    return withExtra(withExtra(MARKET_DEMAND[place.level - 1], districtDemand(place, 'market')), matsNeeded(place).map(([g]) => g));
+    // Every by-product has a buyer at the Market too, at a salvage price (see deliver), so no line can jam for want of a buyer.
+    return withExtra(withExtra(withExtra(MARKET_DEMAND[place.level - 1], districtDemand(place, 'market')), matsNeeded(place).map(([g]) => g)), BYPRODUCTS);
   }
   if (stage < 1) return ['lumber'];
   // While the Market is being built the yard stores its lumber; afterwards only the materials for the next level.
@@ -1735,6 +1738,8 @@ export function bottlenecks(world: World): Bottleneck[] {
 
 /** What a Recycling Yard pays for a unit of by-product, as a share of its price. */
 const RECYCLE_PRICE = 0.5;
+/** What a Market pays for a by-product, as a share of the normal price. */
+const SALVAGE_PRICE = 0.6;
 
 function stepSite(world: World, site: Site): void {
   const def = SITE_DEFS[site.kind];
@@ -2007,14 +2012,19 @@ export function sell(world: World, dock: Site, g: Good, amount: number): number 
       building += keep;
     }
   }
-  world.delivered[g] = (world.delivered[g] ?? 0) + amount;
-  place.delivered[g] = (place.delivered[g] ?? 0) + amount;
+  const salvage = GOODS[g].kind === 'byproduct';
+  // A by-product sells for salvage: money, but it neither grows the town nor counts as a kind of good for it.
+  if (!salvage) {
+    world.delivered[g] = (world.delivered[g] ?? 0) + amount;
+    place.delivered[g] = (place.delivered[g] ?? 0) + amount;
+  }
   const sold = amount - building;
   if (sold <= 0) return 0;
   addStock(dock, g, sold);
-  const gain = sold * unitPrice(world, dock, g);
+  const gain = sold * unitPrice(world, dock, g) * (salvage ? SALVAGE_PRICE : 1);
   world.money += gain;
   world.earned += gain;
+  if (salvage) return gain;
   if (stage < 2) return gain;
   const earned = sold * GOODS[g].price * townGrowthMult(place);
   place.growth += earned;

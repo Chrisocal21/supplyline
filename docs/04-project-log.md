@@ -666,3 +666,10 @@ New games now lay out land as a patchwork of plots (src/sim/land.ts): a fixed gr
 ## 0.102: smarter "sell to" choices
 
 - A truck set to best price, best earnings, highest demand or closest now judges a run by what the load would really earn when it arrives: the buyer's price after trucks already on their way have filled the gap (inbound loads count), less the fuel for the round trip. Best earnings is money a minute for a full round trip. Highest demand and closest break ties by distance. A truck only changes run between trips when the new one is clearly better (8%), so it does not flip back and forth.
+
+## 0.103: a calmer menu, and a buyer for everything
+
+- Buildings now open in four steps (OPENS in defs.ts) instead of almost all at Tier 1: Tier 0 has 11 staples (forestry, farm, clay, ranch, orchard, quarry, sawmill, mill, bakery, dairy, wood yard); Tier 1 the next wave (water, hens, vegetables, potatoes, sugar, jam, feed, creamery, juice, bricks...); Tier 2 the wider farm, kitchen and brewery inputs plus cement, glass, smelter, tools, rail yard and port; Tier 3 the specialist plants (pizza, brewery, soda, ice cream, crisps, sausage, chocolate, candles, pillows, refinery, steel, machinery, airport, spices, cocoa). A building never opens before the ones that make its ingredients (flows tests and the quest bot pass).
+- Every Market buys every by-product (feathers, sawdust, bran, whey, wax, husks, straw, pulp, wood chips, spent grain, fish scraps, slag, gravel) at 60% of its price. This is salvage: money only, it does not grow the town and does not count as a kind of good. The Recycling Yard and factory uses remain.
+- Market lists gain flour, sugar and salt from level 2 and spices, pork and grapes from level 3, so every food has a buyer.
+- All maps share one set of rules: Map 1, Map 2 and the next map only differ in terrain, towns and resource positions (createWorldFromMap).
