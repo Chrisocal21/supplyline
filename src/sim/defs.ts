@@ -13,6 +13,8 @@ const GOOD_IDS = [
   'sawdust', 'bran', 'whey', 'gravel', 'slag',
   // made from by-products
   'mulch',
+  // the wider farm, kitchen and brewery chains
+  'water', 'barley', 'hops', 'grapes', 'eggs', 'vegetables', 'potatoes', 'sugarbeet', 'sunflower', 'pork', 'wool', 'honey', 'salt', 'spices', 'cocoa', 'sugar', 'cookoil', 'fuel', 'granite', 'firewood', 'butter', 'juice', 'pastry', 'pizza', 'pasta', 'icecream', 'canned', 'crisps', 'meat', 'sausage', 'beer', 'wine', 'spirits', 'soda', 'chocolate', 'candles', 'pillows', 'straw', 'pulp', 'husks', 'feathers', 'wax', 'woodchips', 'spentgrain',
 ] as const;
 export type Good = (typeof GOOD_IDS)[number];
 export type Stock = Partial<Record<Good, number>>;
@@ -75,6 +77,50 @@ export const GOODS: Record<Good, { label: string; price: number; color: number; 
   gravel: { label: 'Gravel', price: 3, color: 0x9d9a92, kind: 'byproduct' },
   slag: { label: 'Slag', price: 2, color: 0x58545a, kind: 'byproduct' },
   mulch: { label: 'Mulch', price: 6, color: 0x6b4a2e, kind: 'product' },
+  water: { label: 'Water', price: 1, color: 0x5aa0d8, kind: 'raw' },
+  barley: { label: 'Barley', price: 3, color: 0xd8c070, kind: 'raw' },
+  hops: { label: 'Hops', price: 6, color: 0x8ab04a, kind: 'raw' },
+  grapes: { label: 'Grapes', price: 5, color: 0x6a3a7a, kind: 'raw' },
+  eggs: { label: 'Eggs', price: 4, color: 0xf0e6c8, kind: 'raw' },
+  vegetables: { label: 'Vegetables', price: 3, color: 0x5a9a3a, kind: 'raw' },
+  potatoes: { label: 'Potatoes', price: 2, color: 0xb89a60, kind: 'raw' },
+  sugarbeet: { label: 'Sugar Beet', price: 2, color: 0xc8b0a0, kind: 'raw' },
+  sunflower: { label: 'Sunflower Seeds', price: 3, color: 0xe0b020, kind: 'raw' },
+  pork: { label: 'Pork', price: 8, color: 0xd88a8a, kind: 'raw' },
+  wool: { label: 'Wool', price: 6, color: 0xe8e0d0, kind: 'raw' },
+  honey: { label: 'Honey', price: 9, color: 0xe0a030, kind: 'raw' },
+  salt: { label: 'Salt', price: 3, color: 0xe8e8ee, kind: 'raw' },
+  spices: { label: 'Spices', price: 14, color: 0xb8502a, kind: 'raw' },
+  cocoa: { label: 'Cocoa', price: 15, color: 0x5a3420, kind: 'raw' },
+  sugar: { label: 'Sugar', price: 6, color: 0xf4f0f0, kind: 'material' },
+  cookoil: { label: 'Cooking Oil', price: 9, color: 0xe8c840, kind: 'material' },
+  fuel: { label: 'Fuel', price: 28, color: 0xc04a2a, kind: 'material' },
+  granite: { label: 'Granite', price: 14, color: 0x9a8f94, kind: 'material' },
+  firewood: { label: 'Firewood', price: 5, color: 0x8a5a33, kind: 'product' },
+  butter: { label: 'Butter', price: 14, color: 0xf0d870, kind: 'product' },
+  juice: { label: 'Juice', price: 8, color: 0xe89030, kind: 'product' },
+  pastry: { label: 'Pastry', price: 14, color: 0xd8a060, kind: 'product' },
+  pizza: { label: 'Pizza', price: 20, color: 0xd86a3a, kind: 'product' },
+  pasta: { label: 'Pasta', price: 9, color: 0xe8d090, kind: 'product' },
+  icecream: { label: 'Ice Cream', price: 22, color: 0xf0d0d8, kind: 'product' },
+  canned: { label: 'Canned Food', price: 12, color: 0xa0a8a0, kind: 'product' },
+  crisps: { label: 'Crisps', price: 14, color: 0xe0b840, kind: 'product' },
+  meat: { label: 'Meat', price: 22, color: 0xc05050, kind: 'product' },
+  sausage: { label: 'Sausage', price: 34, color: 0xa04838, kind: 'product' },
+  beer: { label: 'Beer', price: 12, color: 0xd8a020, kind: 'product' },
+  wine: { label: 'Wine', price: 28, color: 0x7a2038, kind: 'product' },
+  spirits: { label: 'Spirits', price: 24, color: 0xc8a870, kind: 'product' },
+  soda: { label: 'Soft Drink', price: 4, color: 0x48a8c8, kind: 'product' },
+  chocolate: { label: 'Chocolate', price: 36, color: 0x4a2a1a, kind: 'product' },
+  candles: { label: 'Candles', price: 10, color: 0xf0e0b0, kind: 'product' },
+  pillows: { label: 'Pillows', price: 24, color: 0xe0d8f0, kind: 'product' },
+  straw: { label: 'Straw', price: 1, color: 0xd8c880, kind: 'byproduct' },
+  pulp: { label: 'Pulp', price: 1, color: 0xc0a870, kind: 'byproduct' },
+  husks: { label: 'Husks', price: 1, color: 0xb8a060, kind: 'byproduct' },
+  feathers: { label: 'Feathers', price: 2, color: 0xf0f0f0, kind: 'byproduct' },
+  wax: { label: 'Wax', price: 4, color: 0xe8d890, kind: 'byproduct' },
+  woodchips: { label: 'Wood Chips', price: 1, color: 0xb08850, kind: 'byproduct' },
+  spentgrain: { label: 'Spent Grain', price: 1, color: 0xa8905a, kind: 'byproduct' },
 };
 
 export interface SiteDef {
@@ -144,7 +190,7 @@ const proc = (
 
 const DEFS = {
   // Production: extraction on resource nodes
-  forestry: raw('Forestry Camp', 'Fells timber on a forest node. Makes logs and sawdust.', 80, 0, 'forest', 'logs', 20, 0x5f7f4a, ['sawdust']),
+  forestry: raw('Forestry Camp', 'Fells timber on a forest node. Makes logs, sawdust and wood chips.', 80, 0, 'forest', 'logs', 20, 0x5f7f4a, ['sawdust', 'woodchips']),
   farm: raw('Farm', 'Grows grain on farmland. Makes grain and bran.', 90, 0, 'farmland', 'grain', 15, 0xc8a850, ['bran']),
   claypit: raw('Clay Pit', 'Digs clay on a clay node by the water. Makes clay and sand.', 110, 0, 'clay', 'clay', 18, 0xb86f4a, ['sand']),
   ranch: raw('Dairy Ranch', 'Grazes cattle on pasture. Makes milk and whey.', 130, 0, 'pasture', 'milk', 20, 0x8bb46a, ['whey']),
@@ -163,7 +209,7 @@ const DEFS = {
   mill: proc('processing', 'Flour Mill', 'Grain in, flour out. Bran is the by-product.', 220, 0, { grain: 2 }, { flour: 1, bran: 1 }, 20, 0xd8d2bf),
   bakery: proc('processing', 'Bakery', 'Flour in, bread out. Towns love bread.', 260, 0, { flour: 1 }, { bread: 2 }, 18, 0xc98c4a),
   dairy: proc('processing', 'Dairy', 'Milk in, cheese out. Whey is the by-product.', 280, 0, { milk: 2 }, { cheese: 1, whey: 1 }, 22, 0xe8c04a),
-  jamfactory: proc('processing', 'Jam Factory', 'Fruit in, jam out.', 300, 1, { fruit: 2 }, { jam: 2 }, 20, 0x9a2f4a),
+  jamfactory: proc('processing', 'Jam Factory', 'Fruit and sugar in, jam out.', 300, 1, { fruit: 2, sugar: 1 }, { jam: 3 }, 20, 0x9a2f4a),
   feedmill: proc('processing', 'Feed Mill', 'Bran and whey in, animal feed out. Puts two by-products to work.', 300, 1, { bran: 2, whey: 1 }, { feed: 2 }, 20, 0xb7a35a),
   gardensupply: proc('processing', 'Garden Supply', 'Sawdust and bran in, mulch out. A second life for two by-products.', 320, 1, { sawdust: 2, bran: 1 }, { mulch: 2 }, 20, 0x7a8a4a),
   scrapyard: {
@@ -177,6 +223,48 @@ const DEFS = {
     color: 0x7d8a6a,
     recycle: true,
   } as SiteDef,
+  // ---- the wider farm: crops, animals and the ingredients for the kitchen and the brewery ----
+  waterpump: raw('Water Pump', 'Pumps clean water by the shore. Breweries, canneries and ice cream plants need it, and trucks carry it in.', 100, 0, 'clay', 'water', 8, 0x5aa0d8),
+  chickenfarm: raw('Chicken Farm', 'Hens on pasture. Makes eggs and feathers.', 110, 0, 'pasture', 'eggs', 14, 0xe6c85a, ['feathers']),
+  vegfarm: raw('Vegetable Farm', 'Market-garden rows on farmland. Makes vegetables.', 100, 0, 'farmland', 'vegetables', 14, 0x5a9a3a),
+  potatofarm: raw('Potato Farm', 'Deep furrows on farmland. Makes potatoes.', 110, 1, 'farmland', 'potatoes', 15, 0xb89a60),
+  barleyfarm: raw('Barley Farm', 'Golden barley on farmland. Makes barley and straw.', 130, 1, 'farmland', 'barley', 16, 0xd8c070, ['straw']),
+  hopfarm: raw('Hop Farm', 'Tall hop vines on poles. Makes hops, the beer flavour.', 150, 1, 'farmland', 'hops', 24, 0x8ab04a),
+  sugarfarm: raw('Sugar Beet Farm', 'Beet fields on farmland. Makes sugar beet and pulp.', 130, 1, 'farmland', 'sugarbeet', 16, 0xc8b0a0, ['pulp']),
+  oilseedfarm: raw('Sunflower Farm', 'Bright sunflower fields. Makes seeds for cooking oil, and husks.', 130, 1, 'farmland', 'sunflower', 18, 0xe0b020, ['husks']),
+  pigfarm: raw('Pig Farm', 'Pigs on pasture. Makes pork.', 160, 1, 'pasture', 'pork', 26, 0xd88a8a),
+  sheepfarm: raw('Sheep Farm', 'Sheep on pasture. Makes wool.', 140, 1, 'pasture', 'wool', 22, 0xe8e0d0),
+  apiary: raw('Apiary', 'Hives among the orchard blossom. Makes honey and wax.', 140, 1, 'orchard', 'honey', 28, 0xe0a030, ['wax']),
+  vineyard: raw('Vineyard', 'Rows of vines on the orchard slopes. Makes grapes.', 170, 1, 'orchard', 'grapes', 22, 0x6a3a7a),
+  saltpan: raw('Salt Pan', 'Seawater dried in shallow pans by the shore. Makes salt.', 120, 1, 'clay', 'salt', 18, 0xe8e8ee),
+  spicefarm: raw('Spice Plantation', 'Island spices in the heat. Makes spices. Islands only, so they have to come by ship.', 320, 2, 'mango', 'spices', 28, 0xb8502a),
+  cocoafarm: raw('Cocoa Plantation', 'Cocoa pods under shade trees on an island highland. Makes cocoa. Islands only, so it has to come by ship.', 360, 2, 'coffee', 'cocoa', 28, 0x5a3420),
+
+  woodyard: proc('processing', 'Wood Yard', 'Logs in, firewood out. Wood chips are the by-product.', 200, 0, { logs: 2 }, { firewood: 2, woodchips: 1 }, 18, 0x8a5a33),
+  creamery: proc('processing', 'Creamery', 'Milk in, butter out. Whey is the by-product.', 300, 1, { milk: 2 }, { butter: 1, whey: 1 }, 22, 0xf0d870),
+  juicepress: proc('processing', 'Juice Press', 'Fruit in, juice out. Pulp is the by-product.', 280, 1, { fruit: 2 }, { juice: 2, pulp: 1 }, 20, 0xe89030),
+  sugarrefinery: proc('processing', 'Sugar Refinery', 'Sugar beet in, sugar out. Pulp is the by-product.', 380, 1, { sugarbeet: 3 }, { sugar: 2, pulp: 1 }, 22, 0xf4f0f0),
+  oilpress: proc('processing', 'Oil Press', 'Sunflower seeds in, cooking oil out. Husks are the by-product.', 400, 1, { sunflower: 3 }, { cookoil: 1, husks: 1 }, 24, 0xe8c840),
+  pastrykitchen: proc('processing', 'Pastry Kitchen', 'Flour, eggs and sugar in, pastries out.', 420, 1, { flour: 1, eggs: 1, sugar: 1 }, { pastry: 2 }, 20, 0xd8a060),
+  noodlemaker: proc('processing', 'Noodle Maker', 'Flour and eggs in, pasta out.', 380, 1, { flour: 1, eggs: 1 }, { pasta: 2 }, 20, 0xe8d090),
+  pizzeria: proc('processing', 'Pizzeria', 'Flour, cheese and vegetables in, pizza out.', 460, 1, { flour: 1, cheese: 1, vegetables: 1 }, { pizza: 2 }, 24, 0xd86a3a),
+  cannery: proc('processing', 'Cannery', 'Vegetables and salt in, canned food out.', 360, 1, { vegetables: 2, salt: 1 }, { canned: 1 }, 22, 0xa0a8a0),
+  butcher: proc('processing', 'Butcher', 'Pork in, meat out.', 450, 1, { pork: 2 }, { meat: 1 }, 26, 0xc05050),
+  brewery: proc('processing', 'Brewery', 'Barley, hops and water in, beer out. Spent grain is the by-product.', 600, 1, { barley: 2, hops: 1, water: 2 }, { beer: 2, spentgrain: 1 }, 26, 0xd8a020),
+  sodaplant: proc('processing', 'Soft Drink Plant', 'Sugar and water in, soft drinks out.', 380, 1, { sugar: 1, water: 2 }, { soda: 3 }, 20, 0x48a8c8),
+  woolmill: proc('processing', 'Wool Mill', 'Wool in, yarn out.', 380, 1, { wool: 3 }, { yarn: 2 }, 24, 0xe8e0d0),
+  compostyard: proc('processing', 'Compost Yard', 'Wood chips, pulp and straw in, mulch out. Three leftovers put to work.', 300, 1, { woodchips: 2, pulp: 1, straw: 1 }, { mulch: 4 }, 22, 0x6b4a2e),
+  silage: proc('processing', 'Silage Plant', 'Straw, husks and spent grain in, animal feed out. Three leftovers put to work.', 300, 1, { straw: 1, husks: 1, spentgrain: 1 }, { feed: 3 }, 20, 0xb7a35a),
+  winery: proc('manufacturing', 'Winery', 'Grapes and water in, wine out. Pulp is the by-product.', 650, 2, { grapes: 3, water: 1 }, { wine: 1, pulp: 1 }, 30, 0x7a2038),
+  distillery: proc('manufacturing', 'Distillery', 'Barley and water in, spirits out. Spent grain is the by-product.', 750, 2, { barley: 3, water: 2 }, { spirits: 1, spentgrain: 1 }, 34, 0xc8a870),
+  icecreamplant: proc('manufacturing', 'Ice Cream Plant', 'Milk and sugar in, ice cream out.', 600, 2, { milk: 2, sugar: 1 }, { icecream: 1 }, 26, 0xf0d0d8),
+  crispfryer: proc('manufacturing', 'Crisp Fryer', 'Potatoes, cooking oil and salt in, crisps out.', 520, 2, { potatoes: 2, cookoil: 1, salt: 1 }, { crisps: 2 }, 22, 0xe0b840),
+  sausagemaker: proc('manufacturing', 'Sausage Maker', 'Pork, salt and spices in, sausage out.', 600, 2, { pork: 1, salt: 1, spices: 1 }, { sausage: 1 }, 28, 0xa04838),
+  chocolatier: proc('manufacturing', 'Chocolate Maker', 'Cocoa, sugar and milk in, chocolate out.', 700, 2, { cocoa: 1, sugar: 1, milk: 1 }, { chocolate: 1 }, 30, 0x4a2a1a),
+  candlemaker: proc('manufacturing', 'Candle Maker', 'Wax and cotton in, candles out.', 500, 2, { wax: 2, cotton: 1 }, { candles: 2 }, 22, 0xf0e0b0),
+  pillowmaker: proc('manufacturing', 'Pillow Maker', 'Feathers and cotton in, pillows out.', 450, 2, { feathers: 4, cotton: 2 }, { pillows: 1 }, 26, 0xe0d8f0),
+  granitecutter: proc('heavy', 'Granite Cutter', 'Stone in, granite out. Gravel is the by-product.', 420, 1, { stone: 3 }, { granite: 2, gravel: 1 }, 24, 0x9a8f94),
+  refinery: proc('heavy', 'Fuel Refinery', 'Crude oil in, fuel out.', 1600, 3, { oil: 2 }, { fuel: 1, sand: 1 }, 34, 0xc04a2a),
   pelletmill: proc('processing', 'Pellet Mill', 'Presses sawdust into heating pellets.', 380, 1, { sawdust: 3 }, { pellets: 1 }, 22, 0x9a7448),
 
   // Manufacturing
@@ -184,7 +272,7 @@ const DEFS = {
   spinmill: proc('manufacturing', 'Spinning Mill', 'Cotton in, yarn out.', 400, 1, { cotton: 2 }, { yarn: 1 }, 22, 0xd9a0b0),
   weavery: proc('manufacturing', 'Weavery', 'Yarn in, cloth out.', 520, 2, { yarn: 2 }, { cloth: 1 }, 26, 0x7f9fc8),
   tailor: proc('manufacturing', 'Garment Factory', 'Cloth in, clothes out. Big money.', 650, 2, { cloth: 2 }, { clothes: 1 }, 34, 0x4f7f6f),
-  workshop: proc('manufacturing', 'Furniture Workshop', 'Lumber in, furniture out.', 900, 2, { lumber: 2 }, { furniture: 1 }, 34, 0x8b5a3a),
+  workshop: proc('manufacturing', 'Furniture Workshop', 'Lumber and cloth in, furniture out.', 900, 2, { lumber: 2, cloth: 1 }, { furniture: 2 }, 34, 0x8b5a3a),
   printery: proc('manufacturing', 'Printery', 'Paper in, books out.', 1200, 2, { paper: 2 }, { books: 1 }, 40, 0x4f6fa8),
 
   // Heavy industry
@@ -489,11 +577,11 @@ export const TOWN_LEVELS: TownLevel[] = [
 
 /** Goods the Market wants at each town level: finished goods people use every day. Raw and building goods go to the Supply Yard. */
 export const MARKET_DEMAND: Good[][] = [
-  ['bread', 'cheese'],
-  ['bread', 'cheese', 'paper', 'jam', 'coffee', 'mango', 'pellets', 'feed', 'mulch'],
-  ['bread', 'cheese', 'paper', 'jam', 'coffee', 'mango', 'pellets', 'feed', 'mulch', 'oil', 'furniture', 'clothes', 'tools'],
-  ['bread', 'cheese', 'paper', 'jam', 'coffee', 'mango', 'pellets', 'feed', 'mulch', 'oil', 'furniture', 'clothes', 'tools', 'books'],
-  ['bread', 'cheese', 'paper', 'jam', 'coffee', 'mango', 'pellets', 'feed', 'mulch', 'oil', 'furniture', 'clothes', 'tools', 'books', 'machinery'],
+  ['bread', 'cheese', 'milk', 'eggs', 'fruit', 'vegetables', 'potatoes', 'firewood'],
+  ['bread', 'cheese', 'milk', 'eggs', 'fruit', 'vegetables', 'potatoes', 'firewood', 'butter', 'jam', 'juice', 'pastry', 'pasta', 'canned', 'crisps', 'meat', 'honey', 'water', 'mulch', 'pellets', 'feed', 'paper', 'coffee', 'mango'],
+  ['bread', 'cheese', 'milk', 'eggs', 'fruit', 'vegetables', 'potatoes', 'firewood', 'butter', 'jam', 'juice', 'pastry', 'pasta', 'canned', 'crisps', 'meat', 'honey', 'water', 'mulch', 'pellets', 'feed', 'paper', 'coffee', 'mango', 'pizza', 'beer', 'wine', 'soda', 'icecream', 'sausage', 'chocolate', 'candles', 'pillows', 'cookoil', 'fuel', 'oil', 'furniture', 'clothes', 'tools'],
+  ['bread', 'cheese', 'milk', 'eggs', 'fruit', 'vegetables', 'potatoes', 'firewood', 'butter', 'jam', 'juice', 'pastry', 'pasta', 'canned', 'crisps', 'meat', 'honey', 'water', 'mulch', 'pellets', 'feed', 'paper', 'coffee', 'mango', 'pizza', 'beer', 'wine', 'soda', 'icecream', 'sausage', 'chocolate', 'candles', 'pillows', 'cookoil', 'fuel', 'oil', 'furniture', 'clothes', 'tools', 'books', 'spirits'],
+  ['bread', 'cheese', 'milk', 'eggs', 'fruit', 'vegetables', 'potatoes', 'firewood', 'butter', 'jam', 'juice', 'pastry', 'pasta', 'canned', 'crisps', 'meat', 'honey', 'water', 'mulch', 'pellets', 'feed', 'paper', 'coffee', 'mango', 'pizza', 'beer', 'wine', 'soda', 'icecream', 'sausage', 'chocolate', 'candles', 'pillows', 'cookoil', 'fuel', 'oil', 'furniture', 'clothes', 'tools', 'books', 'spirits', 'machinery'],
 ];
 /** The goods a town gets a taste for (a price swing) among the raw and building goods. Only world generation reads it; keep it as is so towns look the same. */
 export const YARD_TASTE_GOODS: Good[] = ['logs', 'grain', 'cotton', 'stone', 'ore', 'coal', 'clay', 'sand', 'milk', 'fruit', 'sawdust', 'bran', 'whey', 'gravel', 'slag', 'feed', 'oil', 'lumber', 'flour', 'ingots', 'cement', 'yarn', 'pellets', 'glass', 'tools', 'steel', 'bricks', 'concrete', 'blocks', 'cloth'];
@@ -511,9 +599,9 @@ export const BUILD_LUMBER = [100, 150];
 export const LEVEL_MATERIALS: Record<TownStyle, Stock[]> = {
   nordic: [{ lumber: 200, stone: 100 }, { lumber: 500, stone: 300, blocks: 100 }, { lumber: 500, blocks: 300, bricks: 300 }, { steel: 1200, concrete: 2000, glass: 800, tools: 100 }],
   temperate: [{ lumber: 150, bricks: 150 }, { bricks: 400, lumber: 300, blocks: 100 }, { bricks: 500, blocks: 300, lumber: 400 }, { steel: 1000, concrete: 1800, glass: 700, tools: 100 }],
-  mediterranean: [{ stone: 150, bricks: 150 }, { blocks: 300, bricks: 300, lumber: 150 }, { blocks: 500, bricks: 500, stone: 300 }, { steel: 1000, concrete: 1800, blocks: 800, glass: 600 }],
+  mediterranean: [{ stone: 150, bricks: 150 }, { blocks: 300, bricks: 300, granite: 150 }, { blocks: 500, bricks: 500, granite: 300 }, { steel: 1000, concrete: 1800, blocks: 800, glass: 600 }],
   tropical: [{ lumber: 250, sand: 100 }, { lumber: 400, sand: 200, bricks: 150 }, { lumber: 400, bricks: 400, sand: 300 }, { steel: 1100, cement: 300, concrete: 2000, glass: 800 }],
-  arid: [{ bricks: 200, sand: 100 }, { bricks: 400, sand: 200, blocks: 100 }, { bricks: 500, blocks: 300, sand: 300 }, { steel: 1000, concrete: 1800, glass: 900, tools: 100 }],
+  arid: [{ bricks: 200, sand: 100 }, { bricks: 400, sand: 200, granite: 100 }, { bricks: 500, blocks: 300, sand: 300 }, { steel: 1000, concrete: 1800, glass: 900, tools: 100 }],
 };
 
 /** Goods a Supply Yard keeps in store for building: lumber for the Market, and the level materials. Its own trucks carry them to the Market site. */
@@ -524,10 +612,10 @@ export const MECHANIC_BUFF = 0.08;
 /** A truck that is fully worn waits this long for the shop, faster with a better shop, slower with distance. Ticks. */
 export const SHOP_WAIT = 900;
 
-export const BUILD_GOODS: Good[] = ['lumber', 'stone', 'blocks', 'bricks', 'sand', 'cement', 'concrete', 'glass', 'steel', 'tools'];
+export const BUILD_GOODS: Good[] = ['lumber', 'stone', 'granite', 'blocks', 'bricks', 'sand', 'gravel', 'cement', 'concrete', 'glass', 'steel', 'tools'];
 
 /** What a Warehouse (the Distribution Warehouse) may hold: finished goods only. Tools can go in both it and the Supply Yard. */
-export const WAREHOUSE_GOODS: Good[] = ['bread', 'cheese', 'jam', 'clothes', 'furniture', 'books', 'paper', 'coffee', 'mango', 'machinery', 'tools', 'pellets', 'feed', 'oil', 'mulch'];
+export const WAREHOUSE_GOODS: Good[] = ['bread', 'pastry', 'pizza', 'pasta', 'cheese', 'butter', 'icecream', 'jam', 'juice', 'canned', 'crisps', 'meat', 'sausage', 'beer', 'wine', 'spirits', 'soda', 'chocolate', 'candles', 'pillows', 'paper', 'books', 'clothes', 'furniture', 'tools', 'machinery', 'pellets', 'feed', 'cookoil', 'fuel', 'oil', 'mulch', 'coffee', 'mango', 'honey'];
 
 // ---- specialisation paths and districts ----
 
@@ -669,7 +757,7 @@ export const DISTRICT_UPGRADE_FACTOR = 1.3;
 export const AFFINITY_BONUS = 1.5;
 
 export const DISTRICTS: Record<DistrictId, DistrictDef> = {
-  farmersmarket: { label: 'Farmers Market', blurb: 'Stalls of fresh produce. Buys fruit and milk that the Market ignores.', minLevel: 1, cost: 450, goods: ['fruit', 'milk', 'bread', 'cheese', 'jam', 'flour'], price: 0.08, revenue: 10, demand: { market: ['fruit', 'milk'] }, affinity: 'breadbasket' },
+  farmersmarket: { label: 'Farmers Market', blurb: 'Stalls of fresh produce. Buys honey, juice and pasta that the Market ignores.', minLevel: 1, cost: 450, goods: ['honey', 'juice', 'pasta', 'bread', 'cheese', 'jam', 'flour'], price: 0.08, revenue: 10, demand: { market: ['honey', 'juice', 'pasta'] }, affinity: 'breadbasket' },
   restaurants: { label: 'Restaurant Row', blurb: 'Kitchens that burn through bread, cheese and jam.', minLevel: 2, cost: 1000, goods: ['bread', 'cheese', 'jam', 'flour'], price: 0.1, revenue: 24, affinity: 'breadbasket' },
   heating: { label: 'Heating Depot', blurb: 'Warms the town in winter. Wants pellets, coal and oil from the islands.', minLevel: 2, cost: 800, goods: ['pellets', 'coal', 'oil'], price: 0.1, revenue: 20, demand: { market: ['coal'] } },
   cafe: { label: 'Coffee House', blurb: 'The corner cafe. Pays well for island coffee, with bread, jam and milk to go with it.', minLevel: 2, cost: 700, goods: ['coffee', 'bread', 'jam', 'milk'], price: 0.12, revenue: 24, affinity: 'boulevard' },

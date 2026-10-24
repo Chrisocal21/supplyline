@@ -355,7 +355,7 @@ describe('production chains', () => {
     const { GOOD_LIST, SITE_DEFS, MARKET_DEMAND, FREIGHT_DEMAND, LEVEL_MATERIALS } = await import('./defs');
     const defs = Object.values(SITE_DEFS);
     for (const g of GOOD_LIST) {
-      const made = defs.some((d) => (d.produce && d.produce.good === g) || (d.recipe && g in d.recipe.outputs));
+      const made = defs.some((d) => (d.produce && (d.produce.good === g || (d.produce.also ?? []).some((x) => x.good === g))) || (d.recipe && g in d.recipe.outputs));
       const used = defs.some((d) => d.recipe && g in d.recipe.inputs) || MARKET_DEMAND.some((l) => l.includes(g)) || FREIGHT_DEMAND.some((l) => l.includes(g)) || Object.values(LEVEL_MATERIALS).some((t) => t.some((m) => g in m)) || g === 'lumber';
       expect({ g, made }).toEqual({ g, made: true });
       expect({ g, used }).toEqual({ g, used: true });

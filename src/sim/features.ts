@@ -610,12 +610,12 @@ export function generateFeatures(terrain: Terrain[], width: number, height: numb
     }
     const belt = anchors.length ? open.filter((t) => anchors.some((a) => dist2(a, t) <= 36)) : open;
     const farmPool = belt.length >= 6 ? belt : open;
-    spread(farmPool, Math.max(2, Math.min(5, Math.round(tiles.length / 90))), 4, 'farmland', id);
-    spread(open, Math.max(1, Math.min(3, Math.round(tiles.length / 110))), 4, 'pasture', id);
-    spread(open, Math.max(1, Math.min(2, Math.round(tiles.length / 150))), 4, 'orchard', id);
+    spread(farmPool, Math.max(3, Math.min(8, Math.round(tiles.length / 55))), 4, 'farmland', id);
+    spread(open, Math.max(2, Math.min(5, Math.round(tiles.length / 80))), 4, 'pasture', id);
+    spread(open, Math.max(2, Math.min(4, Math.round(tiles.length / 110))), 4, 'orchard', id);
     // Clay lies near the water: just back from the shore, on dry ground.
     const shore = tiles.filter((t) => waterWithin(t, NODE_DRY + 2) <= NODE_DRY + 2);
-    if (shore.length > 0) spread(shore, Math.max(1, Math.min(2, Math.round(tiles.length / 160))), 4, 'clay', id);
+    if (shore.length > 0) spread(shore, Math.max(2, Math.min(4, Math.round(tiles.length / 110))), 4, 'clay', id);
   }
   for (const [id, tiles] of mountainTiles) {
     // Quarries, mines and coal seams sit at the foot of a mountain: grass within two tiles of the rock, so a road reaches them on the flat.

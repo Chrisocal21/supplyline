@@ -20,7 +20,7 @@ export const SEASONS: Season[] = [
 ];
 
 /** The sites whose output follows the seasons. */
-export const SEASONAL: SiteKind[] = ['farm', 'cottonfarm', 'orchard'];
+export const SEASONAL: SiteKind[] = ['farm', 'cottonfarm', 'orchard', 'vegfarm', 'potatofarm', 'barleyfarm', 'hopfarm', 'sugarfarm', 'oilseedfarm', 'vineyard'];
 
 export const seasonIndex = (tick: number): number => Math.floor(tick / SEASON_TICKS) % SEASONS.length;
 export const seasonOf = (tick: number): Season => SEASONS[seasonIndex(tick)];

@@ -52,10 +52,10 @@ describe('districts', () => {
     const w = world();
     const p = w.places[0];
     const market = w.sites.find((s) => s.placeId === p.id && s.kind === 'market')!;
-    expect(dockDemand(w, market)).not.toContain('fruit');
+    expect(dockDemand(w, market)).not.toContain('honey');
     buildDistrict(w, p, 'farmersmarket');
-    expect(districtDemand(p, 'market')).toEqual(['fruit', 'milk']);
-    expect(dockDemand(w, market)).toContain('fruit');
+    expect(districtDemand(p, 'market')).toEqual(['honey', 'juice', 'pasta']);
+    expect(dockDemand(w, market)).toContain('honey');
   });
 
   it('raise what the town pays for the goods they live on', () => {
