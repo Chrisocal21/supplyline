@@ -16,8 +16,9 @@ run('pacing report', () => {
   const hours = Number(process.env.PACING_HOURS ?? 4);
   const verbose = !!process.env.PACING_NOTES;
   const t0 = Date.now();
+  const style = process.env.PACING_STYLE === 'quest' ? 'quest' : 'skilled';
   const r = playBot(seed, Math.round(hours * 36000), verbose ? (n) => process.stdout.write(`${min(n.tick).padStart(10)}  ${n.text}
-`) : undefined);
+`) : undefined, style);
   const w = r.world;
   const lines: string[] = [];
   lines.push(`seed ${seed}: ${hours} game hours in ${((Date.now() - t0) / 1000).toFixed(1)} s (sim ${(r.stepMs / 1000).toFixed(1)} s, bot ${(r.decideMs / 1000).toFixed(1)} s)`);

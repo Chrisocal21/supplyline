@@ -4,6 +4,7 @@
 import {
   DISTRICTS,
   DISTRICT_ORDER,
+  MARKET_DEMAND,
   GOOD_LIST,
   PATH_ORDER,
   SITE_DEFS,
@@ -18,6 +19,7 @@ import {
   type SiteKind,
 } from './defs';
 import { questState } from './quests';
+import { serviceError, serviceVehicle } from './drivers';
 import { buildDistrict, choosePath, districtCost, districtError, districtLevel, districtSatisfaction, pathError } from './town';
 import {
   buyOptions,
@@ -113,7 +115,9 @@ export function runChores(w: World): string[] {
   return did;
 }
 
-export function playBot(seed: number, ticks: number, onNote?: (n: BotNote) => void): BotResult {
+export type BotStyle = 'quest' | 'skilled';
+
+export function playBot(seed: number, ticks: number, onNote?: (n: BotNote) => void, style: BotStyle = 'quest'): BotResult {
   const w = createWorld(seed);
   const notes: BotNote[] = [];
   const note = (text: string): void => {
@@ -203,6 +207,8 @@ export function playBot(seed: number, ticks: number, onNote?: (n: BotNote) => vo
           if (spot) break;
         }
       }
+      // Factories no longer have to stand on a town lot: a full town sends them to open ground beside it.
+      if (!spot) spot = openFor(kind, town);
       if (!spot) return 'fail';
       if (w.money < def.cost + 60) return 'wait';
       if (placeSite(w, kind, spot.x, spot.y)) return 'fail';
@@ -266,6 +272,95 @@ export function playBot(seed: number, ticks: number, onNote?: (n: BotNote) => vo
     const path = findPath(w, maker, yard, 120000, 'road');
     if (!path || !roadKindFor(w, maker.id, { path }) || w.money < 400 + path.length * 8) return;
     if (createRoute(w, path, 'road', 'street') === null) note(`road ${maker.name} to ${yard.name}`);
+  };
+
+  /** A raw or finished good made outside a town needs a road to the town's Market (or Supply Yard) before anyone can sell it. */
+  const roadToTown = (g: Good, town: Place, dockKind: 'market' | 'freight'): 'ok' | 'built' | 'wait' | 'fail' => {
+    const dock = w.sites.find((x) => x.kind === dockKind && x.placeId === town.id);
+    const maker = siteFor(g, town);
+    if (!dock || !maker) return 'fail';
+    if (routeBetween(maker, dock)) return 'ok';
+    if (w.places.some((p) => inTownOf(maker, p) && inTownOf(dock, p))) return 'ok';
+    const path = findPath(w, maker, dock, 120000, 'road');
+    if (!path || !roadKindFor(w, maker.id, { path })) return 'fail';
+    if (w.money < 400 + path.length * 8) return 'wait';
+    return createRoute(w, path, 'road', 'street') === null ? 'built' : 'fail';
+  };
+
+  /**
+   * A careful player: one home town at a time. Open its Supply Yard and Market, then make exactly what that Market buys and
+   * road it in, build the level materials, grow, and only then turn to the next town. Money is kept in reserve, buildings are
+   * upgraded only when they are selling, and trucks are only added where goods pile up.
+   */
+  const skilledTurn = (idle: () => boolean): void => {
+    const reserve = Math.min(800, 150 + w.sites.length * 15);
+    // A careful player keeps the fleet in repair: a worn truck is slow and carries less.
+    for (const v of w.vehicles) if ((v.wear ?? 0) > 0.55 && serviceError(w, v.id) === null) serviceVehicle(w, v.id);
+    const focus = w.places.filter((_p, i) => i === 0 || (w.places[i - 1].level >= 2 && (w.places[i - 1].stage ?? 2) >= 2)).slice(0, 4);
+    for (const town of focus) {
+      if (!idle()) return;
+      if ((town.stage ?? 2) < 2) {
+        supplyYard('lumber', town);
+        // Nothing sells until the Market stands and a level 2 building needs Tier 1, so the starting money goes into more lumber:
+        // a second and third Forestry Camp, each with its road to the mill. One camp feeds less than a third of a Sawmill.
+        if (idle() && home === town) {
+          const mill = w.sites.find((x) => x.kind === 'sawmill');
+          const camps = w.sites.filter((x) => x.kind === 'forestry');
+          if (mill && camps.length < 4 && w.money > reserve + 700) {
+            const spot = nodeFor('forestry', town);
+            if (spot && placeSite(w, 'forestry', spot.x, spot.y) === null) note('built Forestry Camp');
+          }
+          for (const c of camps) {
+            if (!idle() || !mill || routeBetween(c, mill)) continue;
+            const path = findPath(w, c, mill, 120000, 'road');
+            if (path && roadKindFor(w, c.id, { path }) && w.money > 400 + path.length * 8 && createRoute(w, path, 'road', 'street') === null) note(`road ${c.name} to ${mill.name}`);
+          }
+        }
+        continue;
+      }
+      // What this town's Market pays for, cheapest chains first.
+      const wanted = [...(MARKET_DEMAND[town.level - 1] ?? [])].filter((g) => (SITE_DEFS[producerKind(g) ?? 'farm'].tier <= w.tier));
+      wanted.sort((a, b) => (SITE_DEFS[producerKind(a)!]?.cost ?? 9e9) - (SITE_DEFS[producerKind(b)!]?.cost ?? 9e9));
+      let working = 0;
+      for (const g of wanted) {
+        if (!idle()) return;
+        if (w.money < reserve + 200) break;
+        const maker = siteFor(g, town);
+        if (maker && (maker.stall === 'input' || maker.stall === 'room') && (maker.run ?? 0) < 0.2 && w.tick - maker.id > 0 && working >= 3) continue;
+        if (!chain(g, town)) continue;
+        const r = roadToTown(g, town, 'market');
+        if (r === 'built') {
+          note(`road ${g} to ${town.name} Market`);
+          return;
+        }
+        if (r === 'ok') working += 1;
+      }
+      for (const [g] of matsNeeded(town)) if (idle() && SITE_DEFS[producerKind(g) ?? 'farm'].tier <= w.tier) {
+        supplyYard(g, town);
+      }
+      // Growth waits for materials; money goes into the town meanwhile.
+      if (idle() && w.money > reserve + 600) districtSomething(reserve + 300);
+    }
+    if (idle()) pickPaths();
+    if (idle() && w.money > reserve + 1200) {
+      // Only a building that is selling and has its shelves full is worth a bigger model.
+      const cands = w.sites.filter((x) => !SITE_DEFS[x.kind].dock && !SITE_DEFS[x.kind].station && (x.run ?? 0) > 0.7 && upgradeError(w, x.id) === null);
+      const c = cands.sort((a, b) => SITE_DEFS[a.kind].cost * a.level - SITE_DEFS[b.kind].cost * b.level)[0];
+      if (c && upgradeSite(w, c.id) === null) note(`upgraded ${c.name} to level ${c.level}`);
+    }
+    if (idle() && w.money > reserve + 600) {
+      for (const r of w.routes) {
+        const from = w.sites.find((x) => x.id === r.fromSiteId);
+        if (!from || r.free) continue;
+        const main = produces(from)[0];
+        const full = !!main && (from.stock[main] ?? 0) > SITE_DEFS[from.kind].cap * 0.8;
+        const kind = r.mode === 'road' ? roadKindFor(w, from.id, r) : r.mode === 'rail' ? 'train' : 'plane';
+        if (kind && full && w.vehicles.filter((v) => v.routeId === r.id).length < 3 && buyVehicle(w, from.id, kind) === null) {
+          note(`added a ${kind}`);
+          break;
+        }
+      }
+    }
   };
 
   // ---- spending the surplus ----
@@ -438,6 +533,11 @@ export function playBot(seed: number, ticks: number, onNote?: (n: BotNote) => vo
         if (questState(w, tier, q).done) continue;
         doQuest(q.goal);
       }
+    }
+    if (style === 'skilled') {
+      skilledTurn(idle);
+      decideMs += performance.now() - d0;
+      continue;
     }
     // Three towns are developed side by side: the base chains everywhere first, then each extra good in turn.
     const towns = [home, ...w.places.slice(1, 3)];
