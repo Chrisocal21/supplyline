@@ -1,4 +1,4 @@
-# Goods and production sites: draft list (not built yet)
+# Goods and production sites: draft list (built in 0.90 to 0.93; kept as the design record)
 
 Farming-Simulator style: raw sites make raw goods, factories take one or SEVERAL inputs and mix them into something new.
 Every good ends at one of three places, and every raw good has a path to money.

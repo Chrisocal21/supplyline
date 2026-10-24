@@ -615,3 +615,32 @@ Black reserved ground (found): the ambient-occlusion pass draws every mesh as a 
 ## 2026-10-18 0.17: land plots
 
 New games now lay out land as a patchwork of plots (src/sim/land.ts): a fixed grid of 4-tile cells merged into 1x1, 2x1, 1x2 or 2x2 blocks by a seeded roll. A building outside a town needs its plot bought first (click the plot with a building tool active, then click again to build). Plots touching a town's ground are the town's and not for sale. Price follows the ground (grass 14, forest 9, mountain 7 per tile, plus resource nodes), dearer within 10 tiles of a town (x1.5) or 20 (x1.2). New games start owning the plots of the start town's nearest forest, field and meadow. Plots show as outlines while a building tool is active: white for sale, gold owned. Worlds from tests and older saves keep the old build-anywhere rules (world.landRules is off). Roads are public: no plot needed.
+
+## 0.70 to 0.98 (Oct 17 to 24, 2026): yards, goods overhaul, open placement, fog of war
+
+**Supply Yard and Distribution Warehouse (0.72 to 0.88)**
+- The Supply Yard holds building materials only (lumber, gravel, granite, concrete, steel...). It stores them for the town's builds and pays nothing. Its page shows "N of M stored" and "for building". A new Supply Yard has no truck: buy one on its Trucks tab (0.78 to 0.79), then send lumber to the Market site.
+- The Distribution Warehouse is for finished goods shipped to other towns' Markets. The Market takes finished goods plus fresh food.
+- Towns start closed: bare building sites until the yard and Market are built from lumber (0.74, 0.77). Building them pays nothing. First quests walk through it.
+- Truck reach became very long (Box Truck 900 tiles); fuel, wear and fleet size are the real limits (0.75, 0.76). Drivers take quicker roads as roads are built and waste less fuel with experience (0.73).
+- Drivers are hired and moved. Buying a truck lets you move a working driver into it, leaving the old truck parked (0.84). The driver picker scrolls (0.85). A Mechanic Shop repairs wear.
+- Bank open from tier 0 (0.80). Quest bar shows lumber progress for the yard and Market.
+- Vehicle upgrade buttons are gone; you buy the bigger class and move the driver. Quests say "Buy a Big Box Truck" (0.89).
+- Low on cash badge: quiet help when costs outrun sales, no penalties (0.71). Desktop checks for an update at start (0.70).
+
+**Goods and sites overhaul (0.90 to 0.93)**
+- About 45 new goods and 38 new sites: crops (vegetables, potatoes, sugar beet, sunflower, hops, barley, grapes), animals (eggs, pork, wool, honey, chickens, pigs, sheep), water, salt, spices, cocoa, and kitchens and plants (creamery, juice press, sugar refinery, oil press, pastry kitchen, noodle maker, pizzeria, cannery, butcher, brewery, soda plant, winery, distillery, ice cream, crisps, sausage, chocolate, candles, pillows, granite, refinery and more). Recipes mix several inputs.
+- By-products: every by-product has two or more outlets, one a real factory. Recycling Yard takes any by-product at half price (6 units a minute per good). Garden Supply turns it into mulch; concrete takes gravel. Wood chips, spent grain, husks, feathers, wax and fish scraps all have new uses.
+- Fishing Harbor on the coast (0.92): fishing boats go out and come back on their own, each boat raises the catch. Trucks carry fish to the Market, smokehouse, fish cannery and fish meal plant.
+- src/sim/flows.ts and flows.test.ts check the whole economy: every good has a maker and an outlet, by-products have outlets, and nothing is made more than four times faster than it is used. World generation stays the same when goods are added (frozen taste lists in features.ts).
+- Price and recipe balance pass (0.93), using BALANCE=1 npx vitest run src/sim/balance.test.ts.
+- 16 new radio stations (0.86).
+
+**Look and models (0.94 to 0.96)**
+- Models for all new sites; every building has a different model at each level 1 to 3; towns have different models per growth level. Buildings and houses never stand on a road (0.94, 0.95).
+- Open placement (0.95, 0.98): anything that needs no resource node (farms, factories, warehouses) goes on any open ground in the green zone or on a town plot. A node is only the better spot. Every such build tool lights open ground green (same green as the road tool), and plots for sale gold.
+- Truck level-up panel (0.95): shows the driver's next rank progress and a checklist of exactly what the next truck needs, with Upgrade Building and Buy buttons.
+- Windows: app opens at 1920x1080, minimum 1100x720 (0.85, 0.87). The build tray spreads across the window and scrolls by rows with the wheel (0.96).
+
+**Fog of war (0.97)**
+- Things far from the view (past the horizon or beyond a range set by zoom and graphics level) are hidden and not worked on: buildings, their moving parts and smoke, towns, and sleeping vehicles (checked every 20 frames). The sim itself keeps running. Screenshots and the opening cinematic are never trimmed. F3 shows an asleep count.

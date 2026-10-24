@@ -37,6 +37,11 @@
 | Does a bigger truck take more slots? How many building levels? | No, a bigger truck is still 1 slot. Buildings get 8 levels | Oct 18, 2026 |
 | Browser only or downloadable? | Both. A downloadable Windows app (Electron) with auto-updates, and the browser version stays. Same code | Oct 18, 2026 |
 | Steam or GitHub? | Steam is the goal; a GitHub download comes first for ease. Code kept behind a platform layer so Steam swaps in | Oct 18, 2026 |
+| Where does each good go? | Supply Yard: building materials only. Warehouse: finished goods for other towns. Market: finished goods and fresh food. Every by-product has two or more outlets | Oct 22, 2026 |
+| Where can production sites go? | Anywhere in the green zone or on town plots; nodes are only the better spot; never on roads | Oct 23, 2026 |
+| Do vehicles upgrade? | No upgrade buttons: buy the bigger class and move the driver | Oct 20, 2026 |
+| How do fishing boats work? | They return by themselves and raise the harbor catch; trucks carry the fish | Oct 22, 2026 |
+| How to keep the game light? | Fog of war: far things are hidden and sleep; range set by zoom and graphics level | Oct 23, 2026 |
 
 ---
 
@@ -46,6 +51,7 @@
 |---|---|
 | Should trains need stations (stops with their own storage) instead of joining sites directly? | Makes rail feel different from roads, but adds a building and more clicks. It would also let trains serve town centres: today track cannot reach a Market or Freight Yard, so a train ends at a hub or an outer-lot factory |
 | Should a station also send goods out? | Today a station only receives. Factories on outer lots can be reached by track directly; the two inner corner lots cannot |
+| Do the new goods and chains pace right? | The pacing bot has not been run on the 0.90 chains; a person and the bot should check tier timing |
 | Are the quest numbers right? | They are first guesses. The bot says Tier 3 arrives around 135 game minutes; a human playthrough will say if that feels right |
 | Do the paths feel different enough? | Four paths change price, factory speed, load size and storage. Only a person playing two paths can say if the choice matters |
 | Do running costs bite at the right moment? | Vehicles cost 5% of their price a minute. Bigger classes only pay for themselves when there is enough to carry |

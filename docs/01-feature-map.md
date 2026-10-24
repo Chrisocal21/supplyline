@@ -145,6 +145,18 @@ Drag from one site to another: the game finds the cheapest buildable route (brid
 
 ---
 
+## Yards, Goods and Placement (0.70 to 0.98)
+
+- **Supply Yard:** building materials only, stored for the town's builds, pays nothing. Trucks are bought on its Trucks tab.
+- **Distribution Warehouse:** finished goods for other towns. **Market:** finished goods and fresh food. Towns start closed and are built from lumber.
+- **Goods:** about 45 new goods and 38 new sites, mixed recipes (farm, kitchen, brewery chains), water as a trucked good, by-products with two or more outlets, Recycling Yard and Garden Supply as the safety net.
+- **Fishing Harbor:** coastal; self-working fishing boats raise the catch; trucks carry fish.
+- **Placement:** anything without a resource node goes on open ground or a town plot; green zone shown for every build tool; nothing on roads.
+- **Models:** a different model at each building level and each town growth level.
+- **Drivers and trucks:** hired drivers, move a driver between trucks, no upgrade buttons (buy the bigger class), level-up checklist panel, Mechanic Shop.
+- **Speed:** fog of war hides and sleeps things far from the view; graphics levels set how far.
+- **Windows app:** 1920x1080, scrolling build tray, 16 new radio stations.
+
 ## Phases
 
 **Done so far:** the 3D globe with terrain, towns, resource nodes, push/pull logistics, hubs, two road vehicle classes, bridges and tunnels, building levels, demolish, save and load, HUD with categories, hover cards and panels.
