@@ -35,4 +35,14 @@ describe('the last lumber for the Market', () => {
     expect(questProgress(w, goal).waiting).toBe('Buy a yard truck');
     expect(questProgress(w, goal).done).toBe(false);
   }, 120000);
+
+  it('the Market count shows only lumber that has reached the Market site, with the yard store beside it', () => {
+    const { w, p, yard } = setup();
+    p.build = 10;
+    yard.depot = { lumber: 50 };
+    const prog = questProgress(w, { kind: 'townbuilt', stage: 2, count: 1 });
+    expect(prog.have).toBe(10);
+    expect(prog.detail).toBe('50 in yard');
+    expect(prog.waiting).toBeUndefined();
+  }, 120000);
 });

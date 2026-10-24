@@ -29,12 +29,15 @@ export interface Progress {
   done: boolean;
   /** Set when the goal is waiting on something the player must do, in a few words (the yard store is full and needs a truck). */
   waiting?: string;
+  /** A second figure shown beside the count, such as the lumber that is only in the yard's store and not yet at the Market site. */
+  detail?: string;
 }
 
 export function questProgress(world: World, goal: QuestGoal): Progress {
   let have = 0;
   let need = 1;
   let waiting: string | undefined;
+  let detail: string | undefined;
   switch (goal.kind) {
     case 'build':
       have = world.sites.filter((s) => s.kind === goal.site).length;
@@ -71,23 +74,28 @@ export function questProgress(world: World, goal: QuestGoal): Progress {
         have = need = BUILD_LUMBER[goal.stage - 1];
       } else {
         need = BUILD_LUMBER[goal.stage - 1];
+        let best = -1;
         for (const p of world.places) {
           const stage = p.stage ?? 2;
-          let got = stage === goal.stage - 1 ? (p.build ?? 0) : 0;
-          // At the Market stage, lumber waiting in the yard's store counts too.
+          // What counts is what has reached the site: the yard's store is lumber on its way, shown beside it and not added to it.
+          const got = stage === goal.stage - 1 ? (p.build ?? 0) : 0;
           let stored = 0;
           let yard: (typeof world.sites)[number] | undefined;
           if (goal.stage === 2 && stage === 1) {
             yard = world.sites.find((s) => s.placeId === p.id && SITE_DEFS[s.kind].dock === 'freight');
-            stored = yard?.depot?.lumber ?? 0;
-            got += stored;
+            stored = Math.floor(yard?.depot?.lumber ?? 0);
           }
-          have = Math.max(have, Math.min(got, need - 1));
-          // The yard store holds all the lumber the Market needs: only a Supply Yard truck can carry it over.
-          if (stage === 1 && yard && got >= need && stored > 0) {
-            const trucks = world.vehicles.filter((v) => v.homeId === yard!.id).length;
-            waiting = trucks === 0 ? 'Buy a yard truck' : 'Truck on its way';
-            have = need - 1;
+          const score = Math.min(got, need - 1) + stored / 1000;
+          if (score > best) {
+            best = score;
+            have = Math.min(got, need - 1);
+            detail = stored > 0 ? `${stored} in yard` : undefined;
+            waiting = undefined;
+            // The yard store holds all the lumber the Market still needs: only a Supply Yard truck can carry it over.
+            if (stage === 1 && yard && stored > 0 && got + stored >= need) {
+              const trucks = world.vehicles.filter((v) => v.homeId === yard!.id).length;
+              waiting = trucks === 0 ? 'Buy a yard truck' : 'Truck on its way';
+            }
           }
         }
       }
@@ -150,7 +158,7 @@ export function questProgress(world: World, goal: QuestGoal): Progress {
       have = world.places.some((p) => p.path === goal.path && builtDistricts(p).some((d) => d.def.capstone)) ? 1 : 0;
       break;
   }
-  return { have: Math.min(Math.floor(have), need), need, done: have >= need, ...(waiting ? { waiting } : {}) };
+  return { have: Math.min(Math.floor(have), need), need, done: have >= need, ...(waiting ? { waiting } : {}), ...(detail ? { detail } : {}) };
 }
 
 /** Whether every quest on a path is done: the path is mastered. */

@@ -776,3 +776,7 @@ What changed:
 ## 0.120: say what to do when the yard store is full
 
 - Correction to 0.119: the Market stuck at 119 of 120 was not a shelf bug. The quest bar counts the lumber waiting in the Supply Yard's store, capped one short of the goal, so "119 / 120" meant the store held it all and was waiting for a truck bought at the Supply Yard (as the quest says). Buying the truck made the number drop as the truck loaded and climb as it delivered. 0.119's change is a harmless safety. Now the quest bar shows "Buy a yard truck" (or "Truck on its way") instead of a number that looks one short.
+
+## 0.121: the Market count is delivered lumber only
+
+- The "Build the Market" count no longer adds the Supply Yard's store to the lumber that has reached the Market site, which made the number fall when a yard truck loaded. It shows what has been delivered to the Market site, with the yard store beside it ("0 / 120 (119 in yard)"), and "Buy a yard truck" when the store holds everything and no truck exists. The flow is unchanged: the Sawmill fills the Supply Yard's store (which also builds the yard itself first), and a yard truck, bought at the yard, carries the lumber to the Market site. The yard serves the buildings in its own town, not the places that make the goods.
