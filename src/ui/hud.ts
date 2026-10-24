@@ -538,9 +538,10 @@ export class HudScene extends Phaser.Scene {
     const bw = 380;
     const x = rightEdge - bw;
     const y = 8;
-    im.rect(2, x, y, bw, 44, 0x0b1118, 0.9, 3, color, 0.8);
+    im.rect(2, x, y, bw, p.split ? 58 : 44, 0x0b1118, 0.9, 3, color, 0.8);
     im.text('pf0', `${fps} fps   ${p.avgMs.toFixed(1)} ms   worst ${p.p95Ms.toFixed(1)} ms`, x + 10, y + 7, { size: 11, bold: true, color, layer: 3 });
     im.text('pf1', `sim ${p.simMs.toFixed(1)}   draw ${p.drawMs.toFixed(1)}   ${g.world.sites.length} bldg   ${g.world.vehicles.length} veh   ${p.calls} calls   ${Math.round(p.tris / 1000)}k tris`, x + 10, y + 25, { size: 10, color: COLORS.muted, layer: 3 });
+    if (p.split) im.text('pf2', p.split, x + 10, y + 40, { size: 10, color: COLORS.muted, layer: 3 });
     return bw + 8;
   }
 

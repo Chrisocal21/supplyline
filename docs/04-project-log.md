@@ -824,3 +824,8 @@ What changed:
 
 - Map 3 has 22 sea channels (3 tiles wide, bending, cut across narrow necks of land, never through mountains or near the start town) so ships reach more coast. A Tier 1 bridge spans one.
 - Smoothness, from Chris's F3 numbers (12 fps with 10 million triangles zoomed in, 9 fps with 15 million from far, 2,700 to 6,800 draw calls, with nothing built): the ground mesh was 5.3 million triangles on Map 3 (3 steps a tile), and bushes and rocks (no cheap model) drew everywhere the horizon showed. Now a big world draws its ground at 2 steps a tile (2.4 million), bushes and rocks show only up close (1.5 times the tree detail distance), trees beyond 5 times the detail distance are hidden (the ground picture shows the woods), and tree blocks are grouped in regions so a whole region is skipped at once and checked every third frame. Maps 1 and 2 are unchanged.
+
+## 0.131: F3 shows where the triangles go
+
+- F3 gains a third line: triangles drawn by kind (ground, trees, towns, sites, vehicles, other), refreshed about once a second. Chris's F3 after 0.130: 13.7M triangles and 5,260 calls from far (9 to 16 fps), 7.2M and 465 calls up close (51 to 57 fps). The ground is 2.4M of that; the rest was unexplained, hence the readout.
+- Far-away tree blocks now hide beyond 3 times the tree detail distance (was 5), which cuts draw calls from far.

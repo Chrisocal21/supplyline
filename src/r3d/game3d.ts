@@ -436,7 +436,8 @@ export class Game3D {
   private acc = 0;
   private last = 0;
   /** How the game is running, for the on-screen readout (F3): worked out from the last couple of seconds of frames. */
-  readonly perf = { fps: 0, avgMs: 0, p95Ms: 0, simMs: 0, drawMs: 0, workMs: 0, asleep: 0, calls: 0, tris: 0 };
+  readonly perf = { fps: 0, avgMs: 0, p95Ms: 0, simMs: 0, drawMs: 0, workMs: 0, asleep: 0, calls: 0, tris: 0, split: '' };
+  private splitFrame = 0;
   private perfGaps: number[] = [];
   /** Lower the graphics by itself when the game runs slowly. Off once the player picks a quality. */
   autoQuality = readAutoQuality();
@@ -1048,8 +1049,40 @@ export class Game3D {
   private composer: EffectComposer | null = null;
   private ao: GTAOPass | null = null;
 
+  /** Where the triangles go, as text for the F3 readout: what is visible in the scene, by kind. Worked out about once a second. */
+  private triSplit(): string {
+    const tri = (o: THREE.Object3D): number => {
+      if (!o.visible) return 0;
+      let n = 0;
+      const m = o as THREE.Mesh;
+      if (m.isMesh && m.geometry) {
+        const g = m.geometry;
+        const per = g.index ? g.index.count / 3 : (g.getAttribute('position')?.count ?? 0) / 3;
+        n += per * ((o as THREE.InstancedMesh).isInstancedMesh ? (o as THREE.InstancedMesh).count : 1);
+      }
+      for (const c of o.children) n += tri(c);
+      return n;
+    };
+    const known = new Map<THREE.Object3D, string>();
+    if (this.globe) known.set(this.globe.terrain, 'ground');
+    known.set(this.scenery.group, 'trees');
+    for (const t of this.townMeshes.values()) known.set(t.mesh, 'towns');
+    for (const m of this.siteMeshes.values()) known.set(m, 'sites');
+    for (const m of this.vehicleMeshes.values()) known.set(m as THREE.Object3D, 'vehicles');
+    const sum: Record<string, number> = {};
+    for (const o of this.scene.children) {
+      const k = known.get(o) ?? 'other';
+      sum[k] = (sum[k] ?? 0) + tri(o);
+    }
+    return Object.entries(sum).filter(([, n]) => n > 0).sort((a, b) => b[1] - a[1]).map(([k, n]) => `${k} ${n >= 1e6 ? (n / 1e6).toFixed(1) + 'M' : Math.round(n / 1000) + 'k'}`).join('  ');
+  }
+
   /** Draw the frame: with ambient occlusion when close to the ground, straight to the screen from space. */
   private draw(): void {
+    if (++this.splitFrame >= 90) {
+      this.splitFrame = 0;
+      this.perf.split = this.triSplit();
+    }
     const settings = GRAPHICS[this.graphicsQuality];
     // Count the whole frame, not just its last pass.
     this.renderer.info.autoReset = false;

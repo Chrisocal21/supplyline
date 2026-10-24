@@ -964,7 +964,7 @@ export class Scenery {
     if (this.lodFrame !== 0) return;
     const toEye = new THREE.Vector3();
     const up = new THREE.Vector3();
-    const farLimit = this.treeDetailDistance * 5;
+    const farLimit = this.treeDetailDistance * 3;
     for (const r of this.regions) {
       toEye.subVectors(eye, r.center);
       up.copy(r.center).normalize();
