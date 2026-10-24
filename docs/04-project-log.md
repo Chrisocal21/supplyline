@@ -891,3 +891,8 @@ What changed:
 - The demo already ended at Tier 2 with a "Demo complete" screen (stats, website link, save to file). A tester game with `#full` set, or the full installer, plays on with no limit, which is what looked like "just the game".
 - Added a DEMO tag beside the Menu button, and in the demo the build cards for Tier 2 and later show "Full game" (tooltip: in the full game, the demo ends at Tier 2) instead of a tier number.
 - Still open: the end screen links to the website, not Steam, until there is a Steam page.
+
+## 0.143: mock Steam store page
+
+- `steam/index.html`, served at `/steam/` and linked from the site nav: a store-style preview with trailer slot, screenshots, tags, about, free demo, system requirements, and a "We are looking for 3D artists" box for the coming artwork overhaul.
+- The Wishlist button is off until `LINKS.steam` in that page is set (the main site's `LINKS.steam` in `index.html` too). Requirements and release date are placeholders.
