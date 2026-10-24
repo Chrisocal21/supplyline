@@ -108,11 +108,6 @@ export function resourceDetails(kind: SiteKind, level: number) {
       else tank(p, 1.22, -1.13, 0.85, 0.18, 0xb5b9af);
     }
   } else if (kind === 'forestry') {
-    for (let i = 0; i < 7; i++) p.box(0.012, 0.5, 0.018, 0xa38965, { x: -0.98 + i * 0.17, y: 0.05, z: 0.16, t: 2 });
-    for (const z of [0.45, 0.66]) {
-      p.cyl(0.068, 0.068, 0.008, 0x735335, { x: 0.557, y: 0.14, z, rz: Math.PI / 2 }, 12);
-      p.cyl(0.039, 0.039, 0.01, 0xbfa57b, { x: 0.565, y: 0.14, z, rz: Math.PI / 2 }, 12);
-    }
     for (let i = 0; i < 4; i++) pallet(p, -1.15 + i * 0.22, 1.18, 0xbaa078);
     if (level >= 2) shelter(p, 0.15, -1.32, 1.4, 0x626962);
     if (level >= 3) {

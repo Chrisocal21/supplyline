@@ -951,3 +951,9 @@ What changed:
 
 - Art direction: a clean stylized miniature strategy look at $0, keeping the code-built models and one shared palette (see docs/09). Stage 1 changes only the ground: `PAL` in `paint.ts` (grass, dry steppe, tundra and forest greens fresher and more distinct; the old olive made everything muddy) and the summer ground bounce light in `game3d.ts` (0x66714c to 0x5f7b4f). Fixed cameras for before and after: street, camp, mid, far, in the demo base.
 - Next stages: lighting and shadow softness, trees, then the globe from space.
+
+## 0.154: Forestry Camp v2, built in code
+
+- ChatGPT could not produce a .glb (it cannot write binary files), so models are now authored in code with the `Parts` helper, with ChatGPT used only for design ideas. A GLB loader stays an option for later.
+- `forestry()` in models.ts: a log cabin on a stone footing with corner posts, a shingle roof with ridge cap, stone chimney, porch, door and shuttered windows; a dirt yard; a three-row log stack on bearers with pale cut ends; loose logs; sawdust and wood-chip piles; chopping block with an axe; a skidder with hood, cab, blade and log arch. Same footprint and positions, so the level 2 and 3 extras still fit. The old thin plank slats and end caps in `resourceDetails.ts` were removed since they sat on the new front wall.
+- Checked with the camp close up, scenery hidden, front and back.

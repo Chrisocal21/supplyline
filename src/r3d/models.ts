@@ -47,31 +47,73 @@ function wheel(p: Parts, x: number, y: number, z: number, r = 0.09): void {
 
 function forestry(): THREE.BufferGeometry {
   const p = new Parts();
+  // Ground: the soil disc and its skirt, with a trodden dirt yard in front of the cabin and along the log pile.
   p.cyl(1.35, 1.4, 0.05, C.soil);
   p.cyl(1.32, 1.32, 1.5, 0x5a4c3a, { y: -1.5 });
+  p.box(0.34, 0.012, 1.1, 0x9a845f, { x: -0.45, y: 0.05, z: 0.8 });
+  p.cyl(0.5, 0.5, 0.012, 0x9a845f, { x: 0.55, y: 0.05, z: 0.6 }, 20);
   p.tex = 2;
-  // Cabin
-  p.box(1.2, 0.5, 0.8, C.timber, { x: -0.45, y: 0.05, z: -0.25 });
-  p.gable(1.36, 0.32, 0.96, C.roofDark, { x: -0.45, y: 0.55, z: -0.25 });
-  p.box(0.12, 0.4, 0.12, C.concreteDark, { x: -0.1, y: 0.7, z: -0.45 });
-  p.box(0.22, 0.34, 0.02, C.timberDark, { x: -0.45, y: 0.05, z: 0.16 });
-  framedWindow(p, -0.8, 0.2, 0.17, 0.22, 0.2);
-  // Log pile
-  log(p, 0.55, 0.05, 0.45);
-  log(p, 0.55, 0.05, 0.66);
-  log(p, 0.55, 0.23, 0.555);
-  log(p, 0.2, 0.05, 0.8, 0.8);
-  // Skidder
-  p.box(0.6, 0.26, 0.38, C.yellow, { x: 0.45, y: 0.13, z: -0.5 });
-  p.box(0.26, 0.24, 0.3, C.yellow, { x: 0.6, y: 0.39, z: -0.5 });
-  p.box(0.2, 0.14, 0.02, 0x9fc3d6, { x: 0.6, y: 0.5, z: -0.34 });
-  for (const [x, z] of [[0.25, -0.3], [0.65, -0.3], [0.25, -0.7], [0.65, -0.7]]) {
-    p.cyl(0.1, 0.1, 0.065, C.black, { x, y: 0.15, z, rx: Math.PI / 2 }, 16);
-    p.cyl(0.05, 0.05, 0.069, C.metal, { x, y: 0.15, z, rx: Math.PI / 2 }, 12);
+  // Cabin: timber walls on a stone footing, dark corner posts, a shingle roof with a ridge cap, a stone chimney.
+  const cx = -0.45;
+  const cz = -0.25;
+  p.box(1.24, 0.07, 0.84, 0x8d8b84, { x: cx, y: 0.05, z: cz, t: 6 });
+  p.box(1.2, 0.5, 0.8, 0x946a43, { x: cx, y: 0.1, z: cz });
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) p.box(0.075, 0.52, 0.075, 0x5c4129, { x: cx + sx * 0.6, y: 0.1, z: cz + sz * 0.4 });
+  for (let i = 0; i < 4; i++) p.box(1.22, 0.012, 0.82, 0x7a5636, { x: cx, y: 0.2 + i * 0.1, z: cz });
+  p.gable(1.42, 0.34, 1.02, 0x6b4a3a, { x: cx, y: 0.6, z: cz });
+  p.box(1.44, 0.025, 0.05, 0x4a3328, { x: cx, y: 0.94, z: cz, t: 0 });
+  p.box(0.15, 0.55, 0.15, 0x8d8b84, { x: -0.1, y: 0.62, z: -0.5, t: 6 });
+  p.box(0.19, 0.04, 0.19, 0x65625d, { x: -0.1, y: 1.17, z: -0.5, t: 6 });
+  // Front: a porch under a lean-to roof, the door, two shuttered windows.
+  p.box(0.95, 0.03, 0.3, 0xa07a4f, { x: cx, y: 0.05, z: cz + 0.55 });
+  for (const sx of [-1, 1]) p.box(0.05, 0.4, 0.05, 0x5c4129, { x: cx + sx * 0.44, y: 0.08, z: cz + 0.68 });
+  p.box(1.0, 0.035, 0.36, 0x4a3328, { x: cx, y: 0.5, z: cz + 0.6, rx: -0.14, t: 4 });
+  p.box(0.24, 0.36, 0.025, 0x4a3328, { x: cx, y: 0.1, z: cz + 0.41, t: 0 });
+  p.box(0.025, 0.04, 0.03, 0xd7a21f, { x: cx + 0.08, y: 0.28, z: cz + 0.43, t: 0 });
+  for (const wx of [-0.82, -0.08]) {
+    framedWindow(p, wx, 0.22, cz + 0.41, 0.2, 0.2);
+    for (const sx of [-1, 1]) p.box(0.06, 0.2, 0.02, 0x3f6a4a, { x: wx + sx * 0.15, y: 0.22, z: cz + 0.42, t: 0 });
   }
-  // Stumps and a couple of standing trees behind
-  p.cyl(0.07, 0.08, 0.1, C.timberDark, { x: -1.0, y: 0.04, z: 0.55 }, 8);
+  // Firewood stacked against the side wall.
+  for (let r = 0; r < 3; r++) for (let i = 0; i < 4 - r; i++) p.cyl(0.04, 0.04, 0.3, i % 2 ? 0xb08a56 : 0x946f43, { x: -1.08, y: 0.12 + r * 0.075, z: -0.62 + i * 0.09 + r * 0.045, rx: Math.PI / 2 }, 7);
+  // Log yard: a stack on bearers with pale cut ends, loose logs, and the by-product piles.
+  const stack = (x: number, z: number, rows: number): void => {
+    for (const bz of [-0.12, 0.12]) p.box(0.06, 0.04, 0.06, C.timberDark, { x: x - 0.4 + (bz > 0 ? 0.8 : 0), y: 0.05, z, t: 0 });
+    for (let r = 0; r < rows; r++) {
+      for (let i = 0; i < rows - r; i++) {
+        const lz = z + (i - (rows - r - 1) / 2) * 0.2;
+        const ly = 0.14 + r * 0.17;
+        p.cyl(0.09, 0.09, 1.0, (i + r) % 2 ? 0xa97f50 : 0x8d6a42, { x, y: ly, z: lz, rz: Math.PI / 2 }, 10);
+        for (const e of [-1, 1]) p.cyl(0.075, 0.075, 0.01, 0xd9bf8c, { x: x + e * 0.501, y: ly, z: lz, rz: Math.PI / 2 }, 10);
+      }
+    }
+  };
+  stack(0.55, 0.5, 3);
+  log(p, 0.2, 0.05, 0.9, 0.8);
+  p.cone(0.16, 0.16, 0xd2b27a, { x: 1.0, y: 0.05, z: 0.92 }, 10);
+  p.cone(0.13, 0.13, 0x9a7650, { x: 1.12, y: 0.05, z: 0.45 }, 9);
+  // Chopping block with an axe, and stumps.
+  p.cyl(0.09, 0.1, 0.14, 0x8a6a45, { x: -1.0, y: 0.05, z: 0.3 }, 10);
+  p.box(0.02, 0.2, 0.02, 0x6e4f33, { x: -1.0, y: 0.19, z: 0.3, rz: 0.4, t: 0 });
+  p.box(0.07, 0.05, 0.015, 0x9aa4ab, { x: -0.95, y: 0.34, z: 0.3, t: 5 });
+  p.cyl(0.07, 0.08, 0.1, C.timberDark, { x: -1.05, y: 0.04, z: 0.62 }, 8);
   p.cyl(0.06, 0.07, 0.08, C.timberDark, { x: 1.0, y: 0.04, z: 0.1 }, 8);
+  p.tex = 2;
+  // Skidder: yellow body and hood, a cab with glass and a roof, an exhaust, a front blade and a rear log arch.
+  p.box(0.6, 0.22, 0.38, C.yellow, { x: 0.45, y: 0.15, z: -0.5 });
+  p.box(0.3, 0.12, 0.34, 0xc4901a, { x: 0.3, y: 0.37, z: -0.5 });
+  p.box(0.26, 0.24, 0.3, C.yellow, { x: 0.6, y: 0.37, z: -0.5 });
+  p.box(0.3, 0.03, 0.34, 0x3a3d42, { x: 0.6, y: 0.62, z: -0.5, t: 0 });
+  p.box(0.2, 0.14, 0.02, 0x9fc3d6, { x: 0.6, y: 0.48, z: -0.34, t: 8 });
+  p.cyl(0.02, 0.02, 0.2, 0x2b2d30, { x: 0.22, y: 0.4, z: -0.4 }, 6);
+  p.box(0.04, 0.22, 0.42, 0x3a3d42, { x: 0.78, y: 0.1, z: -0.5, t: 5 });
+  for (const sz of [-1, 1]) p.box(0.03, 0.34, 0.03, 0x3a3d42, { x: 0.1, y: 0.15, z: -0.5 + sz * 0.17, t: 5 });
+  p.box(0.03, 0.03, 0.4, 0x3a3d42, { x: 0.1, y: 0.49, z: -0.5, t: 5 });
+  for (const [x, z] of [[0.25, -0.3], [0.65, -0.3], [0.25, -0.7], [0.65, -0.7]]) {
+    p.cyl(0.11, 0.11, 0.07, C.black, { x, y: 0.16, z, rx: Math.PI / 2 }, 16);
+    p.cyl(0.05, 0.05, 0.075, C.metal, { x, y: 0.16, z, rx: Math.PI / 2 }, 12);
+  }
+  // Standing trees behind the camp.
   for (const [x, z, h] of [[-1.1, -0.95, 1.2], [1.0, -0.95, 1.0]]) {
     addTree(p, 'pine', x, 0.05, z, h, x > 0 ? 1 : 0);
   }
