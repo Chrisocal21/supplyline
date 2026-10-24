@@ -644,3 +644,10 @@ New games now lay out land as a patchwork of plots (src/sim/land.ts): a fixed gr
 
 **Fog of war (0.97)**
 - Things far from the view (past the horizon or beyond a range set by zoom and graphics level) are hidden and not worked on: buildings, their moving parts and smoke, towns, and sleeping vehicles (checked every 20 frames). The sim itself keeps running. Screenshots and the opening cinematic are never trimmed. F3 shows an asleep count.
+
+## 0.99 to 0.100: money balance
+
+- New games start with $6,000 (was $1,500). Running costs cut: vehicles 1.5% of price a minute (was 4%), buildings 0.5% (was 1%), districts 1% (was 1.5%), driver wages $1, 1, 2, 3, 4 a minute by rank (were $2 to $16). Towns pay full list price (SALE_MULT 1, was 0.65).
+- Why: the pacing bot spent its $1,500 in two minutes, paid $43 a minute in upkeep and earned nothing for 30 minutes because a town pays nothing until its yard and Market are built. Wages were more than half of all upkeep, and a Box Truck earns only a few dollars a minute.
+- Company page: "Idle income a minute" and "$X/min idle" replace "Lost a minute"; those numbers are income a stalled building would make, not costs.
+- Measured with the bot on four seeds (cost share of earnings at 10, 30 and 80 minutes): about 25 to 35% in the good seed, 60 to 80% in the others at 80 minutes. The bot buys vehicles until it is broke, so that shows where the pinch is, not a ceiling. Still open: many trucks sit idle on stalled buildings (5 of 23 moving in one run), and the bot cannot finish a town's level 4 materials (sand), so Tier 2 is slow.

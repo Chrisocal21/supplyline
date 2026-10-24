@@ -498,7 +498,7 @@ export const DRIVER_SPEED = 0.04;
 export const DRIVER_RANKS = ['Rookie', 'Regular', 'Experienced', 'Veteran', 'Ace'];
 /** What a driver of each rank asks to be hired, and is paid every minute whether or not they have a truck. Draft numbers. */
 export const DRIVER_HIRE = [0, 60, 200, 500, 1200];
-export const DRIVER_WAGE = [1, 2, 4, 6, 9];
+export const DRIVER_WAGE = [1, 1, 2, 3, 4];
 /** How often the applicants change, in ticks. */
 export const APPLICANT_TICKS = 6000;
 
@@ -520,7 +520,7 @@ export const VEHICLE_UPKEEP = 0.015;
 export const SITE_UPKEEP = 0.005;
 export const DISTRICT_UPKEEP = 0.01;
 /** Towns pay this share of the list price. Keeps the early game from running away. */
-export const SALE_MULT = 0.65;
+export const SALE_MULT = 1;
 /** Trading in a vehicle for the next class returns this share of its price. */
 export const TRADE_IN = 0.5;
 
