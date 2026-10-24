@@ -881,3 +881,7 @@ What changed:
 
 - The demo is now a Windows installer (`npm run dist:demo`, or the "Demo Windows build" workflow in `.github/workflows/demo.yml`). It is the same app with `electron/demo.flag` packed in (`tools/build-demo.cjs`), its own app id and name ("Supplyline Demo"), and no auto-update, so it never turns into the full game. `src/demo.ts` reads the flag from the preload. It plays Map 1 and ends at Tier 2; the other maps show FULL GAME. The installer sits at a fixed address: releases/download/demo/Supplyline-Demo-Setup.exe (a prerelease, so it never counts as the latest full release).
 - The tester page moved from /newpage/ to /dockside/ and asks for a 4-digit code before it looks up the full-game download. Only a hash of the code is in the page, which is a hurdle, not security: the installer files are public on GitHub.
+
+## 0.141: road building uploads only the changed ground
+
+- After 0.138 a road still spiked the frame to about 200 ms: `regrade()` flagged the whole ground position and normal buffers for upload (tens of MB). It now adds an update range per changed row, so only those rows go to the GPU.

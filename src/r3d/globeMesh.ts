@@ -349,8 +349,24 @@ varying vec3 vSurfacePosition;`)
       any = true;
     }
     if (!any) return;
-    geo.getAttribute('position').needsUpdate = true;
     renormal(touched);
+    // Upload only the rows that changed: the whole ground is tens of megabytes, and sending it all stalled the frame.
+    const rows = new Map<number, [number, number]>();
+    for (const k of touched) {
+      const j = Math.floor(k / cols);
+      const r = rows.get(j);
+      if (!r) rows.set(j, [k, k]);
+      else {
+        if (k < r[0]) r[0] = k;
+        if (k > r[1]) r[1] = k;
+      }
+    }
+    const posAttr = geo.getAttribute('position') as THREE.BufferAttribute;
+    for (const [lo, hi] of rows.values()) {
+      posAttr.addUpdateRange(lo * 3, (hi - lo + 1) * 3);
+      nrm.addUpdateRange(lo * 3, (hi - lo + 1) * 3);
+    }
+    posAttr.needsUpdate = true;
     nrm.needsUpdate = true;
   };
 
