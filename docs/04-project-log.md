@@ -803,3 +803,9 @@ What changed:
 - A closed town's Supply Yard and Market are built from raw logs in Tier 0 and from sawn lumber from Tier 1 (`buildWood` in world.ts). The amounts stay 80 and 120. Logs join BUILD_GOODS so a yard stores them for its trucks. When Tier 1 opens, logs left in a yard store are turned into lumber, so nothing is stranded. Screen text names the right wood.
 - The Sawmill opens at Tier 1 (was Tier 0). Tier 0 quests lose "Build a Sawmill" and "Switch the Sawmill on"; the road, selling and yard quests now say logs. Tier 1 gains "Build a Sawmill in a town" and "Make 60 lumber" at the start. The tutorial moves its sawmill and switch-on steps to Tier 1.
 - Bot (Map 2, 1 h): Tier 1 at 5.0 min (was 9.8; no sawmill step and logs need half the wood), Tier 2 at 41.3. Tier 0 is now short for the bot; tuning left to Chris.
+
+## 0.127: Map 3 saves lean on the map, and Map 3 opens for play (beta)
+
+- A save of a made map no longer stores its ground. It stores the map id, the map's edit number (`rev` in the map file, 1 for now) and only the tiles that differ (cleared forest). A fresh Map 3 save falls from about 964 KB to 374 KB, so the autosave and five slots fit in browser storage. Save files you export stay self-contained.
+- If the map's `rev` changes (Chris edits the land), saves made before the edit cannot be read and the game says nothing but starts new: bump `rev` in tools/maps/map3.cjs on each layout edit, and only once the layout is frozen are testers safe. The map is fetched before a save that needs it is read (main.ts preloadBases).
+- Map 3 is now "Beta: preview and play" in the world menu; the preview button starts a normal game. Tests: lean round trip, a changed rev is refused, old and new saves both keep playing.

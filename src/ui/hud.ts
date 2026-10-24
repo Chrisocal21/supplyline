@@ -1609,7 +1609,7 @@ export class HudScene extends Phaser.Scene {
     this.sizePick = 'menu';
   }
 
-  /** A map that is still being made can be looked at here, and not played. */
+  /** A map in beta can be looked at here, and played from the preview. */
   private viewMap: { id: WorldSizeId; ready: boolean } | null = null;
   private mapGrid = { w: 768, h: 256 };
 
@@ -1694,7 +1694,7 @@ export class HudScene extends Phaser.Scene {
     im.rect(4, x, y, w, h, COLORS.panel, 1, 18, COLORS.accent, 1, 2);
     let cy = y + pad;
     im.text('mvT', def.label, x + pad, cy, { size: 21, bold: true, layer: 4 });
-    im.text('mvB', 'IN PROGRESS  ·  VIEW ONLY', x + w - pad, cy + 6, { size: 12, bold: true, color: COLORS.accent, align: 'right', layer: 4 });
+    im.text('mvB', 'BETA  ·  PREVIEW AND PLAY', x + w - pad, cy + 6, { size: 12, bold: true, color: COLORS.accent, align: 'right', layer: 4 });
     cy += 34;
     if (v.ready) {
       im.image('mvPic', `preview-${v.id}`, x + pad, cy, inner, picH, 1, 4);
@@ -1720,10 +1720,10 @@ export class HudScene extends Phaser.Scene {
     const bx = x + pad + half + 12;
     const th = !this.building && im.hit('mvTry', bx, cy, half, 42, () => this.tryMap(v.id), 4);
     im.rect(4, bx, cy, half, 42, th ? 0x2f6a46 : 0x24543a, 1, 21, COLORS.accent, 1);
-    im.text('mvTT', this.building ? 'Building the map...' : 'Try it (test build, may be slow)', bx + half / 2, cy + 12, { size: 14, bold: true, align: 'center', layer: 4 });
+    im.text('mvTT', this.building ? 'Building the map...' : 'Play Map 3 (beta, loads slowly)', bx + half / 2, cy + 12, { size: 14, bold: true, align: 'center', layer: 4 });
   }
 
-  /** Play a map that is still in progress, as a test: the world is made from its baked data and nothing else about it is promised. */
+  /** Play a beta map: the world is made from its baked data, and saved like any other game. */
   private tryMap(id: WorldSizeId): void {
     const def = WORLD_SIZES.find((q) => q.id === id)!;
     this.building = { name: def.label, step: 0, total: 1, label: 'Building the terrain, roads and trees (the map is large: this takes a while)' };
@@ -1737,7 +1737,7 @@ export class HudScene extends Phaser.Scene {
         this.activeTab = 'select';
         g.speed = 1;
         g.world.difficulty = this.difficulty;
-        this.toasts.push({ text: `${def.label}: test build started`, until: this.time.now + 2500 });
+        this.toasts.push({ text: `${def.label}: beta game started`, until: this.time.now + 2500 });
       }, 60);
     });
   }
@@ -1945,7 +1945,7 @@ export class HudScene extends Phaser.Scene {
       const hov = !this.building && im.hit(`sz${def.id}`, x + pad, cy, inner, rowH, () => (def.inProgress ? this.openMapView(def.id) : this.beginWorld(def.id)), 4);
       im.rect(4, x + pad, cy, inner, rowH, hov ? 0x1f2b3a : 0x131a24, 1, 12, hov ? COLORS.accent : COLORS.line, 1);
       im.text(`sz${def.id}n`, def.label, x + pad + 16, cy + 11, { size: 17, bold: true, color: hov ? COLORS.accent : COLORS.text, layer: 4 });
-      im.text(`sz${def.id}s`, def.inProgress ? `IN PROGRESS  ·  VIEW ONLY  ·  ${def.width} wide` : `${def.width} wide  ·  about ${tiles}k tiles`, x + pad + inner - 16, cy + 14, { size: 11, bold: !!def.inProgress, color: def.inProgress ? COLORS.accent : COLORS.muted, align: 'right', layer: 4 });
+      im.text(`sz${def.id}s`, def.inProgress ? `BETA  ·  PREVIEW AND PLAY  ·  ${def.width} wide` : `${def.width} wide  ·  about ${tiles}k tiles`, x + pad + inner - 16, cy + 14, { size: 11, bold: !!def.inProgress, color: def.inProgress ? COLORS.accent : COLORS.muted, align: 'right', layer: 4 });
       im.text(`sz${def.id}b`, def.blurb, x + pad + 16, cy + 38, { size: 12, color: COLORS.muted, wrap: inner - 32, layer: 4 });
       cy += rowH + 8;
     }

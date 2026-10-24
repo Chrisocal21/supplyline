@@ -71,6 +71,7 @@ import { checkQuests } from './quests';
 import { stepBank, type BankState } from './bank';
 import { SHORTCUT_EVERY, optimizeRoutes } from './shortcuts';
 import { WEAR_SLOWDOWN, WEAR_TILES, stepBreakdown, applicants, assignDriver, driverById, hireDriver, hireFee, type Driver, type Mechanic } from './drivers';
+import { registerBase } from './compact';
 import { saleMult, wearMult } from './perks';
 import { seasonMult } from './seasons';
 import { districtDemand, stepEconomy, townGrowthMult, townLoadMult, townPriceMult, townSpeedMult, townStorageMult } from './town';
@@ -438,6 +439,8 @@ export interface World {
   blend?: boolean;
   /** The made map this world was started from, if it was not generated. */
   mapId?: string;
+  /** Which edit of the map this game was made on; a save of a big map leans on the map itself. */
+  mapRev?: number;
   /** Tutorial steps finished (see tutorial.ts). */
   tutorialDone?: string[];
   /** Desert ground: one character for each tile, d or . (see desert.ts). Maps that have no desert leave it out. */
@@ -564,6 +567,8 @@ export function createWorld(seed = Math.floor(Math.random() * 1e9), width = 192,
 export interface MapData {
   id: string;
   name: string;
+  /** Bumped whenever the land is edited: saves of a big map hold only a difference from the map, so a new rev cannot read an old save. */
+  rev?: number;
   /** Names the seas, forests and regions, and drives anything else left to chance. */
   seed: number;
   width: number;
@@ -630,6 +635,8 @@ export function createWorldFromMap(map: MapData): World {
   world.blend = true;
   linkPartners(world);
   world.mapId = map.id;
+  world.mapRev = map.rev ?? 1;
+  registerBase(map);
   for (const p of world.places) {
     addDock(world, p, 'market');
     addDock(world, p, 'freight');

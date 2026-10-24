@@ -510,7 +510,7 @@ for (let y = 0; y < H; y++) {
   for (let x = 0; x < W; x++) r += desert[at(x, y)] ? 'd' : '.';
   drows.push(r);
 }
-const map = { id: 'map3', name: 'The Meridian Sea', seed: 3303, width: W, height: H, terrain: rows, elev: erows, places: placed, nodes: [], specials, islands: [], forestNodes: true, desert: drows };
+const map = { id: 'map3', name: 'The Meridian Sea', seed: 3303, width: W, height: H, terrain: rows, elev: erows, places: placed, nodes: [], specials, islands: [], forestNodes: true, desert: drows, rev: 1 };
 const out = path.join(__dirname, '../../src/maps/map3.json');
 fs.mkdirSync(path.dirname(out), { recursive: true });
 fs.writeFileSync(out, JSON.stringify(map));

@@ -7,7 +7,7 @@ const MARK = 'supplyline-save';
 
 /** The text of a save file: the world, with a label so a wrong file is caught. */
 export function packSave(world: World): string {
-  return JSON.stringify({ game: MARK, format: 1, build: VERSION, exportedAt: new Date().toISOString(), world: compactWorld(world) });
+  return JSON.stringify({ game: MARK, format: 1, build: VERSION, exportedAt: new Date().toISOString(), world: compactWorld(world, false) });
 }
 
 /** A file name like supplyline-birchridge-tier2-2026-10-17.json. */

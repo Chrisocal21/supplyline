@@ -6,41 +6,63 @@ import * as bankRules from './sim/bank';
 import { findPath } from './sim/path';
 import { HudScene } from './ui/hud';
 import { SEASON_LOOK, seasonLook } from './r3d/season';
+import { baseNeeded, registerBase, type BaseMap } from './sim/compact';
+
+/** Big made maps are saved as a difference from the map, so a save of one needs the map loaded before it can be read. */
+const MAP_FILES: Record<string, () => Promise<{ default: unknown }>> = { map3: () => import('./maps/map3.json') };
+async function preloadBases(): Promise<void> {
+  try {
+    const need = new Set<string>();
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith('supplyline.') && !k.endsWith('.meta')) {
+        const id = baseNeeded(localStorage.getItem(k));
+        if (id) need.add(id);
+      }
+    }
+    for (const id of need) if (MAP_FILES[id]) registerBase((await MAP_FILES[id]()).default as BaseMap);
+  } catch {
+    // No storage, or the map would not load: the save cannot be read, and a new game starts.
+  }
+}
 
 const game = new Game3D(document.body);
 const hash = location.hash;
 const seed = /seed=(\d+)/.exec(hash);
-// A tester who pressed Sync update comes back to their game, where they were, with no title screen.
-let synced: { lon: number; lat: number; dist: number; heading: number; pitch: number } | null = null;
-try {
-  const raw = sessionStorage.getItem('sl-sync');
-  if (raw) {
-    sessionStorage.removeItem('sl-sync');
-    synced = JSON.parse(raw);
+function boot(): void {
+  // A tester who pressed Sync update comes back to their game, where they were, with no title screen.
+  let synced: { lon: number; lat: number; dist: number; heading: number; pitch: number } | null = null;
+  try {
+    const raw = sessionStorage.getItem('sl-sync');
+    if (raw) {
+      sessionStorage.removeItem('sl-sync');
+      synced = JSON.parse(raw);
+    }
+  } catch {
+    // No session storage: nothing to resume.
   }
-} catch {
-  // No session storage: nothing to resume.
+  if (synced) {
+    if (!game.load()) game.newWorld();
+    game.cam.set(synced.lon, synced.lat, synced.dist, synced.heading, synced.pitch);
+  } else if (hash.includes('demo')) {
+    game.newWorld(seed ? +seed[1] : 11);
+    game.buildDemoBase();
+  } else if (hash.includes('map')) {
+    game.newWorld();
+  } else if (hash.includes('fresh') || seed) {
+    game.newWorld(seed ? +seed[1] : undefined);
+  } else if (hash.includes('notitle') || (hash.includes('shot') && !hash.includes('title'))) {
+    if (!game.load()) game.newWorld();
+  } else {
+    // The opening is a title screen with a slideshow. No world is built until the player picks Continue or New game, so it comes
+    // up at once and nothing is drawn in 3D behind it. The blank world only keeps the HUD happy.
+    game.world = sim.createBlankWorld(8, 4, new Array(32).fill('grass'));
+    game.showcase = true;
+    game.idle = true;
+  }
+  game.start();
 }
-if (synced) {
-  if (!game.load()) game.newWorld();
-  game.cam.set(synced.lon, synced.lat, synced.dist, synced.heading, synced.pitch);
-} else if (hash.includes('demo')) {
-  game.newWorld(seed ? +seed[1] : 11);
-  game.buildDemoBase();
-} else if (hash.includes('map')) {
-  game.newWorld();
-} else if (hash.includes('fresh') || seed) {
-  game.newWorld(seed ? +seed[1] : undefined);
-} else if (hash.includes('notitle') || (hash.includes('shot') && !hash.includes('title'))) {
-  if (!game.load()) game.newWorld();
-} else {
-  // The opening is a title screen with a slideshow. No world is built until the player picks Continue or New game, so it comes
-  // up at once and nothing is drawn in 3D behind it. The blank world only keeps the HUD happy.
-  game.world = sim.createBlankWorld(8, 4, new Array(32).fill('grass'));
-  game.showcase = true;
-  game.idle = true;
-}
-game.start();
+void preloadBases().then(boot);
 // Phones and tablets suspend a tab without warning, so save as the page is hidden.
 const saveOnLeave = (): void => {
   if (!game.demo && !game.showcase) game.save();
