@@ -4323,7 +4323,7 @@ export class HudScene extends Phaser.Scene {
     const extras: { title: string; text: string }[] = [];
     if (pv.lotsTo > pv.lotsFrom) extras.push({ title: `${pv.lotsTo - pv.lotsFrom} new building lots`, text: 'Homes near the centre move out, and the lots open up for your factories and mills' });
     if (pv.newMarket.length) extras.push({ title: 'Market starts buying', text: pv.newMarket.map((gd) => GOODS[gd].label).join(', ') });
-    if (pv.freightOpens) extras.push({ title: 'Supply Yard opens', text: `Buys raw goods and by-products: ${pv.newFreight.slice(0, 6).map((gd) => GOODS[gd].label.toLowerCase()).join(', ')} and more` });
+    if (pv.freightOpens) extras.push({ title: 'Supply Yard opens', text: `Stores building materials for the town: ${pv.newFreight.slice(0, 6).map((gd) => GOODS[gd].label.toLowerCase()).join(', ')}` });
     else if (pv.newFreight.length) extras.push({ title: 'Supply Yard starts buying', text: pv.newFreight.map((gd) => GOODS[gd].label).join(', ') });
     if (pv.districts.length) extras.push({ title: 'New districts to build', text: pv.districts.join(', ') });
     if (pv.pathOpens) extras.push({ title: 'Can specialise', text: 'Pick a path for the town: Breadbasket, The Forge, Trade Hub or The Boulevard' });

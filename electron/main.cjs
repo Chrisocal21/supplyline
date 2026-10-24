@@ -52,8 +52,8 @@ function createWindow() {
   win = new BrowserWindow({
     width: Math.min(1920, area.width),
     height: Math.min(1080, area.height),
-    minWidth: 960,
-    minHeight: 600,
+    minWidth: 1100,
+    minHeight: 720,
     backgroundColor: '#03060b',
     title: 'Supplyline',
     autoHideMenuBar: true,
