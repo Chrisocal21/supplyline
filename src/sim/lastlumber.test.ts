@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import map3 from '../maps/map3.json';
+import { questProgress } from './quests';
 import { createWorldFromMap, needs, pickCargo, siteCap, type MapData } from './world';
 
 describe('the last lumber for the Market', () => {
@@ -24,5 +25,14 @@ describe('the last lumber for the Market', () => {
     market.stock.lumber = siteCap(w, market);
     yard.depot = { lumber: 1 };
     expect(pickCargo(w, yard, market, 12)).toEqual({ good: 'lumber', amount: 1 });
+  }, 120000);
+
+  it('the quest says what to do when the yard store holds all the lumber and no truck is there', () => {
+    const { w, p, yard } = setup();
+    p.build = 0;
+    yard.depot = { lumber: 120 };
+    const goal = { kind: 'townbuilt', stage: 2, count: 1 } as const;
+    expect(questProgress(w, goal).waiting).toBe('Buy a yard truck');
+    expect(questProgress(w, goal).done).toBe(false);
   }, 120000);
 });

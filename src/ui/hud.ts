@@ -1142,7 +1142,7 @@ export class HudScene extends Phaser.Scene {
       if (next) {
         im.text('goal', next.quest.label, bx, qy + (narrow ? 4 : 7), { size: narrow || cw < 330 ? 11 : 13, bold: true, wrap: narrow ? cw - 50 : undefined, layer: 2 });
         im.bar(1, bx, qy + (narrow ? 27 : 34), cw - (narrow ? 42 + 58 : 62 + 98), narrow ? 6 : 8, next.progress.have / next.progress.need, COLORS.accent);
-        im.text('goalN', `${fmt(next.progress.have)} / ${fmt(next.progress.need)}`, cx0 + cw - (narrow ? 12 : 18), qy + (narrow ? 21 : 27), { size: narrow ? 11 : 13, bold: true, color: COLORS.warn, align: 'right', layer: 2 });
+        im.text('goalN', next.progress.waiting ?? `${fmt(next.progress.have)} / ${fmt(next.progress.need)}`, cx0 + cw - (narrow ? 12 : 18), qy + (narrow ? 21 : 27), { size: narrow ? 11 : 13, bold: true, color: next.progress.waiting ? COLORS.good : COLORS.warn, align: 'right', layer: 2 });
       } else {
         im.text('goal', 'All quests complete', bx, qy + (narrow ? 12 : 16), { size: 14, bold: true, color: COLORS.good, layer: 2 });
       }

@@ -27,11 +27,14 @@ export interface Progress {
   have: number;
   need: number;
   done: boolean;
+  /** Set when the goal is waiting on something the player must do, in a few words (the yard store is full and needs a truck). */
+  waiting?: string;
 }
 
 export function questProgress(world: World, goal: QuestGoal): Progress {
   let have = 0;
   let need = 1;
+  let waiting: string | undefined;
   switch (goal.kind) {
     case 'build':
       have = world.sites.filter((s) => s.kind === goal.site).length;
@@ -72,8 +75,20 @@ export function questProgress(world: World, goal: QuestGoal): Progress {
           const stage = p.stage ?? 2;
           let got = stage === goal.stage - 1 ? (p.build ?? 0) : 0;
           // At the Market stage, lumber waiting in the yard's store counts too.
-          if (goal.stage === 2 && stage === 1) got += world.sites.find((s) => s.placeId === p.id && SITE_DEFS[s.kind].dock === 'freight')?.depot?.lumber ?? 0;
+          let stored = 0;
+          let yard: (typeof world.sites)[number] | undefined;
+          if (goal.stage === 2 && stage === 1) {
+            yard = world.sites.find((s) => s.placeId === p.id && SITE_DEFS[s.kind].dock === 'freight');
+            stored = yard?.depot?.lumber ?? 0;
+            got += stored;
+          }
           have = Math.max(have, Math.min(got, need - 1));
+          // The yard store holds all the lumber the Market needs: only a Supply Yard truck can carry it over.
+          if (stage === 1 && yard && got >= need && stored > 0) {
+            const trucks = world.vehicles.filter((v) => v.homeId === yard!.id).length;
+            waiting = trucks === 0 ? 'Buy a yard truck' : 'Truck on its way';
+            have = need - 1;
+          }
         }
       }
       break;
@@ -135,7 +150,7 @@ export function questProgress(world: World, goal: QuestGoal): Progress {
       have = world.places.some((p) => p.path === goal.path && builtDistricts(p).some((d) => d.def.capstone)) ? 1 : 0;
       break;
   }
-  return { have: Math.min(Math.floor(have), need), need, done: have >= need };
+  return { have: Math.min(Math.floor(have), need), need, done: have >= need, ...(waiting ? { waiting } : {}) };
 }
 
 /** Whether every quest on a path is done: the path is mastered. */

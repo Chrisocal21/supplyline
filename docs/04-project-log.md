@@ -772,3 +772,7 @@ What changed:
 ## 0.119: the last lumber for the Market
 
 - Bug (found on Map 3 by Chris): the Market stuck at 119 of 120 lumber, the Sawmill full, its trucks waiting with nothing to carry. The Supply Yard only counted its shelf (what it bought) as room, so a yard whose shelf was full of lumber would take no more even though the town still needed lumber for building, and a Market whose shelf was full would take no more from the yard truck. Now what a town still needs for building is always taken in and carried on, whatever the shelves hold, and any truck bringing a yard the last of what it waits for leaves at once instead of waiting for a full load. Test: `src/sim/lastlumber.test.ts`. The quest says 120 lumber (it said 150).
+
+## 0.120: say what to do when the yard store is full
+
+- Correction to 0.119: the Market stuck at 119 of 120 was not a shelf bug. The quest bar counts the lumber waiting in the Supply Yard's store, capped one short of the goal, so "119 / 120" meant the store held it all and was waiting for a truck bought at the Supply Yard (as the quest says). Buying the truck made the number drop as the truck loaded and climb as it delivered. 0.119's change is a harmless safety. Now the quest bar shows "Buy a yard truck" (or "Truck on its way") instead of a number that looks one short.
