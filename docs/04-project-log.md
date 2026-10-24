@@ -780,3 +780,7 @@ What changed:
 ## 0.121: the Market count is delivered lumber only
 
 - The "Build the Market" count no longer adds the Supply Yard's store to the lumber that has reached the Market site, which made the number fall when a yard truck loaded. It shows what has been delivered to the Market site, with the yard store beside it ("0 / 120 (119 in yard)"), and "Buy a yard truck" when the store holds everything and no truck exists. The flow is unchanged: the Sawmill fills the Supply Yard's store (which also builds the yard itself first), and a yard truck, bought at the yard, carries the lumber to the Market site. The yard serves the buildings in its own town, not the places that make the goods.
+
+## 0.122: build zones for every building
+
+- While any building that goes on open ground is being placed, the land round the view is washed green where it can stand and orange (with an outline round each blocked area) where it cannot: town ground and plots reserved for a Market or Supply Yard, land kept clear for a town to grow, another building, a road, steep ground, land that is not yours. Roads and tracks already did this. Tiles are checked a few a frame, nearest the view first, and the picture stays up while it refreshes after something is built, so panning never stalls (checking one tile takes about 0.3 ms). Money is ignored, so the colours show where it can go, not what you can afford. Hovering still gives the exact reason. Resource spots keep their markers.

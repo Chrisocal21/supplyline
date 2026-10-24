@@ -333,6 +333,12 @@ const SEASON_LIGHT: Record<string, { sun: THREE.Color; sky: THREE.Color; ground:
   spring: { sun: new THREE.Color(0xfff0d0), sky: new THREE.Color(0xd4e8f2), ground: new THREE.Color(0x667f4a) },
 };
 
+/** The tile the camera is looking at. */
+const viewTileOf = (world: World, lon: number, lat: number): { x: number; y: number } => ({
+  x: ((lon + Math.PI) / (Math.PI * 2)) * world.width - 0.5,
+  y: world.height / 2 - (lat * world.width) / (Math.PI * 2) - 0.5,
+});
+
 export class Game3D {
   readonly renderer: THREE.WebGLRenderer;
   readonly scene = new THREE.Scene();
@@ -1248,6 +1254,9 @@ export class Game3D {
     this.scenery.showGates(this.isRouteTool());
     this.scenery.setRoadZones(this.isRouteTool() ? this.routeMode : null, `${w.sites.length}.${w.places.map((p) => `${p.level}${Object.values(p.districtLots ?? {}).join('_')}`).join(',')}`);
     this.scenery.setParcels(this.isBuildTool() && !!w.landRules, String((w.owned ?? []).length));
+    // A building that goes on open ground: show where it can stand and where it cannot, round the view.
+    const vt = townTool ? viewTileOf(w, this.cam.lon, this.cam.lat) : { x: 0, y: 0 };
+    this.scenery.setSiteZones(townTool ? (this.tool as SiteKind) : null, this.placeRot, vt.x, vt.y, `${w.sites.length}.${(w.owned ?? []).length}.${w.places.map((p) => p.level).join('')}`, this.nowMs);
     this.scenery.setNodesUsed(usedNodes);
   }
 

@@ -6,7 +6,8 @@ import { isSoftNode, type NodeKind } from '../sim/defs';
 import { tileLonLat } from '../sim/mapgen';
 import { parcelState, parcelsOf } from '../sim/land';
 import { seasonLook } from './season';
-import { plotTiles, reservedGround, siteAt, terrainAt, townBlocks, townGates, townGround, type World } from '../sim/world';
+import { placeError, plotTiles, reservedGround, siteAt, terrainAt, townBlocks, townGates, townGround, type Rot, type World } from '../sim/world';
+import type { SiteKind } from '../sim/defs';
 import { HeightField, LAT_SPAN, R, basisMatrix, lonLatToVec } from './geo';
 import { Parts } from './parts';
 import { specialtyNodeProps } from './specialty';
@@ -621,6 +622,7 @@ export class Scenery {
   /** Overlays that are drawn blended over the ground are left out of the ambient-occlusion pass, which would read them as solid. */
   hideOverlays(hide: boolean): void {
     if (this.zoneGroup && hide) this.zoneGroup.visible = false;
+    if (this.siteZoneGroup && hide) this.siteZoneGroup.visible = false;
     if (this.parcelGroup) this.parcelGroup.children.forEach((c) => ((c as THREE.Mesh).isMesh ? (c.visible = !hide) : undefined));
   }
 
@@ -731,6 +733,101 @@ export class Scenery {
       this.zoneGroup = group;
     }
     if (this.zoneGroup) this.zoneGroup.visible = true;
+  }
+
+  private siteZoneGroup: THREE.Group | null = null;
+  private siteZoneKey = '';
+  private siteZoneCell = '';
+  /** Whether a building of the current kind can stand on a tile, worked out a few tiles a frame (checking one is slow). */
+  private siteOk = new Map<number, boolean>();
+  private siteOkOld = new Map<number, boolean>();
+  private siteTodo: number[] = [];
+  private siteBuiltAt = 0;
+  private siteDirty = false;
+
+  /**
+   * While a building (not a resource spot) is being placed, the ground round the view is washed green where it can stand and
+   * red-orange where it cannot (reserved for a town, another building, steep, someone else's land). Each tile is checked a few at
+   * a time, nearest the view first, so panning never stalls; when something is built the old picture stays until the new one fills in.
+   */
+  setSiteZones(kind: SiteKind | null, rot: Rot | null, cx: number, cy: number, sig: string, now: number): void {
+    if (kind === null) {
+      if (this.siteZoneGroup) this.siteZoneGroup.visible = false;
+      return;
+    }
+    const w = this.world;
+    const key = `${kind}|${rot ?? ''}|${sig}`;
+    if (key !== this.siteZoneKey) {
+      // A different building (or turn) starts from nothing; only a change in what is built keeps the old picture until the new one fills in.
+      const same = this.siteZoneKey.split('|').slice(0, 2).join('|') === key.split('|').slice(0, 2).join('|');
+      this.siteZoneKey = key;
+      this.siteOkOld = same ? new Map([...this.siteOkOld, ...this.siteOk]) : new Map();
+      this.siteOk = new Map();
+      this.siteZoneCell = '';
+    }
+    const reach = 30;
+    const gx = Math.round(cx / 5) * 5;
+    const gy = Math.round(cy / 5) * 5;
+    const cell = `${gx},${gy}`;
+    if (cell !== this.siteZoneCell) {
+      this.siteZoneCell = cell;
+      const todo: { i: number; d: number }[] = [];
+      for (let y = Math.max(0, gy - reach); y <= Math.min(w.height - 1, gy + reach); y++) {
+        for (let dx = -reach; dx <= reach; dx++) {
+          const x = (((gx + dx) % w.width) + w.width) % w.width;
+          const i = y * w.width + x;
+          if (!this.siteOk.has(i)) todo.push({ i, d: dx * dx + (y - gy) * (y - gy) });
+        }
+      }
+      todo.sort((a, b) => b.d - a.d);
+      this.siteTodo = todo.map((t) => t.i);
+    }
+    // A few tiles a frame, from the nearest.
+    for (let n = 0; n < 60 && this.siteTodo.length > 0; n++) {
+      const i = this.siteTodo.pop()!;
+      const x = i % w.width;
+      const y = (i - x) / w.width;
+      const t = terrainAt(w, x, y);
+      if (t === null || t === 'water' || t === 'ice') continue;
+      const err = placeError(w, kind, x, y, rot ?? undefined);
+      this.siteOk.set(i, err === null || err.startsWith('Need $'));
+      this.siteDirty = true;
+    }
+    if (this.siteDirty && (this.siteTodo.length === 0 || now - this.siteBuiltAt > 250)) {
+      this.siteDirty = false;
+      this.siteBuiltAt = now;
+      if (this.siteZoneGroup) {
+        this.group.remove(this.siteZoneGroup);
+        this.siteZoneGroup.traverse((o) => {
+          const m = o as THREE.Mesh;
+          if (m.geometry) m.geometry.dispose();
+          if (m.material) (m.material as THREE.Material).dispose();
+        });
+      }
+      const ok: { x: number; y: number }[] = [];
+      const no: { x: number; y: number }[] = [];
+      const near = (i: number): boolean => {
+        const x = i % w.width;
+        const y = (i - x) / w.width;
+        let dx = Math.abs(x - gx);
+        dx = Math.min(dx, w.width - dx);
+        return dx <= reach && Math.abs(y - gy) <= reach;
+      };
+      const all = new Set<number>([...this.siteOkOld.keys(), ...this.siteOk.keys()]);
+      for (const i of all) {
+        if (!near(i)) continue;
+        const good = this.siteOk.get(i) ?? this.siteOkOld.get(i);
+        const x = i % w.width;
+        (good ? ok : no).push({ x, y: (i - x) / w.width });
+      }
+      const group = new THREE.Group();
+      group.add(this.tileQuads(ok, 0x8ff0b4, 0.34, 0.13));
+      group.add(this.tileQuads(no, 0xff8a45, 0.4, 0.15));
+      group.add(this.zoneEdge(no, 0xffc27a, 0.17));
+      this.group.add(group);
+      this.siteZoneGroup = group;
+    }
+    if (this.siteZoneGroup) this.siteZoneGroup.visible = true;
   }
 
   private readonly gateMarkers: THREE.Group[] = [];
