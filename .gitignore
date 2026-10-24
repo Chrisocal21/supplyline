@@ -4,3 +4,6 @@ dist
 dev.log
 
 release
+
+release-demo
+electron/demo.flag

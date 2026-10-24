@@ -30,5 +30,5 @@ const siteVersion = (): Plugin => ({
 export default defineConfig({
   plugins: [versionFile(), siteVersion()],
   server: { port: 3000, strictPort: true, open: false, host: true },
-  build: { rollupOptions: { input: { site: resolve(__dirname, 'index.html'), play: resolve(__dirname, 'play/index.html'), goods: resolve(__dirname, 'goods/index.html'), newpage: resolve(__dirname, 'newpage/index.html') } } },
+  build: { rollupOptions: { input: { site: resolve(__dirname, 'index.html'), play: resolve(__dirname, 'play/index.html'), goods: resolve(__dirname, 'goods/index.html'), dockside: resolve(__dirname, 'dockside/index.html') } } },
 });

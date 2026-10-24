@@ -1930,7 +1930,7 @@ export class HudScene extends Phaser.Scene {
     let cy = y + pad;
     im.text('doT', 'Demo complete', x + w / 2, cy, { size: 26, bold: true, color: COLORS.accent, align: 'center', layer: 4 });
     cy += 40;
-    im.text('doB', 'You reached Tier 2. The free demo ends here. The full game, on Windows, goes on from Tier 2 to Tier 4: rail, ports, ships, planes, steel and machinery, on all three maps.', x + pad, cy, { size: 14, wrap: inner, layer: 4 });
+    im.text('doB', 'You reached Tier 2. The free demo ends here. The full game goes on from Tier 2 to Tier 4: rail, ports, ships, planes, steel and machinery, on all three maps.', x + pad, cy, { size: 14, wrap: inner, layer: 4 });
     cy += 92;
     const minutes = Math.floor(w0.tick / (TICKS_PER_SECOND * 60));
     const best = Math.max(...w0.places.map((p) => p.level));
@@ -1943,7 +1943,7 @@ export class HudScene extends Phaser.Scene {
       im.text(`doV${i}`, v, sx + sw / 2, cy + 26, { size: 15, bold: true, align: 'center', layer: 4 });
     });
     cy += 70;
-    this.button('doDl', 'Download the full game', x + pad, cy, inner, 44, true, () => window.open('/#game', '_blank'), 'main');
+    this.button('doDl', 'Visit the website', x + pad, cy, inner, 44, true, () => window.open('https://supplyline-chrisoc.vercel.app/', '_blank'), 'main');
     cy += 54;
     this.button('doSave', 'Save my progress to a file', x + pad, cy, inner, 40, true, () => this.downloadSave(), 'plain');
     cy += 48;
@@ -1953,7 +1953,7 @@ export class HudScene extends Phaser.Scene {
       this.sizePick = null;
     }, 'plain');
     cy += 52;
-    im.text('doN', 'Your saved file loads in the download, so you pick up where you stopped. Steam page coming soon.', x + pad, cy, { size: 11, color: COLORS.muted, wrap: inner, layer: 4 });
+    im.text('doN', 'Your saved file will load in the full game, so you pick up where you stopped. Steam page coming soon.', x + pad, cy, { size: 11, color: COLORS.muted, wrap: inner, layer: 4 });
   }
 
   private sizeModal(W: number, H: number): void {
@@ -2004,7 +2004,7 @@ export class HudScene extends Phaser.Scene {
       const hov = !this.building && !locked && im.hit(`sz${def.id}`, x + pad, cy, inner, rowH, () => (def.inProgress ? this.openMapView(def.id) : this.beginWorld(def.id)), 4);
       im.rect(4, x + pad, cy, inner, rowH, hov ? 0x1f2b3a : 0x131a24, 1, 12, hov ? COLORS.accent : COLORS.line, 1);
       im.text(`sz${def.id}n`, def.label, x + pad + 16, cy + 11, { size: 17, bold: true, color: locked ? COLORS.muted : hov ? COLORS.accent : COLORS.text, layer: 4 });
-      im.text(`sz${def.id}s`, locked ? 'DESKTOP ONLY' : def.inProgress ? `BETA  ·  PREVIEW AND PLAY  ·  ${def.width} wide` : `${def.width} wide  ·  about ${tiles}k tiles`, x + pad + inner - 16, cy + 14, { size: 11, bold: !!def.inProgress, color: def.inProgress ? COLORS.accent : COLORS.muted, align: 'right', layer: 4 });
+      im.text(`sz${def.id}s`, locked ? 'FULL GAME' : def.inProgress ? `BETA  ·  PREVIEW AND PLAY  ·  ${def.width} wide` : `${def.width} wide  ·  about ${tiles}k tiles`, x + pad + inner - 16, cy + 14, { size: 11, bold: !!def.inProgress, color: def.inProgress ? COLORS.accent : COLORS.muted, align: 'right', layer: 4 });
       im.text(`sz${def.id}b`, def.blurb, x + pad + 16, cy + 38, { size: 12, color: COLORS.muted, wrap: inner - 32, layer: 4 });
       cy += rowH + 8;
     }

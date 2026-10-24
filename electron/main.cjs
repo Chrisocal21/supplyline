@@ -1,6 +1,7 @@
 // Supplyline for Windows: the built game in its own window, with saves on disk and updates that download in the background.
 const { app, BrowserWindow, protocol, net, ipcMain, shell, Menu, session, screen } = require('electron');
 const path = require('path');
+const fs = require('fs');
 const { pathToFileURL } = require('url');
 
 protocol.registerSchemesAsPrivileged([{ scheme: 'app', privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true } }]);
@@ -10,12 +11,14 @@ app.commandLine.appendSwitch('force_high_performance_gpu');
 app.commandLine.appendSwitch('ignore-gpu-blocklist');
 
 const DIST = path.join(__dirname, '..', 'dist');
+// The demo installer is the same app with this file packed in (tools/build-demo.cjs).
+const DEMO = fs.existsSync(path.join(__dirname, 'demo.flag'));
 let win = null;
 let updater = null;
 let pending = null;
 let checkNow = null;
 // What the updater last said. The game asks for it when it starts, since the check begins before the page is ready to listen.
-let lastUpdate = { state: app.isPackaged ? 'checking' : 'none' };
+let lastUpdate = { state: app.isPackaged && !DEMO ? 'checking' : 'none' };
 
 function send(channel, payload) {
   if (channel === 'update') lastUpdate = payload;
@@ -23,7 +26,7 @@ function send(channel, payload) {
 }
 
 function startUpdater() {
-  if (!app.isPackaged) return;
+  if (!app.isPackaged || DEMO) return;
   try {
     ({ autoUpdater: updater } = require('electron-updater'));
   } catch {
@@ -55,11 +58,11 @@ function createWindow() {
     minWidth: 1100,
     minHeight: 720,
     backgroundColor: '#03060b',
-    title: 'Supplyline',
+    title: DEMO ? 'Supplyline Demo' : 'Supplyline',
     autoHideMenuBar: true,
     show: false,
     icon: path.join(__dirname, 'icon.png'),
-    webPreferences: { preload: path.join(__dirname, 'preload.cjs'), contextIsolation: true, nodeIntegration: false, backgroundThrottling: false, autoplayPolicy: 'no-user-gesture-required' },
+    webPreferences: { preload: path.join(__dirname, 'preload.cjs'), contextIsolation: true, nodeIntegration: false, additionalArguments: DEMO ? ['--sl-demo'] : [], backgroundThrottling: false, autoplayPolicy: 'no-user-gesture-required' },
   });
   Menu.setApplicationMenu(null);
   win.once('ready-to-show', () => win.show());

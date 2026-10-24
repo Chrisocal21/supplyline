@@ -876,3 +876,8 @@ What changed:
 - /play/ no longer runs on the public web: outside the desktop app and a local dev server it sends visitors to the home page. The website's "Play" buttons are now "Download the free demo" (off, "coming soon", until a demo installer exists).
 - The full-game download moved to /newpage/ (not linked anywhere, `noindex`), which finds the latest GitHub release installer itself. It is hidden, not secured: anyone with the address, or the public GitHub release, can get the file.
 - The website FAQ, tiers, roadmap and updates now say the demo is a Windows download. The old browser-demo code (`src/demo.ts`) stays but is unreachable on the web.
+
+## 0.140: the free demo installer, and a coded tester page
+
+- The demo is now a Windows installer (`npm run dist:demo`, or the "Demo Windows build" workflow in `.github/workflows/demo.yml`). It is the same app with `electron/demo.flag` packed in (`tools/build-demo.cjs`), its own app id and name ("Supplyline Demo"), and no auto-update, so it never turns into the full game. `src/demo.ts` reads the flag from the preload. It plays Map 1 and ends at Tier 2; the other maps show FULL GAME. The installer sits at a fixed address: releases/download/demo/Supplyline-Demo-Setup.exe (a prerelease, so it never counts as the latest full release).
+- The tester page moved from /newpage/ to /dockside/ and asks for a 4-digit code before it looks up the full-game download. Only a hash of the code is in the page, which is a hurdle, not security: the installer files are public on GitHub.

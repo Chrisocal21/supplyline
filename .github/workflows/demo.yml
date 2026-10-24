@@ -1,0 +1,27 @@
+# Builds the free demo installer and keeps it at one fixed address on the "demo" release:
+# https://github.com/Chrisocal21/supplyline/releases/download/demo/Supplyline-Demo-Setup.exe
+# Run it from the Actions tab, or push a tag like demo-v0.139.
+name: Demo Windows build
+on:
+  workflow_dispatch:
+  push:
+    tags: ['demo-v*']
+permissions:
+  contents: write
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - run: npx vite build
+      - run: node tools/build-demo.cjs
+      - run: gh release view demo || gh release create demo --title "Free demo" --notes "The free demo installer. Map 1, ends at Tier 2." --prerelease --latest=false
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - run: gh release upload demo release-demo/Supplyline-Demo-Setup.exe --clobber
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

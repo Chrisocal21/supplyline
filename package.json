@@ -1,7 +1,7 @@
 {
   "name": "supplyline",
   "private": true,
-  "version": "0.139.0",
+  "version": "0.140.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -10,6 +10,7 @@
     "test": "vitest run",
     "desktop": "vite build && electron .",
     "dist": "vite build && electron-builder --win --publish never",
+    "dist:demo": "vite build && node tools/build-demo.cjs",
     "release": "vite build && electron-builder --win --publish always"
   },
   "dependencies": {
