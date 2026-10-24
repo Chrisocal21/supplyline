@@ -788,3 +788,8 @@ What changed:
 ## 0.123: a fuller Tier 1
 
 - Tier 1 ("Regional Supplier") grows from 7 quests to 18, in a teaching order: Farm, Flour Mill, Bakery, sell 3 goods, Dairy, earn $2,000, upgrade a building, Mechanic Shop, hire a mechanic (new quest kind), Recycling Yard, Warehouse, Brickworks, highway, district, grow a town to level 2, Big Box Truck, level 3, level 4. Rewards add up to about $9,900 (was $4,300). Finishing Tier 1 opens Tier 2, which is the end of the demo. Tier 0 is unchanged (its quests are the town's first Supply Yard and Market). The test bot plays the new list and still reaches Tier 2 at 45 minutes on Map 2 (43 before).
+
+## 0.124: a tutorial, apart from the quests
+
+- A tutorial of 19 short steps runs beside the quests (`src/sim/tutorial.ts`): 14 for Tier 0 (look around, zoom, the Towns sheet, camp, sawmill, truck, road, switch on, more camps, speed and pause, the Company sheet, the Supply Yard, a yard truck, the Market) and 5 for Tier 1 (make food, where goods go, the Fleet and Production sheets, by-products, mechanics). A step is done when the world shows it (a building, a road) or the player has done it on screen (moved, zoomed, paused, opened a sheet, picked a building). The quests stay what advances the game; the tutorial never blocks anything.
+- It shows as a card in the bottom left (step number, title, a line of help, Skip and Turn off), and rings the build button a step needs (and, in Tier 0 and 1, the button the current quest needs). Menu > Game > Tutorial switches it on and off; the choice is kept for every game. The old ring's X now turns the tutorial off. Steps are saved with the game; a game begun before this, or well under way, starts with the Tier 0 steps done.

@@ -92,6 +92,7 @@ import {
   type MapData,
 } from '../sim/world';
 import { nextQuest } from '../sim/quests';
+import { tutorialNext, tutorialSkip } from '../sim/tutorial';
 import { Game3D, districtOfTool, isDistrictTool, type HoverInfo, type OverlayItem, type Tool } from '../r3d/game3d';
 import { DISTRICTS, DISTRICT_ORDER, isSoftNode } from '../sim/defs';
 import { GRID_CELL, gridId } from '../sim/grid';
@@ -896,6 +897,8 @@ export class HudScene extends Phaser.Scene {
       this.removalModal(W, H);
     }
     this.offersLayer(W, H);
+    this.trackTutorial();
+    if (!this.sheet) this.tutorialCard(W, H);
     if (this.menuOpen) this.menuPanel(W, H);
     else this.menuPage = 'home';
     if (!this.searchSeen || this.menuOpen || g.removal) this.hideSearch();
@@ -1206,6 +1209,7 @@ export class HudScene extends Phaser.Scene {
       { id: 'guide', label: 'How to play', key: 'H', on: this.sheet === 'guide', icon: glyph('?'), act: () => this.toggleSheet('guide') },
       { id: 'saves', label: 'Save / Load', key: 'L', on: this.saves === 'manage', icon: glyph('S'), act: () => this.openSavesFromKey() },
       { id: 'new', label: 'New world', key: '', on: false, icon: glyph('+'), act: () => this.openSaves('new') },
+      { id: 'tut', label: 'Tutorial', key: '', on: this.tutorialOn, toggle: true, icon: glyph('i'), act: () => this.toggleTutorial() },
     ];
     const screenItems: Item[] = [
       { id: 'gfx', label: 'Graphics', key: 'O', on: this.graphicsOpen, icon: glyph('O'), act: () => this.openGraphics() },
@@ -2442,18 +2446,82 @@ export class HudScene extends Phaser.Scene {
     this.rightInset = this.scale.height - b.y;
   }
 
-  private coachOff = (() => {
+  /** Whether the tutorial card and its button rings are shown. A choice kept for every game. */
+  private tutorialOn = (() => {
     try {
-      return !!localStorage.getItem('sl-coach-off');
+      return localStorage.getItem('sl-tutorial') !== 'off' && !localStorage.getItem('sl-coach-off');
     } catch {
-      return false;
+      return true;
     }
   })();
 
-  /** Which button the current quest needs, while the player is still new: its category tab and tool. */
+  private toggleTutorial(): void {
+    this.tutorialOn = !this.tutorialOn;
+    try {
+      localStorage.setItem('sl-tutorial', this.tutorialOn ? 'on' : 'off');
+      localStorage.removeItem('sl-coach-off');
+    } catch {
+      /* ignore */
+    }
+    this.toasts.push({ text: this.tutorialOn ? 'Tutorial on' : 'Tutorial off', until: this.time.now + 1600 });
+  }
+
+  /** What the player has done on screen that the world cannot show: moved, zoomed, paused, opened a sheet, picked a building. */
+  private tutFlags = new Set<string>();
+  private tutWorld: object | null = null;
+  private tutCam = { lon: 0, lat: 0, dist: 1, heading: 0 };
+
+  private trackTutorial(): void {
+    const g = this.game3d;
+    if (this.tutWorld !== g.world) {
+      this.tutWorld = g.world;
+      this.tutFlags = new Set();
+      this.tutCam = { lon: g.cam.lon, lat: g.cam.lat, dist: g.cam.dist, heading: g.cam.heading };
+    }
+    const c = this.tutCam;
+    if (Math.hypot(g.cam.lon - c.lon, g.cam.lat - c.lat) > 0.01 || Math.abs(g.cam.heading - c.heading) > 0.15) this.tutFlags.add('moved');
+    if (Math.abs(g.cam.dist / c.dist - 1) > 0.08) this.tutFlags.add('zoomed');
+    if (g.speed === 0) this.tutFlags.add('paused');
+    if (g.selection) this.tutFlags.add('selected');
+    if (this.sheet) this.tutFlags.add(`sheet:${this.sheet}`);
+  }
+
+  /** The tutorial card: the step the player is on, in the bottom left corner, with Skip and Off. */
+  private tutorialCard(W: number, H: number): void {
+    if (!this.tutorialOn || this.title || this.game3d.demo || this.menuOpen || this.saves || this.graphicsOpen || this.viewMap || this.sizePick || this.driverPick) return;
+    const g = this.game3d;
+    const t = tutorialNext(g.world, this.tutFlags);
+    if (!t) return;
+    const im = this.im;
+    const narrow = W < 640;
+    const w = narrow ? W - 24 : 340;
+    const h = narrow ? 112 : 124;
+    const x = 12;
+    const y = H - this.bottomInset - h - 12;
+    if (y < TOP + 8) return;
+    im.rect(2, x, y, w, h, 0x0d141b, 0.94, 12, COLORS.accent, 0.7, 1.5);
+    im.text('tutK', `TUTORIAL  ${t.index + 1} / ${t.total}`, x + 14, y + 10, { size: 10, bold: true, color: COLORS.accent, layer: 3 });
+    im.text('tutT', t.step.title, x + 14, y + 26, { size: 15, bold: true, layer: 3 });
+    im.text('tutB', t.step.text, x + 14, y + 47, { size: 11, color: COLORS.muted, wrap: w - 28, layer: 3 });
+    const bw = 62;
+    const skip = im.hit('tutSkip', x + w - bw * 2 - 22, y + 8, bw, 22, () => tutorialSkip(g.world, t.step.id), 3);
+    im.rect(3, x + w - bw * 2 - 22, y + 8, bw, 22, skip ? 0x2a3646 : 0x17202b, 1, 6, COLORS.line, 1);
+    im.text('tutSkipT', 'Skip', x + w - bw - 22 - bw / 2, y + 12, { size: 11, bold: true, align: 'center', layer: 4 });
+    const off = im.hit('tutOff', x + w - bw - 10, y + 8, bw, 22, () => this.toggleTutorial(), 3);
+    im.rect(3, x + w - bw - 10, y + 8, bw, 22, off ? 0x2a3646 : 0x17202b, 1, 6, COLORS.line, 1);
+    im.text('tutOffT', 'Turn off', x + w - bw / 2 - 10, y + 12, { size: 11, bold: true, align: 'center', layer: 4 });
+    im.block({ x, y, w, h });
+  }
+
+  /** Which button the current step or quest needs, while the tutorial is on: its category tab and tool. */
   private coachTarget(): { tab: string; tool?: Tool } | null {
     const w = this.game3d.world;
-    if (this.coachOff || w.tier > 0 || this.game3d.demo) return null;
+    if (!this.tutorialOn || w.tier > 1 || this.game3d.demo) return null;
+    const step = tutorialNext(w, this.tutFlags);
+    if (step?.step.coach) {
+      const c = step.step.coach;
+      return this.game3d.tool !== c.tool ? { tab: c.tab, tool: c.tool as Tool } : null;
+    }
     const next = nextQuest(w);
     if (!next || next.progress.done) return null;
     const goal = next.quest.goal;
@@ -2479,14 +2547,7 @@ export class HudScene extends Phaser.Scene {
     const ly = y - 46 - pulse * 3;
     im.rect(5, lx, ly, lw, 30, COLORS.accent, 1, 15);
     im.text('coachT', text, lx + 14, ly + 7, { size: 13, bold: true, color: 0x1b1204, layer: 6 });
-    const xh = im.hit('coachX', lx + lw - 28, ly + 3, 24, 24, () => {
-      this.coachOff = true;
-      try {
-        localStorage.setItem('sl-coach-off', '1');
-      } catch {
-        /* ignore */
-      }
-    }, 7);
+    const xh = im.hit('coachX', lx + lw - 28, ly + 3, 24, 24, () => this.toggleTutorial(), 7);
     im.text('coachXT', 'x', lx + lw - 16, ly + 6, { size: 14, bold: true, color: xh ? 0xffffff : 0x1b1204, align: 'center', layer: 6 });
   }
 

@@ -438,6 +438,8 @@ export interface World {
   blend?: boolean;
   /** The made map this world was started from, if it was not generated. */
   mapId?: string;
+  /** Tutorial steps finished (see tutorial.ts). */
+  tutorialDone?: string[];
   /** Desert ground: one character for each tile, d or . (see desert.ts). Maps that have no desert leave it out. */
   desert?: string;
   /** Loans, savings and the market fund. Opened the first time the bank sheet is used. */
