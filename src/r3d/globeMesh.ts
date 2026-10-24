@@ -63,7 +63,7 @@ function detailTexture(): THREE.Texture {
 }
 
 export interface Globe {
-  terrain: THREE.Mesh;
+  terrain: THREE.Group;
   update(seconds: number): void;
   /** Draw the ground with a quarter of the triangles (one quad a tile) when the camera is far out, where the bumps cannot be seen. */
   setDetail(far: boolean): void;
@@ -113,34 +113,14 @@ export function buildGlobe(world: World, hf: HeightField, color: Pixels, rough: 
       index[n++] = c + 1;
     }
   }
+  // The attributes live on one geometry; the ground is drawn as chunks of tiles that share them, each with its own indices and
+  // bounds, so the ones off screen (or round the far side of the globe) are skipped instead of all being drawn every frame.
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
   geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
-  const fineIndex = new THREE.BufferAttribute(index, 1);
-  geo.setIndex(fineIndex);
-  // The same vertices, every SUB-th one: a whole tile per quad.
-  const cLon = Math.floor(lonSeg / SUB);
-  const cLat = Math.floor(latSeg / SUB);
-  const coarse = new Uint32Array(cLon * cLat * 6);
-  let cn = 0;
-  for (let j = 0; j < cLat; j++) {
-    for (let i = 0; i < cLon; i++) {
-      const a = j * SUB * cols + i * SUB;
-      const c = a + SUB * cols;
-      coarse[cn++] = a;
-      coarse[cn++] = c;
-      coarse[cn++] = a + SUB;
-      coarse[cn++] = a + SUB;
-      coarse[cn++] = c;
-      coarse[cn++] = c + SUB;
-    }
-  }
-  const coarseIndex = new THREE.BufferAttribute(coarse, 1);
-  let farDetail = false;
+  geo.setIndex(new THREE.BufferAttribute(index, 1));
   geo.computeVertexNormals();
   const nrm = geo.getAttribute('normal') as THREE.BufferAttribute;
-  const smooth = (): void => {
-    geo.computeVertexNormals();
   // The first and last column are the same meridian; share their normals so the seam does not show.
   for (let j = 0; j <= latSeg; j++) {
     const a = j * cols;
@@ -152,9 +132,66 @@ export function buildGlobe(world: World, hf: HeightField, color: Pixels, rough: 
     nrm.setXYZ(a, x / l, y / l, z / l);
     nrm.setXYZ(b, x / l, y / l, z / l);
   }
+  geo.setIndex(null);
+  const posAttr = geo.getAttribute('position') as THREE.BufferAttribute;
+
+  const CHUNK_QUADS = 32 * SUB;
+  interface Chunk {
+    geo: THREE.BufferGeometry;
+    fine: THREE.BufferAttribute;
+    coarse: THREE.BufferAttribute;
+  }
+  const chunks: Chunk[] = [];
+  const chunkGroup = new THREE.Group();
+  chunkGroup.name = 'terrain';
+  let farDetail = false;
+  const chunkBounds = (c: THREE.BufferGeometry, i0: number, i1: number, j0: number, j1: number): void => {
+    const box = new THREE.Box3();
+    const v = new THREE.Vector3();
+    for (let j = j0; j <= j1; j++) {
+      for (let i = i0; i <= i1; i++) {
+        const k = j * cols + i;
+        box.expandByPoint(v.set(pos[k * 3], pos[k * 3 + 1], pos[k * 3 + 2]));
+      }
+    }
+    const sphere = new THREE.Sphere();
+    box.getBoundingSphere(sphere);
+    // Roads regrade the ground a little after this, so leave some room.
+    sphere.radius += 0.6;
+    c.boundingSphere = sphere;
   };
-  smooth();
-  geo.computeBoundingSphere();
+  for (let j0 = 0; j0 < latSeg; j0 += CHUNK_QUADS) {
+    for (let i0 = 0; i0 < lonSeg; i0 += CHUNK_QUADS) {
+      const j1 = Math.min(latSeg, j0 + CHUNK_QUADS);
+      const i1 = Math.min(lonSeg, i0 + CHUNK_QUADS);
+      const fi: number[] = [];
+      for (let j = j0; j < j1; j++) {
+        for (let i = i0; i < i1; i++) {
+          const a = j * cols + i;
+          const c = a + cols;
+          fi.push(a, c, a + 1, a + 1, c, c + 1);
+        }
+      }
+      // The same vertices, every SUB-th one: a whole tile per quad.
+      const ci: number[] = [];
+      for (let j = j0; j + SUB <= j1; j += SUB) {
+        for (let i = i0; i + SUB <= i1; i += SUB) {
+          const a = j * cols + i;
+          const c = a + SUB * cols;
+          ci.push(a, c, a + SUB, a + SUB, c, c + SUB);
+        }
+      }
+      const cg = new THREE.BufferGeometry();
+      cg.setAttribute('position', posAttr);
+      cg.setAttribute('normal', nrm);
+      cg.setAttribute('uv', geo.getAttribute('uv'));
+      const fine = new THREE.BufferAttribute(new Uint32Array(fi), 1);
+      const coarse = new THREE.BufferAttribute(new Uint32Array(ci), 1);
+      cg.setIndex(fine);
+      chunkBounds(cg, i0, i1, j0, j1);
+      chunks.push({ geo: cg, fine, coarse });
+    }
+  }
 
   const map = new THREE.CanvasTexture(canvasFrom(color));
   map.colorSpace = THREE.SRGBColorSpace;
@@ -221,9 +258,13 @@ varying vec3 vSurfacePosition;`)
       );
   };
 
-  const terrain = new THREE.Mesh(geo, material);
-  terrain.receiveShadow = true;
-  terrain.name = 'terrain';
+  const terrain = chunkGroup;
+  for (const c of chunks) {
+    const m = new THREE.Mesh(c.geo, material);
+    m.receiveShadow = true;
+    m.name = 'terrain';
+    chunkGroup.add(m);
+  }
 
   // Atmosphere: a soft glow hugging the planet's limb.
   const atmoMat = new THREE.ShaderMaterial({
@@ -361,7 +402,6 @@ varying vec3 vSurfacePosition;`)
         if (k > r[1]) r[1] = k;
       }
     }
-    const posAttr = geo.getAttribute('position') as THREE.BufferAttribute;
     for (const [lo, hi] of rows.values()) {
       posAttr.addUpdateRange(lo * 3, (hi - lo + 1) * 3);
       nrm.addUpdateRange(lo * 3, (hi - lo + 1) * 3);
@@ -379,12 +419,13 @@ varying vec3 vSurfacePosition;`)
     setDetail(far) {
       if (far === farDetail || SUB < 2) return;
       farDetail = far;
-      geo.setIndex(far ? coarseIndex : fineIndex);
+      for (const c of chunks) c.geo.setIndex(far ? c.coarse : c.fine);
     },
     atmosphere,
     stars,
     dispose() {
       geo.dispose();
+      for (const c of chunks) c.geo.dispose();
       map.dispose();
       roughMap.dispose();
       detail.dispose();

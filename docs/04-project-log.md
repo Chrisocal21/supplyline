@@ -902,3 +902,9 @@ What changed:
 - Cause: the "who could buy this" list (`buyersFor`) only offered unjoined buyers within 40 tiles, so a camp further out than that never got a Build road offer to its town's Supply Yard or Market. The sim itself hauls at any distance (a box truck reaches 900 tiles); a test with a camp 150 tiles out delivered logs fine once a road was laid.
 - Fix: the nearest unjoined Supply Yard or Market that wants the camp's goods is always offered, however far. `roadPlan` also retries with a wider search (250000 nodes) when a long way round fails the normal one.
 - Long hauls still carry slowly (about 11 logs a trip), so a nearer camp or a relay is faster.
+
+## 0.145: the ground is drawn in chunks
+
+- On Map 3 the ground was one mesh of about 2.4M triangles drawn in full every frame, even close to the street or with half the globe round the far side. It is now chunks of 32x32 tiles sharing the same vertex buffers, each with its own indices and bounds, so off-screen chunks are skipped. Far view still swaps to one quad a tile.
+- `globe.terrain` is now a Group of chunk meshes; `regrade` is unchanged (shared buffers). The full index is freed after normals are built, saving about 30 MB.
+- Next biggest costs on the in-game stats: scenery (about 300k triangles), trees (about 80k), and the ambient-occlusion pass that draws the scene again when close in.
