@@ -13,6 +13,8 @@ const GOOD_IDS = [
   'sawdust', 'bran', 'whey', 'gravel', 'slag',
   // made from by-products
   'mulch',
+  // the sea: caught by the harbor's boats
+  'fish', 'fishscraps', 'smokedfish', 'cannedfish',
   // the wider farm, kitchen and brewery chains
   'water', 'barley', 'hops', 'grapes', 'eggs', 'vegetables', 'potatoes', 'sugarbeet', 'sunflower', 'pork', 'wool', 'honey', 'salt', 'spices', 'cocoa', 'sugar', 'cookoil', 'fuel', 'granite', 'firewood', 'butter', 'juice', 'pastry', 'pizza', 'pasta', 'icecream', 'canned', 'crisps', 'meat', 'sausage', 'beer', 'wine', 'spirits', 'soda', 'chocolate', 'candles', 'pillows', 'straw', 'pulp', 'husks', 'feathers', 'wax', 'woodchips', 'spentgrain',
 ] as const;
@@ -20,7 +22,7 @@ export type Good = (typeof GOOD_IDS)[number];
 export type Stock = Partial<Record<Good, number>>;
 export type Terrain = 'water' | 'grass' | 'forest' | 'mountain' | 'ice';
 export type NodeKind = 'forest' | 'farmland' | 'quarry' | 'mine' | 'coal' | 'clay' | 'pasture' | 'orchard' | 'coffee' | 'mango' | 'oil';
-export type VehicleKind = 'boxtruck' | 'bigtruck' | 'rig' | 'convoy' | 'train' | 'heavytrain' | 'plane' | 'jet' | 'barge' | 'boat' | 'freighter' | 'containership';
+export type VehicleKind = 'fishboat' | 'boxtruck' | 'bigtruck' | 'rig' | 'convoy' | 'train' | 'heavytrain' | 'plane' | 'jet' | 'barge' | 'boat' | 'freighter' | 'containership';
 export type Category = 'production' | 'processing' | 'manufacturing' | 'heavy' | 'logistics' | 'vehicles';
 
 export const GOOD_LIST: Good[] = [...GOOD_IDS];
@@ -77,6 +79,10 @@ export const GOODS: Record<Good, { label: string; price: number; color: number; 
   gravel: { label: 'Gravel', price: 3, color: 0x9d9a92, kind: 'byproduct' },
   slag: { label: 'Slag', price: 2, color: 0x58545a, kind: 'byproduct' },
   mulch: { label: 'Mulch', price: 6, color: 0x6b4a2e, kind: 'product' },
+  fish: { label: 'Fish', price: 5, color: 0x7aa8c0, kind: 'raw' },
+  fishscraps: { label: 'Fish Scraps', price: 1, color: 0xa8b0b8, kind: 'byproduct' },
+  smokedfish: { label: 'Smoked Fish', price: 12, color: 0xc08848, kind: 'product' },
+  cannedfish: { label: 'Canned Fish', price: 9, color: 0x8aa0b8, kind: 'product' },
   water: { label: 'Water', price: 1, color: 0x5aa0d8, kind: 'raw' },
   barley: { label: 'Barley', price: 3, color: 0xd8c070, kind: 'raw' },
   hops: { label: 'Hops', price: 6, color: 0x8ab04a, kind: 'raw' },
@@ -161,6 +167,8 @@ export interface SiteDef {
   garage?: boolean;
   /** Recycling Yard: takes any by-product, a few units a minute, for a few cents each, so no by-product can ever jam a chain. */
   recycle?: boolean;
+  /** Fishing Harbor: a raw site on the coast that fishing boats work for. */
+  harbor?: boolean;
 }
 
 const raw = (label: string, blurb: string, cost: number, tier: number, node: NodeKind, good: Good, every: number, color: number, also: Good[] = []): SiteDef => ({
@@ -240,6 +248,10 @@ const DEFS = {
   spicefarm: raw('Spice Plantation', 'Island spices in the heat. Makes spices. Islands only, so they have to come by ship.', 320, 2, 'mango', 'spices', 28, 0xb8502a),
   cocoafarm: raw('Cocoa Plantation', 'Cocoa pods under shade trees on an island highland. Makes cocoa. Islands only, so it has to come by ship.', 360, 2, 'coffee', 'cocoa', 28, 0x5a3420),
 
+  harbor: { ...raw('Fishing Harbor', 'A quay on the coast. Its fishing boats go out and come back on their own, and fill the harbor with fish. Trucks carry the fish to where it is needed.', 500, 1, 'clay', 'fish', 20, 0x3a7aa8, ['fishscraps']), node: undefined, harbor: true } as SiteDef,
+  smokehouse: proc('processing', 'Smokehouse', 'Fish, salt and firewood in, smoked fish out.', 420, 1, { fish: 2, salt: 1, firewood: 1 }, { smokedfish: 2 }, 24, 0xc08848),
+  fishcannery: proc('processing', 'Fish Cannery', 'Fish, salt and water in, canned fish out.', 400, 1, { fish: 2, salt: 1, water: 1 }, { cannedfish: 2 }, 22, 0x8aa0b8),
+  fishmeal: proc('processing', 'Fish Meal Plant', 'Fish scraps and spent grain in, animal feed out. Two leftovers put to work.', 340, 1, { fishscraps: 3, spentgrain: 1 }, { feed: 2 }, 22, 0xa8b0b8),
   woodyard: proc('processing', 'Wood Yard', 'Logs in, firewood out. Wood chips are the by-product.', 200, 0, { logs: 2 }, { firewood: 2, woodchips: 1 }, 18, 0x8a5a33),
   creamery: proc('processing', 'Creamery', 'Milk in, butter out. Whey is the by-product.', 300, 1, { milk: 2 }, { butter: 1, whey: 1 }, 22, 0xf0d870),
   juicepress: proc('processing', 'Juice Press', 'Fruit in, juice out. Pulp is the by-product.', 280, 1, { fruit: 2 }, { juice: 2, pulp: 1 }, 20, 0xe89030),
@@ -436,6 +448,7 @@ export interface VehicleDef {
 }
 
 export const VEHICLE_DEFS: Record<VehicleKind, VehicleDef> = {
+  fishboat: { label: 'Fishing Boat', blurb: 'Goes out from its Fishing Harbor and comes back on its own. Each boat makes the harbor catch more fish.', mode: 'sea', cost: 350, tier: 1, capacity: 0, ticksPerTile: 6, implemented: true, needLevel: 1 },
   boxtruck: { label: 'Box Truck', blurb: 'Small, cheap, good for short hauls.', mode: 'road', cost: 120, tier: 0, capacity: 12, ticksPerTile: 6, implemented: true, needLevel: 1, next: 'bigtruck' },
   bigtruck: { label: 'Big Box Truck', blurb: 'Twice the load of a box truck.', mode: 'road', cost: 380, tier: 1, capacity: 27, ticksPerTile: 6, implemented: true, needLevel: 2, next: 'rig' },
   rig: { label: 'Big Rig', blurb: 'Large trailer, faster on the highway.', mode: 'road', cost: 950, tier: 2, capacity: 60, ticksPerTile: 5, implemented: true, needLevel: 3, next: 'convoy' },
@@ -577,11 +590,11 @@ export const TOWN_LEVELS: TownLevel[] = [
 
 /** Goods the Market wants at each town level: finished goods people use every day. Raw and building goods go to the Supply Yard. */
 export const MARKET_DEMAND: Good[][] = [
-  ['bread', 'cheese', 'milk', 'eggs', 'fruit', 'vegetables', 'potatoes', 'firewood'],
-  ['bread', 'cheese', 'milk', 'eggs', 'fruit', 'vegetables', 'potatoes', 'firewood', 'butter', 'jam', 'juice', 'pastry', 'pasta', 'canned', 'crisps', 'meat', 'honey', 'water', 'mulch', 'pellets', 'feed', 'paper', 'coffee', 'mango'],
-  ['bread', 'cheese', 'milk', 'eggs', 'fruit', 'vegetables', 'potatoes', 'firewood', 'butter', 'jam', 'juice', 'pastry', 'pasta', 'canned', 'crisps', 'meat', 'honey', 'water', 'mulch', 'pellets', 'feed', 'paper', 'coffee', 'mango', 'pizza', 'beer', 'wine', 'soda', 'icecream', 'sausage', 'chocolate', 'candles', 'pillows', 'cookoil', 'fuel', 'oil', 'furniture', 'clothes', 'tools'],
-  ['bread', 'cheese', 'milk', 'eggs', 'fruit', 'vegetables', 'potatoes', 'firewood', 'butter', 'jam', 'juice', 'pastry', 'pasta', 'canned', 'crisps', 'meat', 'honey', 'water', 'mulch', 'pellets', 'feed', 'paper', 'coffee', 'mango', 'pizza', 'beer', 'wine', 'soda', 'icecream', 'sausage', 'chocolate', 'candles', 'pillows', 'cookoil', 'fuel', 'oil', 'furniture', 'clothes', 'tools', 'books', 'spirits'],
-  ['bread', 'cheese', 'milk', 'eggs', 'fruit', 'vegetables', 'potatoes', 'firewood', 'butter', 'jam', 'juice', 'pastry', 'pasta', 'canned', 'crisps', 'meat', 'honey', 'water', 'mulch', 'pellets', 'feed', 'paper', 'coffee', 'mango', 'pizza', 'beer', 'wine', 'soda', 'icecream', 'sausage', 'chocolate', 'candles', 'pillows', 'cookoil', 'fuel', 'oil', 'furniture', 'clothes', 'tools', 'books', 'spirits', 'machinery'],
+  ['bread', 'cheese', 'milk', 'eggs', 'fruit', 'vegetables', 'potatoes', 'firewood', 'fish'],
+  ['bread', 'cheese', 'milk', 'eggs', 'fruit', 'vegetables', 'potatoes', 'firewood', 'fish', 'butter', 'jam', 'juice', 'pastry', 'pasta', 'canned', 'smokedfish', 'cannedfish', 'crisps', 'meat', 'honey', 'water', 'mulch', 'pellets', 'feed', 'paper', 'coffee', 'mango'],
+  ['bread', 'cheese', 'milk', 'eggs', 'fruit', 'vegetables', 'potatoes', 'firewood', 'fish', 'butter', 'jam', 'juice', 'pastry', 'pasta', 'canned', 'smokedfish', 'cannedfish', 'crisps', 'meat', 'honey', 'water', 'mulch', 'pellets', 'feed', 'paper', 'coffee', 'mango', 'pizza', 'beer', 'wine', 'soda', 'icecream', 'sausage', 'chocolate', 'candles', 'pillows', 'cookoil', 'fuel', 'oil', 'furniture', 'clothes', 'tools'],
+  ['bread', 'cheese', 'milk', 'eggs', 'fruit', 'vegetables', 'potatoes', 'firewood', 'fish', 'butter', 'jam', 'juice', 'pastry', 'pasta', 'canned', 'smokedfish', 'cannedfish', 'crisps', 'meat', 'honey', 'water', 'mulch', 'pellets', 'feed', 'paper', 'coffee', 'mango', 'pizza', 'beer', 'wine', 'soda', 'icecream', 'sausage', 'chocolate', 'candles', 'pillows', 'cookoil', 'fuel', 'oil', 'furniture', 'clothes', 'tools', 'books', 'spirits'],
+  ['bread', 'cheese', 'milk', 'eggs', 'fruit', 'vegetables', 'potatoes', 'firewood', 'fish', 'butter', 'jam', 'juice', 'pastry', 'pasta', 'canned', 'smokedfish', 'cannedfish', 'crisps', 'meat', 'honey', 'water', 'mulch', 'pellets', 'feed', 'paper', 'coffee', 'mango', 'pizza', 'beer', 'wine', 'soda', 'icecream', 'sausage', 'chocolate', 'candles', 'pillows', 'cookoil', 'fuel', 'oil', 'furniture', 'clothes', 'tools', 'books', 'spirits', 'machinery'],
 ];
 /** The goods a town gets a taste for (a price swing) among the raw and building goods. Only world generation reads it; keep it as is so towns look the same. */
 export const YARD_TASTE_GOODS: Good[] = ['logs', 'grain', 'cotton', 'stone', 'ore', 'coal', 'clay', 'sand', 'milk', 'fruit', 'sawdust', 'bran', 'whey', 'gravel', 'slag', 'feed', 'oil', 'lumber', 'flour', 'ingots', 'cement', 'yarn', 'pellets', 'glass', 'tools', 'steel', 'bricks', 'concrete', 'blocks', 'cloth'];
@@ -615,7 +628,7 @@ export const SHOP_WAIT = 900;
 export const BUILD_GOODS: Good[] = ['lumber', 'stone', 'granite', 'blocks', 'bricks', 'sand', 'gravel', 'cement', 'concrete', 'glass', 'steel', 'tools'];
 
 /** What a Warehouse (the Distribution Warehouse) may hold: finished goods only. Tools can go in both it and the Supply Yard. */
-export const WAREHOUSE_GOODS: Good[] = ['bread', 'pastry', 'pizza', 'pasta', 'cheese', 'butter', 'icecream', 'jam', 'juice', 'canned', 'crisps', 'meat', 'sausage', 'beer', 'wine', 'spirits', 'soda', 'chocolate', 'candles', 'pillows', 'paper', 'books', 'clothes', 'furniture', 'tools', 'machinery', 'pellets', 'feed', 'cookoil', 'fuel', 'oil', 'mulch', 'coffee', 'mango', 'honey'];
+export const WAREHOUSE_GOODS: Good[] = ['smokedfish', 'cannedfish', 'bread', 'pastry', 'pizza', 'pasta', 'cheese', 'butter', 'icecream', 'jam', 'juice', 'canned', 'crisps', 'meat', 'sausage', 'beer', 'wine', 'spirits', 'soda', 'chocolate', 'candles', 'pillows', 'paper', 'books', 'clothes', 'furniture', 'tools', 'machinery', 'pellets', 'feed', 'cookoil', 'fuel', 'oil', 'mulch', 'coffee', 'mango', 'honey'];
 
 // ---- specialisation paths and districts ----
 

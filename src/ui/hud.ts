@@ -4170,6 +4170,7 @@ export class HudScene extends Phaser.Scene {
     const world = this.game3d.world;
     const route = vehicleRoute(world, v);
     const home = siteById(world, v.homeId);
+    if (v.kind === 'fishboat') return { text: 'Out fishing: the harbor catch is bigger with every boat', color: COLORS.good };
     if (v.back) return { text: 'The road was removed: heading home', color: COLORS.warn };
     if (!route || !home) {
       const joined = world.routes.some((r) => !r.free && (r.fromSiteId === v.homeId || r.toSiteId === v.homeId));

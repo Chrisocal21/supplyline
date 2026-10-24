@@ -162,6 +162,7 @@ const CARGO_AT: Record<VehicleKind, [number, number]> = {
   heavytrain: [0.58, 0.2],
   plane: [0.58, -0.14],
   jet: [0.58, -0.14],
+  fishboat: [0.3, 0],
   barge: [0.3, 0],
   boat: [0.3, 0],
   freighter: [0.3, 0],

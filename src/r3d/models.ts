@@ -1031,6 +1031,7 @@ export function vehicleGeometry(kind: VehicleKind): THREE.BufferGeometry {
     case 'heavytrain':
     case 'train':
       return mergeUnits(trainUnits(kind));
+    case 'fishboat':
     case 'barge':
     case 'boat':
       return coasterGeometry();

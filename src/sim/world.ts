@@ -1271,7 +1271,8 @@ export function siteCap(world: World, site: Site): number {
 export function siteSpeed(world: World, site: Site): number {
   const node = site.nodeId === null ? undefined : world.nodes.find((n) => n.id === site.nodeId);
   const town = SITE_DEFS[site.kind].inTown ? siteTown(world, site) : undefined;
-  return LEVEL_SPEED[site.level - 1] * (node ? NODE_QUALITY[node.quality].mult : 1) * (town ? townSpeedMult(town, site.kind) : 1) * seasonMult(site.kind, world.tick);
+  const boats = SITE_DEFS[site.kind].harbor ? 0.25 + 0.5 * world.vehicles.filter((v) => v.homeId === site.id && v.kind === 'fishboat').length : 1;
+  return boats * LEVEL_SPEED[site.level - 1] * (node ? NODE_QUALITY[node.quality].mult : 1) * (town ? townSpeedMult(town, site.kind) : 1) * seasonMult(site.kind, world.tick);
 }
 
 /** The town a site belongs to: its docks and station, and the buildings on its district plots. */
@@ -2234,6 +2235,11 @@ export function setVehiclePick(world: World, vehicleId: number, pick: PickMode):
 }
 
 function stepVehicle(world: World, v: Vehicle): void {
+  // A fishing boat works for its harbor by itself: it adds to the catch (see siteSpeed) and needs no route.
+  if (v.kind === 'fishboat') {
+    v.state = 'moving';
+    return;
+  }
   // Worn out: it stops where it is and waits for a Mechanic Shop, or for the player to service it.
   if (VEHICLE_DEFS[v.kind].mode === 'road' && (v.wear ?? 0) >= 1) {
     stepBreakdown(world, v);
@@ -2497,7 +2503,7 @@ export function placeError(world: World, kind: SiteKind, x: number, y: number, r
     // Inside a town: any building that does not need a resource node, on the plots beside the streets.
     if (def.node) return `${def.label} must be built on a ${def.node} node`;
     if (def.airport) return 'Airports need open ground outside a town';
-    if (def.port) return 'A Port goes on the coast, outside the town streets';
+    if (def.port || def.harbor) return 'A Port or a Fishing Harbor goes on the coast, outside the town streets';
     if (def.railyard) return 'A Rail Yard goes at the edge of town, outside its streets';
     if (plot.index < 2) return `Reserved for ${plot.place.name}'s ${plot.index === 0 ? 'Market' : 'Supply Yard'}`;
     if (isHomePlot(plot.place, plot.index)) return 'Homes line this stretch of street: not for sale';
@@ -2521,9 +2527,9 @@ export function placeError(world: World, kind: SiteKind, x: number, y: number, r
       if (world.sites.some((s) => s.nodeId === node.id)) return 'Node already in use';
     } else if (def.airport) {
       // An airport checks all nine of its tiles below; it clears forest and levels the ground itself.
-    } else if (t !== 'grass' && !(def.port && t === 'forest')) {
+    } else if (t !== 'grass' && !((def.port || def.harbor) && t === 'forest')) {
       return t === 'forest' ? 'Forests are reserved for forestry nodes' : `Cannot build on ${t}`;
-    } else if (!def.port && slopeAt(world, x, y) > BUILD_SLOPE) {
+    } else if (!def.port && !def.harbor && slopeAt(world, x, y) > BUILD_SLOPE) {
       return 'Too steep to build on';
     }
     if (world.landRules) {
@@ -2540,7 +2546,7 @@ export function placeError(world: World, kind: SiteKind, x: number, y: number, r
       const e = railyardError(world, x, y);
       if (e) return e;
     }
-    if (def.port) {
+    if (def.port || def.harbor) {
       const e = portError(world, x, y);
       if (e) return e;
     }
@@ -3507,6 +3513,7 @@ export function buyOptions(world: World, siteId: number): VehicleKind[] {
   const ok = (list: VehicleKind[]): VehicleKind[] => list.filter((k) => VEHICLE_DEFS[k].implemented);
   if (def.airport) return ok(['plane', 'jet']);
   const out: VehicleKind[] = [];
+  if (def.harbor) out.push('fishboat');
   if (!def.station) out.push('boxtruck', 'bigtruck', 'rig', 'convoy');
   if (def.port) out.push(...ok(['barge', 'boat', 'freighter', 'containership']));
   if (def.station || hasRail(world, siteId)) out.push(...ok(['train', 'heavytrain']));
