@@ -908,3 +908,9 @@ What changed:
 - On Map 3 the ground was one mesh of about 2.4M triangles drawn in full every frame, even close to the street or with half the globe round the far side. It is now chunks of 32x32 tiles sharing the same vertex buffers, each with its own indices and bounds, so off-screen chunks are skipped. Far view still swaps to one quad a tile.
 - `globe.terrain` is now a Group of chunk meshes; `regrade` is unchanged (shared buffers). The full index is freed after normals are built, saving about 30 MB.
 - Next biggest costs on the in-game stats: scenery (about 300k triangles), trees (about 80k), and the ambient-occlusion pass that draws the scene again when close in.
+
+## 0.146: new website (Next.js)
+
+- The site is now a Next.js static export in `web/` (App Router, plain CSS using the game's palette: slate panels, warm text, gold accent, pill top bar, small caps labels). Pages: `/` (hero, the game, screenshots, how it plays, demo vs full game table, maps, 3D artists call, roadmap, updates, FAQ) and `/steam/` (store page preview). All copy lives in `web/app/content.ts`; download and Steam addresses are `LINKS` there.
+- `/goods/`, `/play/` and `/dockside/` are still Vite pages. The Vite build runs the site build and merges `web/out` into `dist` only on Vercel or with `SL_SITE=1`, so the desktop installers still ship just the game. The build number comes from `src/version.ts` automatically.
+- Locally: `npm run site` for the site on port 3001; `SL_SITE=1 npx vite build` for the full merged output. The old root `index.html` and `steam/index.html` are gone.

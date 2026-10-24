@@ -7,3 +7,9 @@ release
 
 release-demo
 electron/demo.flag
+
+web/.next
+web/out
+web/public
+web/next-env.d.ts
+web/tsconfig.tsbuildinfo
