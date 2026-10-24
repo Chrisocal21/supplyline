@@ -719,3 +719,8 @@ What changed:
 - Every wood of 26 tiles or more gets a Forestry node (map.forestNodes, addForestNodes in world.ts), placed nearest its middle by the usual node spacing. Only Map 3 uses it so far.
 - In the world menu Map 3 is listed after Maps 1 and 2 as IN PROGRESS, VIEW ONLY: clicking it opens a picture of the whole map (cities, towns and island goods marked; the data loads only when asked, as its own 600 kB file) and it cannot be started. map3.test.ts checks it builds, keeps its node rules and plays.
 - Not done for Map 3 yet (the groundwork for size): the ground picture is one texture capped at 4,096 pixels across (5 pixels a tile at this width), trees are drawn for the whole globe, many checks scan every tile, and a save holds the whole map. They come before it can be played.
+
+## 0.109: Map 3 grid and test build
+
+- The Map 3 preview is drawn with a grid: columns A to X, rows 1 to 8, each cell 32 tiles (A1 top left). Pointing at the map shows the cell and the tile. Use the cell name (for example "K4") to say where something is. `src/sim/grid.ts` has `gridId` and `gridRange`.
+- "Try it (test build)" on the preview starts Map 3 as a playable test. It may be slow: the ground picture is still capped at 4096 pixels across (5 pixels a tile), and the trees and lookups are not yet tuned for the size.

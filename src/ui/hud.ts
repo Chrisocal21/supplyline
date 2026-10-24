@@ -87,10 +87,13 @@ import {
   vehicleRoute,
   vehicleTicks,
   wrapDx,
+  createWorldFromMap,
+  type MapData,
 } from '../sim/world';
 import { nextQuest } from '../sim/quests';
 import { Game3D, districtOfTool, isDistrictTool, type HoverInfo, type OverlayItem, type Tool } from '../r3d/game3d';
 import { DISTRICTS, DISTRICT_ORDER, isSoftNode } from '../sim/defs';
+import { GRID_CELL, gridId } from '../sim/grid';
 import { districtCost, upkeepPerMinute } from '../sim/town';
 import { COLORS, Im } from './imui';
 import { VERSION, VERSION_NOTE } from '../version';
@@ -1512,6 +1515,7 @@ export class HudScene extends Phaser.Scene {
 
   /** A map that is still being made can be looked at here, and not played. */
   private viewMap: { id: WorldSizeId; ready: boolean } | null = null;
+  private mapGrid = { w: 768, h: 256 };
 
   private openMapView(id: WorldSizeId): void {
     const key = `preview-${id}`;
@@ -1520,10 +1524,10 @@ export class HudScene extends Phaser.Scene {
     // The map's data is only fetched when someone asks to look at it.
     void import('../maps/map3.json').then((m) => {
       const map = m.default as unknown as { width: number; height: number; terrain: string[]; elev: string[]; places: { x: number; y: number; radius: number }[]; specials?: { kind: string; x: number; y: number }[] };
-      const c = document.createElement('canvas');
-      c.width = map.width;
-      c.height = map.height;
-      const ctx = c.getContext('2d')!;
+      const base = document.createElement('canvas');
+      base.width = map.width;
+      base.height = map.height;
+      const ctx = base.getContext('2d')!;
       const img = ctx.createImageData(map.width, map.height);
       const COL: Record<string, number[]> = { '~': [52, 108, 160], '.': [118, 158, 84], f: [52, 104, 60], '^': [140, 128, 116], '*': [232, 238, 242] };
       for (let y = 0; y < map.height; y++) {
@@ -1549,6 +1553,30 @@ export class HudScene extends Phaser.Scene {
         ctx.fillStyle = dots[q.kind] ?? '#fff';
         ctx.fillRect(q.x - 1, q.y - 1, 4, 4);
       }
+      // Drawn three times larger with the grid on top, so a cell name reads clearly in a screenshot.
+      const S = 3;
+      const c = document.createElement('canvas');
+      c.width = map.width * S;
+      c.height = map.height * S;
+      const g = c.getContext('2d')!;
+      g.imageSmoothingEnabled = false;
+      g.drawImage(base, 0, 0, c.width, c.height);
+      g.lineWidth = 1;
+      g.strokeStyle = 'rgba(255,255,255,0.35)';
+      g.fillStyle = 'rgba(255,255,255,0.9)';
+      g.font = 'bold 15px sans-serif';
+      g.textBaseline = 'top';
+      g.shadowColor = '#000';
+      g.shadowBlur = 3;
+      for (let gx = 0; gx * GRID_CELL < map.width; gx++) {
+        for (let gy = 0; gy * GRID_CELL < map.height; gy++) {
+          const px = gx * GRID_CELL * S;
+          const py = gy * GRID_CELL * S;
+          g.strokeRect(px + 0.5, py + 0.5, GRID_CELL * S, GRID_CELL * S);
+          g.fillText(gridId(gx * GRID_CELL, gy * GRID_CELL), px + 5, py + 4);
+        }
+      }
+      this.mapGrid = { w: map.width, h: map.height };
       if (!this.textures.exists(key)) this.textures.addCanvas(key, c);
       if (this.viewMap && this.viewMap.id === id) this.viewMap.ready = true;
     });
@@ -1572,17 +1600,50 @@ export class HudScene extends Phaser.Scene {
     im.text('mvT', def.label, x + pad, cy, { size: 21, bold: true, layer: 4 });
     im.text('mvB', 'IN PROGRESS  ·  VIEW ONLY', x + w - pad, cy + 6, { size: 12, bold: true, color: COLORS.accent, align: 'right', layer: 4 });
     cy += 34;
-    if (v.ready) im.image('mvPic', `preview-${v.id}`, x + pad, cy, inner, picH, 1, 4);
-    else {
+    if (v.ready) {
+      im.image('mvPic', `preview-${v.id}`, x + pad, cy, inner, picH, 1, 4);
+      // Point at the map to read its tile and grid cell.
+      const p = this.input.activePointer;
+      const tx = Math.floor(((p.x - (x + pad)) / inner) * this.mapGrid.w);
+      const ty = Math.floor(((p.y - cy) / picH) * this.mapGrid.h);
+      if (tx >= 0 && ty >= 0 && tx < this.mapGrid.w && ty < this.mapGrid.h) {
+        im.rect(4, x + pad, cy + picH - 24, 190, 24, 0x05080c, 0.75, 6);
+        im.text('mvP', `${gridId(tx, ty)}   tile ${tx}, ${ty}`, x + pad + 8, cy + picH - 19, { size: 12, bold: true, layer: 4 });
+      }
+    } else {
       im.rect(4, x + pad, cy, inner, picH, 0x0b1118, 1, 8, COLORS.line, 1);
       im.text('mvL', 'Loading the map...', x + w / 2, cy + picH / 2 - 8, { size: 14, color: COLORS.muted, align: 'center', layer: 4 });
     }
     cy += picH + 12;
     im.text('mvD', `${def.blurb}  Yellow squares are cities, white squares towns. Brown, orange and black dots are the coffee, mango and oil islands.`, x + pad, cy, { size: 12, color: COLORS.muted, wrap: inner, layer: 4 });
     cy += 54;
-    const ch = im.hit('mvClose', x + pad, cy, inner, 42, () => (this.viewMap = null), 4);
-    im.rect(4, x + pad, cy, inner, 42, ch ? 0x2a3646 : 0x1b2430, 1, 21, COLORS.line, 1);
-    im.text('mvCT', 'Back to the worlds', x + w / 2, cy + 12, { size: 14, bold: true, align: 'center', layer: 4 });
+    const half = (inner - 12) / 2;
+    const ch = im.hit('mvClose', x + pad, cy, half, 42, () => (this.viewMap = null), 4);
+    im.rect(4, x + pad, cy, half, 42, ch ? 0x2a3646 : 0x1b2430, 1, 21, COLORS.line, 1);
+    im.text('mvCT', 'Back to the worlds', x + pad + half / 2, cy + 12, { size: 14, bold: true, align: 'center', layer: 4 });
+    const bx = x + pad + half + 12;
+    const th = !this.building && im.hit('mvTry', bx, cy, half, 42, () => this.tryMap(v.id), 4);
+    im.rect(4, bx, cy, half, 42, th ? 0x2f6a46 : 0x24543a, 1, 21, COLORS.accent, 1);
+    im.text('mvTT', this.building ? 'Building the map...' : 'Try it (test build, may be slow)', bx + half / 2, cy + 12, { size: 14, bold: true, align: 'center', layer: 4 });
+  }
+
+  /** Play a map that is still in progress, as a test: the world is made from its baked data and nothing else about it is promised. */
+  private tryMap(id: WorldSizeId): void {
+    const def = WORLD_SIZES.find((q) => q.id === id)!;
+    this.building = { name: def.label, step: 0, total: 1, label: 'Building the terrain, roads and trees (the map is large: this takes a while)' };
+    void import('../maps/map3.json').then((m) => {
+      setTimeout(() => {
+        const g = this.game3d;
+        g.adoptWorld(createWorldFromMap(m.default as unknown as MapData));
+        this.viewMap = null;
+        this.sizePick = null;
+        this.building = null;
+        this.activeTab = 'select';
+        g.speed = 1;
+        g.world.difficulty = this.difficulty;
+        this.toasts.push({ text: `${def.label}: test build started`, until: this.time.now + 2500 });
+      }, 60);
+    });
   }
 
   private beginWorld(id: WorldSizeId): void {
