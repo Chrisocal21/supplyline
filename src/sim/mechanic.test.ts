@@ -34,11 +34,14 @@ describe('efficiency', () => {
 });
 
 describe('the mechanic shop', () => {
-  it('leaves a worn-out truck stopped when there is no shop', () => {
+  it('with no shop, a worn-out truck stays stopped for a while and is then patched, not made new', () => {
     const { w, v } = setup();
     v.wear = 1;
-    for (let i = 0; i < 3000; i++) step(w);
+    for (let i = 0; i < 1500; i++) step(w);
     expect(v.wear).toBe(1);
+    for (let i = 0; i < 3000; i++) step(w);
+    expect(v.wear ?? 0).toBeLessThan(0.9);
+    expect(v.wear ?? 0).toBeGreaterThan(0.2);
   });
 
   it('repairs it after a wait, and a trained mechanic sends it back past new', () => {

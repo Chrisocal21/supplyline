@@ -218,7 +218,8 @@ const DEFS = {
   coffeefarm: raw('Coffee Plantation', 'Terraced coffee on an island highland. Makes coffee and bran. Islands only, so it has to come by ship.', 420, 2, 'coffee', 'coffee', 26, 0x6b4426, ['bran']),
   mangogrove: raw('Mango Grove', 'Mango trees in the island sun. Makes mangoes and fruit. Islands only, so they have to come by ship.', 320, 2, 'mango', 'mango', 22, 0xf0a630, ['fruit']),
   oilwell: raw('Oil Well', 'Pumps crude oil from a field. Makes oil and sand. Found on a few islands, so it has to come by ship.', 900, 2, 'oil', 'oil', 30, 0x2a2a2e, ['sand']),
-  sandpit: raw('Sand Pit', 'Digs sand on a clay node. Makes sand and gravel.', 140, 1, 'clay', 'sand', 16, 0xe0cd96, ['gravel']),
+  // Sand lies about on open ground, so a Sand Pit needs no node and never competes with a Clay Pit for the one clay bank.
+  sandpit: { ...raw('Sand Pit', 'Digs sand on open ground. Makes sand and gravel.', 140, 1, 'clay', 'sand', 16, 0xe0cd96, ['gravel']), node: undefined } as SiteDef,
 
   // Processing
   sawmill: proc('processing', 'Sawmill', 'Logs in, lumber out. Sawdust is the by-product.', 220, 0, { logs: 2 }, { lumber: 1, sawdust: 1 }, 20, 0xb48650),
@@ -240,7 +241,7 @@ const DEFS = {
     recycle: true,
   } as SiteDef,
   // ---- the wider farm: crops, animals and the ingredients for the kitchen and the brewery ----
-  waterpump: raw('Water Pump', 'Pumps clean water by the shore. Breweries, canneries and ice cream plants need it, and trucks carry it in.', 100, 0, 'clay', 'water', 8, 0x5aa0d8),
+  waterpump: { ...raw('Water Pump', 'Pumps clean water by the shore. Breweries, canneries and ice cream plants need it, and trucks carry it in.', 100, 0, 'clay', 'water', 8, 0x5aa0d8), node: undefined } as SiteDef,
   chickenfarm: raw('Chicken Farm', 'Hens on pasture. Makes eggs and feathers.', 110, 0, 'pasture', 'eggs', 14, 0xe6c85a, ['feathers']),
   vegfarm: raw('Vegetable Farm', 'Market-garden rows on farmland. Makes vegetables.', 100, 0, 'farmland', 'vegetables', 14, 0x5a9a3a),
   potatofarm: raw('Potato Farm', 'Deep furrows on farmland. Makes potatoes.', 110, 1, 'farmland', 'potatoes', 15, 0xb89a60),
@@ -252,7 +253,7 @@ const DEFS = {
   sheepfarm: raw('Sheep Farm', 'Sheep on pasture. Makes wool.', 140, 1, 'pasture', 'wool', 22, 0xe8e0d0),
   apiary: raw('Apiary', 'Hives among the orchard blossom. Makes honey and wax.', 140, 1, 'orchard', 'honey', 28, 0xe0a030, ['wax']),
   vineyard: raw('Vineyard', 'Rows of vines on the orchard slopes. Makes grapes.', 170, 1, 'orchard', 'grapes', 22, 0x6a3a7a),
-  saltpan: raw('Salt Pan', 'Seawater dried in shallow pans by the shore. Makes salt.', 120, 1, 'clay', 'salt', 18, 0xe8e8ee),
+  saltpan: { ...raw('Salt Pan', 'Seawater dried in shallow pans by the shore. Makes salt.', 120, 1, 'clay', 'salt', 18, 0xe8e8ee), node: undefined } as SiteDef,
   spicefarm: raw('Spice Plantation', 'Island spices in the heat. Makes spices. Islands only, so they have to come by ship.', 320, 2, 'mango', 'spices', 28, 0xb8502a),
   cocoafarm: raw('Cocoa Plantation', 'Cocoa pods under shade trees on an island highland. Makes cocoa. Islands only, so it has to come by ship.', 360, 2, 'coffee', 'cocoa', 28, 0x5a3420),
 
@@ -635,7 +636,7 @@ export const YARD_TASTE_GOODS: Good[] = ['logs', 'grain', 'cotton', 'stone', 'or
 export const FREIGHT_DEMAND: Good[][] = [[], [], [], [], []];
 
 /** Lumber a closed town needs delivered to build its Supply Yard, then its Market. */
-export const BUILD_LUMBER = [100, 150];
+export const BUILD_LUMBER = [80, 120];
 
 /**
  * Materials a town needs delivered to its Supply Yard for each level-up (index 0 is level 1 to 2), by town style.
@@ -935,7 +936,7 @@ export const TIERS: TierDef[] = [
       { id: 't0-road', label: 'Join them with a road', hint: 'Open Logistics, pick Road, then drag from the camp to the mill. The truck sets off by itself.', goal: { kind: 'route', mode: 'road', count: 1 }, reward: 150 },
       { id: 't0-making', label: 'Switch the Sawmill on', hint: 'Click the Sawmill and turn on Lumber under Production. Nothing is made until you do.', goal: { kind: 'making', count: 1 }, reward: 100 },
       { id: 't0-selling', label: 'Send lumber to the Supply Yard site', hint: 'Click the Sawmill, buy a truck, and switch the Supply Yard on under Sell to. The street already links them. The lumber builds the yard: it is not sold, so it pays nothing.', goal: { kind: 'selling', count: 1 }, reward: 150 },
-      { id: 't0-yard', label: 'Build the Supply Yard: 100 lumber', hint: 'Keep the lumber coming. When 100 has arrived the yard is built.', goal: { kind: 'townbuilt', stage: 1, count: 1 }, reward: 500 },
+      { id: 't0-yard', label: 'Build the Supply Yard: 80 lumber', hint: 'Keep the lumber coming. One camp makes only about 9 lumber a minute, so build two or three Forestry Camps and join each to the Sawmill. When 80 has arrived the yard is built.', goal: { kind: 'townbuilt', stage: 1, count: 1 }, reward: 500 },
       { id: 't0-market', label: 'Build the Market', hint: 'Fill the yard store with 150 more lumber, buy a Box Truck at the Supply Yard, and carry it to the Market site.', goal: { kind: 'townbuilt', stage: 2, count: 1 }, reward: 500 },
     ],
   },

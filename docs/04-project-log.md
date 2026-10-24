@@ -693,3 +693,14 @@ What changed:
 - A building with piled-up goods and idle trucks no longer suggests more trucks: it says to check the buyer or the road.
 - Badly worn trucks (85%) and broken-down trucks (100%) now put a message in the log. A truck at full wear stops until it is serviced by hand or a Mechanic Shop repairs it (unchanged).
 - Town growth: level 1 to 2 now needs lumber only (250, tropical 300). Every town has a forest within about 40 tiles, but clay, stone and sand are 40 to 100 tiles from a quarter or more of towns on Maps 1 and 2. Later levels keep the style's materials in smaller amounts (for example temperate level 2 to 3: lumber 250, bricks 200). With this all four test maps reach level 2 in the first 25 minutes (before: one map stayed at level 1 for an hour), and the careful bot earns $76k to $184k in an hour with costs at 16 to 34% of earnings.
+
+## 0.106: broken trucks, clay for every town, boats at sea
+
+- A truck at full wear with no Mechanic Shop is now patched by its driver after about four minutes, for 1.5 times a service, and comes back at 35% wear (a shop is still faster, cheaper and better).
+- Towns on Maps 1 and 2 with no clay bank or quarry within 30 tiles get one 10 to 24 tiles away (addMaterialNodes), placed by the same spacing rules as the others. New games only; saves keep their own nodes. Clay and quarry medians are now 20 and 25 to 33 tiles.
+- Sand Pit, Water Pump and Salt Pan no longer need a node (they were taking the few clay banks, so no Clay Pit could be built and bricks never came). Seed 7 went from stuck at level 2 to level 3 in 34 minutes.
+- Town building is cheaper: the Supply Yard needs 80 lumber and the Market 120 (was 100 and 150). The first quest says to build two or three Forestry Camps.
+- Markets use up goods 50% faster (0.03 a tick per level), so a Market takes about 18 units a minute of each good at level 1.
+- Fishing boats circle in the water off their harbor with the boat model.
+- Pacing with the careful bot: Tier 1 at 8 minutes, level 2 at 17, level 3 at 34 to 60, Tier 2 (a level 4 town) at 105 minutes on one map and not within 150 on the others. Tier 2 stays the slow gate.
+- Old saves: a test now loads a save missing the newer fields, with a farm still pointing at a field node, and plays on.

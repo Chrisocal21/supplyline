@@ -67,11 +67,11 @@ describe('closed towns', () => {
     const p = w.places[0];
     const yard = dockOf(w, p.id, 'freight');
     const before = w.money;
-    expect(sell(w, yard, 'lumber', 60)).toBe(0);
-    expect(sell(w, yard, 'lumber', 60)).toBe(0);
+    expect(sell(w, yard, 'lumber', BUILD_LUMBER[0] * 0.6)).toBe(0);
+    expect(sell(w, yard, 'lumber', BUILD_LUMBER[0] * 0.6)).toBe(0);
     expect(p.stage).toBe(1);
-    // 20 of the second delivery went past the 100 the yard needed: it is kept in store for the Market, also unpaid.
-    expect(yard.depot?.lumber).toBe(20);
+    // The part of the second delivery that went past what the yard needed is kept in store for the Market, also unpaid.
+    expect(yard.depot?.lumber).toBeCloseTo(BUILD_LUMBER[0] * 0.2);
     expect(w.money).toBe(before);
     expect(w.earned).toBe(0);
     // The store only holds what the Market still needs: a delivery beyond that is a sale.

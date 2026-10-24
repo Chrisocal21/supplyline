@@ -51,6 +51,10 @@ export const WEAR_TILES = 4000;
 export const WEAR_SLOWDOWN = 0.12;
 /** Share of its load a fully worn road vehicle loses (see WEAR_LOAD_LOSS in defs). */
 const WEAR_LOAD_LOSS_SHARE = 0.3;
+/** A roadside patch with no shop: ticks it takes, its price against a proper service, and the wear it leaves. */
+export const PATCH_WAIT = 2400;
+export const PATCH_COST = 1.5;
+export const PATCH_WEAR = 0.35;
 /** What a service costs a fully worn vehicle, as a share of its price. */
 export const SERVICE_SHARE = 0.12;
 
@@ -264,7 +268,18 @@ export function trainMechanic(world: World, siteId: number): string | null {
  */
 export function stepBreakdown(world: World, v: Vehicle): void {
   const shop = nearestShop(world, v);
-  if (!shop) return;
+  if (!shop) {
+    // No Mechanic Shop: the driver patches it up at the roadside. It takes a few minutes, costs more than a shop and leaves it
+    // only partly mended, so a shop is still worth building.
+    if (v.repairAt === undefined) v.repairAt = world.tick + PATCH_WAIT;
+    if (world.tick < v.repairAt) return;
+    const patch = Math.round((serviceCost(v) * PATCH_COST) / 5) * 5;
+    if (world.money < patch) return;
+    world.money -= patch;
+    v.wear = PATCH_WEAR;
+    v.repairAt = undefined;
+    return;
+  }
   if (v.repairAt === undefined) {
     const home = world.sites.find((x) => x.id === v.homeId);
     const dist = home ? Math.hypot(shop.x - home.x, shop.y - home.y) : 0;

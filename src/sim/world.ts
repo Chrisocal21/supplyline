@@ -61,6 +61,7 @@ import {
   type Terrain,
   type VehicleKind,
 } from './defs';
+import { NODE_FAMILY, OTHER_GAP, SAME_GAP, nodeGap } from './noderules';
 import { generateFeatures, type FixedPlace, type Place, type Region, type ResourceNode, type Tile } from './features';
 import { corridorTiles } from './corridors';
 import { landError } from './land';
@@ -609,6 +610,7 @@ export function createWorldFromMap(map: MapData): World {
     nodes.forEach((n, i) => (n.id = i + 1));
     world.nodes = nodes;
   }
+  addMaterialNodes(world);
   world.layout = NODE_LAYOUT;
   world.blend = true;
   linkPartners(world);
@@ -619,6 +621,44 @@ export function createWorldFromMap(map: MapData): World {
     p.stage = 0;
   }
   return world;
+}
+
+/**
+ * The first levels of a town need clay and stone, and on a hand-made map a quarter of the towns have none within 40 tiles. Any
+ * town with no clay bank or no quarry within 30 tiles gets one 10 to 24 tiles away, on open grass clear of other nodes and towns.
+ */
+function addMaterialNodes(world: World): void {
+  const far = 30;
+  const spot = (p: Place, kind: NodeKind): { x: number; y: number } | null => {
+    const start = (p.id * 7) % 16;
+    for (let r = 10; r <= 24; r += 2) {
+      for (let k = 0; k < 16; k++) {
+        const a = ((k + start) / 16) * Math.PI * 2;
+        const x = wrapX(world, Math.round(p.x + Math.cos(a) * r));
+        const y = Math.round(p.y + Math.sin(a) * r);
+        if (terrainAt(world, x, y) !== 'grass' || slopeAt(world, x, y) > BUILD_SLOPE) continue;
+        if (world.places.some((q) => Math.hypot(wrapDx(world, q.x, x), q.y - y) < (q.radius ?? 3) + 6)) continue;
+        let crowded = false;
+        for (let dy = -3; dy <= 3 && !crowded; dy++) for (let dx = -3; dx <= 3; dx++) if (placeAt(world, x + dx, y + dy) || plannedTownAt(world, x + dx, y + dy)) { crowded = true; break; }
+        if (crowded || routeAt(world, x, y) || padAt(world, x, y)) continue;
+        // Nodes keep their spacing: kin close but never crowded, strangers well apart.
+        if (world.nodes.some((n) => nodeGap({ kind, x, y }, n, world.width) < (NODE_FAMILY[n.kind] === NODE_FAMILY[kind] ? SAME_GAP + 5 : OTHER_GAP))) continue;
+        // A quarry likes the foot of hills.
+        if (kind === 'quarry' && r < 20 && ![-2, 2].some((d) => terrainAt(world, x + d, y) === 'mountain' || terrainAt(world, x, y + d) === 'mountain')) continue;
+        return { x, y };
+      }
+    }
+    return null;
+  };
+  for (const kind of ['clay', 'quarry'] as NodeKind[]) {
+    for (const p of world.places) {
+      const near = world.nodes.some((n) => n.kind === kind && Math.hypot(wrapDx(world, n.x, p.x), n.y - p.y) <= far);
+      if (near) continue;
+      const at = spot(p, kind);
+      if (!at) continue;
+      world.nodes.push({ id: world.nodes.length + 1, kind, x: at.x, y: at.y, quality: 1, regionId: world.regionMap[at.y * world.width + at.x] ?? 0 });
+    }
+  }
 }
 
 /**
@@ -1886,7 +1926,7 @@ function stepSite(world: World, site: Site): void {
     // Towns use up what they are sent.
     const level = placeOf(world, site)?.level ?? 1;
     for (const g of dockDemand(world, site)) {
-      if (stockOf(site, g) > 0) site.stock[g] = Math.max(0, stockOf(site, g) - 0.02 * level * (cityOf(world, site) ? 2.5 : 1));
+      if (stockOf(site, g) > 0) site.stock[g] = Math.max(0, stockOf(site, g) - 0.03 * level * (cityOf(world, site) ? 2.5 : 1));
     }
   }
 }

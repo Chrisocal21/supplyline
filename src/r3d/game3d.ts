@@ -649,6 +649,7 @@ export class Game3D {
     this.siteMeshes.clear();
     this.townMeshes.clear();
     this.vehicleMeshes.clear();
+    this.harborWater.clear();
     this.cargoMeshes.clear();
   }
 
@@ -1897,6 +1898,47 @@ export class Game3D {
     return c >= this.reachCos - slack;
   }
 
+  /** Where each Fishing Harbor's boats cruise: the open water nearest the quay. */
+  private readonly harborWater = new Map<number, { x: number; y: number } | null>();
+
+  /** A fishing boat has no route: it circles in the water off its harbor, a little differently from each of its sisters. */
+  private sailFishingBoat(v: { id: number; homeId: number }, m: THREE.Mesh): void {
+    const w = this.world;
+    let at = this.harborWater.get(v.homeId);
+    if (at === undefined) {
+      const home = w.sites.find((x) => x.id === v.homeId);
+      at = null;
+      for (let r = 1; r <= 5 && home && !at; r++) {
+        for (let dy = -r; dy <= r && !at; dy++) {
+          for (let dx = -r; dx <= r; dx++) {
+            if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+            if (terrainAt(w, home.x + dx, home.y + dy) === 'water') {
+              at = { x: wrapX(w, home.x + dx), y: home.y + dy };
+              break;
+            }
+          }
+        }
+      }
+      this.harborWater.set(v.homeId, at);
+    }
+    if (!at) {
+      m.visible = false;
+      return;
+    }
+    const spot = (a: number): THREE.Vector3 => {
+      const { lon, lat } = tileLonLat(w.width, w.height, at!.x + Math.cos(a) * 1.1, at!.y + Math.sin(a) * 1.1);
+      return lonLatToVec(lon, lat, R + this.hf.surface(lon, lat) + 0.04);
+    };
+    const a = this.nowMs / (4200 + (v.id % 5) * 600) + v.id * 1.7;
+    const pos = spot(a);
+    const up = pos.clone().normalize();
+    const fwd = spot(a + 0.08).sub(pos).normalize();
+    m.matrix.copy(basisMatrix(pos, up, fwd)).multiply(new THREE.Matrix4().makeScale(1.4, 1.4, 1.4));
+    m.matrixWorldNeedsUpdate = true;
+    m.visible = this.inReach(pos.x, pos.y, pos.z, 0.06);
+    m.userData.asleep = !m.visible;
+  }
+
   private updateVehicles(): void {
     const alpha = Math.min(this.acc / TICK_MS, 1);
     for (const v of this.world.vehicles) {
@@ -1904,6 +1946,10 @@ export class Game3D {
       if (!m) continue;
       // Asleep (far from the view): it keeps its place in the sim, but nothing is worked out or drawn until it is checked again.
       if (m.userData.asleep && (this.frames + v.id) % 20 !== 0) continue;
+      if (v.kind === 'fishboat') {
+        this.sailFishingBoat(v, m);
+        continue;
+      }
       const route = vehicleRoute(this.world, v);
       this.showWear(m, v);
       // Waiting at home with nowhere to go: out of sight until a route opens.
