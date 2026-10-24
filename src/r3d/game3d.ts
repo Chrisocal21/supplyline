@@ -27,6 +27,7 @@ import {
 } from '../sim/defs';
 import { districtGhostGeometry, townGeometry, type TownLandmark } from './townmodel';
 import { districtLandmark, type Setting } from './districts';
+import { addTree, type TreeKind } from './vegetation';
 import type { AudioScene } from '../audio/sfx';
 import { Parts } from './parts';
 import { GROW_MS, growMaterial } from './grow';
@@ -3171,6 +3172,73 @@ export class Game3D {
     r.dispose();
     r.forceContextLoss();
     return out;
+  }
+
+  // ---- the model gallery: every building, vehicle, landmark and tree as a picture (for docs/model-previews and the wiki) ----
+
+  private galleryRig: { r: THREE.WebGLRenderer; scene: THREE.Scene; cam: THREE.PerspectiveCamera } | null = null;
+
+  /** Everything the gallery can draw, in a fixed order: a key, a group, a label and the level or variant. */
+  galleryList(): { key: string; group: string; kind: string; label: string; level: number }[] {
+    const out: { key: string; group: string; kind: string; label: string; level: number }[] = [];
+    for (const kind of [...BUILD_ORDER, 'market', 'freight', 'station'] as SiteKind[]) {
+      const def = SITE_DEFS[kind];
+      const levels = def.dock || def.station ? [1] : def.port || def.airport ? [1, 2, 3] : [1, 3, 10];
+      for (const level of levels) out.push({ key: `site-${kind}-L${level}`, group: 'building', kind, label: def.label, level });
+    }
+    for (const kind of VEHICLE_ORDER) out.push({ key: `vehicle-${kind}`, group: 'vehicle', kind, label: VEHICLE_DEFS[kind].label, level: 1 });
+    for (const id of DISTRICT_ORDER) for (const level of [1, 2, 3]) out.push({ key: `district-${id}-L${level}`, group: 'district', kind: id, label: DISTRICTS[id].label, level });
+    for (const t of ['pine', 'oak', 'birch', 'orchard', 'palm'] as const) out.push({ key: `tree-${t}`, group: 'tree', kind: t, label: t[0].toUpperCase() + t.slice(1), level: 1 });
+    return out;
+  }
+
+  /** One gallery picture as a transparent PNG data URL. */
+  galleryImage(index: number, size = 512): string {
+    const spec = this.galleryList()[index];
+    if (!spec) return '';
+    if (!this.galleryRig) {
+      const r = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
+      r.setPixelRatio(1);
+      r.toneMapping = THREE.ACESFilmicToneMapping;
+      const scene = new THREE.Scene();
+      scene.add(new THREE.HemisphereLight(0xdfeaff, 0x55524a, 1.1));
+      const light = new THREE.DirectionalLight(0xfff0dc, 2.8);
+      light.position.set(-3, 5, 4);
+      scene.add(light);
+      this.galleryRig = { r, scene, cam: new THREE.PerspectiveCamera(32, 1, 0.1, 200) };
+    }
+    const { r, scene, cam } = this.galleryRig;
+    r.setSize(size, size);
+    let geo: THREE.BufferGeometry;
+    let yaw = 0.7;
+    if (spec.group === 'building') geo = siteGeometryAt(spec.kind as SiteKind, spec.level);
+    else if (spec.group === 'vehicle') {
+      geo = vehicleGeometry(spec.kind as VehicleKind);
+      // Turned so the side shows: a vehicle faces +Z and is long.
+      yaw = -0.75;
+    } else if (spec.group === 'district') {
+      const parts = new Parts();
+      districtLandmark(parts, spec.kind as DistrictId, spec.level, 0, 0, 0);
+      geo = parts.build();
+      yaw = 0.5;
+    } else {
+      const parts = new Parts();
+      addTree(parts, spec.kind as TreeKind, 0, 0, 0, 1.4, 0);
+      geo = parts.build();
+    }
+    const mesh = new THREE.Mesh(geo, siteMaterial);
+    mesh.rotation.y = yaw;
+    scene.add(mesh);
+    geo.computeBoundingSphere();
+    const bs = geo.boundingSphere!;
+    const dist = (bs.radius / Math.sin((cam.fov * Math.PI) / 360)) * 1.02;
+    cam.position.set(bs.center.x + dist * 0.55, bs.center.y + dist * 0.62, bs.center.z + dist * 0.56);
+    cam.lookAt(bs.center.x, bs.center.y - bs.radius * 0.12, bs.center.z);
+    r.render(scene, cam);
+    const url = r.domElement.toDataURL('image/png');
+    scene.remove(mesh);
+    geo.dispose();
+    return url;
   }
 
   /** Set up a sample base near the first town. For the #demo link and screenshots. */

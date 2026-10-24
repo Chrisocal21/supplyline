@@ -957,3 +957,9 @@ What changed:
 - ChatGPT could not produce a .glb (it cannot write binary files), so models are now authored in code with the `Parts` helper, with ChatGPT used only for design ideas. A GLB loader stays an option for later.
 - `forestry()` in models.ts: a log cabin on a stone footing with corner posts, a shingle roof with ridge cap, stone chimney, porch, door and shuttered windows; a dirt yard; a three-row log stack on bearers with pale cut ends; loose logs; sawdust and wood-chip piles; chopping block with an axe; a skidder with hood, cab, blade and log arch. Same footprint and positions, so the level 2 and 3 extras still fit. The old thin plank slats and end caps in `resourceDetails.ts` were removed since they sat on the new front wall.
 - Checked with the camp close up, scenery hidden, front and back.
+
+## 0.155: model pictures and a wiki
+
+- `tools/model-gallery.cjs` (`npm run gallery`, needs the dev server up): renders every building at levels 1, 3 and 10 (ports and airports 1 to 3), every vehicle, district landmark at levels 1 to 3 and tree to a transparent PNG in `docs/model-previews/` with a manifest. `GALLERY_ONLY=vehicle-` redraws a part. The renderer is `galleryList` / `galleryImage` on Game3D.
+- `tools/export-wiki.cjs` (`npm run wiki`) writes `web/app/wiki/data.json` from the game's own definitions and goods catalogue. Rerun both tools after changing models or defs, and commit the results.
+- Website: `/wiki/` with Buildings (91, searchable, each with level pictures, what it makes and uses), Vehicles (13), Districts (25), Goods (89, each with what makes and uses it) and a Gallery of every picture. About 230 static pages. `web/scripts/assets.cjs` copies the pictures into the site.

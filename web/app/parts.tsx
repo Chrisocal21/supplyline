@@ -23,6 +23,7 @@ export function Nav({ home }: { home: boolean }) {
             <a className="hide-s" href={`${h}#maps`}>Maps</a>
             <a className="hide-s" href={`${h}#roadmap`}>Roadmap</a>
             <a className="hide-s" href={`${h}#faq`}>Questions</a>
+            <a href="/wiki/">Wiki</a>
             <a href="/goods/">Goods</a>
             <a href="/steam/">Store page</a>
             <a className="btn primary sm" href={LINKS.demo || '#'} rel="noopener">Get the demo</a>

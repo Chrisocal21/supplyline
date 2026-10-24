@@ -1,11 +1,13 @@
 {
   "name": "supplyline",
   "private": true,
-  "version": "0.154.0",
+  "version": "0.155.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "site": "node web/scripts/assets.cjs && next dev web -p 3001",
+    "gallery": "node tools/model-gallery.cjs",
+    "wiki": "node tools/export-wiki.cjs",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "test": "vitest run",

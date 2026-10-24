@@ -1,0 +1,2850 @@
+[
+ {
+  "key": "site-forestry-L1",
+  "group": "building",
+  "kind": "forestry",
+  "label": "Forestry Camp",
+  "level": 1,
+  "file": "site-forestry-L1.png"
+ },
+ {
+  "key": "site-forestry-L3",
+  "group": "building",
+  "kind": "forestry",
+  "label": "Forestry Camp",
+  "level": 3,
+  "file": "site-forestry-L3.png"
+ },
+ {
+  "key": "site-forestry-L10",
+  "group": "building",
+  "kind": "forestry",
+  "label": "Forestry Camp",
+  "level": 10,
+  "file": "site-forestry-L10.png"
+ },
+ {
+  "key": "site-farm-L1",
+  "group": "building",
+  "kind": "farm",
+  "label": "Farm",
+  "level": 1,
+  "file": "site-farm-L1.png"
+ },
+ {
+  "key": "site-farm-L3",
+  "group": "building",
+  "kind": "farm",
+  "label": "Farm",
+  "level": 3,
+  "file": "site-farm-L3.png"
+ },
+ {
+  "key": "site-farm-L10",
+  "group": "building",
+  "kind": "farm",
+  "label": "Farm",
+  "level": 10,
+  "file": "site-farm-L10.png"
+ },
+ {
+  "key": "site-claypit-L1",
+  "group": "building",
+  "kind": "claypit",
+  "label": "Clay Pit",
+  "level": 1,
+  "file": "site-claypit-L1.png"
+ },
+ {
+  "key": "site-claypit-L3",
+  "group": "building",
+  "kind": "claypit",
+  "label": "Clay Pit",
+  "level": 3,
+  "file": "site-claypit-L3.png"
+ },
+ {
+  "key": "site-claypit-L10",
+  "group": "building",
+  "kind": "claypit",
+  "label": "Clay Pit",
+  "level": 10,
+  "file": "site-claypit-L10.png"
+ },
+ {
+  "key": "site-ranch-L1",
+  "group": "building",
+  "kind": "ranch",
+  "label": "Dairy Ranch",
+  "level": 1,
+  "file": "site-ranch-L1.png"
+ },
+ {
+  "key": "site-ranch-L3",
+  "group": "building",
+  "kind": "ranch",
+  "label": "Dairy Ranch",
+  "level": 3,
+  "file": "site-ranch-L3.png"
+ },
+ {
+  "key": "site-ranch-L10",
+  "group": "building",
+  "kind": "ranch",
+  "label": "Dairy Ranch",
+  "level": 10,
+  "file": "site-ranch-L10.png"
+ },
+ {
+  "key": "site-orchard-L1",
+  "group": "building",
+  "kind": "orchard",
+  "label": "Orchard",
+  "level": 1,
+  "file": "site-orchard-L1.png"
+ },
+ {
+  "key": "site-orchard-L3",
+  "group": "building",
+  "kind": "orchard",
+  "label": "Orchard",
+  "level": 3,
+  "file": "site-orchard-L3.png"
+ },
+ {
+  "key": "site-orchard-L10",
+  "group": "building",
+  "kind": "orchard",
+  "label": "Orchard",
+  "level": 10,
+  "file": "site-orchard-L10.png"
+ },
+ {
+  "key": "site-quarry-L1",
+  "group": "building",
+  "kind": "quarry",
+  "label": "Quarry",
+  "level": 1,
+  "file": "site-quarry-L1.png"
+ },
+ {
+  "key": "site-quarry-L3",
+  "group": "building",
+  "kind": "quarry",
+  "label": "Quarry",
+  "level": 3,
+  "file": "site-quarry-L3.png"
+ },
+ {
+  "key": "site-quarry-L10",
+  "group": "building",
+  "kind": "quarry",
+  "label": "Quarry",
+  "level": 10,
+  "file": "site-quarry-L10.png"
+ },
+ {
+  "key": "site-cottonfarm-L1",
+  "group": "building",
+  "kind": "cottonfarm",
+  "label": "Cotton Farm",
+  "level": 1,
+  "file": "site-cottonfarm-L1.png"
+ },
+ {
+  "key": "site-cottonfarm-L3",
+  "group": "building",
+  "kind": "cottonfarm",
+  "label": "Cotton Farm",
+  "level": 3,
+  "file": "site-cottonfarm-L3.png"
+ },
+ {
+  "key": "site-cottonfarm-L10",
+  "group": "building",
+  "kind": "cottonfarm",
+  "label": "Cotton Farm",
+  "level": 10,
+  "file": "site-cottonfarm-L10.png"
+ },
+ {
+  "key": "site-coalmine-L1",
+  "group": "building",
+  "kind": "coalmine",
+  "label": "Coal Mine",
+  "level": 1,
+  "file": "site-coalmine-L1.png"
+ },
+ {
+  "key": "site-coalmine-L3",
+  "group": "building",
+  "kind": "coalmine",
+  "label": "Coal Mine",
+  "level": 3,
+  "file": "site-coalmine-L3.png"
+ },
+ {
+  "key": "site-coalmine-L10",
+  "group": "building",
+  "kind": "coalmine",
+  "label": "Coal Mine",
+  "level": 10,
+  "file": "site-coalmine-L10.png"
+ },
+ {
+  "key": "site-oremine-L1",
+  "group": "building",
+  "kind": "oremine",
+  "label": "Iron Mine",
+  "level": 1,
+  "file": "site-oremine-L1.png"
+ },
+ {
+  "key": "site-oremine-L3",
+  "group": "building",
+  "kind": "oremine",
+  "label": "Iron Mine",
+  "level": 3,
+  "file": "site-oremine-L3.png"
+ },
+ {
+  "key": "site-oremine-L10",
+  "group": "building",
+  "kind": "oremine",
+  "label": "Iron Mine",
+  "level": 10,
+  "file": "site-oremine-L10.png"
+ },
+ {
+  "key": "site-coffeefarm-L1",
+  "group": "building",
+  "kind": "coffeefarm",
+  "label": "Coffee Plantation",
+  "level": 1,
+  "file": "site-coffeefarm-L1.png"
+ },
+ {
+  "key": "site-coffeefarm-L3",
+  "group": "building",
+  "kind": "coffeefarm",
+  "label": "Coffee Plantation",
+  "level": 3,
+  "file": "site-coffeefarm-L3.png"
+ },
+ {
+  "key": "site-coffeefarm-L10",
+  "group": "building",
+  "kind": "coffeefarm",
+  "label": "Coffee Plantation",
+  "level": 10,
+  "file": "site-coffeefarm-L10.png"
+ },
+ {
+  "key": "site-mangogrove-L1",
+  "group": "building",
+  "kind": "mangogrove",
+  "label": "Mango Grove",
+  "level": 1,
+  "file": "site-mangogrove-L1.png"
+ },
+ {
+  "key": "site-mangogrove-L3",
+  "group": "building",
+  "kind": "mangogrove",
+  "label": "Mango Grove",
+  "level": 3,
+  "file": "site-mangogrove-L3.png"
+ },
+ {
+  "key": "site-mangogrove-L10",
+  "group": "building",
+  "kind": "mangogrove",
+  "label": "Mango Grove",
+  "level": 10,
+  "file": "site-mangogrove-L10.png"
+ },
+ {
+  "key": "site-oilwell-L1",
+  "group": "building",
+  "kind": "oilwell",
+  "label": "Oil Well",
+  "level": 1,
+  "file": "site-oilwell-L1.png"
+ },
+ {
+  "key": "site-oilwell-L3",
+  "group": "building",
+  "kind": "oilwell",
+  "label": "Oil Well",
+  "level": 3,
+  "file": "site-oilwell-L3.png"
+ },
+ {
+  "key": "site-oilwell-L10",
+  "group": "building",
+  "kind": "oilwell",
+  "label": "Oil Well",
+  "level": 10,
+  "file": "site-oilwell-L10.png"
+ },
+ {
+  "key": "site-sandpit-L1",
+  "group": "building",
+  "kind": "sandpit",
+  "label": "Sand Pit",
+  "level": 1,
+  "file": "site-sandpit-L1.png"
+ },
+ {
+  "key": "site-sandpit-L3",
+  "group": "building",
+  "kind": "sandpit",
+  "label": "Sand Pit",
+  "level": 3,
+  "file": "site-sandpit-L3.png"
+ },
+ {
+  "key": "site-sandpit-L10",
+  "group": "building",
+  "kind": "sandpit",
+  "label": "Sand Pit",
+  "level": 10,
+  "file": "site-sandpit-L10.png"
+ },
+ {
+  "key": "site-sawmill-L1",
+  "group": "building",
+  "kind": "sawmill",
+  "label": "Sawmill",
+  "level": 1,
+  "file": "site-sawmill-L1.png"
+ },
+ {
+  "key": "site-sawmill-L3",
+  "group": "building",
+  "kind": "sawmill",
+  "label": "Sawmill",
+  "level": 3,
+  "file": "site-sawmill-L3.png"
+ },
+ {
+  "key": "site-sawmill-L10",
+  "group": "building",
+  "kind": "sawmill",
+  "label": "Sawmill",
+  "level": 10,
+  "file": "site-sawmill-L10.png"
+ },
+ {
+  "key": "site-mill-L1",
+  "group": "building",
+  "kind": "mill",
+  "label": "Flour Mill",
+  "level": 1,
+  "file": "site-mill-L1.png"
+ },
+ {
+  "key": "site-mill-L3",
+  "group": "building",
+  "kind": "mill",
+  "label": "Flour Mill",
+  "level": 3,
+  "file": "site-mill-L3.png"
+ },
+ {
+  "key": "site-mill-L10",
+  "group": "building",
+  "kind": "mill",
+  "label": "Flour Mill",
+  "level": 10,
+  "file": "site-mill-L10.png"
+ },
+ {
+  "key": "site-bakery-L1",
+  "group": "building",
+  "kind": "bakery",
+  "label": "Bakery",
+  "level": 1,
+  "file": "site-bakery-L1.png"
+ },
+ {
+  "key": "site-bakery-L3",
+  "group": "building",
+  "kind": "bakery",
+  "label": "Bakery",
+  "level": 3,
+  "file": "site-bakery-L3.png"
+ },
+ {
+  "key": "site-bakery-L10",
+  "group": "building",
+  "kind": "bakery",
+  "label": "Bakery",
+  "level": 10,
+  "file": "site-bakery-L10.png"
+ },
+ {
+  "key": "site-dairy-L1",
+  "group": "building",
+  "kind": "dairy",
+  "label": "Dairy",
+  "level": 1,
+  "file": "site-dairy-L1.png"
+ },
+ {
+  "key": "site-dairy-L3",
+  "group": "building",
+  "kind": "dairy",
+  "label": "Dairy",
+  "level": 3,
+  "file": "site-dairy-L3.png"
+ },
+ {
+  "key": "site-dairy-L10",
+  "group": "building",
+  "kind": "dairy",
+  "label": "Dairy",
+  "level": 10,
+  "file": "site-dairy-L10.png"
+ },
+ {
+  "key": "site-jamfactory-L1",
+  "group": "building",
+  "kind": "jamfactory",
+  "label": "Jam Factory",
+  "level": 1,
+  "file": "site-jamfactory-L1.png"
+ },
+ {
+  "key": "site-jamfactory-L3",
+  "group": "building",
+  "kind": "jamfactory",
+  "label": "Jam Factory",
+  "level": 3,
+  "file": "site-jamfactory-L3.png"
+ },
+ {
+  "key": "site-jamfactory-L10",
+  "group": "building",
+  "kind": "jamfactory",
+  "label": "Jam Factory",
+  "level": 10,
+  "file": "site-jamfactory-L10.png"
+ },
+ {
+  "key": "site-feedmill-L1",
+  "group": "building",
+  "kind": "feedmill",
+  "label": "Feed Mill",
+  "level": 1,
+  "file": "site-feedmill-L1.png"
+ },
+ {
+  "key": "site-feedmill-L3",
+  "group": "building",
+  "kind": "feedmill",
+  "label": "Feed Mill",
+  "level": 3,
+  "file": "site-feedmill-L3.png"
+ },
+ {
+  "key": "site-feedmill-L10",
+  "group": "building",
+  "kind": "feedmill",
+  "label": "Feed Mill",
+  "level": 10,
+  "file": "site-feedmill-L10.png"
+ },
+ {
+  "key": "site-gardensupply-L1",
+  "group": "building",
+  "kind": "gardensupply",
+  "label": "Garden Supply",
+  "level": 1,
+  "file": "site-gardensupply-L1.png"
+ },
+ {
+  "key": "site-gardensupply-L3",
+  "group": "building",
+  "kind": "gardensupply",
+  "label": "Garden Supply",
+  "level": 3,
+  "file": "site-gardensupply-L3.png"
+ },
+ {
+  "key": "site-gardensupply-L10",
+  "group": "building",
+  "kind": "gardensupply",
+  "label": "Garden Supply",
+  "level": 10,
+  "file": "site-gardensupply-L10.png"
+ },
+ {
+  "key": "site-scrapyard-L1",
+  "group": "building",
+  "kind": "scrapyard",
+  "label": "Recycling Yard",
+  "level": 1,
+  "file": "site-scrapyard-L1.png"
+ },
+ {
+  "key": "site-scrapyard-L3",
+  "group": "building",
+  "kind": "scrapyard",
+  "label": "Recycling Yard",
+  "level": 3,
+  "file": "site-scrapyard-L3.png"
+ },
+ {
+  "key": "site-scrapyard-L10",
+  "group": "building",
+  "kind": "scrapyard",
+  "label": "Recycling Yard",
+  "level": 10,
+  "file": "site-scrapyard-L10.png"
+ },
+ {
+  "key": "site-waterpump-L1",
+  "group": "building",
+  "kind": "waterpump",
+  "label": "Water Pump",
+  "level": 1,
+  "file": "site-waterpump-L1.png"
+ },
+ {
+  "key": "site-waterpump-L3",
+  "group": "building",
+  "kind": "waterpump",
+  "label": "Water Pump",
+  "level": 3,
+  "file": "site-waterpump-L3.png"
+ },
+ {
+  "key": "site-waterpump-L10",
+  "group": "building",
+  "kind": "waterpump",
+  "label": "Water Pump",
+  "level": 10,
+  "file": "site-waterpump-L10.png"
+ },
+ {
+  "key": "site-chickenfarm-L1",
+  "group": "building",
+  "kind": "chickenfarm",
+  "label": "Chicken Farm",
+  "level": 1,
+  "file": "site-chickenfarm-L1.png"
+ },
+ {
+  "key": "site-chickenfarm-L3",
+  "group": "building",
+  "kind": "chickenfarm",
+  "label": "Chicken Farm",
+  "level": 3,
+  "file": "site-chickenfarm-L3.png"
+ },
+ {
+  "key": "site-chickenfarm-L10",
+  "group": "building",
+  "kind": "chickenfarm",
+  "label": "Chicken Farm",
+  "level": 10,
+  "file": "site-chickenfarm-L10.png"
+ },
+ {
+  "key": "site-vegfarm-L1",
+  "group": "building",
+  "kind": "vegfarm",
+  "label": "Vegetable Farm",
+  "level": 1,
+  "file": "site-vegfarm-L1.png"
+ },
+ {
+  "key": "site-vegfarm-L3",
+  "group": "building",
+  "kind": "vegfarm",
+  "label": "Vegetable Farm",
+  "level": 3,
+  "file": "site-vegfarm-L3.png"
+ },
+ {
+  "key": "site-vegfarm-L10",
+  "group": "building",
+  "kind": "vegfarm",
+  "label": "Vegetable Farm",
+  "level": 10,
+  "file": "site-vegfarm-L10.png"
+ },
+ {
+  "key": "site-potatofarm-L1",
+  "group": "building",
+  "kind": "potatofarm",
+  "label": "Potato Farm",
+  "level": 1,
+  "file": "site-potatofarm-L1.png"
+ },
+ {
+  "key": "site-potatofarm-L3",
+  "group": "building",
+  "kind": "potatofarm",
+  "label": "Potato Farm",
+  "level": 3,
+  "file": "site-potatofarm-L3.png"
+ },
+ {
+  "key": "site-potatofarm-L10",
+  "group": "building",
+  "kind": "potatofarm",
+  "label": "Potato Farm",
+  "level": 10,
+  "file": "site-potatofarm-L10.png"
+ },
+ {
+  "key": "site-barleyfarm-L1",
+  "group": "building",
+  "kind": "barleyfarm",
+  "label": "Barley Farm",
+  "level": 1,
+  "file": "site-barleyfarm-L1.png"
+ },
+ {
+  "key": "site-barleyfarm-L3",
+  "group": "building",
+  "kind": "barleyfarm",
+  "label": "Barley Farm",
+  "level": 3,
+  "file": "site-barleyfarm-L3.png"
+ },
+ {
+  "key": "site-barleyfarm-L10",
+  "group": "building",
+  "kind": "barleyfarm",
+  "label": "Barley Farm",
+  "level": 10,
+  "file": "site-barleyfarm-L10.png"
+ },
+ {
+  "key": "site-hopfarm-L1",
+  "group": "building",
+  "kind": "hopfarm",
+  "label": "Hop Farm",
+  "level": 1,
+  "file": "site-hopfarm-L1.png"
+ },
+ {
+  "key": "site-hopfarm-L3",
+  "group": "building",
+  "kind": "hopfarm",
+  "label": "Hop Farm",
+  "level": 3,
+  "file": "site-hopfarm-L3.png"
+ },
+ {
+  "key": "site-hopfarm-L10",
+  "group": "building",
+  "kind": "hopfarm",
+  "label": "Hop Farm",
+  "level": 10,
+  "file": "site-hopfarm-L10.png"
+ },
+ {
+  "key": "site-sugarfarm-L1",
+  "group": "building",
+  "kind": "sugarfarm",
+  "label": "Sugar Beet Farm",
+  "level": 1,
+  "file": "site-sugarfarm-L1.png"
+ },
+ {
+  "key": "site-sugarfarm-L3",
+  "group": "building",
+  "kind": "sugarfarm",
+  "label": "Sugar Beet Farm",
+  "level": 3,
+  "file": "site-sugarfarm-L3.png"
+ },
+ {
+  "key": "site-sugarfarm-L10",
+  "group": "building",
+  "kind": "sugarfarm",
+  "label": "Sugar Beet Farm",
+  "level": 10,
+  "file": "site-sugarfarm-L10.png"
+ },
+ {
+  "key": "site-oilseedfarm-L1",
+  "group": "building",
+  "kind": "oilseedfarm",
+  "label": "Sunflower Farm",
+  "level": 1,
+  "file": "site-oilseedfarm-L1.png"
+ },
+ {
+  "key": "site-oilseedfarm-L3",
+  "group": "building",
+  "kind": "oilseedfarm",
+  "label": "Sunflower Farm",
+  "level": 3,
+  "file": "site-oilseedfarm-L3.png"
+ },
+ {
+  "key": "site-oilseedfarm-L10",
+  "group": "building",
+  "kind": "oilseedfarm",
+  "label": "Sunflower Farm",
+  "level": 10,
+  "file": "site-oilseedfarm-L10.png"
+ },
+ {
+  "key": "site-pigfarm-L1",
+  "group": "building",
+  "kind": "pigfarm",
+  "label": "Pig Farm",
+  "level": 1,
+  "file": "site-pigfarm-L1.png"
+ },
+ {
+  "key": "site-pigfarm-L3",
+  "group": "building",
+  "kind": "pigfarm",
+  "label": "Pig Farm",
+  "level": 3,
+  "file": "site-pigfarm-L3.png"
+ },
+ {
+  "key": "site-pigfarm-L10",
+  "group": "building",
+  "kind": "pigfarm",
+  "label": "Pig Farm",
+  "level": 10,
+  "file": "site-pigfarm-L10.png"
+ },
+ {
+  "key": "site-sheepfarm-L1",
+  "group": "building",
+  "kind": "sheepfarm",
+  "label": "Sheep Farm",
+  "level": 1,
+  "file": "site-sheepfarm-L1.png"
+ },
+ {
+  "key": "site-sheepfarm-L3",
+  "group": "building",
+  "kind": "sheepfarm",
+  "label": "Sheep Farm",
+  "level": 3,
+  "file": "site-sheepfarm-L3.png"
+ },
+ {
+  "key": "site-sheepfarm-L10",
+  "group": "building",
+  "kind": "sheepfarm",
+  "label": "Sheep Farm",
+  "level": 10,
+  "file": "site-sheepfarm-L10.png"
+ },
+ {
+  "key": "site-apiary-L1",
+  "group": "building",
+  "kind": "apiary",
+  "label": "Apiary",
+  "level": 1,
+  "file": "site-apiary-L1.png"
+ },
+ {
+  "key": "site-apiary-L3",
+  "group": "building",
+  "kind": "apiary",
+  "label": "Apiary",
+  "level": 3,
+  "file": "site-apiary-L3.png"
+ },
+ {
+  "key": "site-apiary-L10",
+  "group": "building",
+  "kind": "apiary",
+  "label": "Apiary",
+  "level": 10,
+  "file": "site-apiary-L10.png"
+ },
+ {
+  "key": "site-vineyard-L1",
+  "group": "building",
+  "kind": "vineyard",
+  "label": "Vineyard",
+  "level": 1,
+  "file": "site-vineyard-L1.png"
+ },
+ {
+  "key": "site-vineyard-L3",
+  "group": "building",
+  "kind": "vineyard",
+  "label": "Vineyard",
+  "level": 3,
+  "file": "site-vineyard-L3.png"
+ },
+ {
+  "key": "site-vineyard-L10",
+  "group": "building",
+  "kind": "vineyard",
+  "label": "Vineyard",
+  "level": 10,
+  "file": "site-vineyard-L10.png"
+ },
+ {
+  "key": "site-saltpan-L1",
+  "group": "building",
+  "kind": "saltpan",
+  "label": "Salt Pan",
+  "level": 1,
+  "file": "site-saltpan-L1.png"
+ },
+ {
+  "key": "site-saltpan-L3",
+  "group": "building",
+  "kind": "saltpan",
+  "label": "Salt Pan",
+  "level": 3,
+  "file": "site-saltpan-L3.png"
+ },
+ {
+  "key": "site-saltpan-L10",
+  "group": "building",
+  "kind": "saltpan",
+  "label": "Salt Pan",
+  "level": 10,
+  "file": "site-saltpan-L10.png"
+ },
+ {
+  "key": "site-spicefarm-L1",
+  "group": "building",
+  "kind": "spicefarm",
+  "label": "Spice Plantation",
+  "level": 1,
+  "file": "site-spicefarm-L1.png"
+ },
+ {
+  "key": "site-spicefarm-L3",
+  "group": "building",
+  "kind": "spicefarm",
+  "label": "Spice Plantation",
+  "level": 3,
+  "file": "site-spicefarm-L3.png"
+ },
+ {
+  "key": "site-spicefarm-L10",
+  "group": "building",
+  "kind": "spicefarm",
+  "label": "Spice Plantation",
+  "level": 10,
+  "file": "site-spicefarm-L10.png"
+ },
+ {
+  "key": "site-cocoafarm-L1",
+  "group": "building",
+  "kind": "cocoafarm",
+  "label": "Cocoa Plantation",
+  "level": 1,
+  "file": "site-cocoafarm-L1.png"
+ },
+ {
+  "key": "site-cocoafarm-L3",
+  "group": "building",
+  "kind": "cocoafarm",
+  "label": "Cocoa Plantation",
+  "level": 3,
+  "file": "site-cocoafarm-L3.png"
+ },
+ {
+  "key": "site-cocoafarm-L10",
+  "group": "building",
+  "kind": "cocoafarm",
+  "label": "Cocoa Plantation",
+  "level": 10,
+  "file": "site-cocoafarm-L10.png"
+ },
+ {
+  "key": "site-harbor-L1",
+  "group": "building",
+  "kind": "harbor",
+  "label": "Fishing Harbor",
+  "level": 1,
+  "file": "site-harbor-L1.png"
+ },
+ {
+  "key": "site-harbor-L3",
+  "group": "building",
+  "kind": "harbor",
+  "label": "Fishing Harbor",
+  "level": 3,
+  "file": "site-harbor-L3.png"
+ },
+ {
+  "key": "site-harbor-L10",
+  "group": "building",
+  "kind": "harbor",
+  "label": "Fishing Harbor",
+  "level": 10,
+  "file": "site-harbor-L10.png"
+ },
+ {
+  "key": "site-smokehouse-L1",
+  "group": "building",
+  "kind": "smokehouse",
+  "label": "Smokehouse",
+  "level": 1,
+  "file": "site-smokehouse-L1.png"
+ },
+ {
+  "key": "site-smokehouse-L3",
+  "group": "building",
+  "kind": "smokehouse",
+  "label": "Smokehouse",
+  "level": 3,
+  "file": "site-smokehouse-L3.png"
+ },
+ {
+  "key": "site-smokehouse-L10",
+  "group": "building",
+  "kind": "smokehouse",
+  "label": "Smokehouse",
+  "level": 10,
+  "file": "site-smokehouse-L10.png"
+ },
+ {
+  "key": "site-fishcannery-L1",
+  "group": "building",
+  "kind": "fishcannery",
+  "label": "Fish Cannery",
+  "level": 1,
+  "file": "site-fishcannery-L1.png"
+ },
+ {
+  "key": "site-fishcannery-L3",
+  "group": "building",
+  "kind": "fishcannery",
+  "label": "Fish Cannery",
+  "level": 3,
+  "file": "site-fishcannery-L3.png"
+ },
+ {
+  "key": "site-fishcannery-L10",
+  "group": "building",
+  "kind": "fishcannery",
+  "label": "Fish Cannery",
+  "level": 10,
+  "file": "site-fishcannery-L10.png"
+ },
+ {
+  "key": "site-fishmeal-L1",
+  "group": "building",
+  "kind": "fishmeal",
+  "label": "Fish Meal Plant",
+  "level": 1,
+  "file": "site-fishmeal-L1.png"
+ },
+ {
+  "key": "site-fishmeal-L3",
+  "group": "building",
+  "kind": "fishmeal",
+  "label": "Fish Meal Plant",
+  "level": 3,
+  "file": "site-fishmeal-L3.png"
+ },
+ {
+  "key": "site-fishmeal-L10",
+  "group": "building",
+  "kind": "fishmeal",
+  "label": "Fish Meal Plant",
+  "level": 10,
+  "file": "site-fishmeal-L10.png"
+ },
+ {
+  "key": "site-woodyard-L1",
+  "group": "building",
+  "kind": "woodyard",
+  "label": "Wood Yard",
+  "level": 1,
+  "file": "site-woodyard-L1.png"
+ },
+ {
+  "key": "site-woodyard-L3",
+  "group": "building",
+  "kind": "woodyard",
+  "label": "Wood Yard",
+  "level": 3,
+  "file": "site-woodyard-L3.png"
+ },
+ {
+  "key": "site-woodyard-L10",
+  "group": "building",
+  "kind": "woodyard",
+  "label": "Wood Yard",
+  "level": 10,
+  "file": "site-woodyard-L10.png"
+ },
+ {
+  "key": "site-creamery-L1",
+  "group": "building",
+  "kind": "creamery",
+  "label": "Creamery",
+  "level": 1,
+  "file": "site-creamery-L1.png"
+ },
+ {
+  "key": "site-creamery-L3",
+  "group": "building",
+  "kind": "creamery",
+  "label": "Creamery",
+  "level": 3,
+  "file": "site-creamery-L3.png"
+ },
+ {
+  "key": "site-creamery-L10",
+  "group": "building",
+  "kind": "creamery",
+  "label": "Creamery",
+  "level": 10,
+  "file": "site-creamery-L10.png"
+ },
+ {
+  "key": "site-juicepress-L1",
+  "group": "building",
+  "kind": "juicepress",
+  "label": "Juice Press",
+  "level": 1,
+  "file": "site-juicepress-L1.png"
+ },
+ {
+  "key": "site-juicepress-L3",
+  "group": "building",
+  "kind": "juicepress",
+  "label": "Juice Press",
+  "level": 3,
+  "file": "site-juicepress-L3.png"
+ },
+ {
+  "key": "site-juicepress-L10",
+  "group": "building",
+  "kind": "juicepress",
+  "label": "Juice Press",
+  "level": 10,
+  "file": "site-juicepress-L10.png"
+ },
+ {
+  "key": "site-sugarrefinery-L1",
+  "group": "building",
+  "kind": "sugarrefinery",
+  "label": "Sugar Refinery",
+  "level": 1,
+  "file": "site-sugarrefinery-L1.png"
+ },
+ {
+  "key": "site-sugarrefinery-L3",
+  "group": "building",
+  "kind": "sugarrefinery",
+  "label": "Sugar Refinery",
+  "level": 3,
+  "file": "site-sugarrefinery-L3.png"
+ },
+ {
+  "key": "site-sugarrefinery-L10",
+  "group": "building",
+  "kind": "sugarrefinery",
+  "label": "Sugar Refinery",
+  "level": 10,
+  "file": "site-sugarrefinery-L10.png"
+ },
+ {
+  "key": "site-oilpress-L1",
+  "group": "building",
+  "kind": "oilpress",
+  "label": "Oil Press",
+  "level": 1,
+  "file": "site-oilpress-L1.png"
+ },
+ {
+  "key": "site-oilpress-L3",
+  "group": "building",
+  "kind": "oilpress",
+  "label": "Oil Press",
+  "level": 3,
+  "file": "site-oilpress-L3.png"
+ },
+ {
+  "key": "site-oilpress-L10",
+  "group": "building",
+  "kind": "oilpress",
+  "label": "Oil Press",
+  "level": 10,
+  "file": "site-oilpress-L10.png"
+ },
+ {
+  "key": "site-pastrykitchen-L1",
+  "group": "building",
+  "kind": "pastrykitchen",
+  "label": "Pastry Kitchen",
+  "level": 1,
+  "file": "site-pastrykitchen-L1.png"
+ },
+ {
+  "key": "site-pastrykitchen-L3",
+  "group": "building",
+  "kind": "pastrykitchen",
+  "label": "Pastry Kitchen",
+  "level": 3,
+  "file": "site-pastrykitchen-L3.png"
+ },
+ {
+  "key": "site-pastrykitchen-L10",
+  "group": "building",
+  "kind": "pastrykitchen",
+  "label": "Pastry Kitchen",
+  "level": 10,
+  "file": "site-pastrykitchen-L10.png"
+ },
+ {
+  "key": "site-noodlemaker-L1",
+  "group": "building",
+  "kind": "noodlemaker",
+  "label": "Noodle Maker",
+  "level": 1,
+  "file": "site-noodlemaker-L1.png"
+ },
+ {
+  "key": "site-noodlemaker-L3",
+  "group": "building",
+  "kind": "noodlemaker",
+  "label": "Noodle Maker",
+  "level": 3,
+  "file": "site-noodlemaker-L3.png"
+ },
+ {
+  "key": "site-noodlemaker-L10",
+  "group": "building",
+  "kind": "noodlemaker",
+  "label": "Noodle Maker",
+  "level": 10,
+  "file": "site-noodlemaker-L10.png"
+ },
+ {
+  "key": "site-pizzeria-L1",
+  "group": "building",
+  "kind": "pizzeria",
+  "label": "Pizzeria",
+  "level": 1,
+  "file": "site-pizzeria-L1.png"
+ },
+ {
+  "key": "site-pizzeria-L3",
+  "group": "building",
+  "kind": "pizzeria",
+  "label": "Pizzeria",
+  "level": 3,
+  "file": "site-pizzeria-L3.png"
+ },
+ {
+  "key": "site-pizzeria-L10",
+  "group": "building",
+  "kind": "pizzeria",
+  "label": "Pizzeria",
+  "level": 10,
+  "file": "site-pizzeria-L10.png"
+ },
+ {
+  "key": "site-cannery-L1",
+  "group": "building",
+  "kind": "cannery",
+  "label": "Cannery",
+  "level": 1,
+  "file": "site-cannery-L1.png"
+ },
+ {
+  "key": "site-cannery-L3",
+  "group": "building",
+  "kind": "cannery",
+  "label": "Cannery",
+  "level": 3,
+  "file": "site-cannery-L3.png"
+ },
+ {
+  "key": "site-cannery-L10",
+  "group": "building",
+  "kind": "cannery",
+  "label": "Cannery",
+  "level": 10,
+  "file": "site-cannery-L10.png"
+ },
+ {
+  "key": "site-butcher-L1",
+  "group": "building",
+  "kind": "butcher",
+  "label": "Butcher",
+  "level": 1,
+  "file": "site-butcher-L1.png"
+ },
+ {
+  "key": "site-butcher-L3",
+  "group": "building",
+  "kind": "butcher",
+  "label": "Butcher",
+  "level": 3,
+  "file": "site-butcher-L3.png"
+ },
+ {
+  "key": "site-butcher-L10",
+  "group": "building",
+  "kind": "butcher",
+  "label": "Butcher",
+  "level": 10,
+  "file": "site-butcher-L10.png"
+ },
+ {
+  "key": "site-brewery-L1",
+  "group": "building",
+  "kind": "brewery",
+  "label": "Brewery",
+  "level": 1,
+  "file": "site-brewery-L1.png"
+ },
+ {
+  "key": "site-brewery-L3",
+  "group": "building",
+  "kind": "brewery",
+  "label": "Brewery",
+  "level": 3,
+  "file": "site-brewery-L3.png"
+ },
+ {
+  "key": "site-brewery-L10",
+  "group": "building",
+  "kind": "brewery",
+  "label": "Brewery",
+  "level": 10,
+  "file": "site-brewery-L10.png"
+ },
+ {
+  "key": "site-sodaplant-L1",
+  "group": "building",
+  "kind": "sodaplant",
+  "label": "Soft Drink Plant",
+  "level": 1,
+  "file": "site-sodaplant-L1.png"
+ },
+ {
+  "key": "site-sodaplant-L3",
+  "group": "building",
+  "kind": "sodaplant",
+  "label": "Soft Drink Plant",
+  "level": 3,
+  "file": "site-sodaplant-L3.png"
+ },
+ {
+  "key": "site-sodaplant-L10",
+  "group": "building",
+  "kind": "sodaplant",
+  "label": "Soft Drink Plant",
+  "level": 10,
+  "file": "site-sodaplant-L10.png"
+ },
+ {
+  "key": "site-woolmill-L1",
+  "group": "building",
+  "kind": "woolmill",
+  "label": "Wool Mill",
+  "level": 1,
+  "file": "site-woolmill-L1.png"
+ },
+ {
+  "key": "site-woolmill-L3",
+  "group": "building",
+  "kind": "woolmill",
+  "label": "Wool Mill",
+  "level": 3,
+  "file": "site-woolmill-L3.png"
+ },
+ {
+  "key": "site-woolmill-L10",
+  "group": "building",
+  "kind": "woolmill",
+  "label": "Wool Mill",
+  "level": 10,
+  "file": "site-woolmill-L10.png"
+ },
+ {
+  "key": "site-compostyard-L1",
+  "group": "building",
+  "kind": "compostyard",
+  "label": "Compost Yard",
+  "level": 1,
+  "file": "site-compostyard-L1.png"
+ },
+ {
+  "key": "site-compostyard-L3",
+  "group": "building",
+  "kind": "compostyard",
+  "label": "Compost Yard",
+  "level": 3,
+  "file": "site-compostyard-L3.png"
+ },
+ {
+  "key": "site-compostyard-L10",
+  "group": "building",
+  "kind": "compostyard",
+  "label": "Compost Yard",
+  "level": 10,
+  "file": "site-compostyard-L10.png"
+ },
+ {
+  "key": "site-silage-L1",
+  "group": "building",
+  "kind": "silage",
+  "label": "Silage Plant",
+  "level": 1,
+  "file": "site-silage-L1.png"
+ },
+ {
+  "key": "site-silage-L3",
+  "group": "building",
+  "kind": "silage",
+  "label": "Silage Plant",
+  "level": 3,
+  "file": "site-silage-L3.png"
+ },
+ {
+  "key": "site-silage-L10",
+  "group": "building",
+  "kind": "silage",
+  "label": "Silage Plant",
+  "level": 10,
+  "file": "site-silage-L10.png"
+ },
+ {
+  "key": "site-winery-L1",
+  "group": "building",
+  "kind": "winery",
+  "label": "Winery",
+  "level": 1,
+  "file": "site-winery-L1.png"
+ },
+ {
+  "key": "site-winery-L3",
+  "group": "building",
+  "kind": "winery",
+  "label": "Winery",
+  "level": 3,
+  "file": "site-winery-L3.png"
+ },
+ {
+  "key": "site-winery-L10",
+  "group": "building",
+  "kind": "winery",
+  "label": "Winery",
+  "level": 10,
+  "file": "site-winery-L10.png"
+ },
+ {
+  "key": "site-distillery-L1",
+  "group": "building",
+  "kind": "distillery",
+  "label": "Distillery",
+  "level": 1,
+  "file": "site-distillery-L1.png"
+ },
+ {
+  "key": "site-distillery-L3",
+  "group": "building",
+  "kind": "distillery",
+  "label": "Distillery",
+  "level": 3,
+  "file": "site-distillery-L3.png"
+ },
+ {
+  "key": "site-distillery-L10",
+  "group": "building",
+  "kind": "distillery",
+  "label": "Distillery",
+  "level": 10,
+  "file": "site-distillery-L10.png"
+ },
+ {
+  "key": "site-icecreamplant-L1",
+  "group": "building",
+  "kind": "icecreamplant",
+  "label": "Ice Cream Plant",
+  "level": 1,
+  "file": "site-icecreamplant-L1.png"
+ },
+ {
+  "key": "site-icecreamplant-L3",
+  "group": "building",
+  "kind": "icecreamplant",
+  "label": "Ice Cream Plant",
+  "level": 3,
+  "file": "site-icecreamplant-L3.png"
+ },
+ {
+  "key": "site-icecreamplant-L10",
+  "group": "building",
+  "kind": "icecreamplant",
+  "label": "Ice Cream Plant",
+  "level": 10,
+  "file": "site-icecreamplant-L10.png"
+ },
+ {
+  "key": "site-crispfryer-L1",
+  "group": "building",
+  "kind": "crispfryer",
+  "label": "Crisp Fryer",
+  "level": 1,
+  "file": "site-crispfryer-L1.png"
+ },
+ {
+  "key": "site-crispfryer-L3",
+  "group": "building",
+  "kind": "crispfryer",
+  "label": "Crisp Fryer",
+  "level": 3,
+  "file": "site-crispfryer-L3.png"
+ },
+ {
+  "key": "site-crispfryer-L10",
+  "group": "building",
+  "kind": "crispfryer",
+  "label": "Crisp Fryer",
+  "level": 10,
+  "file": "site-crispfryer-L10.png"
+ },
+ {
+  "key": "site-sausagemaker-L1",
+  "group": "building",
+  "kind": "sausagemaker",
+  "label": "Sausage Maker",
+  "level": 1,
+  "file": "site-sausagemaker-L1.png"
+ },
+ {
+  "key": "site-sausagemaker-L3",
+  "group": "building",
+  "kind": "sausagemaker",
+  "label": "Sausage Maker",
+  "level": 3,
+  "file": "site-sausagemaker-L3.png"
+ },
+ {
+  "key": "site-sausagemaker-L10",
+  "group": "building",
+  "kind": "sausagemaker",
+  "label": "Sausage Maker",
+  "level": 10,
+  "file": "site-sausagemaker-L10.png"
+ },
+ {
+  "key": "site-chocolatier-L1",
+  "group": "building",
+  "kind": "chocolatier",
+  "label": "Chocolate Maker",
+  "level": 1,
+  "file": "site-chocolatier-L1.png"
+ },
+ {
+  "key": "site-chocolatier-L3",
+  "group": "building",
+  "kind": "chocolatier",
+  "label": "Chocolate Maker",
+  "level": 3,
+  "file": "site-chocolatier-L3.png"
+ },
+ {
+  "key": "site-chocolatier-L10",
+  "group": "building",
+  "kind": "chocolatier",
+  "label": "Chocolate Maker",
+  "level": 10,
+  "file": "site-chocolatier-L10.png"
+ },
+ {
+  "key": "site-candlemaker-L1",
+  "group": "building",
+  "kind": "candlemaker",
+  "label": "Candle Maker",
+  "level": 1,
+  "file": "site-candlemaker-L1.png"
+ },
+ {
+  "key": "site-candlemaker-L3",
+  "group": "building",
+  "kind": "candlemaker",
+  "label": "Candle Maker",
+  "level": 3,
+  "file": "site-candlemaker-L3.png"
+ },
+ {
+  "key": "site-candlemaker-L10",
+  "group": "building",
+  "kind": "candlemaker",
+  "label": "Candle Maker",
+  "level": 10,
+  "file": "site-candlemaker-L10.png"
+ },
+ {
+  "key": "site-pillowmaker-L1",
+  "group": "building",
+  "kind": "pillowmaker",
+  "label": "Pillow Maker",
+  "level": 1,
+  "file": "site-pillowmaker-L1.png"
+ },
+ {
+  "key": "site-pillowmaker-L3",
+  "group": "building",
+  "kind": "pillowmaker",
+  "label": "Pillow Maker",
+  "level": 3,
+  "file": "site-pillowmaker-L3.png"
+ },
+ {
+  "key": "site-pillowmaker-L10",
+  "group": "building",
+  "kind": "pillowmaker",
+  "label": "Pillow Maker",
+  "level": 10,
+  "file": "site-pillowmaker-L10.png"
+ },
+ {
+  "key": "site-granitecutter-L1",
+  "group": "building",
+  "kind": "granitecutter",
+  "label": "Granite Cutter",
+  "level": 1,
+  "file": "site-granitecutter-L1.png"
+ },
+ {
+  "key": "site-granitecutter-L3",
+  "group": "building",
+  "kind": "granitecutter",
+  "label": "Granite Cutter",
+  "level": 3,
+  "file": "site-granitecutter-L3.png"
+ },
+ {
+  "key": "site-granitecutter-L10",
+  "group": "building",
+  "kind": "granitecutter",
+  "label": "Granite Cutter",
+  "level": 10,
+  "file": "site-granitecutter-L10.png"
+ },
+ {
+  "key": "site-refinery-L1",
+  "group": "building",
+  "kind": "refinery",
+  "label": "Fuel Refinery",
+  "level": 1,
+  "file": "site-refinery-L1.png"
+ },
+ {
+  "key": "site-refinery-L3",
+  "group": "building",
+  "kind": "refinery",
+  "label": "Fuel Refinery",
+  "level": 3,
+  "file": "site-refinery-L3.png"
+ },
+ {
+  "key": "site-refinery-L10",
+  "group": "building",
+  "kind": "refinery",
+  "label": "Fuel Refinery",
+  "level": 10,
+  "file": "site-refinery-L10.png"
+ },
+ {
+  "key": "site-pelletmill-L1",
+  "group": "building",
+  "kind": "pelletmill",
+  "label": "Pellet Mill",
+  "level": 1,
+  "file": "site-pelletmill-L1.png"
+ },
+ {
+  "key": "site-pelletmill-L3",
+  "group": "building",
+  "kind": "pelletmill",
+  "label": "Pellet Mill",
+  "level": 3,
+  "file": "site-pelletmill-L3.png"
+ },
+ {
+  "key": "site-pelletmill-L10",
+  "group": "building",
+  "kind": "pelletmill",
+  "label": "Pellet Mill",
+  "level": 10,
+  "file": "site-pelletmill-L10.png"
+ },
+ {
+  "key": "site-papermill-L1",
+  "group": "building",
+  "kind": "papermill",
+  "label": "Paper Mill",
+  "level": 1,
+  "file": "site-papermill-L1.png"
+ },
+ {
+  "key": "site-papermill-L3",
+  "group": "building",
+  "kind": "papermill",
+  "label": "Paper Mill",
+  "level": 3,
+  "file": "site-papermill-L3.png"
+ },
+ {
+  "key": "site-papermill-L10",
+  "group": "building",
+  "kind": "papermill",
+  "label": "Paper Mill",
+  "level": 10,
+  "file": "site-papermill-L10.png"
+ },
+ {
+  "key": "site-spinmill-L1",
+  "group": "building",
+  "kind": "spinmill",
+  "label": "Spinning Mill",
+  "level": 1,
+  "file": "site-spinmill-L1.png"
+ },
+ {
+  "key": "site-spinmill-L3",
+  "group": "building",
+  "kind": "spinmill",
+  "label": "Spinning Mill",
+  "level": 3,
+  "file": "site-spinmill-L3.png"
+ },
+ {
+  "key": "site-spinmill-L10",
+  "group": "building",
+  "kind": "spinmill",
+  "label": "Spinning Mill",
+  "level": 10,
+  "file": "site-spinmill-L10.png"
+ },
+ {
+  "key": "site-weavery-L1",
+  "group": "building",
+  "kind": "weavery",
+  "label": "Weavery",
+  "level": 1,
+  "file": "site-weavery-L1.png"
+ },
+ {
+  "key": "site-weavery-L3",
+  "group": "building",
+  "kind": "weavery",
+  "label": "Weavery",
+  "level": 3,
+  "file": "site-weavery-L3.png"
+ },
+ {
+  "key": "site-weavery-L10",
+  "group": "building",
+  "kind": "weavery",
+  "label": "Weavery",
+  "level": 10,
+  "file": "site-weavery-L10.png"
+ },
+ {
+  "key": "site-tailor-L1",
+  "group": "building",
+  "kind": "tailor",
+  "label": "Garment Factory",
+  "level": 1,
+  "file": "site-tailor-L1.png"
+ },
+ {
+  "key": "site-tailor-L3",
+  "group": "building",
+  "kind": "tailor",
+  "label": "Garment Factory",
+  "level": 3,
+  "file": "site-tailor-L3.png"
+ },
+ {
+  "key": "site-tailor-L10",
+  "group": "building",
+  "kind": "tailor",
+  "label": "Garment Factory",
+  "level": 10,
+  "file": "site-tailor-L10.png"
+ },
+ {
+  "key": "site-workshop-L1",
+  "group": "building",
+  "kind": "workshop",
+  "label": "Furniture Workshop",
+  "level": 1,
+  "file": "site-workshop-L1.png"
+ },
+ {
+  "key": "site-workshop-L3",
+  "group": "building",
+  "kind": "workshop",
+  "label": "Furniture Workshop",
+  "level": 3,
+  "file": "site-workshop-L3.png"
+ },
+ {
+  "key": "site-workshop-L10",
+  "group": "building",
+  "kind": "workshop",
+  "label": "Furniture Workshop",
+  "level": 10,
+  "file": "site-workshop-L10.png"
+ },
+ {
+  "key": "site-printery-L1",
+  "group": "building",
+  "kind": "printery",
+  "label": "Printery",
+  "level": 1,
+  "file": "site-printery-L1.png"
+ },
+ {
+  "key": "site-printery-L3",
+  "group": "building",
+  "kind": "printery",
+  "label": "Printery",
+  "level": 3,
+  "file": "site-printery-L3.png"
+ },
+ {
+  "key": "site-printery-L10",
+  "group": "building",
+  "kind": "printery",
+  "label": "Printery",
+  "level": 10,
+  "file": "site-printery-L10.png"
+ },
+ {
+  "key": "site-brickworks-L1",
+  "group": "building",
+  "kind": "brickworks",
+  "label": "Brickworks",
+  "level": 1,
+  "file": "site-brickworks-L1.png"
+ },
+ {
+  "key": "site-brickworks-L3",
+  "group": "building",
+  "kind": "brickworks",
+  "label": "Brickworks",
+  "level": 3,
+  "file": "site-brickworks-L3.png"
+ },
+ {
+  "key": "site-brickworks-L10",
+  "group": "building",
+  "kind": "brickworks",
+  "label": "Brickworks",
+  "level": 10,
+  "file": "site-brickworks-L10.png"
+ },
+ {
+  "key": "site-stonecutter-L1",
+  "group": "building",
+  "kind": "stonecutter",
+  "label": "Stonecutter",
+  "level": 1,
+  "file": "site-stonecutter-L1.png"
+ },
+ {
+  "key": "site-stonecutter-L3",
+  "group": "building",
+  "kind": "stonecutter",
+  "label": "Stonecutter",
+  "level": 3,
+  "file": "site-stonecutter-L3.png"
+ },
+ {
+  "key": "site-stonecutter-L10",
+  "group": "building",
+  "kind": "stonecutter",
+  "label": "Stonecutter",
+  "level": 10,
+  "file": "site-stonecutter-L10.png"
+ },
+ {
+  "key": "site-cementworks-L1",
+  "group": "building",
+  "kind": "cementworks",
+  "label": "Cement Works",
+  "level": 1,
+  "file": "site-cementworks-L1.png"
+ },
+ {
+  "key": "site-cementworks-L3",
+  "group": "building",
+  "kind": "cementworks",
+  "label": "Cement Works",
+  "level": 3,
+  "file": "site-cementworks-L3.png"
+ },
+ {
+  "key": "site-cementworks-L10",
+  "group": "building",
+  "kind": "cementworks",
+  "label": "Cement Works",
+  "level": 10,
+  "file": "site-cementworks-L10.png"
+ },
+ {
+  "key": "site-concrete-L1",
+  "group": "building",
+  "kind": "concrete",
+  "label": "Concrete Plant",
+  "level": 1,
+  "file": "site-concrete-L1.png"
+ },
+ {
+  "key": "site-concrete-L3",
+  "group": "building",
+  "kind": "concrete",
+  "label": "Concrete Plant",
+  "level": 3,
+  "file": "site-concrete-L3.png"
+ },
+ {
+  "key": "site-concrete-L10",
+  "group": "building",
+  "kind": "concrete",
+  "label": "Concrete Plant",
+  "level": 10,
+  "file": "site-concrete-L10.png"
+ },
+ {
+  "key": "site-glassworks-L1",
+  "group": "building",
+  "kind": "glassworks",
+  "label": "Glassworks",
+  "level": 1,
+  "file": "site-glassworks-L1.png"
+ },
+ {
+  "key": "site-glassworks-L3",
+  "group": "building",
+  "kind": "glassworks",
+  "label": "Glassworks",
+  "level": 3,
+  "file": "site-glassworks-L3.png"
+ },
+ {
+  "key": "site-glassworks-L10",
+  "group": "building",
+  "kind": "glassworks",
+  "label": "Glassworks",
+  "level": 10,
+  "file": "site-glassworks-L10.png"
+ },
+ {
+  "key": "site-smelter-L1",
+  "group": "building",
+  "kind": "smelter",
+  "label": "Smelter",
+  "level": 1,
+  "file": "site-smelter-L1.png"
+ },
+ {
+  "key": "site-smelter-L3",
+  "group": "building",
+  "kind": "smelter",
+  "label": "Smelter",
+  "level": 3,
+  "file": "site-smelter-L3.png"
+ },
+ {
+  "key": "site-smelter-L10",
+  "group": "building",
+  "kind": "smelter",
+  "label": "Smelter",
+  "level": 10,
+  "file": "site-smelter-L10.png"
+ },
+ {
+  "key": "site-toolworks-L1",
+  "group": "building",
+  "kind": "toolworks",
+  "label": "Toolworks",
+  "level": 1,
+  "file": "site-toolworks-L1.png"
+ },
+ {
+  "key": "site-toolworks-L3",
+  "group": "building",
+  "kind": "toolworks",
+  "label": "Toolworks",
+  "level": 3,
+  "file": "site-toolworks-L3.png"
+ },
+ {
+  "key": "site-toolworks-L10",
+  "group": "building",
+  "kind": "toolworks",
+  "label": "Toolworks",
+  "level": 10,
+  "file": "site-toolworks-L10.png"
+ },
+ {
+  "key": "site-steelworks-L1",
+  "group": "building",
+  "kind": "steelworks",
+  "label": "Steelworks",
+  "level": 1,
+  "file": "site-steelworks-L1.png"
+ },
+ {
+  "key": "site-steelworks-L3",
+  "group": "building",
+  "kind": "steelworks",
+  "label": "Steelworks",
+  "level": 3,
+  "file": "site-steelworks-L3.png"
+ },
+ {
+  "key": "site-steelworks-L10",
+  "group": "building",
+  "kind": "steelworks",
+  "label": "Steelworks",
+  "level": 10,
+  "file": "site-steelworks-L10.png"
+ },
+ {
+  "key": "site-slagcrusher-L1",
+  "group": "building",
+  "kind": "slagcrusher",
+  "label": "Slag Crusher",
+  "level": 1,
+  "file": "site-slagcrusher-L1.png"
+ },
+ {
+  "key": "site-slagcrusher-L3",
+  "group": "building",
+  "kind": "slagcrusher",
+  "label": "Slag Crusher",
+  "level": 3,
+  "file": "site-slagcrusher-L3.png"
+ },
+ {
+  "key": "site-slagcrusher-L10",
+  "group": "building",
+  "kind": "slagcrusher",
+  "label": "Slag Crusher",
+  "level": 10,
+  "file": "site-slagcrusher-L10.png"
+ },
+ {
+  "key": "site-machinery-L1",
+  "group": "building",
+  "kind": "machinery",
+  "label": "Machine Works",
+  "level": 1,
+  "file": "site-machinery-L1.png"
+ },
+ {
+  "key": "site-machinery-L3",
+  "group": "building",
+  "kind": "machinery",
+  "label": "Machine Works",
+  "level": 3,
+  "file": "site-machinery-L3.png"
+ },
+ {
+  "key": "site-machinery-L10",
+  "group": "building",
+  "kind": "machinery",
+  "label": "Machine Works",
+  "level": 10,
+  "file": "site-machinery-L10.png"
+ },
+ {
+  "key": "site-hub-L1",
+  "group": "building",
+  "kind": "hub",
+  "label": "Distribution Warehouse",
+  "level": 1,
+  "file": "site-hub-L1.png"
+ },
+ {
+  "key": "site-hub-L3",
+  "group": "building",
+  "kind": "hub",
+  "label": "Distribution Warehouse",
+  "level": 3,
+  "file": "site-hub-L3.png"
+ },
+ {
+  "key": "site-hub-L10",
+  "group": "building",
+  "kind": "hub",
+  "label": "Distribution Warehouse",
+  "level": 10,
+  "file": "site-hub-L10.png"
+ },
+ {
+  "key": "site-garage-L1",
+  "group": "building",
+  "kind": "garage",
+  "label": "Mechanic Shop",
+  "level": 1,
+  "file": "site-garage-L1.png"
+ },
+ {
+  "key": "site-garage-L3",
+  "group": "building",
+  "kind": "garage",
+  "label": "Mechanic Shop",
+  "level": 3,
+  "file": "site-garage-L3.png"
+ },
+ {
+  "key": "site-garage-L10",
+  "group": "building",
+  "kind": "garage",
+  "label": "Mechanic Shop",
+  "level": 10,
+  "file": "site-garage-L10.png"
+ },
+ {
+  "key": "site-railyard-L1",
+  "group": "building",
+  "kind": "railyard",
+  "label": "Rail Yard",
+  "level": 1,
+  "file": "site-railyard-L1.png"
+ },
+ {
+  "key": "site-railyard-L3",
+  "group": "building",
+  "kind": "railyard",
+  "label": "Rail Yard",
+  "level": 3,
+  "file": "site-railyard-L3.png"
+ },
+ {
+  "key": "site-railyard-L10",
+  "group": "building",
+  "kind": "railyard",
+  "label": "Rail Yard",
+  "level": 10,
+  "file": "site-railyard-L10.png"
+ },
+ {
+  "key": "site-port-L1",
+  "group": "building",
+  "kind": "port",
+  "label": "Port",
+  "level": 1,
+  "file": "site-port-L1.png"
+ },
+ {
+  "key": "site-port-L2",
+  "group": "building",
+  "kind": "port",
+  "label": "Port",
+  "level": 2,
+  "file": "site-port-L2.png"
+ },
+ {
+  "key": "site-port-L3",
+  "group": "building",
+  "kind": "port",
+  "label": "Port",
+  "level": 3,
+  "file": "site-port-L3.png"
+ },
+ {
+  "key": "site-airport-L1",
+  "group": "building",
+  "kind": "airport",
+  "label": "Airport",
+  "level": 1,
+  "file": "site-airport-L1.png"
+ },
+ {
+  "key": "site-airport-L2",
+  "group": "building",
+  "kind": "airport",
+  "label": "Airport",
+  "level": 2,
+  "file": "site-airport-L2.png"
+ },
+ {
+  "key": "site-airport-L3",
+  "group": "building",
+  "kind": "airport",
+  "label": "Airport",
+  "level": 3,
+  "file": "site-airport-L3.png"
+ },
+ {
+  "key": "site-market-L1",
+  "group": "building",
+  "kind": "market",
+  "label": "Market",
+  "level": 1,
+  "file": "site-market-L1.png"
+ },
+ {
+  "key": "site-freight-L1",
+  "group": "building",
+  "kind": "freight",
+  "label": "Supply Yard",
+  "level": 1,
+  "file": "site-freight-L1.png"
+ },
+ {
+  "key": "site-station-L1",
+  "group": "building",
+  "kind": "station",
+  "label": "Rail Station",
+  "level": 1,
+  "file": "site-station-L1.png"
+ },
+ {
+  "key": "vehicle-boxtruck",
+  "group": "vehicle",
+  "kind": "boxtruck",
+  "label": "Box Truck",
+  "level": 1,
+  "file": "vehicle-boxtruck.png"
+ },
+ {
+  "key": "vehicle-bigtruck",
+  "group": "vehicle",
+  "kind": "bigtruck",
+  "label": "Big Box Truck",
+  "level": 1,
+  "file": "vehicle-bigtruck.png"
+ },
+ {
+  "key": "vehicle-rig",
+  "group": "vehicle",
+  "kind": "rig",
+  "label": "Big Rig",
+  "level": 1,
+  "file": "vehicle-rig.png"
+ },
+ {
+  "key": "vehicle-convoy",
+  "group": "vehicle",
+  "kind": "convoy",
+  "label": "Truck Fleet",
+  "level": 1,
+  "file": "vehicle-convoy.png"
+ },
+ {
+  "key": "vehicle-train",
+  "group": "vehicle",
+  "kind": "train",
+  "label": "Freight Train",
+  "level": 1,
+  "file": "vehicle-train.png"
+ },
+ {
+  "key": "vehicle-heavytrain",
+  "group": "vehicle",
+  "kind": "heavytrain",
+  "label": "Heavy Haul Train",
+  "level": 1,
+  "file": "vehicle-heavytrain.png"
+ },
+ {
+  "key": "vehicle-plane",
+  "group": "vehicle",
+  "kind": "plane",
+  "label": "Cargo Plane",
+  "level": 1,
+  "file": "vehicle-plane.png"
+ },
+ {
+  "key": "vehicle-jet",
+  "group": "vehicle",
+  "kind": "jet",
+  "label": "Cargo Jet",
+  "level": 1,
+  "file": "vehicle-jet.png"
+ },
+ {
+  "key": "vehicle-barge",
+  "group": "vehicle",
+  "kind": "barge",
+  "label": "River Barge",
+  "level": 1,
+  "file": "vehicle-barge.png"
+ },
+ {
+  "key": "vehicle-boat",
+  "group": "vehicle",
+  "kind": "boat",
+  "label": "Cargo Boat",
+  "level": 1,
+  "file": "vehicle-boat.png"
+ },
+ {
+  "key": "vehicle-freighter",
+  "group": "vehicle",
+  "kind": "freighter",
+  "label": "Freighter",
+  "level": 1,
+  "file": "vehicle-freighter.png"
+ },
+ {
+  "key": "vehicle-containership",
+  "group": "vehicle",
+  "kind": "containership",
+  "label": "Container Ship",
+  "level": 1,
+  "file": "vehicle-containership.png"
+ },
+ {
+  "key": "district-farmersmarket-L1",
+  "group": "district",
+  "kind": "farmersmarket",
+  "label": "Farmers Market",
+  "level": 1,
+  "file": "district-farmersmarket-L1.png"
+ },
+ {
+  "key": "district-farmersmarket-L2",
+  "group": "district",
+  "kind": "farmersmarket",
+  "label": "Farmers Market",
+  "level": 2,
+  "file": "district-farmersmarket-L2.png"
+ },
+ {
+  "key": "district-farmersmarket-L3",
+  "group": "district",
+  "kind": "farmersmarket",
+  "label": "Farmers Market",
+  "level": 3,
+  "file": "district-farmersmarket-L3.png"
+ },
+ {
+  "key": "district-restaurants-L1",
+  "group": "district",
+  "kind": "restaurants",
+  "label": "Restaurant Row",
+  "level": 1,
+  "file": "district-restaurants-L1.png"
+ },
+ {
+  "key": "district-restaurants-L2",
+  "group": "district",
+  "kind": "restaurants",
+  "label": "Restaurant Row",
+  "level": 2,
+  "file": "district-restaurants-L2.png"
+ },
+ {
+  "key": "district-restaurants-L3",
+  "group": "district",
+  "kind": "restaurants",
+  "label": "Restaurant Row",
+  "level": 3,
+  "file": "district-restaurants-L3.png"
+ },
+ {
+  "key": "district-heating-L1",
+  "group": "district",
+  "kind": "heating",
+  "label": "Heating Depot",
+  "level": 1,
+  "file": "district-heating-L1.png"
+ },
+ {
+  "key": "district-heating-L2",
+  "group": "district",
+  "kind": "heating",
+  "label": "Heating Depot",
+  "level": 2,
+  "file": "district-heating-L2.png"
+ },
+ {
+  "key": "district-heating-L3",
+  "group": "district",
+  "kind": "heating",
+  "label": "Heating Depot",
+  "level": 3,
+  "file": "district-heating-L3.png"
+ },
+ {
+  "key": "district-cafe-L1",
+  "group": "district",
+  "kind": "cafe",
+  "label": "Coffee House",
+  "level": 1,
+  "file": "district-cafe-L1.png"
+ },
+ {
+  "key": "district-cafe-L2",
+  "group": "district",
+  "kind": "cafe",
+  "label": "Coffee House",
+  "level": 2,
+  "file": "district-cafe-L2.png"
+ },
+ {
+  "key": "district-cafe-L3",
+  "group": "district",
+  "kind": "cafe",
+  "label": "Coffee House",
+  "level": 3,
+  "file": "district-cafe-L3.png"
+ },
+ {
+  "key": "district-hardware-L1",
+  "group": "district",
+  "kind": "hardware",
+  "label": "Hardware Store",
+  "level": 1,
+  "file": "district-hardware-L1.png"
+ },
+ {
+  "key": "district-hardware-L2",
+  "group": "district",
+  "kind": "hardware",
+  "label": "Hardware Store",
+  "level": 2,
+  "file": "district-hardware-L2.png"
+ },
+ {
+  "key": "district-hardware-L3",
+  "group": "district",
+  "kind": "hardware",
+  "label": "Hardware Store",
+  "level": 3,
+  "file": "district-hardware-L3.png"
+ },
+ {
+  "key": "district-warehouse-L1",
+  "group": "district",
+  "kind": "warehouse",
+  "label": "Warehouse District",
+  "level": 1,
+  "file": "district-warehouse-L1.png"
+ },
+ {
+  "key": "district-warehouse-L2",
+  "group": "district",
+  "kind": "warehouse",
+  "label": "Warehouse District",
+  "level": 2,
+  "file": "district-warehouse-L2.png"
+ },
+ {
+  "key": "district-warehouse-L3",
+  "group": "district",
+  "kind": "warehouse",
+  "label": "Warehouse District",
+  "level": 3,
+  "file": "district-warehouse-L3.png"
+ },
+ {
+  "key": "district-builders-L1",
+  "group": "district",
+  "kind": "builders",
+  "label": "Builders' Yard",
+  "level": 1,
+  "file": "district-builders-L1.png"
+ },
+ {
+  "key": "district-builders-L2",
+  "group": "district",
+  "kind": "builders",
+  "label": "Builders' Yard",
+  "level": 2,
+  "file": "district-builders-L2.png"
+ },
+ {
+  "key": "district-builders-L3",
+  "group": "district",
+  "kind": "builders",
+  "label": "Builders' Yard",
+  "level": 3,
+  "file": "district-builders-L3.png"
+ },
+ {
+  "key": "district-furniture-L1",
+  "group": "district",
+  "kind": "furniture",
+  "label": "Furniture Gallery",
+  "level": 1,
+  "file": "district-furniture-L1.png"
+ },
+ {
+  "key": "district-furniture-L2",
+  "group": "district",
+  "kind": "furniture",
+  "label": "Furniture Gallery",
+  "level": 2,
+  "file": "district-furniture-L2.png"
+ },
+ {
+  "key": "district-furniture-L3",
+  "group": "district",
+  "kind": "furniture",
+  "label": "Furniture Gallery",
+  "level": 3,
+  "file": "district-furniture-L3.png"
+ },
+ {
+  "key": "district-fashion-L1",
+  "group": "district",
+  "kind": "fashion",
+  "label": "Fashion Quarter",
+  "level": 1,
+  "file": "district-fashion-L1.png"
+ },
+ {
+  "key": "district-fashion-L2",
+  "group": "district",
+  "kind": "fashion",
+  "label": "Fashion Quarter",
+  "level": 2,
+  "file": "district-fashion-L2.png"
+ },
+ {
+  "key": "district-fashion-L3",
+  "group": "district",
+  "kind": "fashion",
+  "label": "Fashion Quarter",
+  "level": 3,
+  "file": "district-fashion-L3.png"
+ },
+ {
+  "key": "district-bookshops-L1",
+  "group": "district",
+  "kind": "bookshops",
+  "label": "Library and Bookshops",
+  "level": 1,
+  "file": "district-bookshops-L1.png"
+ },
+ {
+  "key": "district-bookshops-L2",
+  "group": "district",
+  "kind": "bookshops",
+  "label": "Library and Bookshops",
+  "level": 2,
+  "file": "district-bookshops-L2.png"
+ },
+ {
+  "key": "district-bookshops-L3",
+  "group": "district",
+  "kind": "bookshops",
+  "label": "Library and Bookshops",
+  "level": 3,
+  "file": "district-bookshops-L3.png"
+ },
+ {
+  "key": "district-terminal-L1",
+  "group": "district",
+  "kind": "terminal",
+  "label": "Freight Terminal",
+  "level": 1,
+  "file": "district-terminal-L1.png"
+ },
+ {
+  "key": "district-terminal-L2",
+  "group": "district",
+  "kind": "terminal",
+  "label": "Freight Terminal",
+  "level": 2,
+  "file": "district-terminal-L2.png"
+ },
+ {
+  "key": "district-terminal-L3",
+  "group": "district",
+  "kind": "terminal",
+  "label": "Freight Terminal",
+  "level": 3,
+  "file": "district-terminal-L3.png"
+ },
+ {
+  "key": "district-community-L1",
+  "group": "district",
+  "kind": "community",
+  "label": "Community Centre",
+  "level": 1,
+  "file": "district-community-L1.png"
+ },
+ {
+  "key": "district-community-L2",
+  "group": "district",
+  "kind": "community",
+  "label": "Community Centre",
+  "level": 2,
+  "file": "district-community-L2.png"
+ },
+ {
+  "key": "district-community-L3",
+  "group": "district",
+  "kind": "community",
+  "label": "Community Centre",
+  "level": 3,
+  "file": "district-community-L3.png"
+ },
+ {
+  "key": "district-amphitheatre-L1",
+  "group": "district",
+  "kind": "amphitheatre",
+  "label": "Amphitheatre",
+  "level": 1,
+  "file": "district-amphitheatre-L1.png"
+ },
+ {
+  "key": "district-amphitheatre-L2",
+  "group": "district",
+  "kind": "amphitheatre",
+  "label": "Amphitheatre",
+  "level": 2,
+  "file": "district-amphitheatre-L2.png"
+ },
+ {
+  "key": "district-amphitheatre-L3",
+  "group": "district",
+  "kind": "amphitheatre",
+  "label": "Amphitheatre",
+  "level": 3,
+  "file": "district-amphitheatre-L3.png"
+ },
+ {
+  "key": "district-stadium-L1",
+  "group": "district",
+  "kind": "stadium",
+  "label": "Football Stadium",
+  "level": 1,
+  "file": "district-stadium-L1.png"
+ },
+ {
+  "key": "district-stadium-L2",
+  "group": "district",
+  "kind": "stadium",
+  "label": "Football Stadium",
+  "level": 2,
+  "file": "district-stadium-L2.png"
+ },
+ {
+  "key": "district-stadium-L3",
+  "group": "district",
+  "kind": "stadium",
+  "label": "Football Stadium",
+  "level": 3,
+  "file": "district-stadium-L3.png"
+ },
+ {
+  "key": "district-ballpark-L1",
+  "group": "district",
+  "kind": "ballpark",
+  "label": "Baseball Park",
+  "level": 1,
+  "file": "district-ballpark-L1.png"
+ },
+ {
+  "key": "district-ballpark-L2",
+  "group": "district",
+  "kind": "ballpark",
+  "label": "Baseball Park",
+  "level": 2,
+  "file": "district-ballpark-L2.png"
+ },
+ {
+  "key": "district-ballpark-L3",
+  "group": "district",
+  "kind": "ballpark",
+  "label": "Baseball Park",
+  "level": 3,
+  "file": "district-ballpark-L3.png"
+ },
+ {
+  "key": "district-soccer-L1",
+  "group": "district",
+  "kind": "soccer",
+  "label": "Soccer Stadium",
+  "level": 1,
+  "file": "district-soccer-L1.png"
+ },
+ {
+  "key": "district-soccer-L2",
+  "group": "district",
+  "kind": "soccer",
+  "label": "Soccer Stadium",
+  "level": 2,
+  "file": "district-soccer-L2.png"
+ },
+ {
+  "key": "district-soccer-L3",
+  "group": "district",
+  "kind": "soccer",
+  "label": "Soccer Stadium",
+  "level": 3,
+  "file": "district-soccer-L3.png"
+ },
+ {
+  "key": "district-arena-L1",
+  "group": "district",
+  "kind": "arena",
+  "label": "Hockey Arena",
+  "level": 1,
+  "file": "district-arena-L1.png"
+ },
+ {
+  "key": "district-arena-L2",
+  "group": "district",
+  "kind": "arena",
+  "label": "Hockey Arena",
+  "level": 2,
+  "file": "district-arena-L2.png"
+ },
+ {
+  "key": "district-arena-L3",
+  "group": "district",
+  "kind": "arena",
+  "label": "Hockey Arena",
+  "level": 3,
+  "file": "district-arena-L3.png"
+ },
+ {
+  "key": "district-resort-L1",
+  "group": "district",
+  "kind": "resort",
+  "label": "Beach Resort",
+  "level": 1,
+  "file": "district-resort-L1.png"
+ },
+ {
+  "key": "district-resort-L2",
+  "group": "district",
+  "kind": "resort",
+  "label": "Beach Resort",
+  "level": 2,
+  "file": "district-resort-L2.png"
+ },
+ {
+  "key": "district-resort-L3",
+  "group": "district",
+  "kind": "resort",
+  "label": "Beach Resort",
+  "level": 3,
+  "file": "district-resort-L3.png"
+ },
+ {
+  "key": "district-university-L1",
+  "group": "district",
+  "kind": "university",
+  "label": "University",
+  "level": 1,
+  "file": "district-university-L1.png"
+ },
+ {
+  "key": "district-university-L2",
+  "group": "district",
+  "kind": "university",
+  "label": "University",
+  "level": 2,
+  "file": "district-university-L2.png"
+ },
+ {
+  "key": "district-university-L3",
+  "group": "district",
+  "kind": "university",
+  "label": "University",
+  "level": 3,
+  "file": "district-university-L3.png"
+ },
+ {
+  "key": "district-foundry-L1",
+  "group": "district",
+  "kind": "foundry",
+  "label": "Foundry Row",
+  "level": 1,
+  "file": "district-foundry-L1.png"
+ },
+ {
+  "key": "district-foundry-L2",
+  "group": "district",
+  "kind": "foundry",
+  "label": "Foundry Row",
+  "level": 2,
+  "file": "district-foundry-L2.png"
+ },
+ {
+  "key": "district-foundry-L3",
+  "group": "district",
+  "kind": "foundry",
+  "label": "Foundry Row",
+  "level": 3,
+  "file": "district-foundry-L3.png"
+ },
+ {
+  "key": "district-hotels-L1",
+  "group": "district",
+  "kind": "hotels",
+  "label": "Hotels and Promenade",
+  "level": 1,
+  "file": "district-hotels-L1.png"
+ },
+ {
+  "key": "district-hotels-L2",
+  "group": "district",
+  "kind": "hotels",
+  "label": "Hotels and Promenade",
+  "level": 2,
+  "file": "district-hotels-L2.png"
+ },
+ {
+  "key": "district-hotels-L3",
+  "group": "district",
+  "kind": "hotels",
+  "label": "Hotels and Promenade",
+  "level": 3,
+  "file": "district-hotels-L3.png"
+ },
+ {
+  "key": "district-foodhall-L1",
+  "group": "district",
+  "kind": "foodhall",
+  "label": "Grand Food Hall",
+  "level": 1,
+  "file": "district-foodhall-L1.png"
+ },
+ {
+  "key": "district-foodhall-L2",
+  "group": "district",
+  "kind": "foodhall",
+  "label": "Grand Food Hall",
+  "level": 2,
+  "file": "district-foodhall-L2.png"
+ },
+ {
+  "key": "district-foodhall-L3",
+  "group": "district",
+  "kind": "foodhall",
+  "label": "Grand Food Hall",
+  "level": 3,
+  "file": "district-foodhall-L3.png"
+ },
+ {
+  "key": "district-heavyexchange-L1",
+  "group": "district",
+  "kind": "heavyexchange",
+  "label": "Heavy Industry Exchange",
+  "level": 1,
+  "file": "district-heavyexchange-L1.png"
+ },
+ {
+  "key": "district-heavyexchange-L2",
+  "group": "district",
+  "kind": "heavyexchange",
+  "label": "Heavy Industry Exchange",
+  "level": 2,
+  "file": "district-heavyexchange-L2.png"
+ },
+ {
+  "key": "district-heavyexchange-L3",
+  "group": "district",
+  "kind": "heavyexchange",
+  "label": "Heavy Industry Exchange",
+  "level": 3,
+  "file": "district-heavyexchange-L3.png"
+ },
+ {
+  "key": "district-intlterminal-L1",
+  "group": "district",
+  "kind": "intlterminal",
+  "label": "International Terminal",
+  "level": 1,
+  "file": "district-intlterminal-L1.png"
+ },
+ {
+  "key": "district-intlterminal-L2",
+  "group": "district",
+  "kind": "intlterminal",
+  "label": "International Terminal",
+  "level": 2,
+  "file": "district-intlterminal-L2.png"
+ },
+ {
+  "key": "district-intlterminal-L3",
+  "group": "district",
+  "kind": "intlterminal",
+  "label": "International Terminal",
+  "level": 3,
+  "file": "district-intlterminal-L3.png"
+ },
+ {
+  "key": "district-grandplaza-L1",
+  "group": "district",
+  "kind": "grandplaza",
+  "label": "Grand Plaza",
+  "level": 1,
+  "file": "district-grandplaza-L1.png"
+ },
+ {
+  "key": "district-grandplaza-L2",
+  "group": "district",
+  "kind": "grandplaza",
+  "label": "Grand Plaza",
+  "level": 2,
+  "file": "district-grandplaza-L2.png"
+ },
+ {
+  "key": "district-grandplaza-L3",
+  "group": "district",
+  "kind": "grandplaza",
+  "label": "Grand Plaza",
+  "level": 3,
+  "file": "district-grandplaza-L3.png"
+ },
+ {
+  "key": "tree-pine",
+  "group": "tree",
+  "kind": "pine",
+  "label": "Pine",
+  "level": 1,
+  "file": "tree-pine.png"
+ },
+ {
+  "key": "tree-oak",
+  "group": "tree",
+  "kind": "oak",
+  "label": "Oak",
+  "level": 1,
+  "file": "tree-oak.png"
+ },
+ {
+  "key": "tree-birch",
+  "group": "tree",
+  "kind": "birch",
+  "label": "Birch",
+  "level": 1,
+  "file": "tree-birch.png"
+ },
+ {
+  "key": "tree-orchard",
+  "group": "tree",
+  "kind": "orchard",
+  "label": "Orchard",
+  "level": 1,
+  "file": "tree-orchard.png"
+ },
+ {
+  "key": "tree-palm",
+  "group": "tree",
+  "kind": "palm",
+  "label": "Palm",
+  "level": 1,
+  "file": "tree-palm.png"
+ }
+]
