@@ -27,7 +27,7 @@ export type Category = 'production' | 'processing' | 'manufacturing' | 'heavy' |
 
 export const GOOD_LIST: Good[] = [...GOOD_IDS];
 
-export const START_MONEY = 1500;
+export const START_MONEY = 6000;
 export const TICKS_PER_SECOND = 10;
 
 /** Terrain elevation scale: 0..255, with the waterline here. */
@@ -498,7 +498,7 @@ export const DRIVER_SPEED = 0.04;
 export const DRIVER_RANKS = ['Rookie', 'Regular', 'Experienced', 'Veteran', 'Ace'];
 /** What a driver of each rank asks to be hired, and is paid every minute whether or not they have a truck. Draft numbers. */
 export const DRIVER_HIRE = [0, 60, 200, 500, 1200];
-export const DRIVER_WAGE = [2, 4, 7, 11, 16];
+export const DRIVER_WAGE = [1, 2, 4, 6, 9];
 /** How often the applicants change, in ticks. */
 export const APPLICANT_TICKS = 6000;
 
@@ -516,9 +516,9 @@ export const WEAR_LONG_HAUL = 2;
 export const WEAR_LOAD_LOSS = 0.3;
 
 /** Running costs. Vehicles cost this share of their price every minute; buildings and districts a share of theirs per level. */
-export const VEHICLE_UPKEEP = 0.04;
-export const SITE_UPKEEP = 0.01;
-export const DISTRICT_UPKEEP = 0.015;
+export const VEHICLE_UPKEEP = 0.015;
+export const SITE_UPKEEP = 0.005;
+export const DISTRICT_UPKEEP = 0.01;
 /** Towns pay this share of the list price. Keeps the early game from running away. */
 export const SALE_MULT = 0.65;
 /** Trading in a vehicle for the next class returns this share of its price. */

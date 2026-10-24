@@ -105,7 +105,7 @@ export function companyPage(im: Im, world: World, v: PageView, scroll: number, h
     ['Net worth', money(netWorth(world)), COLORS.accent, COLORS.accent],
     ['Buildings', String(buildings.length), COLORS.text, COLORS.info],
     ['Vehicles working', `${working} / ${world.vehicles.length}`, COLORS.text, COLORS.info],
-    [lost > 0 ? 'Lost a minute' : 'Running', lost > 0 ? money(lost) : 'All good', lost > 0 ? COLORS.warn : COLORS.good, lost > 0 ? COLORS.warn : COLORS.good],
+    [lost > 0 ? 'Idle income a minute' : 'Running', lost > 0 ? money(lost) : 'All good', lost > 0 ? COLORS.warn : COLORS.good, lost > 0 ? COLORS.warn : COLORS.good],
   ];
   const tc = W < 620 ? 2 : W < 980 ? 3 : 6;
   const tw = (W - gap * (tc - 1)) / tc;
@@ -144,7 +144,7 @@ export function companyPage(im: Im, world: World, v: PageView, scroll: number, h
       panel(im, left, yl, colW, 42, r.d.level === 'bad' ? COLORS.bad : COLORS.warn, hov);
       im.text(`co-an${k}`, r.s.name, left + 16, yl + 6, { size: 13, bold: true, wrap: colW - 190, layer: 4 });
       im.text(`co-as${k}`, shortOf(r.d), left + 16, yl + 24, { size: 11, color: COLORS.warn, wrap: colW - 190, layer: 4 });
-      if (r.cost > 0) im.text(`co-ac${k}`, `-${money(r.cost)}/min`, left + colW - 78, yl + 13, { size: 12, bold: true, color: COLORS.bad, align: 'right', layer: 4 });
+      if (r.cost > 0) im.text(`co-ac${k}`, `${money(r.cost)}/min idle`, left + colW - 78, yl + 13, { size: 12, bold: true, color: COLORS.bad, align: 'right', layer: 4 });
       im.text(`co-ag${k}`, 'GO', left + colW - 22, yl + 13, { size: 11, bold: true, color: COLORS.accent, align: 'center', layer: 4 });
     }
     yl += 48;
