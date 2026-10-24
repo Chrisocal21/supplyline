@@ -872,6 +872,8 @@ export type QuestGoal =
   | { kind: 'district'; level: number; count: number }
   /** Towns that have picked a specialisation path. */
   | { kind: 'path'; count: number }
+  /** Mechanics on the payroll. */
+  | { kind: 'mechanic'; count: number }
   /** Different paths in use across your towns. */
   | { kind: 'paths'; count: number }
   /** Capstone districts built. */
@@ -952,15 +954,26 @@ export const TIERS: TierDef[] = [
   {
     tier: 1,
     name: 'Regional Supplier',
-    blurb: 'The town is growing and wants more than planks. Widen the range and move it faster.',
+    blurb: 'The town is growing and wants more than planks. Widen the range, keep the trucks running and build the town up.',
     quests: [
+      { id: 't1-farm', label: 'Build a Farm', hint: 'Open Production, pick Farm and click open ground near the town: a farm brings its own fields. Grain is the start of flour and bread.', goal: { kind: 'build', site: 'farm', count: 1 }, reward: 150 },
+      { id: 't1-mill', label: 'Build a Flour Mill', hint: 'Open Processing, pick Flour Mill and click a for-sale lot beside a town street. Join the farm to it with a road, then switch Flour on.', goal: { kind: 'build', site: 'mill', count: 1 }, reward: 150 },
+      { id: 't1-bakery', label: 'Build a Bakery', hint: 'Processing tab. Flour in, bread out, and every town Market buys bread. Road the mill to the bakery and the bakery to the Market.', goal: { kind: 'build', site: 'bakery', count: 1 }, reward: 250 },
       { id: 't1-variety', label: 'Sell 3 different goods', hint: 'Try grain into flour and bread, or milk into cheese. Towns need variety to grow.', goal: { kind: 'variety', count: 3 }, reward: 600 },
-      { id: 't1-upgrade', label: 'Upgrade a building to level 2', hint: 'Click a building, then Upgrade. It works faster and holds more.', goal: { kind: 'upgrade', level: 2, count: 1 }, reward: 300 },
+      { id: 't1-dairy', label: 'Build a Dairy', hint: 'Processing tab: milk in, cheese out. Put a Dairy Ranch on open ground and road its milk to the Dairy. Whey, the by-product, sells at the Market too.', goal: { kind: 'build', site: 'dairy', count: 1 }, reward: 250 },
+      { id: 't1-earn', label: 'Earn $2,000 in total', hint: 'Sales to Markets count. Full trucks on short roads earn the most. The Company sheet shows where the money goes.', goal: { kind: 'earn', amount: 2000 }, reward: 400 },
+      { id: 't1-upgrade', label: 'Upgrade a building to level 2', hint: 'Click a building, then Upgrade. It works faster, holds more and its yard holds more vehicles.', goal: { kind: 'upgrade', level: 2, count: 1 }, reward: 300 },
+      { id: 't1-garage', label: 'Build a Mechanic Shop', hint: 'Logistics tab. Worn trucks go slower and carry less; without a shop the driver only patches them at the roadside.', goal: { kind: 'build', site: 'garage', count: 1 }, reward: 300 },
+      { id: 't1-mechanic', label: 'Hire a mechanic', hint: 'Click the Mechanic Shop and hire one of the three applicants. A better mechanic repairs faster and cheaper. Wages are part of your running costs.', goal: { kind: 'mechanic', count: 1 }, reward: 300 },
+      { id: 't1-scrap', label: 'Build a Recycling Yard', hint: 'Processing tab. It takes any by-product (sawdust, whey, bran, gravel) for a few cents, so no line ever jams for want of a buyer.', goal: { kind: 'build', site: 'scrapyard', count: 1 }, reward: 300 },
       { id: 't1-hub', label: 'Build a Warehouse', hint: 'Logistics tab. When your supply lines fill up, a Warehouse takes the overflow and holds it. Switch on what it sells to under Sell to.', goal: { kind: 'build', site: 'hub', count: 1 }, reward: 400 },
+      { id: 't1-bricks', label: 'Build a Brickworks', hint: 'Clay in, bricks out. Dig clay at a Clay Pit, road it to the Brickworks, and road the bricks to your town Supply Yard: a town needs bricks to grow past level 2.', goal: { kind: 'build', site: 'brickworks', count: 1 }, reward: 400 },
       { id: 't1-highway', label: 'Build a highway', hint: 'Logistics tab, Highway. Trucks cover it about a third faster.', goal: { kind: 'route', mode: 'road', grade: 'highway', count: 1 }, reward: 500 },
       { id: 't1-district', label: 'Build a town district', hint: 'Select a town, open Manage town, and build a district such as the Farmers Market. Districts give a town a way to earn and a taste for more goods.', goal: { kind: 'district', level: 1, count: 1 }, reward: 500 },
+      { id: 't1-town2', label: 'Grow a town to level 2', hint: 'A Village needs 250 lumber at its Supply Yard and a few kinds of goods sold at its Market. The Towns sheet shows what it wants.', goal: { kind: 'town', level: 2, count: 1 }, reward: 600 },
       { id: 't1-bigtruck', label: 'Buy a Big Box Truck', hint: 'Select a building with a Box Truck, open its Trucks tab and buy a Big Box Truck. Choose a driver for it, or move one over from your old truck. A bigger truck carries twice the load.', goal: { kind: 'vehicle', vehicle: 'bigtruck', count: 1 }, reward: 500 },
-      { id: 't1-town', label: 'Grow a town to level 4', hint: 'A level 4 town is a City. It needs three kinds of goods and steady supply. The Towns sheet shows what it wants.', goal: { kind: 'town', level: 4, count: 1 }, reward: 1500 },
+      { id: 't1-town3', label: 'Grow a town to level 3', hint: 'A Town takes lumber, bricks and more at its Supply Yard, and a wider range of goods at its Market.', goal: { kind: 'town', level: 3, count: 1 }, reward: 1000 },
+      { id: 't1-town', label: 'Grow a town to level 4', hint: 'A level 4 town is a City. It needs steady supply of many goods and its building materials at the Supply Yard. The Towns sheet shows what it wants. This opens Tier 2.', goal: { kind: 'town', level: 4, count: 1 }, reward: 1500 },
     ],
   },
   {

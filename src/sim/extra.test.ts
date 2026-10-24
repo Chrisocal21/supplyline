@@ -488,7 +488,7 @@ describe('tier quests', () => {
     checkQuests(w, (t) => log.push(t));
     expect(w.tier).toBe(1);
     expect(log.some((l) => /Tier 1 unlocked/.test(l))).toBe(true);
-    expect(nextQuest(w)?.quest.id).toBe('t1-variety');
+    expect(nextQuest(w)?.quest.id).toBe('t1-farm');
   });
 
   it('only asks for things that are unlocked at that tier', async () => {

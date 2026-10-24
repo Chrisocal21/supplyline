@@ -23,6 +23,7 @@ Everything below was read from the game's real code, not from memory. If this fi
 - **Fishing Harbor:** coastal; its boats circle offshore and raise the catch; trucks carry the fish.
 - **Speed:** fog of war hides and stops working on buildings, towns and vehicles far from the view; graphics levels set how far.
 - **Windows app:** opens at 1920 by 1080; the build menu spreads across the window and scrolls.
+- **Quests:** Tier 1 has 18 quests that walk through the whole early game (see the 0.123 log entry); reaching Tier 2 is the end of the demo.
 - **Testing:** `playBot(seed, ticks, onNote, 'skilled')` plays a careful game (one home town, trucks serviced, cash in reserve) and is the measure for balance; PACING=1 npx vitest run src/sim/pacing.test.ts prints its pace.
 
 ---

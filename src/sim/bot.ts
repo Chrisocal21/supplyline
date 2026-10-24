@@ -19,7 +19,7 @@ import {
   type SiteKind,
 } from './defs';
 import { questState } from './quests';
-import { serviceError, serviceVehicle } from './drivers';
+import { hireMechanic, mechanicApplicants, serviceError, serviceVehicle } from './drivers';
 import { buildDistrict, choosePath, districtCost, districtError, districtLevel, districtSatisfaction, pathError } from './town';
 import {
   buyOptions,
@@ -508,6 +508,15 @@ export function playBot(seed: number, ticks: number, onNote?: (n: BotNote) => vo
       case 'upgrade':
         upgradeSomething();
         break;
+      case 'mechanic': {
+        const shop = w.sites.find((x) => SITE_DEFS[x.kind].garage);
+        const a = mechanicApplicants(w)[0];
+        if (shop && a && !(w.mechanics ?? []).length) {
+          const r = hireMechanic(w, a.key, shop.id);
+          if (!('error' in r)) note('hired a mechanic');
+        }
+        break;
+      }
       default:
         break;
     }

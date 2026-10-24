@@ -132,6 +132,10 @@ export function questProgress(world: World, goal: QuestGoal): Progress {
       have = world.places.filter((p) => p.path).length;
       need = goal.count;
       break;
+    case 'mechanic':
+      have = (world.mechanics ?? []).length;
+      need = goal.count;
+      break;
     case 'paths':
       have = pathsInUse(world).size;
       need = goal.count;

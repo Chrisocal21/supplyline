@@ -784,3 +784,7 @@ What changed:
 ## 0.122: build zones for every building
 
 - While any building that goes on open ground is being placed, the land round the view is washed green where it can stand and orange (with an outline round each blocked area) where it cannot: town ground and plots reserved for a Market or Supply Yard, land kept clear for a town to grow, another building, a road, steep ground, land that is not yours. Roads and tracks already did this. Tiles are checked a few a frame, nearest the view first, and the picture stays up while it refreshes after something is built, so panning never stalls (checking one tile takes about 0.3 ms). Money is ignored, so the colours show where it can go, not what you can afford. Hovering still gives the exact reason. Resource spots keep their markers.
+
+## 0.123: a fuller Tier 1
+
+- Tier 1 ("Regional Supplier") grows from 7 quests to 18, in a teaching order: Farm, Flour Mill, Bakery, sell 3 goods, Dairy, earn $2,000, upgrade a building, Mechanic Shop, hire a mechanic (new quest kind), Recycling Yard, Warehouse, Brickworks, highway, district, grow a town to level 2, Big Box Truck, level 3, level 4. Rewards add up to about $9,900 (was $4,300). Finishing Tier 1 opens Tier 2, which is the end of the demo. Tier 0 is unchanged (its quests are the town's first Supply Yard and Market). The test bot plays the new list and still reaches Tier 2 at 45 minutes on Map 2 (43 before).
