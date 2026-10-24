@@ -131,7 +131,7 @@ describe('two lines', () => {
     quarry.stock.gravel = 40;
     buyVehicle(w, quarry.id, 'boxtruck');
     buyVehicle(w, quarry.id, 'boxtruck', 'by');
-    for (let i = 0; i < 3000; i++) step(w);
+    for (let i = 0; i < 6000; i++) step(w);
     // Stone only reached the stonecutter, and gravel only reached the cement works.
     expect(cutter.stock.stone ?? 0).toBeGreaterThan(0);
     expect((cement.stock.gravel ?? 0) + (w.consumed.gravel ?? 0)).toBeGreaterThan(0);

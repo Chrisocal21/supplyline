@@ -242,6 +242,28 @@ describe('building integration', () => {
     }
   });
 
+  it('keeps every house off a road the player laid through the town', () => {
+    const streets = Array.from({ length: 7 }, (_, i) => ({ x: i - 3, y: 0, main: true }));
+    const homes = [-1, 1].flatMap(y => Array.from({ length: 5 }, (_, i) => ({ x: i - 2, y, ok: true })));
+    // A road crossing the homes on the south side, straight over where houses would stand.
+    const road = [Array.from({ length: 9 }, (_, i) => ({ x: i - 4, y: 1 }))];
+    const base = { level: 3, seed: 17, squeeze: 1, city: false, style: TOWN_STYLES[0], streets, homes, plots: [] };
+    const without = townGeometry(base);
+    const withRoad = townGeometry({ ...base, roads: road });
+    checkGeometry(withRoad, 250000);
+    // Nothing is modelled on the road: no triangle of a house centred inside the strip the road takes.
+    const pos = withRoad.getAttribute('position').array;
+    const TILE = 3.3;
+    let onRoad = 0;
+    for (let i = 0; i < pos.length; i += 3) if (Math.abs(pos[i + 2] - TILE) < 0.22 && pos[i + 1] > 0.2 && Math.abs(pos[i]) < 3.5 * TILE) onRoad += 1;
+    let onRoadBefore = 0;
+    const before = without.getAttribute('position').array;
+    for (let i = 0; i < before.length; i += 3) if (Math.abs(before[i + 2] - TILE) < 0.22 && before[i + 1] > 0.2 && Math.abs(before[i]) < 3.5 * TILE) onRoadBefore += 1;
+    expect(onRoad).toBeLessThan(onRoadBefore);
+    without.dispose();
+    withRoad.dispose();
+  });
+
   it.each(TOWN_STYLES)('%s towns retain repeatable geometry through all five growth levels', (style) => {
     const streets = Array.from({ length: 7 }, (_, i) => ({ x: i - 3, y: 0, main: true }));
     const homes = [-1, 1].flatMap(y => Array.from({ length: 5 }, (_, i) => ({ x: i - 2, y, ok: true })));

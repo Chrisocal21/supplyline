@@ -80,6 +80,8 @@ export interface TownModelOptions {
   /** The tiles beside the streets where homes stand (as far as the town has grown), and whether each can be built on. */
   homes: { x: number; y: number; ok: boolean; face?: { x: number; y: number } }[];
   /** Districts the town has built, each a building on its own lot beside a street: the lot, and the street tile its door meets. */
+  /** Roads the player laid that run through the town, as paths of offsets from the centre: nothing stands on them. */
+  roads?: { x: number; y: number }[][];
   districts?: { id: DistrictId; level: number; x: number; y: number; ex: number; ey: number; setting?: Setting; campus?: boolean }[];
 }
 
@@ -159,6 +161,7 @@ export function townGeometry(o: TownModelOptions): THREE.BufferGeometry {
     }
     if (nb.length === 0) segs.push([X(s.x), Z(s.y), X(s.x), Z(s.y)]);
   }
+  for (const path of o.roads ?? []) for (let i = 1; i < path.length; i++) segs.push([X(path[i - 1].x), Z(path[i - 1].y), X(path[i].x), Z(path[i].y)]);
   const segDist = (px: number, pz: number, [ax, az, bx, bz]: [number, number, number, number]): number => {
     const vx = bx - ax;
     const vz = bz - az;

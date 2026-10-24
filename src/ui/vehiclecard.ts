@@ -1,6 +1,6 @@
 // The vehicle card: a garage plate for one vehicle, with its class ladder, its stats beside the next class up, and its driver's
 // rank. The way a trucking game shows a truck you can level up.
-import { DRIVER_RANKS, DRIVER_TRIPS, GOODS, SITE_DEFS, VEHICLE_DEFS, type VehicleKind } from '../sim/defs';
+import { DRIVER_RANKS, DRIVER_REACH, DRIVER_SPEED, DRIVER_TRIPS, GOODS, SITE_DEFS, VEHICLE_DEFS, VEHICLE_REACH, type VehicleKind } from '../sim/defs';
 import { driverLevel, PICK_LABEL, PICK_MODES, runsOf, sellVehicleValue, siteById, vehicleRoute, vehicleTicks, wrapDx, type PickMode, type TruckRun, type Vehicle, type World } from '../sim/world';
 import { button, fitSize, panel } from './company';
 import { COLORS, Im } from './imui';
@@ -57,6 +57,10 @@ export interface CardActions {
   sell: () => void;
   service: () => void;
   rename: () => void;
+  /** Buy the next class up for this vehicle's building (opens the driver picker). */
+  buyNext?: (kind: VehicleKind) => void;
+  /** Upgrade the building this vehicle works for. */
+  upgradeHome?: () => void;
 }
 
 const TILE_H = 46;
@@ -350,4 +354,67 @@ export function circuitMap(im: Im, world: World, v: Vehicle, x: number, y: numbe
     im.line(4, vp.x, vp.y, np.x, np.y, 0xffffff, 1, 2);
   }
   im.text(`${id}l`, `${pts.length - 1} tiles each way`, x + 12, y + h - 22, { size: 10, color: COLORS.muted, layer: 4 });
+}
+
+export const upgradePanelHeight = 262;
+
+/**
+ * Exactly what has to happen to level up: the driver's next rank (trips still to run, and what the rank gives), and the next
+ * truck class (what is met and what is missing, with a button to fix it or to buy it). Nothing is a guess.
+ */
+export function upgradePanel(im: Im, world: World, v: Vehicle, x: number, y: number, w: number, act: CardActions): void {
+  const id = `up${v.id}`;
+  const h = upgradePanelHeight;
+  const vd = VEHICLE_DEFS[v.kind];
+  const home = siteById(world, v.homeId);
+  panel(im, x, y, w, h, COLORS.accent);
+  const px = x + 14;
+  const iw = w - 28;
+  im.text(`${id}h`, 'HOW TO LEVEL UP', px, y + 10, { size: 11, bold: true, color: COLORS.muted, layer: 4 });
+
+  // The driver.
+  const lv = driverLevel(v);
+  const trips = v.trips ?? 0;
+  const hi = DRIVER_TRIPS[lv];
+  im.text(`${id}d`, hi === undefined ? `DRIVER: ${DRIVER_RANKS[lv - 1]} (top rank)` : `DRIVER: ${DRIVER_RANKS[lv - 1]}  to  ${DRIVER_RANKS[lv]}`, px, y + 30, { size: 13, bold: true, layer: 4 });
+  if (hi !== undefined) {
+    const lo = DRIVER_TRIPS[lv - 1];
+    im.rect(4, px, y + 52, iw, 6, 0x0a0f14, 1, 1);
+    im.rect(4, px, y + 52, iw * Math.max(0, Math.min(1, (trips - lo) / (hi - lo))), 6, COLORS.accent, 1, 1);
+    const left = Math.max(0, hi - trips);
+    const reachNow = Math.round((DRIVER_REACH[lv] / DRIVER_REACH[lv - 1] - 1) * 100);
+    im.text(`${id}dt`, `${left} more deliveries (${trips} of ${hi}). ${DRIVER_RANKS[lv]} drives ${Math.round(DRIVER_SPEED * 100)}% faster and reaches ${reachNow}% farther.`, px, y + 64, { size: 11, color: COLORS.muted, wrap: iw, layer: 4 });
+  } else {
+    im.text(`${id}dt`, 'This driver cannot get better. Keep them on this truck: a new vehicle class drops a driver one rank.', px, y + 52, { size: 11, color: COLORS.muted, wrap: iw, layer: 4 });
+  }
+
+  // The next truck.
+  const next = vd.next ? VEHICLE_DEFS[vd.next] : null;
+  const ty = y + 100;
+  im.line(3, px, ty - 6, px + iw, ty - 6, COLORS.line, 1);
+  if (!next || !vd.next || !home) {
+    im.text(`${id}t`, 'TRUCK: this is the top class', px, ty, { size: 13, bold: true, layer: 4 });
+    return;
+  }
+  const kind: VehicleKind = vd.next;
+  im.text(`${id}t`, `NEXT TRUCK: ${next.label}`, px, ty, { size: 13, bold: true, layer: 4 });
+  const gain = `Carries ${next.capacity} t instead of ${vd.capacity}` + (VEHICLE_REACH[kind] && VEHICLE_REACH[v.kind] ? `, reaches ${VEHICLE_REACH[kind]} tiles instead of ${VEHICLE_REACH[v.kind]}.` : '.');
+  im.text(`${id}g`, gain, px, ty + 18, { size: 11, color: COLORS.muted, wrap: iw, layer: 4 });
+  const tierOk = next.tier <= world.tier;
+  const levelOk = home.level >= next.needLevel;
+  const moneyOk = world.money >= next.cost;
+  const rows: [boolean, string][] = [
+    [tierOk, tierOk ? `Tier ${next.tier} is unlocked` : `Reach Tier ${next.tier}: finish the quests of Tier ${world.tier}`],
+    [levelOk, levelOk ? `This building is level ${home.level}` : `This building must be level ${next.needLevel} (it is level ${home.level})`],
+    [moneyOk, moneyOk ? `You have $${fmt(next.cost)}` : `Needs $${fmt(next.cost)}: you have $${fmt(world.money)}`],
+  ];
+  rows.forEach(([ok, text], i) => {
+    const ry = ty + 40 + i * 20;
+    im.circle(4, px + 6, ry + 7, 6, ok ? COLORS.good : COLORS.bad);
+    im.text(`${id}r${i}`, ok ? 'ok' : 'x', px + 6, ry + 1, { size: 9, bold: true, color: 0x0b1117, align: 'center', layer: 5 });
+    im.text(`${id}rt${i}`, text, px + 20, ry, { size: 12, color: ok ? COLORS.text : COLORS.warn, wrap: iw - 24, layer: 4 });
+  });
+  if (!levelOk && act.upgradeHome) button(im, `${id}uh`, 'UPGRADE BUILDING', px + iw - 140, ty - 5, 140, 24, true, act.upgradeHome, 'quiet');
+  const ready = tierOk && levelOk && moneyOk;
+  button(im, `${id}b`, `BUY ${next.label.toUpperCase()}  $${fmt(next.cost)}`, px, y + h - 46, iw, 36, ready && !!act.buyNext, () => act.buyNext?.(kind), ready ? 'main' : 'quiet');
 }

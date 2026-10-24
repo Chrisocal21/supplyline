@@ -98,7 +98,7 @@ import { Rates, Sheets, type SheetId } from './sheets';
 
 import { fitSize } from './company';
 import { SEASONAL, calendar, seasonIndex, seasonOf } from '../sim/seasons';
-import { type CardActions, type CardInfo, circuitMap, routeHeight, routePicture, TRUCK_TILE_H, vehicleCard, vehicleCardHeight, vehicleTile } from './vehiclecard';
+import { type CardActions, type CardInfo, circuitMap, routeHeight, routePicture, TRUCK_TILE_H, vehicleCard, vehicleCardHeight, upgradePanel, upgradePanelHeight, vehicleTile } from './vehiclecard';
 import { applicants, condition, fleetEfficiency, nearestShop, trainMechanic, driverName, hireFee, idleDrivers, rankOf, renameDriver, serviceCost, serviceError, serviceVehicle, wageOf } from '../sim/drivers';
 import { button } from './company';
 import { TITLE_SLIDES, Title, type TitleChoice } from './title';
@@ -1940,7 +1940,7 @@ export class HudScene extends Phaser.Scene {
       thumb: `thumb-${tool}`,
       blurb: d.blurb,
       detail: [
-        ...(d.node ? [`Build on a free ${d.node} node.`] : d.inTown ? ['Build on a free district plot in a town, then connect it to its Market with the street.'] : ['Build on open ground.']),
+        ...(d.produce && d.node ? [`Build on any green tile or town plot. A free ${d.node} node gives a better output; off a node it works at the impure pace.`] : d.node ? [`Build on a free ${d.node} node.`] : d.inTown ? ['Build on a free district plot in a town, then connect it to its Market with the street.'] : ['Build on open ground.']),
         ...(d.recipe
           ? [`Uses ${Object.entries(d.recipe.inputs).map(([g, n]) => `${n} ${GOODS[g as Good].label.toLowerCase()}`).join(' + ')}`, `Makes ${Object.entries(d.recipe.outputs).map(([g, n], i) => `${n} ${GOODS[g as Good].label.toLowerCase()}${i > 0 ? ' (by-product)' : ''}`).join(' + ')}`]
           : []),
@@ -4046,6 +4046,8 @@ export class HudScene extends Phaser.Scene {
       },
       act: {
         changeDriver: () => (this.driverPick = { mode: 'swap', vehicleId: v.id }),
+        buyNext: (kind) => (this.driverPick = { mode: 'buy', siteId: v.homeId, vehicle: kind, line: v.line ?? 'main' }),
+        upgradeHome: () => g.upgrade(v.homeId),
         copy: () => g.duplicateVeh(v.id),
         setDest: (id) => g.vehicleDest(v.id, id),
         setPick: (m) => g.vehiclePick(v.id, m),
@@ -4139,7 +4141,8 @@ export class HudScene extends Phaser.Scene {
     });
     routePicture(bim, world, v, `tm${v.id}`, rx, sy + 56, rw, info, act);
     // Under the truck: what it has delivered lately, newest first.
-    const ly = top + vehicleCardHeight + 16;
+    upgradePanel(bim, world, v, x + 20, top + vehicleCardHeight + 12, leftW, act);
+    const ly = top + vehicleCardHeight + 12 + upgradePanelHeight + 16;
     bim.text('tmLh', 'RECENT DELIVERIES', x + 20, ly, { size: 11, bold: true, color: COLORS.muted, layer: 3 });
     const runs = [...(v.runs ?? [])].reverse();
     if (runs.length === 0) bim.text('tmL0', 'None yet: it shows up here after its first sale.', x + 20, ly + 24, { size: 12, color: COLORS.muted, wrap: leftW, layer: 3 });

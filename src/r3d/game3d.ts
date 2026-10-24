@@ -1225,7 +1225,7 @@ export class Game3D {
       }
       this.scenery.clearTiles(w.sites.flatMap((s) => siteTiles(w, s)).map((t) => t.y * w.width + t.x));
     }
-    const townTool = this.isBuildTool() && !SITE_DEFS[this.tool as SiteKind].node;
+    const townTool = this.isBuildTool() && (!SITE_DEFS[this.tool as SiteKind].node || !!SITE_DEFS[this.tool as SiteKind].produce);
     this.scenery.showPlots(townTool, (placeId, index) => {
       const pl = w.places.find((p) => p.id === placeId)!;
       const t = plotTiles(w, pl)[index];
@@ -1435,8 +1435,25 @@ export class Game3D {
           const setting: Setting = rock >= 7 ? 'rock' : wet >= 6 ? 'water' : wood >= 10 ? 'forest' : 'plain';
           return { id: id as DistrictId, level: level as number, x: lot.x, y: lot.y, ex: lot.entry.x, ey: lot.entry.y, setting, campus: !!lot.campus };
         });
+      // Roads laid through the town: nothing is modelled on top of them.
+      const roads: { x: number; y: number }[][] = [];
+      for (const r of w.routes) {
+        if (r.mode !== 'road' || r.free) continue;
+        let run: { x: number; y: number }[] = [];
+        for (const t of r.path) {
+          const dx = wrapDx(w, t.x, p.x);
+          const dy = t.y - p.y;
+          if (Math.abs(dx) <= 16 && Math.abs(dy) <= 16) run.push({ x: dx, y: dy });
+          else if (run.length > 0) {
+            roads.push(run);
+            run = [];
+          }
+        }
+        if (run.length > 0) roads.push(run);
+      }
+      const roadSig = roads.map((r) => `${r.length}${r[0].x}_${r[0].y}`).join(';');
       const bits = (list: boolean[]): string => list.map((o) => (o ? 1 : 0)).join('');
-      const sig = `${streets.length}.${p.level}.${p.path ?? ''}.${bits(plots.map((t) => t.occupied))}.${bits(plots.map((t) => t.home))}.${homes.map((h) => (h.ok ? `${h.x}_${h.y}` : "x")).join("")}.${districts.map((d) => `${d.id}${d.level}`).join(',')}`;
+      const sig = `${roadSig}|${streets.length}.${p.level}.${p.path ?? ''}.${bits(plots.map((t) => t.occupied))}.${bits(plots.map((t) => t.home))}.${homes.map((h) => (h.ok ? `${h.x}_${h.y}` : "x")).join("")}.${districts.map((d) => `${d.id}${d.level}`).join(',')}`;
       if (have && have.sig === sig) continue;
       // A town that has just grown plays it out: the old model stays up to sink away as the new one rises.
       const grew = !!have && this.townsShown && p.level > have.level;
@@ -1453,7 +1470,7 @@ export class Game3D {
       const { lat } = tileLonLat(w.width, w.height, p.x, p.y);
       const squeeze = THREE.MathUtils.clamp(Math.cos(lat), w.realisticLots ? 0.15 : 0.55, 1);
       const mesh = new THREE.Mesh(
-        townGeometry({ level: p.level, seed: p.id + w.seed, squeeze, city: radiusOf(p) > 3, style: p.style, streets, plots, homes, districts }),
+        townGeometry({ level: p.level, seed: p.id + w.seed, squeeze, city: radiusOf(p) > 3, style: p.style, streets, plots, homes, districts, roads }),
         siteMaterial,
       );
       mesh.castShadow = true;
@@ -2148,7 +2165,9 @@ export class Game3D {
 
   private updateSpots(): void {
     const t = this.tool;
-    const want = t === 'railyard' || t === 'airport' || t === 'port' ? t : null;
+    // Production sites go on any open ground, so every tile that takes one is lit green as well; a node is only the better spot.
+    const open = this.isBuildTool() && !!SITE_DEFS[t as SiteKind]?.produce;
+    const want = t === 'railyard' || t === 'airport' || t === 'port' || open ? (t as SiteKind) : null;
     if (!want) {
       if (this.spotMesh) this.spotMesh.visible = false;
       this.spotScan = null;

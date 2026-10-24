@@ -1272,7 +1272,10 @@ export function siteSpeed(world: World, site: Site): number {
   const node = site.nodeId === null ? undefined : world.nodes.find((n) => n.id === site.nodeId);
   const town = SITE_DEFS[site.kind].inTown ? siteTown(world, site) : undefined;
   const boats = SITE_DEFS[site.kind].harbor ? 0.25 + 0.5 * world.vehicles.filter((v) => v.homeId === site.id && v.kind === 'fishboat').length : 1;
-  return boats * LEVEL_SPEED[site.level - 1] * (node ? NODE_QUALITY[node.quality].mult : 1) * (town ? townSpeedMult(town, site.kind) : 1) * seasonMult(site.kind, world.tick);
+  // A production site off its node works at an impure node's pace; on a node it gets the node's quality.
+  const base = SITE_DEFS[site.kind];
+  const ground = node ? NODE_QUALITY[node.quality].mult : base.produce && !base.harbor ? NODE_QUALITY[0].mult : 1;
+  return boats * LEVEL_SPEED[site.level - 1] * ground * (town ? townSpeedMult(town, site.kind) : 1) * seasonMult(site.kind, world.tick);
 }
 
 /** The town a site belongs to: its docks and station, and the buildings on its district plots. */
@@ -2501,7 +2504,7 @@ export function placeError(world: World, kind: SiteKind, x: number, y: number, r
   const plot = plotAt(world, x, y);
   if (plot) {
     // Inside a town: any building that does not need a resource node, on the plots beside the streets.
-    if (def.node) return `${def.label} must be built on a ${def.node} node`;
+    if (def.node && !def.produce) return `${def.label} must be built on a ${def.node} node`;
     if (def.airport) return 'Airports need open ground outside a town';
     if (def.port || def.harbor) return 'A Port or a Fishing Harbor goes on the coast, outside the town streets';
     if (def.railyard) return 'A Rail Yard goes at the edge of town, outside its streets';
@@ -2512,7 +2515,8 @@ export function placeError(world: World, kind: SiteKind, x: number, y: number, r
     if (def.inTown) return `${def.label} goes in a town: pick a free plot beside a town street`;
     const town = placeAt(world, x, y);
     if (town) return town && streetAt(world, x, y) ? `That is ${town.name}'s main street` : `Too close to ${town.name}`;
-    if (!def.node) {
+    const here = def.node ? nodeAt(world, x, y) : undefined;
+    if (!here) {
       // Towns grow in set stages: the ground their later streets and homes will take is kept clear.
       const later = plannedTownAt(world, x, y);
       if (later) return `Kept clear for ${later.name}: its streets grow out to here`;
@@ -2521,13 +2525,15 @@ export function placeError(world: World, kind: SiteKind, x: number, y: number, r
       const pad = padAt(world, x, y);
       if (pad) return `Kept clear for ${pad.name}'s airport`;
     }
-    if (def.node) {
-      const node = nodeAt(world, x, y);
-      if (!node || node.kind !== def.node) return `${def.label} must be built on a ${def.node} node`;
-      if (world.sites.some((s) => s.nodeId === node.id)) return 'Node already in use';
+    if (here) {
+      // On its own kind of node a site gets the node's quality; a node of another kind is left for the sites that use it.
+      if (here.kind !== def.node) return `A ${here.kind} node is here: build on open ground beside it`;
+      if (world.sites.some((s) => s.nodeId === here.id)) return 'Node already in use';
+    } else if (def.node && !def.produce) {
+      return `${def.label} must be built on a ${def.node} node`;
     } else if (def.airport) {
       // An airport checks all nine of its tiles below; it clears forest and levels the ground itself.
-    } else if (t !== 'grass' && !((def.port || def.harbor) && t === 'forest')) {
+    } else if (t !== 'grass' && !((def.port || def.harbor || def.node === 'forest') && t === 'forest')) {
       return t === 'forest' ? 'Forests are reserved for forestry nodes' : `Cannot build on ${t}`;
     } else if (!def.port && !def.harbor && slopeAt(world, x, y) > BUILD_SLOPE) {
       return 'Too steep to build on';
