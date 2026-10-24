@@ -190,6 +190,8 @@ interface TreeChunk {
   far: THREE.InstancedMesh | null;
   center: THREE.Vector3;
   radius: number;
+  /** How many trees the block holds; far away only a share of them (a random share: the list is shuffled) is drawn. */
+  total: number;
 }
 
 /** Blocks of tree blocks: a whole region is skipped at once when it is over the horizon or too far to draw. */
@@ -421,6 +423,13 @@ export class Scenery {
     const col = new THREE.Color();
     const byRegion = new Map<string, TreeRegion>();
     for (const list of groups.values()) {
+      // A fixed shuffle, so drawing only the first part of a block thins it evenly instead of cutting one side away.
+      let seed = list.length * 2654435761 + list[0].tile;
+      for (let i = list.length - 1; i > 0; i--) {
+        seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+        const j = seed % (i + 1);
+        [list[i], list[j]] = [list[j], list[i]];
+      }
       const kind = list[0].kind;
       const tx0 = list[0].tile % w.width;
       const ty0 = Math.floor(list[0].tile / w.width);
@@ -460,7 +469,7 @@ export class Scenery {
         region.group.add(far);
       }
       const sphere = mesh.boundingSphere ?? new THREE.Sphere();
-      region.chunks.push({ near: mesh, far, center: sphere.center.clone(), radius: sphere.radius });
+      region.chunks.push({ near: mesh, far, center: sphere.center.clone(), radius: sphere.radius, total: list.length });
     }
     for (const r of this.regions) {
       for (const c of r.chunks) r.center.add(c.center);
@@ -971,7 +980,11 @@ export class Scenery {
     if (this.lodFrame !== 0) return;
     const toEye = new THREE.Vector3();
     const up = new THREE.Vector3();
-    const farLimit = this.treeDetailDistance * 3;
+    // Close to the camera every tree stands; further out a smaller share of them draw, the cheap model from twice the detail
+    // distance, until none do at six times it (the ground picture shows the woods from there).
+    const detail = this.treeDetailDistance;
+    const farLimit = detail * 6;
+    const thin = (dist: number, from: number, to: number): number => (dist <= from ? 1 : Math.max(0.1, 1 - (0.9 * (dist - from)) / (to - from)));
     // The little scene on each resource node (a clump of trees, a field) is detailed: only those near the camera draw.
     const propLimit = (this.treeDetailDistance * 4) ** 2;
     for (const [id, m] of this.props) {
@@ -993,9 +1006,19 @@ export class Scenery {
         up.copy(c.center).normalize();
         const dist = toEye.length() - c.radius;
         const visible = toEye.dot(up) > -c.radius && dist < farLimit;
-        const near = visible && dist < this.treeDetailDistance;
-        c.near.visible = c.far ? near : visible && dist < this.treeDetailDistance * 1.5;
-        if (c.far) c.far.visible = visible && !near;
+        if (c.far) {
+          const near = visible && dist < detail;
+          c.near.visible = near;
+          c.far.visible = visible && !near;
+          if (near) c.near.count = c.total;
+          else if (visible) c.far.count = Math.max(1, Math.ceil(c.total * thin(dist, detail * 2, farLimit)));
+        } else {
+          // Bushes and boulders have no cheap model: they thin out and stop at three times the detail distance.
+          const lim = detail * 3;
+          const show = visible && dist < lim;
+          c.near.visible = show;
+          if (show) c.near.count = Math.max(1, Math.ceil(c.total * thin(dist, detail, lim)));
+        }
       }
     }
   }

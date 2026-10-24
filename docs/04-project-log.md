@@ -838,3 +838,7 @@ What changed:
 
 - The F3 split from 0.131 showed 3.2M triangles in "trees" at every zoom level, and from far the whole frame was 6.6M triangles at 10 fps. That group was the whole scenery group: its biggest part was the small scene on every resource node (one mesh and one draw call each, over a thousand on Map 3, always drawn). Node scenes now draw only within 4 times the tree detail distance of the camera.
 - The F3 split now separates tree blocks from the rest of the scenery, counts only what is inside the view, and lists the six biggest parts.
+
+## 0.133: trees fill the view up close and thin out with distance
+
+- Up close every tree stands: full models within the tree detail distance (20 on Balanced), then the cheap tree at full density out to twice that. Beyond it a smaller share of each block draws, falling to a tenth, and none past six times the detail distance (was a hard stop at three, which left bare ground across the top of a close view). Bushes and boulders thin out and stop at three times the distance. Each block's trees are shuffled once, so drawing only part of a block thins it evenly.
