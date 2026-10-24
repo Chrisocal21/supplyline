@@ -13,7 +13,7 @@ describe('Map 3: The Meridian Sea', () => {
     w = createWorldFromMap(map3 as unknown as MapData);
     expect(Date.now() - t0).toBeLessThan(60000);
     expect(w.width).toBe(768);
-    expect(w.places.length).toBeGreaterThan(200);
+    expect(w.places.length).toBeGreaterThan(150);
     expect(w.height).toBe(352);
     for (const kind of ['coffee', 'mango', 'oil'] as const) expect(w.nodes.filter((n) => n.kind === kind).length).toBeGreaterThanOrEqual(5);
     // Every wood of 26 tiles or more has a forest node on it or beside it.

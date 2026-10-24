@@ -814,3 +814,8 @@ What changed:
 
 - Map 3 is now 768 x 352 (was 768 x 256): about 146,000 land tiles, 5.5 times Map 2 (was 4). The caps were big because the globe covers only as much latitude as the map has rows; the taller map leaves 16 rows of cap at each pole instead of 64. The continents keep their shapes, stretched to the new height; the land share is 55%. 214 towns (23 cities); every town keeps 3 tiles clear of the sea, lakes and rivers all round (a Port goes on the shore beside it). Desert towns all have wood within reach. Map `rev` is 2: saves from the first Map 3 beta no longer load. Intended to be the last change that forces a restart; bump `rev` in tools/maps/map3.cjs only for a layout edit.
 - Tier 0 logs count for half a lumber: the Supply Yard takes 160 logs and the Market 240 (`LOGS_PER_LUMBER`), so Tier 0 runs longer. Progress is kept in lumber, so a tier change mid-build loses nothing. From Tier 1 it is 80 and 120 lumber as before. Screens and quests show the right count.
+
+## 0.129: Map 3 redrawn, not stretched (not pushed yet: Chris is reviewing the map)
+
+- 0.128 stretched the old land to the taller map. Now the old continents keep their size and sit in the middle rows, new cold lands fill the rows above and new islands the rows below, and land fades out before the polar seas so there are no straight cut coasts. Land stays between about 68 degrees north and south: a tile squeezed near the pole looks stretched on the globe. The ice cap is 8 rows of ice and the sea ring beyond it.
+- About 5.2 times Map 2's land (138,000 tiles), 196 towns and cities, every one 3 tiles clear of water. `rev` stays 2 (the first release of this layout is still to come).

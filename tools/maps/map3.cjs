@@ -13,13 +13,14 @@ const zlib = require('zlib');
 
 const W = 768;
 const H = 352;
-// The land was drawn on 256 rows; every north-south size and position is stretched to this height, so the continents keep their shapes.
-const SY = H / 256;
+// The land was first drawn on 256 rows. It is moved down to the middle of the taller map at its own size (never stretched), and
+// new lands fill the rows above and below it. Land stays out of the polar rows: a tile there is squeezed narrow on the globe.
+const OFF = (H - 256) / 2;
 const SEA = 96;
 const MOUNTAIN = 188;
-const ICE_ROWS = 3;
-const NORTH_SEA = 12;
-const SOUTH_SEA = 12;
+const ICE_ROWS = 8;
+const NORTH_SEA = 28;
+const SOUTH_SEA = 28;
 
 function hash(ix, iy, s) {
   let a = (Math.imul(ix, 374761393) + Math.imul(iy, 668265263) + Math.imul(s, 2246822519)) >>> 0;
@@ -50,8 +51,10 @@ const wdx = (a, b) => {
 
 // ---- the land: soft blobs [cx, cy, rx, ry, strength] ----
 const BLOBS = [];
-// A blob drawn on the 256-row grid: its y and its vertical radius are stretched to the real height.
-const blob = (cx, cy, rx, ry, st) => BLOBS.push([cx, cy * SY, rx, ry * SY, st]);
+// A blob drawn on the 256-row grid: moved down to its place on the taller map, same size.
+const blob = (cx, cy, rx, ry, st) => BLOBS.push([cx, cy + OFF, rx, ry, st]);
+// A blob placed straight on the real rows.
+const newBlob = (cx, cy, rx, ry, st) => BLOBS.push([cx, cy, rx, ry, st]);
 // The great crescent: a chain of blobs along an arc that curls round an inland sea (its centre near 250, 134).
 for (let k = 0; k < 11; k++) {
   const a = -2.5 + (k / 10) * 3.9;
@@ -86,6 +89,11 @@ seeded(26, 300, 740, 190, 238, 4, 12, 32);
 seeded(12, 4, 150, 176, 236, 6, 14, 33);
 seeded(10, 330, 470, 108, 168, 6, 12, 34);
 
+// The new rows: a northern chain of cold lands and a southern chain of islands, so the extra height is land and not a stretch.
+for (let k = 0; k < 10; k++) newBlob(20 + k * 76 + (hash(k, 11, 6) - 0.5) * 30, 56 + (hash(k, 12, 6) - 0.5) * 24, 22 + hash(k, 13, 6) * 16, 10 + hash(k, 14, 6) * 6, 0.95);
+for (let k = 0; k < 10; k++) newBlob(50 + k * 76 + (hash(k, 15, 6) - 0.5) * 30, 296 + (hash(k, 16, 6) - 0.5) * 22, 20 + hash(k, 17, 6) * 16, 9 + hash(k, 18, 6) * 6, 0.92);
+// Two bridging lands in the open water of the middle, to give the new rows a continent each.
+
 const landField = new Float32Array(W * H);
 for (let y = 0; y < H; y++) {
   for (let x = 0; x < W; x++) {
@@ -99,7 +107,10 @@ for (let y = 0; y < H; y++) {
       const d2 = dx * dx + dy * dy;
       if (d2 < 4) v = Math.max(v, st * (1 - d2 / 4) ** 1.5);
     }
-    landField[at(x, y)] = v + (fbm(x, y, 11, 205) - 0.5) * 0.34 + (fbm(x, y, 4, 206) - 0.5) * 0.12;
+    // Land thins out towards the polar seas, so the coast there curves away instead of being cut off in a straight line.
+    const edge = Math.min(y - NORTH_SEA, H - SOUTH_SEA - 1 - y) / 20;
+    const fade = edge >= 1 ? 1 : edge <= 0 ? 0 : edge * edge * (3 - 2 * edge);
+    landField[at(x, y)] = v * fade + (fbm(x, y, 11, 205) - 0.5) * 0.34 * fade + (fbm(x, y, 4, 206) - 0.5) * 0.12 * fade - (1 - fade) * 0.5;
   }
 }
 // The threshold that makes about 54% of the world land.
@@ -108,7 +119,7 @@ for (let y = NORTH_SEA; y < H - SOUTH_SEA; y++) rowsOk.push(y);
 const sorted = [];
 for (const y of rowsOk) for (let x = 0; x < W; x += 2) sorted.push(landField[at(x, y)]);
 sorted.sort((a, b) => a - b);
-const THRESH = sorted[Math.floor(sorted.length * 0.405)];
+const THRESH = sorted[Math.floor(sorted.length * 0.38)];
 
 const terrain = new Array(W * H);
 const elev = new Array(W * H).fill(0);
@@ -282,7 +293,7 @@ const desert = new Uint8Array(W * H);
   for (let y = ICE_ROWS; y < H - ICE_ROWS; y++) {
     for (let x = 0; x < W; x++) {
       const ex = wdx(x, 558) / 104;
-      const ey = (y - 152 * SY) / (80 * SY);
+      const ey = (y - 152 - OFF) / 80;
       if (1 - Math.sqrt(ex * ex + ey * ey) + (fbm(x, y, 20, 409) - 0.5) * 0.5 > 0.08) east[at(x, y)] = 1;
     }
   }
@@ -292,7 +303,7 @@ const desert = new Uint8Array(W * H);
       if (terrain[i] === 'water' || terrain[i] === 'ice') continue;
       // The belt: a wide ellipse with a ragged edge.
       const ex = wdx(x, 330) / 52;
-      const ey = (y - 172 * SY) / (30 * SY);
+      const ey = (y - 172 - OFF) / 30;
       const belt = 1 - Math.sqrt(ex * ex + ey * ey) + (fbm(x, y, 18, 411) - 0.5) * 0.7;
       const onBelt = belt > 0.3;
       if (!east[i] && !onBelt) continue;
@@ -489,7 +500,7 @@ for (const [kind, count] of SPECIALS) {
       if (terrain[i] !== 'grass' && terrain[i] !== 'forest') continue;
       if (comp[i] === biggest || compSize[comp[i]] < 60 || waterDist[i] < 2) continue;
       const lat = Math.abs(y - H / 2) / (H / 2);
-      if (kind !== 'oil' && lat > 0.5) continue;
+      if (kind !== 'oil' && lat > 0.68) continue;
       if (kind === 'oil' && lat > 0.75) continue;
       if (placed.some((q) => Math.hypot(wdx(q.x, x), q.y - y) < q.radius + 9)) continue;
       cands.push({ x, y, e: elev[i], h: hash(x, y, 91), coast: seaDist[i] });
