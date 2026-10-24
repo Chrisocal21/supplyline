@@ -1,7 +1,7 @@
 // Paints the globe's colour texture: shorelines, biomes, mountains and snow, ice caps, resource-node patches
 // and town ground. The 3D lighting does the shading; this supplies realistic, muted albedo.
 import { corridorTiles } from '../sim/corridors';
-import { SEA_LEVEL } from '../sim/defs';
+import { SEA_LEVEL, isSoftNode } from '../sim/defs';
 import { townGround, townTiles, type World } from '../sim/world';
 import { CAP_ROWS, LAT_SPAN, textureRows } from './geo';
 
@@ -394,6 +394,8 @@ function overlays(world: World, data: Uint8ClampedArray, width: number, height: 
   // Resource nodes, each with its own look: a clearing, a patchwork field, a meadow, an orchard, a wet clay bank, a quarry
   // pit or a scree slope. Edges are ragged and fields are turned to their own angle, so nothing reads as a stamped shape.
   for (const nd of world.nodes) {
+    // Fields, pastures and orchards come with the farm that is built, not with the map.
+    if (isSoftNode(nd.kind)) continue;
     const cx = nd.x + 0.5;
     const cy = nd.y + CAP_ROWS + 0.5;
     // Fields lie square to the compass, as the farm buildings do, so the farmstead sits in line with its crops.

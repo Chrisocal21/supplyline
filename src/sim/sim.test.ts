@@ -88,8 +88,9 @@ function col(x: number, y0: number, y1: number): Tile[] {
 describe('building', () => {
   it('requires nodes for extraction; industry goes on open ground or a town plot', () => {
     const w = testWorld();
-    // Production sites go on open ground too: a node is only the better spot.
-    expect(placeError(w, 'forestry', 5, 5)).toBeNull();
+    // Forests, quarries and the like are permanent spots: only a farm, ranch or orchard goes on open ground.
+    expect(placeError(w, 'forestry', 5, 5)).toMatch(/forest node/);
+    expect(placeError(w, 'sawmill', 3, 4)).toMatch(/forest node/);
     expect(placeError(w, 'forestry', 3, 4)).toBeNull();
     expect(placeError(w, 'farm', 3, 4)).toMatch(/forest node/);
     expect(placeError(w, 'farm', 6, 9)).toBeNull();

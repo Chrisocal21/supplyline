@@ -34,6 +34,7 @@ import {
   placeError,
   placeSite,
   isRailHub,
+  needsNode,
   yardSpot,
   plotTiles,
   produces,
@@ -162,7 +163,7 @@ export function playBot(seed: number, ticks: number, onNote?: (n: BotNote) => vo
   const spotFor = (kind: SiteKind, town: Place): { x: number; y: number } | null => {
     const def = SITE_DEFS[kind];
     if (def.inTown) return lotFor(kind, town);
-    if (def.node) return nodeFor(kind, town);
+    if (needsNode(def)) return nodeFor(kind, town);
     return openFor(kind, town);
   };
 

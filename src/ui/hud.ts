@@ -90,7 +90,7 @@ import {
 } from '../sim/world';
 import { nextQuest } from '../sim/quests';
 import { Game3D, districtOfTool, isDistrictTool, type HoverInfo, type OverlayItem, type Tool } from '../r3d/game3d';
-import { DISTRICTS, DISTRICT_ORDER } from '../sim/defs';
+import { DISTRICTS, DISTRICT_ORDER, isSoftNode } from '../sim/defs';
 import { districtCost, upkeepPerMinute } from '../sim/town';
 import { COLORS, Im } from './imui';
 import { VERSION, VERSION_NOTE } from '../version';
@@ -1946,7 +1946,7 @@ export class HudScene extends Phaser.Scene {
       thumb: `thumb-${tool}`,
       blurb: d.blurb,
       detail: [
-        ...(d.produce && d.node ? [`Build on any green tile or town plot. A free ${d.node} node gives a better output; off a node it works at the impure pace.`] : d.node ? [`Build on a free ${d.node} node.`] : d.inTown ? ['Build on a free district plot in a town, then connect it to its Market with the street.'] : ['Build on open ground.']),
+        ...(d.node && isSoftNode(d.node) ? ['Build on any green tile or town plot. It brings its own fields, paddock or trees.'] : d.node ? [`Build on a free ${d.node} node.`] : d.inTown ? ['Build on a free district plot in a town, then connect it to its Market with the street.'] : ['Build on open ground.']),
         ...(d.recipe
           ? [`Uses ${Object.entries(d.recipe.inputs).map(([g, n]) => `${n} ${GOODS[g as Good].label.toLowerCase()}`).join(' + ')}`, `Makes ${Object.entries(d.recipe.outputs).map(([g, n], i) => `${n} ${GOODS[g as Good].label.toLowerCase()}${i > 0 ? ' (by-product)' : ''}`).join(' + ')}`]
           : []),

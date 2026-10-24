@@ -67,6 +67,7 @@ import {
   demolishSite,
   demolishRefund,
   nodeAt,
+  needsNode,
   plotFacing,
   layoutOf,
   plotTiles,
@@ -1226,7 +1227,7 @@ export class Game3D {
       }
       this.scenery.clearTiles(w.sites.flatMap((s) => siteTiles(w, s)).map((t) => t.y * w.width + t.x));
     }
-    const townTool = this.isBuildTool() && (!SITE_DEFS[this.tool as SiteKind].node || !!SITE_DEFS[this.tool as SiteKind].produce);
+    const townTool = this.isBuildTool() && !needsNode(SITE_DEFS[this.tool as SiteKind]);
     this.scenery.showPlots(townTool, (placeId, index) => {
       const pl = w.places.find((p) => p.id === placeId)!;
       const t = plotTiles(w, pl)[index];
@@ -1243,7 +1244,7 @@ export class Game3D {
 
   private activeNodeKind(): NodeKind | null {
     if (this.isRouteTool() || this.tool === 'select' || this.tool === 'auto' || this.tool === 'air' || this.tool === 'sea' || this.tool === 'demolish' || isDistrictTool(this.tool)) return null;
-    return SITE_DEFS[this.tool as SiteKind].node ?? null;
+    return needsNode(SITE_DEFS[this.tool as SiteKind]) ? (SITE_DEFS[this.tool as SiteKind].node ?? null) : null;
   }
 
   /** The yaw that turns a station to face the town street beside it, or null when none is. */
@@ -2226,7 +2227,7 @@ export class Game3D {
     // Anything that does not need a resource node (farms, factories, warehouses...) goes on any open ground, so every tile that
     // takes one is lit green, the same green the road tool shows; a node is only the better spot.
     const sd = this.isBuildTool() ? SITE_DEFS[t as SiteKind] : undefined;
-    const open = !!sd && !sd.dock && !sd.station && (!sd.node || !!sd.produce);
+    const open = !!sd && !sd.dock && !sd.station && !needsNode(sd);
     const want = t === 'railyard' || t === 'airport' || t === 'port' || open ? (t as SiteKind) : null;
     if (!want) {
       if (this.spotMesh) this.spotMesh.visible = false;

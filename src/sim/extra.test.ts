@@ -706,11 +706,11 @@ describe('growing towns and old saves', () => {
     const { createWorld, relayoutNodes, placeSite } = await import('./world');
     const w = createWorld(7);
     w.money = 1e6;
-    const farmNode = w.nodes.find((n) => n.kind === 'farmland')!;
-    expect(placeSite(w, 'farm', farmNode.x, farmNode.y)).toBeNull();
+    const farmNode = w.nodes.find((n) => n.kind === 'forest')!;
+    expect(placeSite(w, 'forestry', farmNode.x, farmNode.y)).toBeNull();
     // Pretend it is an old save with nodes crowded together.
     w.layout = 1;
-    w.nodes.push({ id: 9999, kind: 'pasture', x: farmNode.x + 1, y: farmNode.y, quality: 1, regionId: 0 });
+    w.nodes.push({ id: 9999, kind: 'forest', x: farmNode.x + 1, y: farmNode.y, quality: 1, regionId: 0 });
     relayoutNodes(w);
     expect(w.layout).toBe(4);
     expect(w.nodes.some((n) => n.id === farmNode.id)).toBe(true);

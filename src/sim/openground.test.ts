@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createWorld } from './world';
 import { SITE_DEFS, type SiteKind } from './defs';
+import { needsNode } from './world';
 import { placeError } from './world';
 
 describe('open ground', () => {
@@ -10,7 +11,7 @@ describe('open ground', () => {
     w.money = 1e9;
     const kinds = (Object.keys(SITE_DEFS) as SiteKind[]).filter((k) => {
       const d = SITE_DEFS[k];
-      return !d.dock && !d.station && (!d.node || d.produce) && !d.airport && !d.port && !d.harbor && !d.railyard;
+      return !d.dock && !d.station && !needsNode(d) && !d.airport && !d.port && !d.harbor && !d.railyard;
     });
     expect(kinds.length).toBeGreaterThan(60);
     const bad: string[] = [];

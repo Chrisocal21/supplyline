@@ -27,6 +27,14 @@ export type Category = 'production' | 'processing' | 'manufacturing' | 'heavy' |
 
 export const GOOD_LIST: Good[] = [...GOOD_IDS];
 
+/**
+ * Farmland, pasture and orchards are not places on the map: a farm, ranch or orchard brings its own fields, paddock or trees and can
+ * stand on any open ground. Every other node (forest, quarry, mine, coal, clay, oil, coffee, mango) is a permanent spot on the map
+ * and the site that works it must stand on it.
+ */
+export const SOFT_NODES: NodeKind[] = ['farmland', 'pasture', 'orchard'];
+export const isSoftNode = (kind: NodeKind): boolean => SOFT_NODES.includes(kind);
+
 export const START_MONEY = 6000;
 export const TICKS_PER_SECOND = 10;
 

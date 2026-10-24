@@ -6,6 +6,7 @@ import {
   FREIGHT_DEMAND,
   WAREHOUSE_GOODS,
   BUILD_LUMBER,
+  isSoftNode,
   BUILD_GOODS,
   LEVEL_MATERIALS,
   PATH_TOWN_LEVEL,
@@ -826,9 +827,15 @@ export function siteAt(world: World, x: number, y: number): Site | undefined {
   return undefined;
 }
 
+/** Whether a site must stand on a permanent map node (a forest, quarry, mine, coal seam, clay bank, oil field, coffee or mango grove). */
+export function needsNode(def: { node?: NodeKind }): boolean {
+  return !!def.node && !isSoftNode(def.node);
+}
+
 export function nodeAt(world: World, x: number, y: number): ResourceNode | undefined {
   const wx = wrapX(world, x);
-  return world.nodes.find((n) => n.x === wx && n.y === y);
+  // Soft nodes (fields, pastures, orchards) are not places on the map any more: a farm brings its own.
+  return world.nodes.find((n) => n.x === wx && n.y === y && !isSoftNode(n.kind));
 }
 
 /** The town whose built-up centre covers this tile. */
@@ -1272,9 +1279,8 @@ export function siteSpeed(world: World, site: Site): number {
   const node = site.nodeId === null ? undefined : world.nodes.find((n) => n.id === site.nodeId);
   const town = SITE_DEFS[site.kind].inTown ? siteTown(world, site) : undefined;
   const boats = SITE_DEFS[site.kind].harbor ? 0.25 + 0.5 * world.vehicles.filter((v) => v.homeId === site.id && v.kind === 'fishboat').length : 1;
-  // A production site off its node works at an impure node's pace; on a node it gets the node's quality.
-  const base = SITE_DEFS[site.kind];
-  const ground = node ? NODE_QUALITY[node.quality].mult : base.produce && !base.harbor ? NODE_QUALITY[0].mult : 1;
+  // On a node a site gets the node's quality; a farm, ranch or orchard has no node and works at a steady pace.
+  const ground = node ? NODE_QUALITY[node.quality].mult : 1;
   return boats * LEVEL_SPEED[site.level - 1] * ground * (town ? townSpeedMult(town, site.kind) : 1) * seasonMult(site.kind, world.tick);
 }
 
@@ -2504,7 +2510,7 @@ export function placeError(world: World, kind: SiteKind, x: number, y: number, r
   const plot = plotAt(world, x, y);
   if (plot) {
     // Inside a town: any building that does not need a resource node, on the plots beside the streets.
-    if (def.node && !def.produce) return `${def.label} must be built on a ${def.node} node`;
+    if (needsNode(def)) return `${def.label} must be built on a ${def.node} node`;
     if (def.airport) return 'Airports need open ground outside a town';
     if (def.port || def.harbor) return 'A Port or a Fishing Harbor goes on the coast, outside the town streets';
     if (def.railyard) return 'A Rail Yard goes at the edge of town, outside its streets';
@@ -2514,7 +2520,7 @@ export function placeError(world: World, kind: SiteKind, x: number, y: number, r
   } else {
     const town = placeAt(world, x, y);
     if (town) return town && streetAt(world, x, y) ? `That is ${town.name}'s main street` : `Too close to ${town.name}`;
-    const here = def.node ? nodeAt(world, x, y) : undefined;
+    const here = nodeAt(world, x, y);
     if (!here) {
       // Towns grow in set stages: the ground their later streets and homes will take is kept clear.
       const later = plannedTownAt(world, x, y);
@@ -2528,7 +2534,7 @@ export function placeError(world: World, kind: SiteKind, x: number, y: number, r
       // On its own kind of node a site gets the node's quality; a node of another kind is left for the sites that use it.
       if (here.kind !== def.node) return `A ${here.kind} node is here: build on open ground beside it`;
       if (world.sites.some((s) => s.nodeId === here.id)) return 'Node already in use';
-    } else if (def.node && !def.produce) {
+    } else if (needsNode(def)) {
       return `${def.label} must be built on a ${def.node} node`;
     } else if (def.airport) {
       // An airport checks all nine of its tiles below; it clears forest and levels the ground itself.

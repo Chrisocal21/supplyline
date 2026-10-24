@@ -1,7 +1,7 @@
 // Trees, boulders and resource-node markers, placed on the terrain as instanced meshes.
 import { corridorTiles } from '../sim/corridors';
 import * as THREE from 'three';
-import type { NodeKind } from '../sim/defs';
+import { isSoftNode, type NodeKind } from '../sim/defs';
 import { tileLonLat } from '../sim/mapgen';
 import { parcelState, parcelsOf } from '../sim/land';
 import { seasonLook } from './season';
@@ -218,6 +218,7 @@ export class Scenery {
     const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9 });
     const geos = new Map<NodeKind, THREE.BufferGeometry>();
     for (const n of w.nodes) {
+      if (isSoftNode(n.kind)) continue;
       let g = geos.get(n.kind);
       if (!g) {
         g = nodeProps(n.kind);
@@ -269,8 +270,7 @@ export class Scenery {
         if (n.kind === 'forest') return false;
         let dx = Math.abs(n.x - x);
         dx = Math.min(dx, w.width - dx);
-        const r = n.kind === 'farmland' || n.kind === 'pasture' || n.kind === 'orchard' ? 1 : 1;
-        return dx <= r && Math.abs(n.y - y) <= r;
+        return !isSoftNode(n.kind) && dx <= 1 && Math.abs(n.y - y) <= 1;
       });
 
     // A mostly-land world has far more ground to plant than a sea-dotted one, so each tile is planted a little thinner: about
@@ -479,6 +479,7 @@ export class Scenery {
     const beam = new THREE.CylinderGeometry(0.1, 0.1, 5, 6, 1, true);
     beam.translate(0, 2.5, 0);
     for (const n of w.nodes) {
+      if (isSoftNode(n.kind)) continue;
       const color = QUALITY_COLOR[n.quality];
       const mat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.9, depthWrite: false });
       const beamMat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.28, depthWrite: false, side: THREE.DoubleSide });
