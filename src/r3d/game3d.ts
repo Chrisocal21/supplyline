@@ -327,7 +327,7 @@ interface Shot {
 }
 
 const SEASON_LIGHT: Record<string, { sun: THREE.Color; sky: THREE.Color; ground: THREE.Color }> = {
-  summer: { sun: new THREE.Color(0xffe8c2), sky: new THREE.Color(0xcfe0f7), ground: new THREE.Color(0x66714c) },
+  summer: { sun: new THREE.Color(0xffe8c2), sky: new THREE.Color(0xcfe0f7), ground: new THREE.Color(0x5f7b4f) },
   autumn: { sun: new THREE.Color(0xffd29a), sky: new THREE.Color(0xe6dcc4), ground: new THREE.Color(0x7d6a3c) },
   winter: { sun: new THREE.Color(0xe6efff), sky: new THREE.Color(0xdde8f6), ground: new THREE.Color(0x8c9aa6) },
   spring: { sun: new THREE.Color(0xfff0d0), sky: new THREE.Color(0xd4e8f2), ground: new THREE.Color(0x667f4a) },

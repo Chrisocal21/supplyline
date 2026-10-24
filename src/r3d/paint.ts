@@ -15,15 +15,15 @@ export interface Pixels {
 type RGB = [number, number, number];
 
 const PAL = {
-  grassA: [83, 104, 69] as RGB,
-  grassB: [120, 133, 92] as RGB,
-  dry: [157, 146, 109] as RGB,
-  tundra: [128, 138, 112] as RGB,
+  grassA: [76, 118, 64] as RGB,
+  grassB: [130, 154, 82] as RGB,
+  dry: [180, 160, 98] as RGB,
+  tundra: [122, 142, 116] as RGB,
   duneA: [196, 164, 108] as RGB,
   duneB: [222, 192, 134] as RGB,
   duneDark: [168, 134, 88] as RGB,
-  forestA: [45, 65, 49] as RGB,
-  forestB: [65, 84, 60] as RGB,
+  forestA: [34, 72, 52] as RGB,
+  forestB: [52, 96, 60] as RGB,
   rockA: [98, 92, 86] as RGB,
   rockB: [158, 148, 134] as RGB,
   snow: [238, 242, 246] as RGB,

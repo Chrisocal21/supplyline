@@ -946,3 +946,8 @@ What changed:
 ## 0.152: model and art brief
 
 - `docs/09-model-and-art-brief.md`: what the game is, technical rules for models (glTF, triangle budgets, toggle and animation naming), the 91 buildings merged into hybrid families (Crop Farm with crop toggles, Livestock Farm, Plantation, Extraction Site, processor shells), the annex kit for levels 4 to 10, vehicle parts, towns in five regional styles, 25 districts, roads and scenery, UI icons and Steam art, a work order and a prompt template for ChatGPT.
+
+## 0.153: world look pass, stage 1 (ground colour)
+
+- Art direction: a clean stylized miniature strategy look at $0, keeping the code-built models and one shared palette (see docs/09). Stage 1 changes only the ground: `PAL` in `paint.ts` (grass, dry steppe, tundra and forest greens fresher and more distinct; the old olive made everything muddy) and the summer ground bounce light in `game3d.ts` (0x66714c to 0x5f7b4f). Fixed cameras for before and after: street, camp, mid, far, in the demo base.
+- Next stages: lighting and shadow softness, trees, then the globe from space.
