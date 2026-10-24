@@ -7,6 +7,7 @@ import { Parts } from './parts';
 import { addTree } from './vegetation';
 import { framedWindow, loadingBay } from './architecture';
 import { addCow } from './livestock';
+import { newSiteGeometry } from './newsites';
 
 const DARK = 0x24272b;
 const PAD = 0x8a8a86;
@@ -132,6 +133,36 @@ function factory(l: Look): THREE.BufferGeometry {
 }
 
 const LOOKS: Partial<Record<SiteKind, Look>> = {
+  woodyard: { wallTex: 2, wall: 0x9a6a3a, roof: 0x4a3a2a, accent: 0xd7a21f, saw: 2, heap: 0xb08850, yard: [0x8a5a33, 0x9a6a3a, 0x8a5a33, 0x9a6a3a] },
+  creamery: { wallTex: 3, wall: 0xf6efd2, roof: 0xc8a030, accent: 0xf0d870, silos: { n: 1, color: 0xf0e6b0, tall: 0.9 }, yard: [0xf0d870, 0xf6efd2, 0xf0d870] },
+  juicepress: { wallTex: 1, wall: 0xf0a040, roof: 0x8a4a20, accent: 0xe89030, tank: 0.8, yard: [0xe89030, 0xf0b050, 0xe89030, 0xf0b050] },
+  sugarrefinery: { wallTex: 3, wall: 0xf0eeee, roof: 0x8a8a92, accent: 0xc8b0a0, silos: { n: 2, color: 0xf6f4f4, tall: 1.2 }, chimneys: 1, yard: [0xc8b0a0, 0xf4f0f0, 0xc8b0a0] },
+  oilpress: { wallTex: 5, wall: 0xd8c040, roof: 0x6a5a20, accent: 0xe0b020, tank: 1, silos: { n: 1, color: 0xe8d870, tall: 1 }, yard: [0xe0b020, 0xc8a020, 0xe0b020] },
+  pastrykitchen: { wallTex: 1, wall: 0xe8c898, roof: 0xa05a3a, accent: 0xf6e6c8, chimneys: 1, glassy: true, yard: [0xd8a060, 0xf0d0a0, 0xd8a060] },
+  noodlemaker: { wallTex: 3, wall: 0xf0e0a8, roof: 0x8a6a3a, accent: 0xe8d090, saw: 2, yard: [0xe8d090, 0xf0e8c0, 0xe8d090] },
+  pizzeria: { wallTex: 1, wall: 0xc8503a, roof: 0x5a2a20, accent: 0xf6e6c8, chimneys: 2, glassy: true, yard: [0xd86a3a, 0xf0d070, 0xd86a3a] },
+  cannery: { wallTex: 5, wall: 0xa8b0b0, roof: 0x5a6a78, accent: 0xd7a21f, saw: 3, yard: [0xc8ccd0, 0xa0a8a0, 0xc8ccd0, 0xa0a8a0] },
+  butcher: { wallTex: 6, wall: 0xe8d8d0, roof: 0x8a3a3a, accent: 0xc05050, flat: true, yard: [0xc05050, 0xd88a8a, 0xc05050] },
+  brewery: { wallTex: 1, wall: 0xb88a4a, roof: 0x4a3a2a, accent: 0xd8a020, tank: 1.2, chimneys: 1, silos: { n: 2, color: 0xc8a050, tall: 1.2 }, yard: [0xd8a020, 0x8a6a3a, 0xd8a020] },
+  sodaplant: { wallTex: 7, wall: 0x6ab8d8, roof: 0x3a6a8a, accent: 0xe9f3f6, glassy: true, tank: 0.8, yard: [0x48a8c8, 0xe8f0f4, 0x48a8c8] },
+  woolmill: { wallTex: 3, wall: 0xe8e2d4, roof: 0x8a8a7a, accent: 0xf0eee6, saw: 3, yard: [0xf0eee6, 0xe8e0d0, 0xf0eee6] },
+  compostyard: { wallTex: 2, wall: 0x6a5a3a, roof: 0x3a3a2a, accent: 0x7a8a4a, heap: 0x6b4a2e, yard: [0x6b4a2e, 0x7a5a3a, 0x6b4a2e, 0x5a4a2a] },
+  silage: { wallTex: 5, wall: 0xb8a860, roof: 0x5a5a3a, accent: 0x8a7a40, silos: { n: 3, color: 0xc8b870, tall: 1.4 }, yard: [0xb7a35a, 0xc8b870, 0xb7a35a] },
+  winery: { wallTex: 6, wall: 0xc8a888, roof: 0x7a3a3a, accent: 0x7a2038, tank: 1, chimneys: 1, yard: [0x7a2038, 0x9a4a5a, 0x7a2038] },
+  distillery: { wallTex: 6, wall: 0x8a7a68, roof: 0x3a3a3a, accent: 0xc8a870, tower: 0.9, chimneys: 2, yard: [0xc8a870, 0x8a6a3a, 0xc8a870] },
+  icecreamplant: { wallTex: 7, wall: 0xf8d8e0, roof: 0x7aa8d8, accent: 0xffffff, flat: true, glassy: true, yard: [0xf0d0d8, 0xf8f0e8, 0xf0d0d8] },
+  crispfryer: { wallTex: 1, wall: 0xe8c850, roof: 0xa05a20, accent: 0xd8403a, chimneys: 2, yard: [0xe0b840, 0xf0d870, 0xe0b840] },
+  sausagemaker: { wallTex: 6, wall: 0xb85a48, roof: 0x5a2a20, accent: 0xe8d8c8, chimneys: 1, yard: [0xa04838, 0xc86a58, 0xa04838] },
+  chocolatier: { wallTex: 1, wall: 0x6a3a28, roof: 0x3a2018, accent: 0xe8c898, chimneys: 1, glassy: true, yard: [0x4a2a1a, 0x6a3a28, 0x4a2a1a] },
+  candlemaker: { wallTex: 3, wall: 0xf0e4b8, roof: 0x9a7a4a, accent: 0xf8f0d0, chimneys: 1, yard: [0xf0e0b0, 0xf8f0d0, 0xf0e0b0] },
+  pillowmaker: { wallTex: 3, wall: 0xe0d8f0, roof: 0x8a7ab0, accent: 0xf6f4fc, saw: 2, yard: [0xe0d8f0, 0xf6f4fc, 0xe0d8f0] },
+  granitecutter: { wallTex: 6, wall: 0xa89fa4, roof: 0x5a5458, accent: 0xd7a21f, crane: true, heap: 0x9a8f94, yard: [0xb0a8ae, 0x9a8f94, 0xb0a8ae, 0x9a8f94] },
+  refinery: { wall: 0x7a6a64, roof: 0x30302e, accent: 0xe05a2a, tower: 1.2, tank: 1.4, chimneys: 3, big: true, yard: [0xc04a2a, 0x7a6a64, 0xc04a2a] },
+  smokehouse: { wallTex: 2, wall: 0x8a6a48, roof: 0x3a2a20, accent: 0xc08848, chimneys: 2, yard: [0xc08848, 0x8a5a33, 0xc08848] },
+  fishcannery: { wallTex: 5, wall: 0x7aa0b8, roof: 0x3a5a78, accent: 0xe9f3f6, saw: 3, yard: [0x8aa0b8, 0xc8ccd0, 0x8aa0b8] },
+  fishmeal: { wallTex: 5, wall: 0xa8b0b8, roof: 0x58606a, accent: 0xd7a21f, silos: { n: 2, color: 0xc8ccd0, tall: 1.1 }, conveyor: true, yard: [0xa8b0b8, 0xb7a35a, 0xa8b0b8] },
+  gardensupply: { wallTex: 2, wall: 0x7a9a5a, roof: 0x4a5a3a, accent: 0xa8c070, glassy: true, heap: 0x6b4a2e, yard: [0x6b4a2e, 0x7a8a4a, 0x6b4a2e] },
+  scrapyard: { wallTex: 5, wall: 0x7d8a6a, roof: 0x4a5040, accent: 0xd7a21f, crane: true, heap: 0x8a8a7a, yard: [0x6a6a60, 0x8a7a5a, 0x6a6a60, 0x8a8a7a] },
   dairy: { wallTex: 3, wall: 0xf2f0e8, roof: 0x4f7aa8, accent: 0xe8c04a, silos: { n: 1, color: 0xdfe3e6, tall: 1.1 }, yard: [0xf4f6f8, 0xe8c04a, 0xf4f6f8] },
   jamfactory: { wallTex: 1, wall: 0xb0405a, roof: 0x6b3b3b, accent: 0xf2d9c0, chimneys: 1, yard: [0x9a2f4a, 0xc8453b, 0x9a2f4a, 0xc8453b] },
   spinmill: { wallTex: 3, wall: 0xe6dfd2, roof: 0xd9a0b0, accent: 0xd9a0b0, saw: 4, yard: [0xf0eee6, 0xf0eee6, 0xe6dfd2, 0xf0eee6] },
@@ -291,6 +322,6 @@ export function industryGeometry(kind: SiteKind): THREE.BufferGeometry {
     case 'oilwell':
       return oilWellGeometry();
     default:
-      return factory({ wall: 0xb8b8b8, roof: 0x666666, accent: 0xcccccc });
+      return newSiteGeometry(kind) ?? factory({ wall: 0xb8b8b8, roof: 0x666666, accent: 0xcccccc });
   }
 }

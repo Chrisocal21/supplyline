@@ -2551,6 +2551,9 @@ export function placeError(world: World, kind: SiteKind, x: number, y: number, r
       if (e) return e;
     }
   }
+  // A building never goes on a road or a track.
+  const crossing = routeAt(world, x, y);
+  if (crossing && !crossing.free) return 'A road or track runs across this tile';
   const cost = buildCost(world, kind, x, y);
   if (world.money < cost) return `Need $${cost}`;
   return null;

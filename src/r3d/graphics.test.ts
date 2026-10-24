@@ -55,6 +55,21 @@ describe('resource-site polish', () => {
   }, 30000);
 });
 
+const factorySites = (Object.keys(SITE_DEFS) as SiteKind[]).filter(kind => SITE_DEFS[kind].recipe || SITE_DEFS[kind].recycle);
+
+describe('factory polish', () => {
+  it.each(factorySites)('%s has a different model at each of its three levels', kind => {
+    const counts = new Set<number>();
+    for (const level of [1, 2, 3]) {
+      const g = siteGeometryAt(kind, level);
+      checkGeometry(g, 120000);
+      counts.add(g.getAttribute('position').count);
+      g.dispose();
+    }
+    expect(counts.size).toBe(3);
+  }, 30000);
+});
+
 describe('measured transport and sports geometry', () => {
   it('builds a 120 by 53 1/3 yard football surface, not a tile-sized field', () => {
     const p = new Parts();
