@@ -473,16 +473,18 @@ Notes from playing a Large world (41 fps, 24 ms a frame, draw 10 ms): roads look
 
 ## What to Tackle Next
 
-Game plan after 0.107:
+Shelved (not finished, for after the current round):
 
-- [ ] Look at it on screen (the headless screenshot tool keeps timing out): green build zone, houses off roads, building models at each level, harbor and sailing boats, fog of war at the edge of view, the Fleet "sell idle" button, the Mechanic Shop crew panel
-- [ ] A real playtest of a new game on Map 2: early game feel, first 10 minutes (nothing sells until the Market stands), town growth, Tier 2 (needs a level 4 town; the careful bot gets there at about 105 minutes on one map and not within 150 on others)
-- [x] Map 3 made (768 by 256, bending coasts, a Forestry node for every big wood) and shown in the world menu as in progress, view only
-- [ ] Map 3 groundwork before it can be played: streamed ground texture, trees only near the camera, a grid index for lookups, a compact save format. Maps 1 and 2 stay as they are
-- [ ] Spice and cocoa farms still reuse the coffee and mango models
-- [ ] Parked balance: wear formula, prices, driver XP slowing with rank, pacing numbers
+- [ ] Map 3: Chris's layout edits by grid cell (waiting on Chris); then the size groundwork still undone: ground picture streamed in tiles (capped at 4,096 px across now, 5 px a tile), trees only near the camera, a grid index for the lookups that scan every tile; then open it for play and run the balance bot on it
+- [ ] Look at it on screen (headless screenshots time out): green build zone, houses off roads, models at each level, harbor and sailing boats, Fleet "sell idle" button, Mechanic Shop panel, Map 3 preview and grid badge, About page, desert ground, /goods/ page
+- [ ] Smoothness: send the F3 readout (draw calls, triangles) from a zoomed-in and a far view, then cut what costs the most (separate objects, lights, shadows)
+- [ ] Town building models are all built at load: skip towns far from the view until needed
+- [ ] Pacing on the hand-made maps: re-run `PACING=1 PACING_MAP=map1` and `map2` after the 0.118 changes; Tier 2 needs a level 4 town
+- [ ] "Chicken": poultry meat is only a placeholder on /goods/ (see `src/sim/planned.ts`); other planned goods move into the game one at a time
+- [ ] First 10 minutes earn nothing; Market absorption ceiling; spice and cocoa reuse the coffee and mango models
+- [ ] Parked balance: wear formula, prices, driver XP slowing with rank, pacing numbers, quest numbers
 - [ ] Parked towns: train stations in towns, dormant towns
-- [ ] Tune quest numbers and rewards after a real playthrough
+- [ ] Desert: farms could be slower or need water on sand; the fog of war was tried in 0.115 and removed in 0.118 (it looked wrong and was not needed)
 - [ ] Desktop: code signing and the Steam fee (see 05-desktop-version.md)
 
 Done earlier:

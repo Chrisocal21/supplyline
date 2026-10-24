@@ -118,8 +118,8 @@ export function runChores(w: World): string[] {
 
 export type BotStyle = 'quest' | 'skilled';
 
-export function playBot(seed: number, ticks: number, onNote?: (n: BotNote) => void, style: BotStyle = 'quest'): BotResult {
-  const w = createWorld(seed);
+export function playBot(seed: number, ticks: number, onNote?: (n: BotNote) => void, style: BotStyle = 'quest', start?: World): BotResult {
+  const w = start ?? createWorld(seed);
   const notes: BotNote[] = [];
   const note = (text: string): void => {
     const n = { tick: w.tick, text };
@@ -181,12 +181,17 @@ export function playBot(seed: number, ticks: number, onNote?: (n: BotNote) => vo
       null
     );
   };
-  const siteFor = (g: Good, town: Place): Site | undefined =>
-    w.sites.filter((s) => produces(s).includes(g) && !SITE_DEFS[s.kind].hub && !SITE_DEFS[s.kind].dock && !SITE_DEFS[s.kind].station).sort((a, b) => d2(a, town) - d2(b, town))[0];
+  const siteFor = (g: Good, town: Place, skip?: (s: Site) => boolean): Site | undefined =>
+    // A site that makes the good as its main product is the source, before one that has it only as a by-product (a Coal Mine's stone).
+    w.sites
+      .filter((s) => produces(s).includes(g) && !SITE_DEFS[s.kind].hub && !SITE_DEFS[s.kind].dock && !SITE_DEFS[s.kind].station && !skip?.(s))
+      .sort((a, b) => Number(produces(a)[0] !== g) - Number(produces(b)[0] !== g) || d2(a, town) - d2(b, town))[0];
 
+  /** Sources with no usable road to a factory: the bot builds another source for it instead of trying again. */
+  const badSrc = new Set<string>();
   /** One step towards a complete chain for `g` serving `town`. */
   const chainStep = (g: Good, town: Place): 'done' | 'built' | 'wait' | 'fail' => {
-    let site = siteFor(g, town);
+    let site = siteFor(g, town, (c) => badSrc.has(`${c.id}:${g}`));
     const kind = producerKind(g);
     if (!kind) return 'fail';
     const def = SITE_DEFS[kind];
@@ -217,14 +222,20 @@ export function playBot(seed: number, ticks: number, onNote?: (n: BotNote) => vo
       return 'built';
     }
     for (const i of Object.keys(SITE_DEFS[site.kind].recipe?.inputs ?? {}) as Good[]) {
-      const src = siteFor(i, town);
-      if (!src) return 'fail';
+      const src = siteFor(i, town, (c) => badSrc.has(`${c.id}:${i}`));
+      if (!src) {
+        // The factory stands but one of its inputs is not made yet (it was built for another chain): make it now.
+        const r = chainStep(i, town);
+        return r === 'done' ? 'built' : r;
+      }
       if (w.places.some((p) => inTownOf(src, p) && inTownOf(site!, p))) continue;
       if (routeBetween(src, site)) continue;
       const path = findPath(w, src, site, 120000, 'road');
-      if (!path) return 'fail';
-      // No truck on offer could run a road this long: a player would build somewhere closer.
-      if (!roadKindFor(w, src.id, { path })) return 'fail';
+      // No road, or none a truck could run (too long): a player would build another source closer, so this one is set aside.
+      if (!path || !roadKindFor(w, src.id, { path })) {
+        badSrc.add(`${src.id}:${i}`);
+        return 'fail';
+      }
       const cost = 400 + path.length * 8;
       if (w.money < cost) return 'wait';
       const err = createRoute(w, path, 'road', 'street');

@@ -1,5 +1,4 @@
 // Simulation core: plain TypeScript, no graphics, no renderer imports.
-import { startExploring, stepExplore } from './explore';
 import {
   DISTRICTS,
   DISTRICT_ORDER,
@@ -439,12 +438,8 @@ export interface World {
   blend?: boolean;
   /** The made map this world was started from, if it was not generated. */
   mapId?: string;
-  /** The fog: one 0 or 1 for each square of the world (see explore.ts). Missing in old saves, where everything counts as seen. */
-  explored?: number[];
   /** Desert ground: one character for each tile, d or . (see desert.ts). Maps that have no desert leave it out. */
   desert?: string;
-  /** Goes up whenever the fog opens, so the drawing knows to look again. Not part of the game itself. */
-  exploreStamp?: number;
   /** Loans, savings and the market fund. Opened the first time the bank sheet is used. */
   bank?: BankState;
 }
@@ -526,7 +521,6 @@ export function* worldSteps(seed = Math.floor(Math.random() * 1e9), width = 192,
     addDock(world, p, 'freight');
     p.stage = 0;
   }
-  startExploring(world);
   return world;
 }
 
@@ -639,7 +633,6 @@ export function createWorldFromMap(map: MapData): World {
     addDock(world, p, 'freight');
     p.stage = 0;
   }
-  startExploring(world);
   return world;
 }
 
@@ -2359,12 +2352,18 @@ const fillFactor = (fill: number): number => Math.min(1.3, Math.max(0.4, 1.3 - f
  */
 function routeScore(world: World, v: Vehicle, r: Route): number {
   const mode = v.pick ?? 'any';
-  if (mode === 'any') return 0;
   const home = siteById(world, v.homeId);
   const other = siteById(world, r.fromSiteId === v.homeId ? r.toSiteId : r.fromSiteId);
-  if (!home || !other) return -Infinity;
+  if (!home || !other) return mode === 'any' ? 0 : -Infinity;
   const asked = wants(world, other);
   const goods = lineGoods(home, v.line ?? 'main').filter((g) => asked.includes(g));
+  // A town's Supply Yard that is still short of a building material comes first, whatever the pick: it pays nothing, but the town cannot
+  // grow without it, and a district building that pays would otherwise take every brick.
+  if (other.kind === 'freight' && other.placeId !== null) {
+    const place = world.places.find((p) => p.id === other.placeId);
+    if (place && goods.some((g) => depotLeft(place, other, g) - inbound(world, v, other, g) > 0)) return 1e6;
+  }
+  if (mode === 'any') return 0;
   if (goods.length === 0) return -1;
   const vdef = VEHICLE_DEFS[v.kind];
   const cap = Math.max(1, siteCap(world, other));
@@ -2619,7 +2618,6 @@ export function step(world: World): void {
     sendToDistricts(world);
   }
   if (world.tick % 300 === 0) stepAutoBuy(world);
-  stepExplore(world);
   checkQuests(world, (text) => addLog(world, text));
 }
 
