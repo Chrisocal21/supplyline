@@ -7,7 +7,7 @@ const { spawnSync } = require('child_process');
 const flag = path.join(__dirname, '..', 'electron', 'demo.flag');
 fs.writeFileSync(flag, 'demo');
 try {
-  const r = spawnSync('npx', ['electron-builder', '--win', '--publish', 'never', '-c.appId=com.probablyfinestudios.supplyline.demo', '-c.productName=Supplyline Demo', '-c.directories.output=release-demo', '-c.nsis.artifactName=Supplyline-Demo-Setup.exe'], { stdio: 'inherit', shell: true, cwd: path.join(__dirname, '..') });
+  const r = spawnSync(process.execPath, [path.join(__dirname, '..', 'node_modules', 'electron-builder', 'cli.js'), '--win', '--publish', 'never', '-c.appId=com.probablyfinestudios.supplyline.demo', '-c.productName=Supplyline Demo', '-c.directories.output=release-demo', '-c.nsis.artifactName=Supplyline-Demo-Setup.exe'], { stdio: 'inherit', cwd: path.join(__dirname, '..') });
   process.exitCode = r.status ?? 1;
 } finally {
   fs.rmSync(flag, { force: true });
