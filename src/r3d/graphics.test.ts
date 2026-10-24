@@ -264,6 +264,31 @@ describe('building integration', () => {
     withRoad.dispose();
   });
 
+  it('never puts a home or building site over a lot, a site or another home', () => {
+    const streets = Array.from({ length: 9 }, (_, i) => ({ x: i - 4, y: 0, main: true }));
+    const homes = [-1, 1].flatMap((y) => Array.from({ length: 9 }, (_, i) => ({ x: i - 4, y, ok: true })));
+    const plots = [-1, 1].flatMap((y) => Array.from({ length: 9 }, (_, i) => ({ x: i - 4, y: y * 2, ex: i - 4, ey: 0, ok: true, occupied: false, home: i % 3 === 0 })));
+    for (const style of TOWN_STYLES) {
+      for (let level = 1; level <= 5; level++) {
+        for (const city of [false, true]) {
+          const g = townGeometry({ level, seed: 5, squeeze: 0.9, city, style, streets, homes, plots });
+          const rects = g.userData.footprints as [number, number, number, number][];
+          // Every lot held for the player is on the list (a lot is 2.6 deep and 2.6 wide narrowed by the squeeze), and nothing overlaps it.
+          const lots = rects.filter((r) => Math.abs(r[2] - r[0] - 2.6 * 0.9) < 1e-6 && Math.abs(r[3] - r[1] - 2.6) < 1e-6);
+          expect(lots.length).toBe(plots.filter((t, i) => i < 2 || !t.home).length);
+          for (let i = 0; i < rects.length; i++) {
+            for (let j = i + 1; j < rects.length; j++) {
+              const [a0, b0, a1, b1] = rects[i];
+              const [c0, d0, c1, d1] = rects[j];
+              expect(a0 < c1 - 1e-6 && a1 > c0 + 1e-6 && b0 < d1 - 1e-6 && b1 > d0 + 1e-6).toBe(false);
+            }
+          }
+          g.dispose();
+        }
+      }
+    }
+  }, 120000);
+
   it.each(TOWN_STYLES)('%s towns retain repeatable geometry through all five growth levels', (style) => {
     const streets = Array.from({ length: 7 }, (_, i) => ({ x: i - 3, y: 0, main: true }));
     const homes = [-1, 1].flatMap(y => Array.from({ length: 5 }, (_, i) => ({ x: i - 2, y, ok: true })));

@@ -173,8 +173,15 @@ export function townGeometry(o: TownModelOptions): THREE.BufferGeometry {
   const offRoad = (x: number, z: number, hx: number, hz: number): boolean =>
     [[0, 0], [-1, -1], [1, -1], [-1, 1], [1, 1], [0, -1], [0, 1], [-1, 0], [1, 0]].every(([a, b]) => segs.every((sg) => segDist(x + a * hx, z + b * hz, sg) > ROAD_CLEAR));
 
+  // Everything already on the ground (a district's lot, a held lot, a building site): no home or tower is built over it.
+  const placed: [number, number, number, number][] = [];
+  const free = (x0: number, z0: number, x1: number, z1: number): boolean =>
+    !placed.some(([a0, b0, a1, b1]) => x0 < a1 && x1 > a0 && z0 < b1 && z1 > b0);
+
   // ---- the plots beside the streets ----
   o.plots.forEach((t, index) => {
+    // The Market and the Supply Yard stand on the first two plots (drawn with the sites): no home goes over them.
+    if (index < 2 && t.ok) placed.push([X(t.x) - 1.3 * sq, Z(t.y) - 1.3, X(t.x) + 1.3 * sq, Z(t.y) + 1.3]);
     if (!t.ok || index < 2 || t.occupied) return;
     const cx = X(t.x);
     const cz = Z(t.y);
@@ -196,6 +203,7 @@ export function townGeometry(o: TownModelOptions): THREE.BufferGeometry {
       p.anchor = null;
       return;
     }
+    placed.push([cx - hw, cz - 1.3, cx + hw, cz + 1.3]);
     p.box(hw * 2, 0.03, 2.6, 0xb7b1a3, { x: cx, y: 0.0, z: cz });
     p.box(hw * 2 - 0.1, 2.5, 2.5, 0x6d6b66, { x: cx, y: -2.5, z: cz });
     p.box(hw * 2 - 0.34, 0.012, 2.26, 0xc9c4b6, { x: cx, y: 0.03, z: cz });
@@ -267,10 +275,6 @@ export function townGeometry(o: TownModelOptions): THREE.BufferGeometry {
   // Just past the finished houses, the next ones are being built: sites in several stages, so the town is plainly in
   // development and fills in as it grows. A fully grown town has none.
   const frontier = fillFrac >= 1 ? 0 : Math.max(2, Math.min(8, Math.round(around.length * 0.14)));
-  // Everything already standing on a lot: a district's ground is its own, so no home or tower is ever built over it.
-  const placed: [number, number, number, number][] = [];
-  const free = (x0: number, z0: number, x1: number, z1: number): boolean =>
-    !placed.some(([a0, b0, a1, b1]) => x0 < a1 && x1 > a0 && z0 < b1 && z1 > b0);
   // Each district is a building on its own lot, turned to face the street its door opens on, with a drive to it.
   const marks: TownLandmark[] = [];
   for (const d of o.districts ?? []) {
@@ -307,7 +311,13 @@ export function townGeometry(o: TownModelOptions): THREE.BufferGeometry {
     if (idx >= filled && idx < filled + frontier) {
       const ex = X(h.t.x + a * 0.5);
       const ez = Z(h.t.y + b * 0.5);
-      construction(ex - a * 0.2, ez - b * 0.2, yaw, 1 + Math.floor(r() * 3));
+      const kx = ex - a * 0.2;
+      const kz = ez - b * 0.2;
+      // A building site takes its pad (1.6 by 1.5, either way round): it never lies over a lot, a road or another site.
+      if (offRoad(kx, kz, 0.8, 0.8) && free(kx - 0.8, kz - 0.8, kx + 0.8, kz + 0.8)) {
+        placed.push([kx - 0.8, kz - 0.8, kx + 0.8, kz + 0.8]);
+        construction(kx, kz, yaw, 1 + Math.floor(r() * 3));
+      }
       return;
     }
     if (idx >= filled) {
@@ -419,6 +429,8 @@ export function townGeometry(o: TownModelOptions): THREE.BufferGeometry {
   if (p.count === 0) p.box(0.1, 0.02, 0.1, ASPHALT, { y: 0 });
   const geo = bendToGlobe(p.build());
   geo.userData.landmarks = marks;
+  // The ground every lot, site and home takes, as [x0, z0, x1, z1]: none may overlap another.
+  geo.userData.footprints = placed;
   geo.userData.lights = lights.map(light => ({ ...light, y: light.y - (light.x * light.x + light.z * light.z) / (2 * (GLOBE_R + 0.3)) }));
   return geo;
 }

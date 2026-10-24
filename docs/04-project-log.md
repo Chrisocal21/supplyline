@@ -936,3 +936,9 @@ What changed:
 ## 0.150: green for buildable land, orange for locked
 
 - While a building tool is active, plots the player owns (or that are free to anyone) get a green outline and wash; plots for sale get an orange outline and wash. Before, owned plots were gold and for-sale plots only a thin white outline, which vanished against desert ground. The per-tile green and orange of the exact placement check is unchanged.
+
+## 0.151: no homes on lots or sites
+
+- In `townGeometry` only districts were kept off by homes; the held lots (the tan pads with orange stakes), the Market and Supply Yard plots and the building sites near the finished houses were not, so houses could stand half on a pad. Every lot, the first two plots and each building site now go on the `placed` list first, and homes and sites are only put where they clear it and clear the roads. A building site with no room is skipped.
+- `geo.userData.footprints` lists every footprint, and a test checks that no two overlap and every lot is listed, across all styles, levels and city or town.
+- I could not reproduce the exact overlap from the Map 3 screenshot on screen, so this is checked by that test and not by a picture of the same town.
