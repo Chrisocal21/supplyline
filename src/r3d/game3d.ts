@@ -1950,11 +1950,14 @@ export class Game3D {
       const place = this.world.places.find((q) => q.id === id);
       if (!place) continue;
       const { lon, lat } = tileLonLat(this.world.width, this.world.height, place.x, place.y);
-      const on = lonLatToVec(lon, lat, 1).dot(this.reachDir) >= townCos;
+      // From very far out a town is a speck: it is not drawn, and its name stays.
+      const on = this.cam.dist < 450 && lonLatToVec(lon, lat, 1).dot(this.reachDir) >= townCos;
       if (t.mesh.visible !== on) t.mesh.visible = on;
       if (!on) asleep++;
     }
     this.perf.asleep = asleep;
+    // From far out the ground is drawn with a quarter of the triangles.
+    this.globe?.setDetail(this.cam.dist > 350);
   }
 
   /** True when a point on the globe is inside the awake area. `slack` widens it for things with some size. */

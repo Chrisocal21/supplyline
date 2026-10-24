@@ -842,3 +842,7 @@ What changed:
 ## 0.133: trees fill the view up close and thin out with distance
 
 - Up close every tree stands: full models within the tree detail distance (20 on Balanced), then the cheap tree at full density out to twice that. Beyond it a smaller share of each block draws, falling to a tenth, and none past six times the detail distance (was a hard stop at three, which left bare ground across the top of a close view). Bushes and boulders thin out and stop at three times the distance. Each block's trees are shuffled once, so drawing only part of a block thins it evenly.
+
+## 0.134: a lighter far view
+
+- Chris's F3 on 0.132: far view 24 fps with 3.7M triangles (ground 2.4M, towns 1.2M), close view 69 fps, and 3 fps for the first moments after a new game starts (a loading stall, to watch). From more than 350 units out the ground now draws with a quarter of its triangles (the same vertices, one quad a tile), and from more than 450 units out town models are not drawn (their names stay). Both switch back as the camera comes in.

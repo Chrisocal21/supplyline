@@ -65,6 +65,8 @@ function detailTexture(): THREE.Texture {
 export interface Globe {
   terrain: THREE.Mesh;
   update(seconds: number): void;
+  /** Draw the ground with a quarter of the triangles (one quad a tile) when the camera is far out, where the bumps cannot be seen. */
+  setDetail(far: boolean): void;
   /** Re-sample the height of these tiles (and refresh normals), after roads regrade the ground. */
   regrade(tiles: Iterable<number>): void;
   atmosphere: THREE.Mesh;
@@ -114,7 +116,27 @@ export function buildGlobe(world: World, hf: HeightField, color: Pixels, rough: 
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
   geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
-  geo.setIndex(new THREE.BufferAttribute(index, 1));
+  const fineIndex = new THREE.BufferAttribute(index, 1);
+  geo.setIndex(fineIndex);
+  // The same vertices, every SUB-th one: a whole tile per quad.
+  const cLon = Math.floor(lonSeg / SUB);
+  const cLat = Math.floor(latSeg / SUB);
+  const coarse = new Uint32Array(cLon * cLat * 6);
+  let cn = 0;
+  for (let j = 0; j < cLat; j++) {
+    for (let i = 0; i < cLon; i++) {
+      const a = j * SUB * cols + i * SUB;
+      const c = a + SUB * cols;
+      coarse[cn++] = a;
+      coarse[cn++] = c;
+      coarse[cn++] = a + SUB;
+      coarse[cn++] = a + SUB;
+      coarse[cn++] = c;
+      coarse[cn++] = c + SUB;
+    }
+  }
+  const coarseIndex = new THREE.BufferAttribute(coarse, 1);
+  let farDetail = false;
   geo.computeVertexNormals();
   const nrm = geo.getAttribute('normal') as THREE.BufferAttribute;
   const smooth = (): void => {
@@ -286,6 +308,11 @@ varying vec3 vSurfacePosition;`)
       time.value = seconds;
     },
     regrade,
+    setDetail(far) {
+      if (far === farDetail || SUB < 2) return;
+      farDetail = far;
+      geo.setIndex(far ? coarseIndex : fineIndex);
+    },
     atmosphere,
     stars,
     dispose() {

@@ -1,3 +1,3 @@
 /** The build number, matching the commit it ships in (0.7, 0.8, ...), and a short line on what that update covered. Bump both with every commit. */
-export const VERSION = '0.133';
-export const VERSION_NOTE = 'Trees fill the view up close and thin out smoothly with distance';
+export const VERSION = '0.134';
+export const VERSION_NOTE = 'A lighter far view: the ground and towns draw with fewer triangles from space';
