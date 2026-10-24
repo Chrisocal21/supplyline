@@ -3003,10 +3003,10 @@ export class HudScene extends Phaser.Scene {
       im.rect(2, x, cy, w, 30, 0x131a24, 1, 8);
       im.text(`dt${gd}n`, GOODS[gd].label, x + 10, cy + 8, { size: 12, bold: true, layer: 3 });
       const bx = x + 100;
-      const bw = wide ? w - 100 - 210 : w - 100 - 76;
+      const bw = wide ? w - 100 - (yardPlace ? 300 : 210) : w - 100 - (yardPlace ? 120 : 76);
       im.bar(3, bx, cy + 12, bw, 6, yardPlace ? n / Math.max(1, target) : n / cap, dm.color);
       if (wide) im.text(`dt${gd}d`, dm.label, bx + bw + 12, cy + 8, { size: 11, color: dm.color, layer: 3 });
-      im.text(`dt${gd}p`, `$${unitPrice(world, s, gd).toFixed(1)}`, x + w - 10, cy + 8, { size: 12, bold: true, color: COLORS.warn, align: 'right', layer: 3 });
+      im.text(`dt${gd}p`, yardPlace ? 'for building' : `$${unitPrice(world, s, gd).toFixed(1)}`, x + w - 10, cy + 8, { size: 12, bold: true, color: yardPlace ? COLORS.muted : COLORS.warn, align: 'right', layer: 3 });
       cy += 34;
     }
     cy += 4;
