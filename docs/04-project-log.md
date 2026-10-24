@@ -819,3 +819,8 @@ What changed:
 
 - 0.128 stretched the old land to the taller map. Now the old continents keep their size and sit in the middle rows, new cold lands fill the rows above and new islands the rows below, and land fades out before the polar seas so there are no straight cut coasts. Land stays between about 68 degrees north and south: a tile squeezed near the pole looks stretched on the globe. The ice cap is 8 rows of ice and the sea ring beyond it.
 - About 5.2 times Map 2's land (138,000 tiles), 196 towns and cities, every one 3 tiles clear of water. `rev` stays 2 (the first release of this layout is still to come).
+
+## 0.130: sea channels on Map 3, and a lighter globe (not pushed yet)
+
+- Map 3 has 22 sea channels (3 tiles wide, bending, cut across narrow necks of land, never through mountains or near the start town) so ships reach more coast. A Tier 1 bridge spans one.
+- Smoothness, from Chris's F3 numbers (12 fps with 10 million triangles zoomed in, 9 fps with 15 million from far, 2,700 to 6,800 draw calls, with nothing built): the ground mesh was 5.3 million triangles on Map 3 (3 steps a tile), and bushes and rocks (no cheap model) drew everywhere the horizon showed. Now a big world draws its ground at 2 steps a tile (2.4 million), bushes and rocks show only up close (1.5 times the tree detail distance), trees beyond 5 times the detail distance are hidden (the ground picture shows the woods), and tree blocks are grouped in regions so a whole region is skipped at once and checked every third frame. Maps 1 and 2 are unchanged.

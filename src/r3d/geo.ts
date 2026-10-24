@@ -18,9 +18,11 @@ export function setGlobeSize(world: World): void {
   // polar caps are only what is left to the pole: a map with more rows has smaller caps.
   LAT_SPAN = (Math.PI * world.height) / world.width;
   CAP_ROWS = Math.max(2, Math.round(world.width / 4 - world.height / 2));
+  // A big world draws its ground with fewer triangles: Map 3 at three a tile would be over five million for the ground alone.
+  MESH_SUB = world.width * (world.height + 2 * CAP_ROWS) > 150_000 ? 2 : 3;
 }
 /** Terrain mesh vertices per tile, in each direction. */
-export const MESH_SUB = 3;
+export let MESH_SUB = 3;
 /** Half the latitude the playable grid covers, in radians (60 degrees for a map a third as tall as it is wide). */
 export let LAT_SPAN = Math.PI / 3;
 

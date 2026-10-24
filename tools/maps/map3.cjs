@@ -440,6 +440,61 @@ for (let y = NORTH_SEA + 8; y < H - SOUTH_SEA - 8; y += 2) for (let x = 0; x < W
 }
 used.add('Hearthfield');
 claim('Hearthfield', start[0], start[1], 3);
+// ---- sea channels: narrow straits cut across the narrow parts of the land, so ships can reach more of the coast ----
+// A channel is 3 tiles wide (a bridge of Tier 1 spans it), bends gently, never cuts a mountain, and keeps well away from the start town.
+const channels = [];
+{
+  const AXES = [[1, 0], [0.92, 0.38], [0.71, 0.71], [0.38, 0.92], [0, 1], [-0.38, 0.92], [-0.71, 0.71], [-0.92, 0.38]];
+  const isSea = (x, y) => terrain[at(x, y)] === 'water' || terrain[at(x, y)] === 'ice';
+  const cands = [];
+  for (let y = NORTH_SEA + 10; y < H - SOUTH_SEA - 10; y += 3) {
+    for (let x = 0; x < W; x += 3) {
+      if (isSea(x, y) || river[at(x, y)]) continue;
+      for (const [dx, dy] of AXES) {
+        let d1 = 0;
+        while (d1 < 72 && !isSea(Math.round(x + dx * d1), Math.round(y + dy * d1))) d1++;
+        let d2 = 0;
+        while (d2 < 72 && !isSea(Math.round(x - dx * d2), Math.round(y - dy * d2))) d2++;
+        const len = d1 + d2;
+        if (d1 >= 72 || d2 >= 72 || len < 14 || len > 72) continue;
+        cands.push({ x, y, dx, dy, d1, d2, len, h: hash(x, y, 123) });
+      }
+    }
+  }
+  cands.sort((a, b) => a.h - b.h);
+  for (const c of cands) {
+    if (channels.length >= 22) break;
+    if (channels.some((q) => Math.hypot(wdx(q.x, c.x), q.y - c.y) < 55)) continue;
+    if (Math.hypot(wdx(start[0], c.x), start[1] - c.y) < 50) continue;
+    const ax = c.x - c.dx * c.d2;
+    const ay = c.y - c.dy * c.d2;
+    const phase = hash(c.x, c.y, 9) * 6.28;
+    const tiles = [];
+    let ok = true;
+    for (let t = 0; t <= c.len && ok; t++) {
+      const bend = Math.sin(t * 0.3 + phase) * 1.6 * Math.min(1, t / 5, (c.len - t) / 5);
+      const px = ax + c.dx * t - c.dy * bend;
+      const py = ay + c.dy * t + c.dx * bend;
+      for (let oy = -1; oy <= 1; oy++) for (let ox = -1; ox <= 1; ox++) {
+        if (Math.abs(ox) + Math.abs(oy) > 1) continue;
+        const i = at(Math.round(px) + ox, Math.round(py) + oy);
+        if (terrain[i] === 'mountain') ok = false;
+        tiles.push(i);
+      }
+    }
+    if (!ok) continue;
+    for (const i of tiles) {
+      if (terrain[i] === 'ice') continue;
+      terrain[i] = 'water';
+      elev[i] = SEA - 8;
+      desert[i] = 0;
+    }
+    channels.push({ x: c.x, y: c.y, len: c.len });
+  }
+  spread(seaDist, (i) => (terrain[i] === 'water' && !river[i]) || terrain[i] === 'ice');
+  spread(waterDist, (i) => terrain[i] === 'water' || terrain[i] === 'ice');
+}
+console.log(`sea channels ${channels.length}`);
 const CITIES = 24;
 const TOWNS = 230;
 for (let guard = 0; placed.length < CITIES + TOWNS && guard < 6000; guard++) {

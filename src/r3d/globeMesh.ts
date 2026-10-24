@@ -5,7 +5,6 @@ import { CAP_ROWS, HeightField, MESH_SUB, R, lonLatToVec, textureRows } from './
 import type { Pixels } from './paint';
 import { seasonLook } from './season';
 
-const SUB = MESH_SUB;
 
 function canvasFrom(p: Pixels): HTMLCanvasElement {
   const c = document.createElement('canvas');
@@ -75,6 +74,7 @@ export interface Globe {
 
 
 export function buildGlobe(world: World, hf: HeightField, color: Pixels, rough: Pixels, maxAnisotropy: number): Globe {
+  const SUB = MESH_SUB;
   const rows = textureRows(world);
   const lonSeg = world.width * SUB;
   const latSeg = rows * SUB;

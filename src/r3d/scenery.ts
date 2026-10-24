@@ -192,10 +192,22 @@ interface TreeChunk {
   radius: number;
 }
 
+/** Blocks of tree blocks: a whole region is skipped at once when it is over the horizon or too far to draw. */
+interface TreeRegion {
+  group: THREE.Group;
+  chunks: TreeChunk[];
+  center: THREE.Vector3;
+  radius: number;
+}
+
+/** A region is this many tree blocks wide. */
+const REGION = 8;
+
 export class Scenery {
   readonly group = new THREE.Group();
   private readonly slots = new Map<number, Slot[]>();
-  private readonly chunks: TreeChunk[] = [];
+  private readonly regions: TreeRegion[] = [];
+  private lodFrame = 2;
   /** Blocks of trees closer to the camera than this draw the full model and cast shadows. */
   treeDetailDistance = 30;
   private readonly markers = new Map<number, { mesh: THREE.Group; kind: NodeKind; id: number }>();
@@ -405,8 +417,11 @@ export class Scenery {
     }
 
     const col = new THREE.Color();
+    const byRegion = new Map<string, TreeRegion>();
     for (const list of groups.values()) {
       const kind = list[0].kind;
+      const tx0 = list[0].tile % w.width;
+      const ty0 = Math.floor(list[0].tile / w.width);
       const shape = shapes[kind];
       const mesh = new THREE.InstancedMesh(shape.geo, shape.mat, list.length);
       mesh.castShadow = kind !== 'rock' && kind !== 'bush';
@@ -422,7 +437,15 @@ export class Scenery {
       mesh.instanceMatrix.needsUpdate = true;
       if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
       mesh.computeBoundingSphere();
-      this.group.add(mesh);
+      const rkey = `${Math.floor(tx0 / (CHUNK * REGION))}:${Math.floor(ty0 / (CHUNK * REGION))}`;
+      let region = byRegion.get(rkey);
+      if (!region) {
+        region = { group: new THREE.Group(), chunks: [], center: new THREE.Vector3(), radius: 0 };
+        byRegion.set(rkey, region);
+        this.regions.push(region);
+        this.group.add(region.group);
+      }
+      region.group.add(mesh);
       let far: THREE.InstancedMesh | null = null;
       if (shape.lod) {
         far = new THREE.InstancedMesh(shape.lod, shape.mat, list.length);
@@ -432,10 +455,15 @@ export class Scenery {
         far.receiveShadow = true;
         far.visible = false;
         far.computeBoundingSphere();
-        this.group.add(far);
+        region.group.add(far);
       }
       const sphere = mesh.boundingSphere ?? new THREE.Sphere();
-      this.chunks.push({ near: mesh, far, center: sphere.center.clone(), radius: sphere.radius });
+      region.chunks.push({ near: mesh, far, center: sphere.center.clone(), radius: sphere.radius });
+    }
+    for (const r of this.regions) {
+      for (const c of r.chunks) r.center.add(c.center);
+      r.center.divideScalar(r.chunks.length);
+      for (const c of r.chunks) r.radius = Math.max(r.radius, r.center.distanceTo(c.center) + c.radius);
     }
   }
 
@@ -926,17 +954,32 @@ export class Scenery {
     if (camera) this.updateTreeLod(camera.position);
   }
 
-  /** Hide tree blocks over the horizon, and draw distant ones with the cheap model and no shadow. */
+  /**
+   * Hide tree blocks over the horizon or too far to see, and draw the nearer ones with the cheap model and no shadow. Bushes and
+   * boulders have no cheap model, so they show only close up. A whole region goes at once, and the blocks are only looked at
+   * every few frames: a big world has tens of thousands of them.
+   */
   private updateTreeLod(eye: THREE.Vector3): void {
+    this.lodFrame = (this.lodFrame + 1) % 3;
+    if (this.lodFrame !== 0) return;
     const toEye = new THREE.Vector3();
     const up = new THREE.Vector3();
-    for (const c of this.chunks) {
-      toEye.subVectors(eye, c.center);
-      up.copy(c.center).normalize();
-      const visible = toEye.dot(up) > -c.radius;
-      const near = visible && toEye.length() - c.radius < this.treeDetailDistance;
-      c.near.visible = visible && (near || !c.far);
-      if (c.far) c.far.visible = visible && !near;
+    const farLimit = this.treeDetailDistance * 5;
+    for (const r of this.regions) {
+      toEye.subVectors(eye, r.center);
+      up.copy(r.center).normalize();
+      const seen = toEye.dot(up) > -r.radius && toEye.length() - r.radius < farLimit;
+      r.group.visible = seen;
+      if (!seen) continue;
+      for (const c of r.chunks) {
+        toEye.subVectors(eye, c.center);
+        up.copy(c.center).normalize();
+        const dist = toEye.length() - c.radius;
+        const visible = toEye.dot(up) > -c.radius && dist < farLimit;
+        const near = visible && dist < this.treeDetailDistance;
+        c.near.visible = c.far ? near : visible && dist < this.treeDetailDistance * 1.5;
+        if (c.far) c.far.visible = visible && !near;
+      }
     }
   }
 }
