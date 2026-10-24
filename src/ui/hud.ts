@@ -8,6 +8,7 @@ import {
   GOODS,
   LEVEL_MATERIALS,
   BUILD_LUMBER,
+  LOGS_PER_LUMBER,
   DRIVER_RANKS,
   MECHANIC_JOBS,
   MECHANIC_RANKS,
@@ -1611,7 +1612,7 @@ export class HudScene extends Phaser.Scene {
 
   /** A map in beta can be looked at here, and played from the preview. */
   private viewMap: { id: WorldSizeId; ready: boolean } | null = null;
-  private mapGrid = { w: 768, h: 256 };
+  private mapGrid = { w: 768, h: 352 };
 
   private openMapView(id: WorldSizeId): void {
     const key = `preview-${id}`;
@@ -3369,7 +3370,7 @@ export class HudScene extends Phaser.Scene {
       // A yard is a store for building materials: show what it holds against what the town still needs.
       const building = yardPlace && (yardPlace.stage ?? 2) === 0;
       const held = building ? Math.floor(yardPlace!.build ?? 0) : Math.floor(s.depot?.[gd] ?? 0);
-      const target = building ? BUILD_LUMBER[0] : yardPlace ? held + Math.ceil(depotLeft(yardPlace, s, gd)) : 0;
+      const target = building ? BUILD_LUMBER[0] * (world.tier < 1 ? LOGS_PER_LUMBER : 1) : yardPlace ? held + Math.ceil(depotLeft(yardPlace, s, gd)) : 0;
       const n = yardPlace ? held : stockOf(s, gd);
       const dm = yardPlace ? { label: building ? `${held} of ${target} to build the yard` : `${held} of ${target} stored`, color: held >= target ? COLORS.good : COLORS.warn, want: 0 } : this.demand(s, gd);
       im.rect(2, x, cy, w, 30, 0x131a24, 1, 8);
@@ -4776,7 +4777,7 @@ export class HudScene extends Phaser.Scene {
     const next = TOWN_LEVELS[p.level];
     im.line(2, x, cy, x + w, cy, COLORS.line, 1);
     cy += 10;
-    const bn = buildingNow(p);
+    const bn = buildingNow(p, world);
     if (bn) {
       im.text('ppBldH', `BUILDING THE ${bn.name.toUpperCase()}`, x, cy, { size: 11, bold: true, color: COLORS.muted, layer: 2 });
       cy += 20;

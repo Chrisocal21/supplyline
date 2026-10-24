@@ -637,6 +637,8 @@ export const FREIGHT_DEMAND: Good[][] = [[], [], [], [], []];
 
 /** Lumber a closed town needs delivered to build its Supply Yard, then its Market. */
 export const BUILD_LUMBER = [80, 120];
+/** Raw logs count for half a lumber when a closed town is built in Tier 0 (a sawmill gets one lumber from two logs), so Tier 0 needs 160 and 240 logs. */
+export const LOGS_PER_LUMBER = 2;
 
 /**
  * Materials a town needs delivered to its Supply Yard for each level-up (index 0 is level 1 to 2), by town style.
@@ -946,8 +948,8 @@ export const TIERS: TierDef[] = [
       { id: 't0-road', label: 'Road the camp to the town', hint: 'Open Logistics, pick Road, then drag from the camp to the town. The truck sets off by itself.', goal: { kind: 'route', mode: 'road', count: 1 }, reward: 150 },
       { id: 't0-camps', label: 'Run 3 Forestry Camps', hint: 'One camp makes only about 9 logs a minute. Build two more Forestry Camps on ringed forest spots and road each one to the town, so the yard and Market get built sooner.', goal: { kind: 'build', site: 'forestry', count: 3 }, reward: 200 },
       { id: 't0-selling', label: 'Send logs to the Supply Yard site', hint: 'Click a Forestry Camp and switch the Supply Yard on under Sell to. The logs build the yard: they are not sold, so they pay nothing.', goal: { kind: 'selling', count: 1 }, reward: 150 },
-      { id: 't0-yard', label: 'Build the Supply Yard: 80 logs', hint: 'Keep the logs coming. One camp makes only about 9 a minute, so build two or three Forestry Camps and road each to the town. When 80 has arrived the yard is built.', goal: { kind: 'townbuilt', stage: 1, count: 1 }, reward: 500 },
-      { id: 't0-market', label: 'Build the Market', hint: 'Fill the yard store with 120 more logs, buy a Box Truck at the Supply Yard, and carry it to the Market site.', goal: { kind: 'townbuilt', stage: 2, count: 1 }, reward: 500 },
+      { id: 't0-yard', label: 'Build the Supply Yard: 160 logs', hint: 'Keep the logs coming. One camp makes only about 9 a minute, so build two or three Forestry Camps and road each to the town. When 160 have arrived the yard is built.', goal: { kind: 'townbuilt', stage: 1, count: 1 }, reward: 500 },
+      { id: 't0-market', label: 'Build the Market', hint: 'Fill the yard store with 240 more logs, buy a Box Truck at the Supply Yard, and carry it to the Market site.', goal: { kind: 'townbuilt', stage: 2, count: 1 }, reward: 500 },
       { id: 't0-ranch', label: 'Build a Dairy Ranch', hint: 'Open Production, pick Dairy Ranch and click open ground near the town: a ranch brings its own pasture. The Market buys milk, eggs, fruit, vegetables and potatoes straight from the farm.', goal: { kind: 'build', site: 'ranch', count: 1 }, reward: 150 },
       { id: 't0-milk', label: 'Sell 40 milk to the Market', hint: 'Join the Dairy Ranch to the town with a road. Its trucks carry milk to the Market, which pays for it. Your first real income.', goal: { kind: 'deliver', good: 'milk', amount: 40 }, reward: 300 },
       { id: 't0-orchard', label: 'Build an Orchard', hint: 'Production tab. An orchard brings its own trees and can stand on any open ground. Fruit sells to the Market too.', goal: { kind: 'build', site: 'orchard', count: 1 }, reward: 150 },
@@ -1044,7 +1046,7 @@ export interface WorldSizeDef {
 export const WORLD_SIZES: WorldSizeDef[] = [
   { id: 'map1', label: 'Map 1: The Known World', width: 288, height: 124, made: true, blurb: 'A hand-made world map: continents, islands and seas, with coffee, mango and oil islands to ship from. A good place to start.' },
   { id: 'map2', label: 'Map 2: The Continental', width: 384, height: 128, made: true, blurb: 'A large hand-made world, about 46% water: four differently shaped continents and island chains, mountain ranges, a great river system to a gulf, lakes, about 55 towns and cities. Coffee, mangoes and some oil lie overseas, so docks and planes matter.' },
-  { id: 'map3', label: 'Map 3: The Meridian Sea', width: 768, height: 256, made: true, inProgress: true, blurb: 'Beta: the land may still be edited, and a save made before an edit will not load. Four times the land of Map 2: a great crescent continent round an inland sea, a cold northern land, a ringed eastern basin and belts of islands. Bending coasts, curving ranges, a Forestry spot for every big wood.' },
+  { id: 'map3', label: 'Map 3: The Meridian Sea', width: 768, height: 352, made: true, inProgress: true, blurb: 'Beta. Five and a half times the land of Map 2, with small polar caps: a great crescent continent round an inland sea, a cold northern land, a ringed eastern basin and belts of islands. Bending coasts, curving ranges, a Forestry spot for every big wood.' },
 ];
 /** Generated worlds, for tests and development only (open the game with #seed=N). */
 export const RANDOM_SIZES: WorldSizeDef[] = [

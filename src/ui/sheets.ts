@@ -653,7 +653,7 @@ export class Sheets {
     // What it needs to level up, in words.
     const n = this.townNeeds(world, p);
     const ny = y + 100;
-    const bn = buildingNow(p);
+    const bn = buildingNow(p, world);
     if (bn) {
       im.text(`tw-next-${p.id}`, `Building the ${bn.name}: ${fmt(bn.have)} / ${fmt(bn.need)} ${woodName(world)}. ${bn.name === 'Supply Yard' ? `Send ${woodName(world)} to this town.` : 'Fill the yard store, then send a yard truck.'}`, x + 16, ny, { size: 12, color: COLORS.warn, wrap: w - 32, layer: 3 });
     } else if (next) {
@@ -772,7 +772,7 @@ export class Sheets {
     const cost = townUpkeep(p);
     if (vis(y, 84)) {
       im.rect(3, x, y, w, 76, COLORS.panelAlt, 1, 14, COLORS.line, 1);
-      const bn = buildingNow(p);
+      const bn = buildingNow(p, world);
       if (bn) {
         im.text('td-gh', `BUILDING THE ${bn.name.toUpperCase()}`, x + 16, y + 12, { size: 10, bold: true, color: COLORS.muted, layer: 3 });
         im.bar(3, x + 16, y + 34, Math.min(420, w - 330), 8, bn.have / bn.need, COLORS.good);

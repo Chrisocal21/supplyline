@@ -8,12 +8,13 @@ import { WORLD_SIZES } from './defs';
 
 describe('Map 3: The Meridian Sea', () => {
   let w: World;
-  const t0 = Date.now();
   it('builds, with its towns, its goods overseas and a Forestry node for every big wood', () => {
+    const t0 = Date.now();
     w = createWorldFromMap(map3 as unknown as MapData);
     expect(Date.now() - t0).toBeLessThan(60000);
     expect(w.width).toBe(768);
-    expect(w.places.length).toBeGreaterThan(100);
+    expect(w.places.length).toBeGreaterThan(200);
+    expect(w.height).toBe(352);
     for (const kind of ['coffee', 'mango', 'oil'] as const) expect(w.nodes.filter((n) => n.kind === kind).length).toBeGreaterThanOrEqual(5);
     // Every wood of 26 tiles or more has a forest node on it or beside it.
     const seen = new Set<number>();
@@ -98,4 +99,22 @@ describe('Map 3 deserts', () => {
     expect(arid.length).toBeGreaterThan(10);
     for (const p of arid) expect(p.style).toBe('arid');
   });
+});
+
+describe('Map 3 towns keep clear of the water', () => {
+  const w = createWorldFromMap(map3 as unknown as MapData);
+  it('has no water within three tiles of any town edge, and about 5.5 times the land of Map 2', () => {
+    for (const p of w.places) {
+      const r = p.radius + 3;
+      for (let dy = -r; dy <= r; dy++) {
+        for (let dx = -r; dx <= r; dx++) {
+          const t = terrainAt(w, p.x + dx, p.y + dy);
+          expect(t === 'water' || t === 'ice').toBe(false);
+        }
+      }
+    }
+    let land = 0;
+    for (const t of w.terrain) if (t !== 'water' && t !== 'ice') land++;
+    expect(land).toBeGreaterThan(5.2 * 26000);
+  }, 120000);
 });

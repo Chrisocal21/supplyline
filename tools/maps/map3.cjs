@@ -1,4 +1,4 @@
-// Map 3: "The Meridian Sea", a very large made world (768 wide, four times the land of Map 2) shaped to look nothing like Maps 1 and 2:
+// Map 3: "The Meridian Sea", a very large made world (768 wide, five and a half times the land of Map 2) shaped to look nothing like Maps 1 and 2:
 // no long straight strips, only coasts that bend and turn. A great crescent continent curls round an inland sea; a cold northern
 // land lies across the top; a ring of broken coast circles a warm eastern basin; belts of islands trail south and west, and the
 // warm south-east is a scatter of tropical islands where coffee, mangoes and oil lie, so ships and planes matter from the start.
@@ -12,12 +12,14 @@ const path = require('path');
 const zlib = require('zlib');
 
 const W = 768;
-const H = 256;
+const H = 352;
+// The land was drawn on 256 rows; every north-south size and position is stretched to this height, so the continents keep their shapes.
+const SY = H / 256;
 const SEA = 96;
 const MOUNTAIN = 188;
 const ICE_ROWS = 3;
-const NORTH_SEA = 10;
-const SOUTH_SEA = 10;
+const NORTH_SEA = 12;
+const SOUTH_SEA = 12;
 
 function hash(ix, iy, s) {
   let a = (Math.imul(ix, 374761393) + Math.imul(iy, 668265263) + Math.imul(s, 2246822519)) >>> 0;
@@ -48,26 +50,36 @@ const wdx = (a, b) => {
 
 // ---- the land: soft blobs [cx, cy, rx, ry, strength] ----
 const BLOBS = [];
+// A blob drawn on the 256-row grid: its y and its vertical radius are stretched to the real height.
+const blob = (cx, cy, rx, ry, st) => BLOBS.push([cx, cy * SY, rx, ry * SY, st]);
 // The great crescent: a chain of blobs along an arc that curls round an inland sea (its centre near 250, 134).
 for (let k = 0; k < 11; k++) {
   const a = -2.5 + (k / 10) * 3.9;
   const wob = 1 + (hash(k, 1, 5) - 0.5) * 0.22;
   const cx = 250 + Math.cos(a) * 92 * wob;
   const cy = 132 + Math.sin(a) * 74 * wob;
-  BLOBS.push([cx, cy, 34 + hash(k, 2, 5) * 12, 26 + hash(k, 3, 5) * 10, 1]);
+  blob(cx, cy, 34 + hash(k, 2, 5) * 12, 26 + hash(k, 3, 5) * 10, 1);
 }
 // The cold north: three lobes with fjord country between.
-BLOBS.push([470, 42, 64, 22, 1], [546, 52, 48, 24, 1], [612, 38, 54, 18, 1], [420, 56, 30, 16, 0.9], [668, 56, 30, 18, 0.9]);
+blob(470, 42, 64, 22, 1);
+blob(546, 52, 48, 24, 1);
+blob(612, 38, 54, 18, 1);
+blob(420, 56, 30, 16, 0.9);
+blob(668, 56, 30, 18, 0.9);
 // A warm basin ringed by broken coast in the east.
 for (let k = 0; k < 9; k++) {
   const a = 0.35 + (k / 9) * 5.3;
-  BLOBS.push([566 + Math.cos(a) * 58, 150 + Math.sin(a) * 40, 26 + hash(k, 7, 9) * 10, 20 + hash(k, 8, 9) * 8, 0.95]);
+  blob(566 + Math.cos(a) * 58, 150 + Math.sin(a) * 40, 26 + hash(k, 7, 9) * 10, 20 + hash(k, 8, 9) * 8, 0.95);
 }
 // A broad highland west of the arc, and an island-continent in the far west.
-BLOBS.push([700, 128, 40, 34, 1], [730, 160, 28, 26, 0.95], [60, 100, 38, 30, 1], [40, 146, 26, 24, 0.9], [92, 70, 22, 18, 0.9]);
+blob(700, 128, 40, 34, 1);
+blob(730, 160, 28, 26, 0.95);
+blob(60, 100, 38, 30, 1);
+blob(40, 146, 26, 24, 0.9);
+blob(92, 70, 22, 18, 0.9);
 // Island belts: south and west trails of medium islands, and the scatter of the warm south-east.
 const seeded = (n, x0, x1, y0, y1, r0, r1, s) => {
-  for (let k = 0; k < n; k++) BLOBS.push([x0 + hash(k, 1, s) * (x1 - x0), y0 + hash(k, 2, s) * (y1 - y0), r0 + hash(k, 3, s) * (r1 - r0), (r0 + hash(k, 4, s) * (r1 - r0)) * 0.75, 0.9]);
+  for (let k = 0; k < n; k++) blob(x0 + hash(k, 1, s) * (x1 - x0), y0 + hash(k, 2, s) * (y1 - y0), r0 + hash(k, 3, s) * (r1 - r0), (r0 + hash(k, 4, s) * (r1 - r0)) * 0.75, 0.9);
 };
 seeded(16, 120, 520, 214, 240, 7, 17, 31);
 seeded(26, 300, 740, 190, 238, 4, 12, 32);
@@ -96,7 +108,7 @@ for (let y = NORTH_SEA; y < H - SOUTH_SEA; y++) rowsOk.push(y);
 const sorted = [];
 for (const y of rowsOk) for (let x = 0; x < W; x += 2) sorted.push(landField[at(x, y)]);
 sorted.sort((a, b) => a - b);
-const THRESH = sorted[Math.floor(sorted.length * 0.46)];
+const THRESH = sorted[Math.floor(sorted.length * 0.405)];
 
 const terrain = new Array(W * H);
 const elev = new Array(W * H).fill(0);
@@ -270,7 +282,7 @@ const desert = new Uint8Array(W * H);
   for (let y = ICE_ROWS; y < H - ICE_ROWS; y++) {
     for (let x = 0; x < W; x++) {
       const ex = wdx(x, 558) / 104;
-      const ey = (y - 152) / 80;
+      const ey = (y - 152 * SY) / (80 * SY);
       if (1 - Math.sqrt(ex * ex + ey * ey) + (fbm(x, y, 20, 409) - 0.5) * 0.5 > 0.08) east[at(x, y)] = 1;
     }
   }
@@ -280,7 +292,7 @@ const desert = new Uint8Array(W * H);
       if (terrain[i] === 'water' || terrain[i] === 'ice') continue;
       // The belt: a wide ellipse with a ragged edge.
       const ex = wdx(x, 330) / 52;
-      const ey = (y - 172) / 30;
+      const ey = (y - 172 * SY) / (30 * SY);
       const belt = 1 - Math.sqrt(ex * ex + ey * ey) + (fbm(x, y, 18, 411) - 0.5) * 0.7;
       const onBelt = belt > 0.3;
       if (!east[i] && !onBelt) continue;
@@ -318,6 +330,11 @@ const report = [];
 const dmin = new Float32Array(W * H).fill(1e9);
 const fits = (cx, cy, R) => {
   if (cy - R - 1 < NORTH_SEA + 2 || cy + R + 1 >= H - SOUTH_SEA - 2) return false;
+  // A town keeps clear of the sea, lakes and rivers: its streets and districts grow out beyond its edge, so a few tiles of room are kept all round. A Port is built on the shore beside it.
+  for (let dy = -R - 4; dy <= R + 4; dy++) for (let dx = -R - 4; dx <= R + 4; dx++) {
+    const t = terrain[at(cx + dx, cy + dy)];
+    if (t === 'water' || t === 'ice') return false;
+  }
   let lo = 255;
   let hi = 0;
   for (let dy = -R - 1; dy <= R + 1; dy++) {
@@ -404,7 +421,7 @@ for (let y = NORTH_SEA + 8; y < H - SOUTH_SEA - 8; y += 2) for (let x = 0; x < W
   let woods = 0;
   for (let dy = -10; dy <= 10; dy += 2) for (let dx = -10; dx <= 10; dx += 2) if (terrain[at(x + dx, y + dy)] === 'forest') woods++;
   const lat = Math.abs(y - H / 2) / (H / 2);
-  const score = woods * 2 + (waterDist[at(x, y)] <= 6 ? 14 : 0) + (lat < 0.55 ? 12 : 0) - Math.abs(wdx(x, 250)) * 0.05 + hash(x, y, 3) * 2;
+  const score = woods * 2 + (waterDist[at(x, y)] <= 12 ? 14 : 0) + (lat < 0.55 ? 12 : 0) - Math.abs(wdx(x, 250)) * 0.05 + hash(x, y, 3) * 2;
   if (score > startScore) {
     startScore = score;
     start = [x, y];
@@ -412,8 +429,8 @@ for (let y = NORTH_SEA + 8; y < H - SOUTH_SEA - 8; y += 2) for (let x = 0; x < W
 }
 used.add('Hearthfield');
 claim('Hearthfield', start[0], start[1], 3);
-const CITIES = 18;
-const TOWNS = 190;
+const CITIES = 24;
+const TOWNS = 230;
 for (let guard = 0; placed.length < CITIES + TOWNS && guard < 6000; guard++) {
   const R = placed.length < CITIES ? 5 : 3;
   let best = null;
@@ -422,7 +439,7 @@ for (let guard = 0; placed.length < CITIES + TOWNS && guard < 6000; guard++) {
     for (let x = 0; x < W; x += 2) {
       const t = terrain[at(x, y)];
       if (t === 'water' || t === 'mountain') continue;
-      const score = dmin[at(x, y)] * (waterDist[at(x, y)] <= 6 ? 1.25 : 1) + hash(x, y, 77) * 2;
+      const score = dmin[at(x, y)] * (waterDist[at(x, y)] <= R + 10 ? 1.25 : 1) + hash(x, y, 77) * 2;
       if (score > bestScore && fits(x, y, R)) {
         bestScore = score;
         best = [x, y];
@@ -439,7 +456,7 @@ for (const p of placed.filter((q) => q.style === 'arid')) {
   for (let dy = -30; dy <= 30; dy += 2) for (let dx = -30; dx <= 30; dx += 2) if (terrain[at(p.x + dx, p.y + dy)] === 'forest') wood++;
   if (wood >= 8) continue;
   let done = false;
-  for (let r = 10; r <= 15 && !done; r++) {
+  for (let r = 10; r <= 22 && !done; r++) {
     for (let k = 0; k < 16 && !done; k++) {
       const a = ((k + Math.floor(hash(p.x, p.y, 5) * 16)) / 16) * Math.PI * 2;
       const cx = Math.round(p.x + Math.cos(a) * r);
@@ -510,7 +527,7 @@ for (let y = 0; y < H; y++) {
   for (let x = 0; x < W; x++) r += desert[at(x, y)] ? 'd' : '.';
   drows.push(r);
 }
-const map = { id: 'map3', name: 'The Meridian Sea', seed: 3303, width: W, height: H, terrain: rows, elev: erows, places: placed, nodes: [], specials, islands: [], forestNodes: true, desert: drows, rev: 1 };
+const map = { id: 'map3', name: 'The Meridian Sea', seed: 3303, width: W, height: H, terrain: rows, elev: erows, places: placed, nodes: [], specials, islands: [], forestNodes: true, desert: drows, rev: 2 };
 const out = path.join(__dirname, '../../src/maps/map3.json');
 fs.mkdirSync(path.dirname(out), { recursive: true });
 fs.writeFileSync(out, JSON.stringify(map));
@@ -528,6 +545,9 @@ for (let y = ICE_ROWS; y < H - ICE_ROWS; y++) for (let x = 0; x < W; x++) {
   }
 }
 const total = land + water;
+let tight = 0;
+for (const p of placed) for (let dy = -p.radius - 3; dy <= p.radius + 3; dy++) for (let dx = -p.radius - 3; dx <= p.radius + 3; dx++) if (terrain[at(p.x + dx, p.y + dy)] === 'water') tight++;
+console.log(`water tiles within 3 tiles of a town: ${tight}`);
 console.log(`land ${((land / total) * 100).toFixed(1)}%, forest ${((forest / land) * 100).toFixed(0)}% of land, mountain ${((mountain / land) * 100).toFixed(0)}% of land, rivers ${riverCount}`);
 console.log(`places ${placed.length} (${placed.filter((p) => p.radius === 5).length} cities), specials ${specials.length}, land masses ${compSize.filter((n) => n >= 60).length}`);
 let dl = 0;

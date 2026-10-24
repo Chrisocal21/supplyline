@@ -2,6 +2,7 @@
 // Progress is read straight from the world, so a quest can never fall out of step with what has really been built.
 import {
   BUILD_LUMBER,
+  LOGS_PER_LUMBER,
   BUILD_ORDER,
   GOOD_LIST,
   HIGHWAY_TIER,
@@ -71,14 +72,15 @@ export function questProgress(world: World, goal: QuestGoal): Progress {
     case 'townbuilt':
       // One town is built when this reaches the full amount; until then show the lumber of the furthest-along town.
       if (world.places.some((p) => (p.stage ?? 2) >= goal.stage)) {
-        have = need = BUILD_LUMBER[goal.stage - 1];
+        have = need = BUILD_LUMBER[goal.stage - 1] * (world.tier < 1 ? LOGS_PER_LUMBER : 1);
       } else {
-        need = BUILD_LUMBER[goal.stage - 1];
+        const k = world.tier < 1 ? LOGS_PER_LUMBER : 1;
+        need = BUILD_LUMBER[goal.stage - 1] * k;
         let best = -1;
         for (const p of world.places) {
           const stage = p.stage ?? 2;
           // What counts is what has reached the site: the yard's store is lumber on its way, shown beside it and not added to it.
-          const got = stage === goal.stage - 1 ? (p.build ?? 0) : 0;
+          const got = stage === goal.stage - 1 ? (p.build ?? 0) * k : 0;
           let stored = 0;
           let yard: (typeof world.sites)[number] | undefined;
           if (goal.stage === 2 && stage === 1) {
@@ -238,7 +240,7 @@ export function checkQuests(world: World, log: (text: string) => void): void {
     world.tier = next.tier;
     // From Tier 1 a closed town builds from lumber: logs already in a yard's store are sawn into it, so nothing is stranded.
     if (next.tier === 1) for (const s of world.sites) if (s.depot?.logs) {
-      s.depot.lumber = (s.depot.lumber ?? 0) + s.depot.logs;
+      s.depot.lumber = (s.depot.lumber ?? 0) + s.depot.logs / LOGS_PER_LUMBER;
       delete s.depot.logs;
     }
     log(`Tier ${next.tier} unlocked: ${next.name}`);

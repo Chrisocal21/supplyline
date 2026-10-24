@@ -23,7 +23,11 @@ describe('closed towns', () => {
     const w = createWorld(11);
     const p = w.places[0];
     const yard = dockOf(w, p.id, 'freight');
-    sell(w, yard, 'logs', BUILD_LUMBER[0]);
+    // Logs count for half a lumber: 160 build the yard.
+    sell(w, yard, 'logs', BUILD_LUMBER[0] * 2 - 1);
+    expect(p.stage).toBe(0);
+    expect(buildingNow(p, w)).toEqual({ name: 'Supply Yard', have: 159, need: 160 });
+    sell(w, yard, 'logs', 1);
     expect(p.stage).toBe(1);
     expect(dockDemand(w, dockOf(w, p.id, 'market'))).toEqual(['logs']);
     sell(w, yard, 'logs', 50);
@@ -33,7 +37,7 @@ describe('closed towns', () => {
     checkQuests(w, () => {});
     expect(w.tier).toBe(1);
     expect(yard.depot?.logs).toBeUndefined();
-    expect(yard.depot?.lumber).toBe(50);
+    expect(yard.depot?.lumber).toBe(25);
   });
 
   it('build the yard from lumber, keep more lumber in its store, and the yard own truck builds the Market', () => {

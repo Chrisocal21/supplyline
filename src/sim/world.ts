@@ -6,6 +6,7 @@ import {
   FREIGHT_DEMAND,
   WAREHOUSE_GOODS,
   BUILD_LUMBER,
+  LOGS_PER_LUMBER,
   isSoftNode,
   BUILD_GOODS,
   LEVEL_MATERIALS,
@@ -1459,7 +1460,7 @@ export function matsNeeded(place: Place): [Good, number][] {
 /** Units of a building good still to reach the Market site: lumber for the Market, then the level materials. */
 export function buildLeft(place: Place, g: Good): number {
   const stage = place.stage ?? 2;
-  if (stage === 1) return g === 'lumber' || g === 'logs' ? Math.max(0, BUILD_LUMBER[1] - (place.build ?? 0)) : 0;
+  if (stage === 1) return g === 'lumber' ? Math.max(0, BUILD_LUMBER[1] - (place.build ?? 0)) : g === 'logs' ? Math.max(0, BUILD_LUMBER[1] - (place.build ?? 0)) * LOGS_PER_LUMBER : 0;
   if (stage >= 2) return matsNeeded(place).find(([mg]) => mg === g)?.[1] ?? 0;
   return 0;
 }
@@ -1470,10 +1471,12 @@ export function depotLeft(place: Place, yard: Site, g: Good): number {
 }
 
 /** What the town is building now and how far along: the Supply Yard, then the Market. Null once both stand. */
-export function buildingNow(place: Place): { name: string; have: number; need: number } | null {
+export function buildingNow(place: Place, world?: World): { name: string; have: number; need: number } | null {
   const stage = place.stage ?? 2;
   if (stage >= 2) return null;
-  return { name: stage === 0 ? 'Supply Yard' : 'Market', have: Math.floor(place.build ?? 0), need: BUILD_LUMBER[stage] };
+  // Shown in the wood the town is built from now: twice the number in logs.
+  const k = world && world.tier < 1 ? LOGS_PER_LUMBER : 1;
+  return { name: stage === 0 ? 'Supply Yard' : 'Market', have: Math.floor((place.build ?? 0) * k), need: BUILD_LUMBER[stage] * k };
 }
 
 /** Price per unit a dock pays right now: base, town level bonus, and how stocked it already is. */
@@ -2148,9 +2151,10 @@ export function sell(world: World, dock: Site, g: Good, amount: number): number 
   let stage = place.stage ?? 2;
   let building = 0;
   if (isYard && stage === 0 && (g === 'lumber' || g === 'logs')) {
-    const used = Math.min(amount, Math.max(0, BUILD_LUMBER[0] - (place.build ?? 0)));
+    const weight = g === 'logs' ? 1 / LOGS_PER_LUMBER : 1;
+    const used = Math.min(amount * weight, Math.max(0, BUILD_LUMBER[0] - (place.build ?? 0)));
     place.build = (place.build ?? 0) + used;
-    building += used;
+    building += used / weight;
     if (place.build >= BUILD_LUMBER[0]) {
       place.build = 0;
       place.stage = stage = 1;
@@ -2200,7 +2204,7 @@ function buildDeliver(world: World, market: Site, g: Good, amount: number): void
   const stage = place.stage ?? 2;
   if (stage === 1) {
     if (g !== 'lumber' && g !== 'logs') return;
-    place.build = (place.build ?? 0) + amount;
+    place.build = (place.build ?? 0) + amount / (g === 'logs' ? LOGS_PER_LUMBER : 1);
     if (place.build >= BUILD_LUMBER[1]) {
       place.build = 0;
       place.stage = 2;
