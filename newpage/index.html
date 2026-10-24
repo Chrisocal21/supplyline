@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="noindex, nofollow" />
+    <title>SupplyLine - testers</title>
+    <style>
+      :root { --bg: #0b121b; --panel: #121c28; --line: #243446; --text: #e8eef5; --muted: #8fa3b8; --gold: #f2b84b; }
+      body { margin: 0; background: var(--bg); color: var(--text); font-family: system-ui, sans-serif; display: grid; place-items: center; min-height: 100vh; }
+      main { width: min(520px, 100% - 32px); background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 28px; }
+      h1 { margin: 0 0 8px; font-size: 1.6rem; }
+      p { color: var(--muted); line-height: 1.5; }
+      .btn { display: block; text-align: center; text-decoration: none; background: var(--gold); color: #1a1405; font-weight: 800; padding: 14px; border-radius: 12px; margin-top: 18px; }
+      .btn[aria-disabled="true"] { background: var(--line); color: var(--muted); pointer-events: none; }
+      .btn small { display: block; font-weight: 600; opacity: 0.8; margin-top: 2px; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>SupplyLine - testers</h1>
+      <p>This is the full game for Windows: all three maps, all tiers. Please do not share this page. It updates itself and keeps your place. Tell Chris what breaks.</p>
+      <a class="btn" id="dl" href="#" aria-disabled="true">Download the full game<small>Looking for the latest version...</small></a>
+      <p>Current build <strong id="build">0.139</strong>.</p>
+    </main>
+    <script>
+      fetch('https://api.github.com/repos/Chrisocal21/supplyline/releases/latest')
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (rel) {
+          var el = document.getElementById('dl');
+          var exe = rel && rel.assets && rel.assets.filter(function (a) { return /\.exe$/i.test(a.name); })[0];
+          if (!exe) { el.querySelector('small').textContent = 'No installer published yet'; return; }
+          el.href = exe.browser_download_url;
+          el.removeAttribute('aria-disabled');
+          el.querySelector('small').textContent = 'Version ' + String(rel.tag_name || '').replace(/^v/, '');
+        })
+        .catch(function () { document.querySelector('#dl small').textContent = 'Could not reach the download. Try again.'; });
+    </script>
+  </body>
+</html>

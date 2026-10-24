@@ -870,3 +870,9 @@ What changed:
 
 - Every new road made `regrade()` in `globeMesh.ts` recompute normals for the whole globe (millions of triangles on Map 3), a visible hitch. It now recomputes only the normals of the changed tiles and a one-tile ring (`renormal`), matching the old area-weighted result and keeping the date-line seam shared. The bounding sphere is no longer rebuilt either.
 - Not found: a single heavy step when a sheet (Production) opens. Still to check if it freezes after this.
+
+## 0.139: no browser game; the full game download is on a hidden page
+
+- /play/ no longer runs on the public web: outside the desktop app and a local dev server it sends visitors to the home page. The website's "Play" buttons are now "Download the free demo" (off, "coming soon", until a demo installer exists).
+- The full-game download moved to /newpage/ (not linked anywhere, `noindex`), which finds the latest GitHub release installer itself. It is hidden, not secured: anyone with the address, or the public GitHub release, can get the file.
+- The website FAQ, tiers, roadmap and updates now say the demo is a Windows download. The old browser-demo code (`src/demo.ts`) stays but is unreachable on the web.
