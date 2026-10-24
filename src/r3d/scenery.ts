@@ -257,8 +257,10 @@ export class Scenery {
 
   /** Hide the scene on nodes that have a building on them. */
   setNodesUsed(used: Set<number>): void {
-    for (const [id, m] of this.props) m.visible = !used.has(id);
+    this.propUsed = new Set(used);
+    for (const [id, m] of this.props) m.visible = !used.has(id) && m.userData.far !== true;
   }
+  private propUsed = new Set<number>();
 
   private tileIndex(x: number, y: number): number {
     return y * this.world.width + x;
@@ -954,6 +956,11 @@ export class Scenery {
     if (camera) this.updateTreeLod(camera.position);
   }
 
+  /** The groups that hold the tree blocks, so a readout can tell trees from everything else the scenery draws. */
+  treeRegionGroups(): Set<THREE.Object3D> {
+    return new Set(this.regions.map((r) => r.group));
+  }
+
   /**
    * Hide tree blocks over the horizon or too far to see, and draw the nearer ones with the cheap model and no shadow. Bushes and
    * boulders have no cheap model, so they show only close up. A whole region goes at once, and the blocks are only looked at
@@ -965,6 +972,16 @@ export class Scenery {
     const toEye = new THREE.Vector3();
     const up = new THREE.Vector3();
     const farLimit = this.treeDetailDistance * 3;
+    // The little scene on each resource node (a clump of trees, a field) is detailed: only those near the camera draw.
+    const propLimit = (this.treeDetailDistance * 4) ** 2;
+    for (const [id, m] of this.props) {
+      const e = m.matrix.elements;
+      const far = (e[12] - eye.x) ** 2 + (e[13] - eye.y) ** 2 + (e[14] - eye.z) ** 2 > propLimit;
+      if (far !== (m.userData.far === true)) {
+        m.userData.far = far;
+        m.visible = !far && !this.propUsed.has(id);
+      }
+    }
     for (const r of this.regions) {
       toEye.subVectors(eye, r.center);
       up.copy(r.center).normalize();

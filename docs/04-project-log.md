@@ -833,3 +833,8 @@ What changed:
 ## Website: landing page brought up to date (no game change)
 
 - index.html now shows the current build (0.131), flat previews of all three maps (made by tools/maps/preview.py into public/site/map-1..3.jpg: rerun it after any map change), the build in numbers (89 goods, 87 buildings, 12 vehicle types, 5 tiers and 55 quests), a four-column roadmap (done, now, next, later), a fuller dev log and an updated FAQ. Two new screenshots come from Chris's own game captures. The build number on the page is typed by hand: update `id="build"` in index.html with each release.
+
+## 0.132: resource-node scenes only draw up close
+
+- The F3 split from 0.131 showed 3.2M triangles in "trees" at every zoom level, and from far the whole frame was 6.6M triangles at 10 fps. That group was the whole scenery group: its biggest part was the small scene on every resource node (one mesh and one draw call each, over a thousand on Map 3, always drawn). Node scenes now draw only within 4 times the tree detail distance of the camera.
+- The F3 split now separates tree blocks from the rest of the scenery, counts only what is inside the view, and lists the six biggest parts.

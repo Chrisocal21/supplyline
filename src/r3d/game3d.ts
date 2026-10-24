@@ -1049,32 +1049,49 @@ export class Game3D {
   private composer: EffectComposer | null = null;
   private ao: GTAOPass | null = null;
 
-  /** Where the triangles go, as text for the F3 readout: what is visible in the scene, by kind. Worked out about once a second. */
+  /** Where the triangles go, as text for the F3 readout: what is in view, by kind. Worked out about once a second. */
   private triSplit(): string {
+    const frustum = new THREE.Frustum().setFromProjectionMatrix(new THREE.Matrix4().multiplyMatrices(this.camera.projectionMatrix, this.camera.matrixWorldInverse));
+    const parts: { key: string; n: number }[] = [];
     const tri = (o: THREE.Object3D): number => {
       if (!o.visible) return 0;
       let n = 0;
       const m = o as THREE.Mesh;
       if (m.isMesh && m.geometry) {
-        const g = m.geometry;
-        const per = g.index ? g.index.count / 3 : (g.getAttribute('position')?.count ?? 0) / 3;
-        n += per * ((o as THREE.InstancedMesh).isInstancedMesh ? (o as THREE.InstancedMesh).count : 1);
+        if (!o.frustumCulled || frustum.intersectsObject(m)) {
+          const g = m.geometry;
+          const per = g.index ? g.index.count / 3 : (g.getAttribute('position')?.count ?? 0) / 3;
+          n += per * ((o as THREE.InstancedMesh).isInstancedMesh ? (o as THREE.InstancedMesh).count : 1);
+        }
       }
       for (const c of o.children) n += tri(c);
       return n;
     };
     const known = new Map<THREE.Object3D, string>();
     if (this.globe) known.set(this.globe.terrain, 'ground');
-    known.set(this.scenery.group, 'trees');
     for (const t of this.townMeshes.values()) known.set(t.mesh, 'towns');
     for (const m of this.siteMeshes.values()) known.set(m, 'sites');
     for (const m of this.vehicleMeshes.values()) known.set(m as THREE.Object3D, 'vehicles');
-    const sum: Record<string, number> = {};
+    const regions = this.scenery ? this.scenery.treeRegionGroups() : new Set<THREE.Object3D>();
+    const add = (key: string, n: number): void => {
+      if (n <= 0) return;
+      const at = parts.find((p) => p.key === key);
+      if (at) at.n += n;
+      else parts.push({ key, n });
+    };
     for (const o of this.scene.children) {
-      const k = known.get(o) ?? 'other';
-      sum[k] = (sum[k] ?? 0) + tri(o);
+      if (this.scenery && o === this.scenery.group) {
+        for (const c of o.children) {
+          const n = tri(c);
+          if (regions.has(c)) add('trees', n);
+          else add(`scenery(${c.type}${c.children.length ? ' x' + c.children.length : ''})`, n);
+        }
+        continue;
+      }
+      add(known.get(o) ?? 'other', tri(o));
     }
-    return Object.entries(sum).filter(([, n]) => n > 0).sort((a, b) => b[1] - a[1]).map(([k, n]) => `${k} ${n >= 1e6 ? (n / 1e6).toFixed(1) + 'M' : Math.round(n / 1000) + 'k'}`).join('  ');
+    const fmt = (n: number): string => (n >= 1e6 ? (n / 1e6).toFixed(1) + 'M' : Math.round(n / 1000) + 'k');
+    return parts.sort((a, b) => b.n - a.n).slice(0, 6).map((p) => `${p.key} ${fmt(p.n)}`).join('  ');
   }
 
   /** Draw the frame: with ambient occlusion when close to the ground, straight to the screen from space. */
