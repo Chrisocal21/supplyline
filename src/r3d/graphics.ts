@@ -1,8 +1,8 @@
 export const GRAPHICS = {
-  low: { label: 'Low', pixelRatio: 0.8, shadows: 512, aoSamples: 0, aoScale: 0, msaa: 0, lights: 2, bloom: false, treeDetail: 12 },
-  balanced: { label: 'Balanced', pixelRatio: 1, shadows: 1024, aoSamples: 0, aoScale: 0, msaa: 0, lights: 4, bloom: false, treeDetail: 20 },
-  high: { label: 'High', pixelRatio: 1.5, shadows: 2048, aoSamples: 12, aoScale: 0.5, msaa: 2, lights: 8, bloom: true, treeDetail: 32 },
-  ultra: { label: 'Ultra', pixelRatio: 2, shadows: 4096, aoSamples: 16, aoScale: 0.75, msaa: 4, lights: 16, bloom: true, treeDetail: 45 },
+  low: { reach: 0.7, label: 'Low', pixelRatio: 0.8, shadows: 512, aoSamples: 0, aoScale: 0, msaa: 0, lights: 2, bloom: false, treeDetail: 12 },
+  balanced: { reach: 0.9, label: 'Balanced', pixelRatio: 1, shadows: 1024, aoSamples: 0, aoScale: 0, msaa: 0, lights: 4, bloom: false, treeDetail: 20 },
+  high: { reach: 1.1, label: 'High', pixelRatio: 1.5, shadows: 2048, aoSamples: 12, aoScale: 0.5, msaa: 2, lights: 8, bloom: true, treeDetail: 32 },
+  ultra: { reach: 1.4, label: 'Ultra', pixelRatio: 2, shadows: 4096, aoSamples: 16, aoScale: 0.75, msaa: 4, lights: 16, bloom: true, treeDetail: 45 },
 } as const;
 
 export type GraphicsQuality = keyof typeof GRAPHICS;

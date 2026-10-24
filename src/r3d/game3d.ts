@@ -428,7 +428,7 @@ export class Game3D {
   private acc = 0;
   private last = 0;
   /** How the game is running, for the on-screen readout (F3): worked out from the last couple of seconds of frames. */
-  readonly perf = { fps: 0, avgMs: 0, p95Ms: 0, simMs: 0, drawMs: 0, workMs: 0 };
+  readonly perf = { fps: 0, avgMs: 0, p95Ms: 0, simMs: 0, drawMs: 0, workMs: 0, asleep: 0 };
   private perfGaps: number[] = [];
   /** Lower the graphics by itself when the game runs slowly. Off once the player picks a quality. */
   autoQuality = readAutoQuality();
@@ -840,6 +840,7 @@ export class Game3D {
     if (this.keys.turn) this.cam.rotate(this.keys.turn * dt * 1.4, 0);
     this.cam.update(dt);
     this.cam.apply();
+    this.updateReach();
     this.syncWorld();
     this.updateGrowth();
     const dust = this.updateConstruction();
@@ -1016,7 +1017,7 @@ export class Game3D {
         if (!def.recipe) continue;
         const ok = Object.entries(def.recipe.inputs).every(([g, n]) => (s.stock[g as Good] ?? 0) >= (n ?? 0));
         const m = this.siteMeshes.get(s.id);
-        if (!ok || !m) continue;
+        if (!ok || !m || !m.visible) continue;
         const pos = local.clone().applyMatrix4(m.matrix);
         sources.set(s.id, { pos, up: pos.clone().normalize() });
       }
@@ -1274,7 +1275,8 @@ export class Game3D {
   }
 
   private updateSiteAnims(seconds: number): void {
-    for (const a of this.siteAnims.values()) {
+    for (const [id, a] of this.siteAnims) {
+      if (this.siteMeshes.get(id)?.visible === false) continue;
       for (const p of a.parts) {
         p.part.tick(seconds, p.mesh.matrix, p.part.base);
         p.mesh.matrixWorldNeedsUpdate = true;
@@ -1848,12 +1850,60 @@ export class Game3D {
     }
   }
 
+  // ---- fog of war: only what is near the view is drawn and worked on ----
+
+  private reachDir = new THREE.Vector3();
+  private reachCos = -1;
+
+  /** Work out how far around the view things are awake: the visible horizon, trimmed by the graphics level. */
+  private updateReach(): void {
+    const d = this.cam.dist;
+    const horizon = Math.acos(R / (R + d));
+    const wide = ((d * 0.9 + 30) / R) * GRAPHICS[this.graphicsQuality].reach;
+    const angle = Math.min(horizon, wide) + 0.1;
+    this.reachCos = Math.cos(Math.min(Math.PI, angle));
+    lonLatToVec(this.cam.lon, this.cam.lat, 1, this.reachDir);
+    // Screenshots and the opening look at everything they need to, so they are never trimmed.
+    if (this.shot || this.showcase) this.reachCos = -1;
+    let asleep = 0;
+    for (const m of this.siteMeshes.values()) {
+      const e = m.matrix.elements;
+      const on = this.inReach(e[12], e[13], e[14], 0.03);
+      if (m.visible !== on) m.visible = on;
+      if (!on) asleep++;
+    }
+    const townCos = this.reachCos <= -1 ? -2 : Math.cos(Math.min(Math.PI, Math.acos(this.reachCos) + 0.12));
+    for (const [id, t] of this.townMeshes) {
+      if (this.growing.has(id)) {
+        t.mesh.visible = true;
+        continue;
+      }
+      const place = this.world.places.find((q) => q.id === id);
+      if (!place) continue;
+      const { lon, lat } = tileLonLat(this.world.width, this.world.height, place.x, place.y);
+      const on = lonLatToVec(lon, lat, 1).dot(this.reachDir) >= townCos;
+      if (t.mesh.visible !== on) t.mesh.visible = on;
+      if (!on) asleep++;
+    }
+    this.perf.asleep = asleep;
+  }
+
+  /** True when a point on the globe is inside the awake area. `slack` widens it for things with some size. */
+  private inReach(x: number, y: number, z: number, slack = 0): boolean {
+    if (this.reachCos <= -1) return true;
+    const len = Math.hypot(x, y, z) || 1;
+    const c = (x * this.reachDir.x + y * this.reachDir.y + z * this.reachDir.z) / len;
+    return c >= this.reachCos - slack;
+  }
+
   private updateVehicles(): void {
     const alpha = Math.min(this.acc / TICK_MS, 1);
     for (const v of this.world.vehicles) {
       const m = this.vehicleMeshes.get(v.id);
-      const route = vehicleRoute(this.world, v);
       if (!m) continue;
+      // Asleep (far from the view): it keeps its place in the sim, but nothing is worked out or drawn until it is checked again.
+      if (m.userData.asleep && (this.frames + v.id) % 20 !== 0) continue;
+      const route = vehicleRoute(this.world, v);
       this.showWear(m, v);
       // Waiting at home with nowhere to go: out of sight until a route opens.
       if (!route) {
@@ -1921,6 +1971,14 @@ export class Game3D {
         }
         m.matrix.copy(body).multiply(new THREE.Matrix4().makeScale(sc, sc, sc));
         m.matrixWorldNeedsUpdate = true;
+      }
+      // Far from the view: hide it (and its cars) and let it sleep.
+      const away = !this.inReach(m.matrix.elements[12], m.matrix.elements[13], m.matrix.elements[14], 0.06);
+      m.userData.asleep = away;
+      if (away) {
+        m.visible = false;
+        for (const c of (m.userData.cars ?? []) as THREE.Mesh[]) c.visible = false;
+        continue;
       }
       // A train under way trails smoke from its engine.
       if (route.mode === 'rail' && v.state === 'moving' && m.visible) this.popDust.set(-3e6 - v.id, { pos: new THREE.Vector3(0, 0.48, 0.3).applyMatrix4(m.matrix), up: new THREE.Vector3().setFromMatrixColumn(m.matrix, 1).normalize(), every: 0.28 });
