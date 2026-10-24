@@ -855,3 +855,9 @@ What changed:
 
 - The landing page shows one section at a time (The game, How it plays, Maps, Roadmap, Updates, Questions) from a button bar under the hero; the address (#maps, #road ...) picks the section, and without JavaScript every section shows. Text is shorter and plainer. The roadmap is a trail of twelve named stops (Done, Now, Next, Later). How it plays has the first ten minutes as five numbered steps and the five tiers, with the early build ending at Tier 2.
 - The goods page opens on nine type tiles (Food, Drink, Minerals and metals ...) instead of the full list. A tile, a search or "Show every good" opens the list, whose cards are folded to a name, kind and price; open one for how it is made and who buys it. "All types" goes back. A link to one good (#g-lumber) opens it.
+
+## 0.136: the browser is a demo
+
+- In a browser the game is a demo (`src/demo.ts`): it plays Map 1 only, and when the player reaches Tier 2 (all Tier 0 and Tier 1 quests done) it pauses on a "Demo complete" screen with their stats, a download link, "Save my progress to a file" (the desktop game loads that file) and "Play the demo again". The world menu shows Maps 2 and 3 as DESKTOP ONLY. The desktop app is never limited. Testers open the game with #full on the address to lift the limit in a browser (it is remembered), and #nofull to put it back.
+- Each map's menu text now says what it is and why it was built: Map 1 to teach, Map 2 for rivers, ports and planes, Map 3 for scale and the long game. The website's map cards, FAQ and tier ladder say the same, and its buttons read "Play the free demo" and "Download the full game".
+- Deferred on purpose (testers only for now): code signing, Steam store page and a Steam demo.

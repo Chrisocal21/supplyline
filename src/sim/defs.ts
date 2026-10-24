@@ -1044,9 +1044,9 @@ export interface WorldSizeDef {
   inProgress?: boolean;
 }
 export const WORLD_SIZES: WorldSizeDef[] = [
-  { id: 'map1', label: 'Map 1: The Known World', width: 288, height: 124, made: true, blurb: 'A hand-made world map: continents, islands and seas, with coffee, mango and oil islands to ship from. A good place to start.' },
-  { id: 'map2', label: 'Map 2: The Continental', width: 384, height: 128, made: true, blurb: 'A large hand-made world, about 46% water: four differently shaped continents and island chains, mountain ranges, a great river system to a gulf, lakes, about 55 towns and cities. Coffee, mangoes and some oil lie overseas, so docks and planes matter.' },
-  { id: 'map3', label: 'Map 3: The Meridian Sea', width: 768, height: 352, made: true, inProgress: true, blurb: 'Beta. Five and a half times the land of Map 2, with small polar caps: a great crescent continent round an inland sea, a cold northern land, a ringed eastern basin and belts of islands. Bending coasts, curving ranges, a Forestry spot for every big wood.' },
+  { id: 'map1', label: 'Map 1: The Known World', width: 288, height: 124, made: true, blurb: 'Built to teach. A small, friendly world where every good is within reach and the island goods need ships. Start here to learn the game.' },
+  { id: 'map2', label: 'Map 2: The Continental', width: 384, height: 128, made: true, blurb: 'Built for rivers, ports and planes. Four continents and about 46% sea: coffee, mangoes and oil lie overseas, so you must use ports and aircraft.' },
+  { id: 'map3', label: 'Map 3: The Meridian Sea', width: 768, height: 352, made: true, inProgress: true, blurb: 'Built for scale and the long game. Five times the land of Map 2, with a desert continent, sea channels for ships and about 190 towns. Beta: heavy, wants a good graphics card.' },
 ];
 /** Generated worlds, for tests and development only (open the game with #seed=N). */
 export const RANDOM_SIZES: WorldSizeDef[] = [

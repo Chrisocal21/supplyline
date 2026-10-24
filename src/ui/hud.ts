@@ -112,6 +112,7 @@ import { TITLE_SLIDES, Title, type TitleChoice } from './title';
 import { Radio, STATIONS } from '../audio/radio';
 import { Sfx } from '../audio/sfx';
 import { byInput, isTouch, onInputChange } from './inputmode';
+import { DEMO_END_TIER, DEMO_MAP, isDemo } from '../demo';
 import { Minimap, viewSpan, viewTile } from './minimap';
 
 let TOP = 72;
@@ -854,7 +855,13 @@ export class HudScene extends Phaser.Scene {
     this.topBar(W);
     const growing = !this.sheet && !g.draft && !this.saves ? this.pendingGrowth() : undefined;
     if (g.canGoBack && !this.sheet && !this.saves && !this.graphicsOpen && !this.menuOpen && this.dash === null) this.backButton(W, H);
-    if (this.graphicsOpen) {
+    if (this.demoOver()) {
+      g.setKeys(0, 0, 0);
+      g.speed = 0;
+      this.panelRect = null;
+      this.sheetCam.setVisible(false);
+      this.demoOverModal(W, H);
+    } else if (this.graphicsOpen) {
       g.setKeys(0, 0, 0);
       this.panelRect = null;
       this.sheetCam.setVisible(false);
@@ -1900,6 +1907,55 @@ export class HudScene extends Phaser.Scene {
     }
   }
 
+  /** The browser demo ends when the player reaches Tier 2. */
+  private demoOver(): boolean {
+    const g = this.game3d;
+    return isDemo() && !this.title && !g.showcase && !g.demo && g.world.tier >= DEMO_END_TIER && g.world.places.length > 2;
+  }
+
+  /** The end of the demo: what they did, and where the full game is. They can keep their progress as a file for the download. */
+  private demoOverModal(W: number, H: number): void {
+    const im = this.im;
+    const g = this.game3d;
+    const w0 = g.world;
+    im.rect(3, 0, 0, W, H, 0x05080c, 0.82);
+    im.block({ x: 0, y: 0, w: W, h: H });
+    const w = Math.min(560, W - 24);
+    const x = (W - w) / 2;
+    const pad = 24;
+    const inner = w - pad * 2;
+    const h = 430;
+    const y = Math.max(TOP + 6, (H - h) / 2);
+    im.rect(4, x, y, w, h, COLORS.panel, 1, 18, COLORS.accent, 1, 2);
+    let cy = y + pad;
+    im.text('doT', 'Demo complete', x + w / 2, cy, { size: 26, bold: true, color: COLORS.accent, align: 'center', layer: 4 });
+    cy += 40;
+    im.text('doB', 'You reached Tier 2. The free demo ends here. The full game, on Windows, goes on from Tier 2 to Tier 4: rail, ports, ships, planes, steel and machinery, on all three maps.', x + pad, cy, { size: 14, wrap: inner, layer: 4 });
+    cy += 92;
+    const minutes = Math.floor(w0.tick / (TICKS_PER_SECOND * 60));
+    const best = Math.max(...w0.places.map((p) => p.level));
+    const stats: [string, string][] = [['Played', `${minutes} min`], ['Earned', `$${fmt(w0.earned)}`], ['Best town', `level ${best}`], ['Quests done', `${w0.questsDone?.length ?? 0}`]];
+    const sw = (inner - 12) / 4;
+    stats.forEach(([k, v], i) => {
+      const sx = x + pad + i * (sw + 4);
+      im.rect(4, sx, cy, sw, 54, 0x0f161d, 1, 10, COLORS.line, 1);
+      im.text(`doK${i}`, k, sx + sw / 2, cy + 8, { size: 10, color: COLORS.muted, align: 'center', layer: 4 });
+      im.text(`doV${i}`, v, sx + sw / 2, cy + 26, { size: 15, bold: true, align: 'center', layer: 4 });
+    });
+    cy += 70;
+    this.button('doDl', 'Download the full game', x + pad, cy, inner, 44, true, () => window.open('/#game', '_blank'), 'main');
+    cy += 54;
+    this.button('doSave', 'Save my progress to a file', x + pad, cy, inner, 40, true, () => this.downloadSave(), 'plain');
+    cy += 48;
+    this.button('doAgain', 'Play the demo again', x + pad, cy, inner, 40, true, () => {
+      g.newWorld();
+      g.speed = 1;
+      this.sizePick = null;
+    }, 'plain');
+    cy += 52;
+    im.text('doN', 'Your saved file loads in the download, so you pick up where you stopped. Steam page coming soon.', x + pad, cy, { size: 11, color: COLORS.muted, wrap: inner, layer: 4 });
+  }
+
   private sizeModal(W: number, H: number): void {
     const im = this.im;
     im.rect(3, 0, 0, W, H, 0x05080c, 0.7);
@@ -1944,10 +2000,11 @@ export class HudScene extends Phaser.Scene {
     cy += 66;
     for (const def of WORLD_SIZES) {
       const tiles = Math.round((def.width * (def.width / 2)) / 1000);
-      const hov = !this.building && im.hit(`sz${def.id}`, x + pad, cy, inner, rowH, () => (def.inProgress ? this.openMapView(def.id) : this.beginWorld(def.id)), 4);
+      const locked = isDemo() && def.id !== DEMO_MAP;
+      const hov = !this.building && !locked && im.hit(`sz${def.id}`, x + pad, cy, inner, rowH, () => (def.inProgress ? this.openMapView(def.id) : this.beginWorld(def.id)), 4);
       im.rect(4, x + pad, cy, inner, rowH, hov ? 0x1f2b3a : 0x131a24, 1, 12, hov ? COLORS.accent : COLORS.line, 1);
-      im.text(`sz${def.id}n`, def.label, x + pad + 16, cy + 11, { size: 17, bold: true, color: hov ? COLORS.accent : COLORS.text, layer: 4 });
-      im.text(`sz${def.id}s`, def.inProgress ? `BETA  ·  PREVIEW AND PLAY  ·  ${def.width} wide` : `${def.width} wide  ·  about ${tiles}k tiles`, x + pad + inner - 16, cy + 14, { size: 11, bold: !!def.inProgress, color: def.inProgress ? COLORS.accent : COLORS.muted, align: 'right', layer: 4 });
+      im.text(`sz${def.id}n`, def.label, x + pad + 16, cy + 11, { size: 17, bold: true, color: locked ? COLORS.muted : hov ? COLORS.accent : COLORS.text, layer: 4 });
+      im.text(`sz${def.id}s`, locked ? 'DESKTOP ONLY' : def.inProgress ? `BETA  ·  PREVIEW AND PLAY  ·  ${def.width} wide` : `${def.width} wide  ·  about ${tiles}k tiles`, x + pad + inner - 16, cy + 14, { size: 11, bold: !!def.inProgress, color: def.inProgress ? COLORS.accent : COLORS.muted, align: 'right', layer: 4 });
       im.text(`sz${def.id}b`, def.blurb, x + pad + 16, cy + 38, { size: 12, color: COLORS.muted, wrap: inner - 32, layer: 4 });
       cy += rowH + 8;
     }
