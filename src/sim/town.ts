@@ -260,7 +260,8 @@ export function townUpkeep(place: Place): number {
 export function upkeepPerMinute(world: World): number {
   let total = 0;
   for (const s of world.sites) total += SITE_DEFS[s.kind].cost * s.level * SITE_UPKEEP;
-  for (const v of world.vehicles) total += VEHICLE_DEFS[v.kind].cost * VEHICLE_UPKEEP * upkeepMult(world);
+  // A vehicle that sits idle costs less to keep, but still costs: selling it is the fix.
+  for (const v of world.vehicles) total += VEHICLE_DEFS[v.kind].cost * VEHICLE_UPKEEP * upkeepMult(world) * (0.4 + 0.6 * (v.busy ?? 1));
   total += wagesPerMinute(world);
   for (const p of world.places) for (const { def, level } of builtDistricts(p)) total += def.cost * level * DISTRICT_UPKEEP;
   return total;
@@ -269,6 +270,11 @@ export function upkeepPerMinute(world: World): number {
 /** Called once a second: district income comes in and running costs go out. Returns the net change. */
 export function stepEconomy(world: World): void {
   tendDrivers(world);
+  // About a minute of memory: moving pulls busy up, waiting lets it drain.
+  for (const v of world.vehicles) {
+    const b = v.busy ?? 1;
+    v.busy = b + ((v.state === 'moving' ? 1 : 0) - b) * 0.02;
+  }
   let gain = 0;
   for (const p of world.places) gain += districtRevenue(world, p);
   gain /= TICKS_PER_MINUTE / 10;

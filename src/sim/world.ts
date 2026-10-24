@@ -310,6 +310,8 @@ export interface Vehicle {
   destId: number;
   /** How it chooses between buyers when not pinned. Unset means spread out: the least busy route. */
   pick?: PickMode;
+  /** How much of the last minute or so this vehicle spent moving, 0 to 1 (unset: a new vehicle, counted as busy). */
+  busy?: number;
   /** Which line of its home's goods it carries. Unset means the main good. */
   line?: Line;
   /** What it is built to haul: a flatbed takes logs, an open-top takes grain, a tanker takes milk. Unset means a box, which takes anything. */
@@ -2183,7 +2185,12 @@ function driveTile(world: World, v: Vehicle, route: Route): void {
     world.fuel = (world.fuel ?? 0) + fuel;
     v.fuel = (v.fuel ?? 0) + fuel;
   }
-  v.wear = Math.min(1, (v.wear ?? 0) + wear);
+  const was = v.wear ?? 0;
+  v.wear = Math.min(1, was + wear);
+  // Say so when a truck gets badly worn and when it breaks down, so it is never found idle by surprise.
+  const at = siteById(world, v.homeId)?.name ?? 'a building';
+  if (was < 0.85 && v.wear >= 0.85) addLog(world, `A ${VEHICLE_DEFS[v.kind].label} of ${at} is badly worn: service it before it breaks down.`);
+  else if (was < 1 && v.wear >= 1) addLog(world, `A ${VEHICLE_DEFS[v.kind].label} of ${at} has broken down. Service it, or build a Mechanic Shop to repair trucks on their own.`);
 }
 
 /** Ticks a vehicle needs for a tile: its class's time, less what its driver's experience saves. */
@@ -3691,6 +3698,32 @@ export function upgradeVehicle(world: World, vehicleId: number): string | null {
 }
 
 /** Money for selling a vehicle: half its price. */
+/** A vehicle that has hardly moved for a minute or so: nothing to carry, or nowhere to carry it. */
+export const isIdle = (v: Pick<Vehicle, 'busy'>): boolean => (v.busy ?? 1) < 0.2;
+
+/**
+ * The idle vehicles a company could sell without leaving any of its lines bare: each building keeps one vehicle per line
+ * (and per mode), and the idle ones beyond that are returned, cheapest first.
+ */
+export function idleSurplus(world: World): Vehicle[] {
+  const groups = new Map<string, Vehicle[]>();
+  for (const v of world.vehicles) {
+    if (v.kind === 'fishboat') continue;
+    const key = `${v.homeId}|${v.line ?? 'main'}|${VEHICLE_DEFS[v.kind].mode}`;
+    const list = groups.get(key) ?? [];
+    list.push(v);
+    groups.set(key, list);
+  }
+  const out: Vehicle[] = [];
+  for (const list of groups.values()) {
+    const idle = list.filter(isIdle);
+    // If another vehicle on the line is working, every idle one is surplus; if all are idle, the busiest stays.
+    const keep = idle.length === list.length ? 1 : 0;
+    out.push(...idle.sort((a, b) => (b.busy ?? 1) - (a.busy ?? 1)).slice(keep));
+  }
+  return out.sort((a, b) => VEHICLE_DEFS[a.kind].cost - VEHICLE_DEFS[b.kind].cost);
+}
+
 export function sellVehicleValue(v: Vehicle): number {
   return Math.round(VEHICLE_DEFS[v.kind].cost * 0.5);
 }

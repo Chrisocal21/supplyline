@@ -686,3 +686,10 @@ What changed:
 - Every building scraps its by-products above half a shelf for 25% of their price, so a leftover never jams anything or needs a truck. The by-product warning only speaks if trucks keep the shelf above 75%.
 - Level 1 Markets now buy jam, butter, juice, water, feed, mulch, pellets and coal. Spirits, books and machinery are on the later Market lists. Pellet mill moved to Tier 1 (it is the sawdust sink); paper mill, spin mill, cotton farm and ore mine moved to Tier 2; hop farm to Tier 3; clay pit to Tier 1. New test: nothing opens before there is a buyer for what it makes.
 - Still open: a town stuck at level 1 for want of bricks (the clay pit can be 100+ road tiles from the town on some maps), and many idle trucks (60 to 90% of the fleet idle in the bot runs).
+
+## 0.105: idle trucks and town growth
+
+- Each vehicle now tracks how much of the last minute it spent moving (busy). A vehicle below 0.2 is idle. Idle vehicles cost 40% to 100% of their upkeep (down to 40% when fully idle). The Company page counts working versus idle by this (before, a truck waiting for a load counted as working because it had a route). The Fleet sheet has "SELL N IDLE": it sells the idle surplus, keeping one vehicle on every line, and shows what comes back and what it saves a minute.
+- A building with piled-up goods and idle trucks no longer suggests more trucks: it says to check the buyer or the road.
+- Badly worn trucks (85%) and broken-down trucks (100%) now put a message in the log. A truck at full wear stops until it is serviced by hand or a Mechanic Shop repairs it (unchanged).
+- Town growth: level 1 to 2 now needs lumber only (250, tropical 300). Every town has a forest within about 40 tiles, but clay, stone and sand are 40 to 100 tiles from a quarter or more of towns on Maps 1 and 2. Later levels keep the style's materials in smaller amounts (for example temperate level 2 to 3: lumber 250, bricks 200). With this all four test maps reach level 2 in the first 25 minutes (before: one map stayed at level 1 for an hour), and the careful bot earns $76k to $184k in an hour with costs at 16 to 34% of earnings.

@@ -12,6 +12,8 @@ import {
   buyError,
   buyOptions,
   fleetOf,
+  idleSurplus,
+  isIdle,
   sellVehicle,
   sellVehicleValue,
   type Place,
@@ -95,7 +97,7 @@ export function companyPage(im: Im, world: World, v: PageView, scroll: number, h
   const buildings = world.sites.filter((s) => !SITE_DEFS[s.kind].dock && !SITE_DEFS[s.kind].station);
   const stuck = bottlenecks(world);
   const lost = stuck.reduce((n, b) => n + b.lostPerMin, 0);
-  const working = world.vehicles.filter((q) => q.routeId !== 0).length;
+  const working = world.vehicles.filter((q) => !isIdle(q)).length;
   const income = hooks.income();
 
   // The numbers that matter, across the top.
@@ -286,14 +288,14 @@ export function fleetPage(im: Im, world: World, v: PageView, scroll: number, hoo
   const vis = (yy: number, hh: number): boolean => yy + hh > v.y0 && yy < v.y1;
   const gap = 12;
   const vehicles = world.vehicles;
-  const working = vehicles.filter((q) => q.routeId !== 0).length;
+  const working = vehicles.filter((q) => !isIdle(q)).length;
   const value = vehicles.reduce((n, q) => n + VEHICLE_DEFS[q.kind].cost, 0);
   const upkeep = vehicles.reduce((n, q) => n + VEHICLE_DEFS[q.kind].cost * VEHICLE_UPKEEP, 0);
   const worn = vehicles.filter((q) => condition(q) < 0.6);
   const tiles: [string, string, number][] = [
     ['Vehicles', String(vehicles.length), COLORS.text],
     ['Working', String(working), COLORS.good],
-    ['Waiting', String(vehicles.length - working), vehicles.length - working > 0 ? COLORS.warn : COLORS.muted],
+    ['Idle', String(vehicles.length - working), vehicles.length - working > 0 ? COLORS.warn : COLORS.muted],
     ['Fleet value', money(value), COLORS.accent],
     ['Upkeep a minute', money(upkeep), COLORS.bad],
     ['Need service', String(worn.length), worn.length ? COLORS.warn : COLORS.muted],
@@ -313,6 +315,18 @@ export function fleetPage(im: Im, world: World, v: PageView, scroll: number, hoo
       for (const q of worn) if (serviceVehicle(world, q.id) === null) done++;
       hooks.toast(done ? `Serviced ${done} vehicle${done === 1 ? '' : 's'}` : 'Not enough money');
     }, 'main');
+  }
+  y += 40;
+  // Idle vehicles earn nothing and still cost upkeep and a wage: one click sells the surplus, keeping a vehicle on every line.
+  const surplus = idleSurplus(world);
+  if (vis(y, 34)) {
+    const back = surplus.reduce((n, q) => n + sellVehicleValue(q), 0);
+    const cost = surplus.reduce((n, q) => n + VEHICLE_DEFS[q.kind].cost * VEHICLE_UPKEEP * 0.4, 0);
+    button(im, 'fl-idle', surplus.length ? `SELL ${surplus.length} IDLE  ·  +${money(back)}  ·  saves ${money(cost)} a minute` : 'NO IDLE VEHICLES TO SELL', v.x0, y, 420, 30, surplus.length > 0, () => {
+      let done = 0;
+      for (const q of surplus) if (sellVehicle(world, q.id) === null) done++;
+      hooks.toast(`Sold ${done} idle vehicle${done === 1 ? '' : 's'}`);
+    }, 'danger');
   }
   y += 40;
 

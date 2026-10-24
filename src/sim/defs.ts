@@ -639,14 +639,14 @@ export const BUILD_LUMBER = [100, 150];
 
 /**
  * Materials a town needs delivered to its Supply Yard for each level-up (index 0 is level 1 to 2), by town style.
- * Each level asks for harder goods. A level only asks for what its tier can make: tier 2 (concrete, glass, cement) opens when a town reaches level 4, steel at tier 3, so the first three levels use tier 0 and 1 goods. Draft numbers, to tune by playing.
+ * Each level asks for harder goods. The first step (level 1 to 2) is lumber alone: every town has a forest close by, but clay, stone and sand can be 40 to 100 tiles away on some maps, so a town's first step must never wait for them. Later levels add the style's own materials, in amounts a few trucks can bring. Draft numbers, to tune by playing.
  */
 export const LEVEL_MATERIALS: Record<TownStyle, Stock[]> = {
-  nordic: [{ lumber: 200, stone: 100 }, { lumber: 500, stone: 300, blocks: 100 }, { lumber: 500, blocks: 300, bricks: 300 }, { steel: 1200, concrete: 2000, glass: 800, tools: 100 }],
-  temperate: [{ lumber: 150, bricks: 150 }, { bricks: 400, lumber: 300, blocks: 100 }, { bricks: 500, blocks: 300, lumber: 400 }, { steel: 1000, concrete: 1800, glass: 700, tools: 100 }],
-  mediterranean: [{ stone: 150, bricks: 150 }, { blocks: 300, bricks: 300, granite: 150 }, { blocks: 500, bricks: 500, granite: 300 }, { steel: 1000, concrete: 1800, blocks: 800, glass: 600 }],
-  tropical: [{ lumber: 250, sand: 100 }, { lumber: 400, sand: 200, bricks: 150 }, { lumber: 400, bricks: 400, sand: 300 }, { steel: 1100, cement: 300, concrete: 2000, glass: 800 }],
-  arid: [{ bricks: 200, sand: 100 }, { bricks: 400, sand: 200, granite: 100 }, { bricks: 500, blocks: 300, sand: 300 }, { steel: 1000, concrete: 1800, glass: 900, tools: 100 }],
+  nordic: [{ lumber: 250 }, { lumber: 300, stone: 150 }, { lumber: 400, blocks: 200, bricks: 150 }, { steel: 1200, concrete: 2000, glass: 800, tools: 100 }],
+  temperate: [{ lumber: 250 }, { lumber: 250, bricks: 200 }, { lumber: 400, bricks: 250, blocks: 150 }, { steel: 1000, concrete: 1800, glass: 700, tools: 100 }],
+  mediterranean: [{ lumber: 250 }, { stone: 150, bricks: 150 }, { blocks: 250, bricks: 250, granite: 150 }, { steel: 1000, concrete: 1800, blocks: 800, glass: 600 }],
+  tropical: [{ lumber: 300 }, { lumber: 300, sand: 150, bricks: 100 }, { lumber: 400, bricks: 250, sand: 200 }, { steel: 1100, cement: 300, concrete: 2000, glass: 800 }],
+  arid: [{ lumber: 250 }, { bricks: 200, sand: 100 }, { bricks: 300, blocks: 200, sand: 200 }, { steel: 1000, concrete: 1800, glass: 900, tools: 100 }],
 };
 
 /** Goods a Supply Yard keeps in store for building: lumber for the Market, and the level materials. Its own trucks carry them to the Market site. */

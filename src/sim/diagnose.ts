@@ -102,6 +102,8 @@ export function diagnose(world: World, s: Site, line: Line = 'main'): Diagnosis 
     if (def.hub) return { level: 'wait', text: 'The shelves are nearly full. Sell to more buyers, or ship goods out through a terminal.' };
     const idle = fleet.filter((v) => v.routeId === 0).length;
     if (fleet.length > 0 && idle === fleet.length) return { level: 'warn', text: 'Your trucks are waiting with no route. Switch a sale on, or check the road is still there.' };
+    // Trucks that are sitting idle are the answer to nothing: more of them would only add to the bill.
+    if (fleet.some((v) => (v.busy ?? 1) < 0.3)) return { level: 'ok', text: `Goods are piling up (${pct}% full) but ${fleet.filter((v) => (v.busy ?? 1) < 0.3).length} of your vehicles here are waiting. Check what they sell to: the buyer may be full, or the road too long.` };
     const more = buyOptions(world, s.id)[0];
     if (more && buyError(world, s.id, more) === null) {
       return { level: 'ok', text: `Goods are piling up (${pct}% full) and ${fleet.length} truck${fleet.length === 1 ? ' is' : 's are'} not keeping up. Build more trucks.`, fix: { kind: 'buy', vehicle: more, line } };
