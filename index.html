@@ -90,6 +90,26 @@
       .pill.now { color: var(--gold); border-color: rgba(232, 194, 122, 0.6); }
       @media (max-width: 640px) { .step { grid-template-columns: 1fr; gap: 6px; } }
 
+      /* maps and numbers */
+      .maps { display: grid; gap: 16px; }
+      .mapcard { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+      .mapcard img { width: 100%; height: auto; background: #1b3a58; }
+      .mapcard .body { padding: 14px 18px 18px; }
+      .mapcard h3 { margin: 0 0 4px; font-size: 1.1rem; }
+      .mapcard p { margin: 0; color: var(--muted); font-size: 0.95rem; }
+      .facts { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 0; padding: 0; list-style: none; }
+      .facts li { font-size: 0.78rem; letter-spacing: 0.04em; padding: 3px 10px; border-radius: 999px; border: 1px solid var(--line); color: var(--text); }
+      .legend { color: var(--muted); font-size: 0.86rem; margin-top: 12px; }
+      .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 28px; }
+      .stat { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px; text-align: center; }
+      .stat b { display: block; font-size: 2rem; color: var(--gold); line-height: 1.1; }
+      .stat span { color: var(--muted); font-size: 0.88rem; }
+      .cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 14px; align-items: start; }
+      .col { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; }
+      .col h3 { margin: 0 0 8px; font-size: 1rem; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+      .col ul { margin: 0; padding-left: 18px; color: var(--muted); font-size: 0.93rem; }
+      .col li { margin-bottom: 5px; }
+
       /* log and faq */
       .log { border-left: 2px solid var(--line); padding-left: 18px; display: grid; gap: 22px; }
       .log h3 { margin: 0; font-size: 1.05rem; }
@@ -111,6 +131,7 @@
         <a class="brand" href="#top">SUPPLY<span>LINE</span></a>
         <div class="links">
           <a class="hide-sm" href="#world">The game</a>
+          <a class="hide-sm" href="#maps">Maps</a>
           <a class="hide-sm" href="#roadmap">Roadmap</a>
           <a class="hide-sm" href="#log">Dev log</a>
           <a class="hide-sm" href="#faq">FAQ</a>
@@ -131,7 +152,7 @@
           <a class="btn" id="download-btn" href="#" aria-disabled="true">Download for Windows<small>Coming soon</small></a>
           <a class="btn" id="steam-btn" href="#" aria-disabled="true">Wishlist on Steam<small>Coming soon</small></a>
         </div>
-        <div class="build-line">Current build <strong id="build">0.16</strong>. It changes often and saves may not carry over between builds.</div>
+        <div class="build-line">Current build <strong id="build">0.131</strong>. It changes often, and saves may not carry over between builds.</div>
       </div>
     </header>
 
@@ -139,13 +160,70 @@
       <div class="wrap">
         <div class="kicker">The game</div>
         <h2>A whole world to supply</h2>
-        <p class="lead">Every map is made by hand: continents, mountain ranges, rivers, lakes and island chains. Towns and cities grow as you feed them, and some grow into each other.</p>
+        <p class="lead">Every map is made by hand: continents, mountain ranges, rivers, lakes, deserts and island chains. Towns and cities grow as you feed them, and some grow into each other. You start with a Forestry Camp and a town that is still waiting for its Supply Yard.</p>
         <div class="shots">
-          <figure class="wide"><img src="/site/shot-overview.png" alt="The whole globe from space, with continents and seas" loading="lazy" /><figcaption>Map 2, The Continental: four continents and island chains, about 46% sea.</figcaption></figure>
+          <figure class="wide"><img src="/site/shot-overview.png" alt="The whole globe from space, with continents and seas" loading="lazy" /><figcaption>The whole globe from space: every town, wood and range is named.</figcaption></figure>
+          <figure><img src="/site/shot-desert.jpg" alt="A desert continent with lakes, ranges and arid towns" loading="lazy" /><figcaption>Map 3 has a whole desert continent, with oases and arid towns.</figcaption></figure>
           <figure><img src="/site/shot-home.png" alt="A starting town from above" loading="lazy" /><figcaption>A starting town, ready to grow.</figcaption></figure>
           <figure><img src="/site/shot-river.png" alt="A river valley with forest" loading="lazy" /><figcaption>Rivers, flood plains and woods.</figcaption></figure>
           <figure><img src="/site/shot-island.png" alt="An island in the Pacific" loading="lazy" /><figcaption>Coffee, mangoes and oil lie across the water.</figcaption></figure>
-          <figure><img src="/site/shot-range.png" alt="A mountain range" loading="lazy" /><figcaption>Ranges, passes and the mines at their feet.</figcaption></figure>
+          <figure class="wide"><img src="/site/shot-forest.jpg" alt="Close up in a forest, with a Forestry spot ringed" loading="lazy" /><figcaption>Street level: a ringed forest spot waits for your first Forestry Camp.</figcaption></figure>
+        </div>
+      </div>
+    </section>
+
+    <section class="alt" id="maps">
+      <div class="wrap">
+        <div class="kicker">Maps</div>
+        <h2>Three worlds to play</h2>
+        <p class="lead">Pick a map when you start a game. Each one is shown flat below; in the game it wraps round a globe.</p>
+        <div class="maps">
+          <div class="mapcard">
+            <img src="/site/map-3.jpg" alt="Map 3, The Meridian Sea, seen flat" loading="lazy" />
+            <div class="body">
+              <h3>Map 3: The Meridian Sea <span class="pill now" style="margin-left: 8px">Beta</span></h3>
+              <p>The big one. A great crescent continent round an inland sea, a cold northern land, belts of islands, a desert continent in the east and a dry belt in the south, with sea channels cut through the narrow necks of land so ships can reach more coast.</p>
+              <ul class="facts"><li>768 x 352 tiles</li><li>about 5 times the land of Map 2</li><li>about 190 towns and cities</li><li>desert and arid towns</li><li>22 sea channels</li></ul>
+            </div>
+          </div>
+          <div class="mapcard">
+            <img src="/site/map-2.jpg" alt="Map 2, The Continental, seen flat" loading="lazy" />
+            <div class="body">
+              <h3>Map 2: The Continental</h3>
+              <p>Four differently shaped continents and island chains, mountain ranges, a great river system running to a gulf, and about 46% sea. Coffee, mangoes and some oil lie overseas, so ports and planes matter.</p>
+              <ul class="facts"><li>384 x 128 tiles</li><li>55 towns and cities</li><li>rivers, lakes and a gulf</li></ul>
+            </div>
+          </div>
+          <div class="mapcard">
+            <img src="/site/map-1.jpg" alt="Map 1, The Known World, seen flat" loading="lazy" />
+            <div class="body">
+              <h3>Map 1: The Known World</h3>
+              <p>A hand-made world map of continents, islands and seas, with coffee, mango and oil islands to ship from. The best place to start.</p>
+              <ul class="facts"><li>288 x 124 tiles</li><li>33 towns and cities</li><li>island goods by ship</li></ul>
+            </div>
+          </div>
+        </div>
+        <p class="legend">On the flat maps: white squares are towns, gold squares are cities, and the small dots are coffee (brown), mangoes (orange) and oil (black).</p>
+      </div>
+    </section>
+
+    <section id="build">
+      <div class="wrap">
+        <div class="kicker">What is in the build</div>
+        <h2>The early build, in numbers</h2>
+        <div class="stats">
+          <div class="stat"><b>89</b><span>goods, raw to finished (<a href="/goods/">see them all</a>)</span></div>
+          <div class="stat"><b>87</b><span>buildings to place</span></div>
+          <div class="stat"><b>12</b><span>kinds of truck, train, ship and plane</span></div>
+          <div class="stat"><b>5</b><span>tiers, 55 quests</span></div>
+        </div>
+        <div class="grid">
+          <div class="card"><span class="tagline">Start</span><h3>A tutorial that steps aside</h3><p>A short tutorial card walks you through the first town: the camera, a Forestry Camp, a road, the Supply Yard and the Market. It sits apart from the quests and switches off in the menu.</p></div>
+          <div class="card"><span class="tagline">Build</span><h3>Logs, then lumber</h3><p>Your first town is built from raw logs. From Tier 1 it needs sawn lumber, then stone, bricks, steel and concrete as it grows. Green and orange ground shows where each building can go.</p></div>
+          <div class="card"><span class="tagline">Grow</span><h3>Towns that want more</h3><p>A town grows from a village to a metropolis. Each level asks for a wider range of goods at its Market and heavier materials at its Supply Yard.</p></div>
+          <div class="card"><span class="tagline">Run</span><h3>Fleets, drivers and mechanics</h3><p>Named drivers rank up, trucks wear out, and a Mechanic Shop with hired mechanics keeps the fleet on the road. Wages and upkeep are part of the bill.</p></div>
+          <div class="card"><span class="tagline">Think</span><h3>Production chains</h3><p>Grain to flour to bread; clay to bricks; ore and coal to steel. Every factory shows its rates and what holds it up, and by-products have a buyer too.</p></div>
+          <div class="card"><span class="tagline">Look</span><h3>Seasons and a living world</h3><p>Leaves turn, snow settles on the high ground, towns spread over their land and woods thin out as they do. Graphics presets suit a laptop or a big screen.</p></div>
         </div>
       </div>
     </section>
@@ -159,7 +237,6 @@
           <div class="card"><span class="tagline">Land</span><h3>Buy your ground</h3><p>The map is a patchwork of plots of different sizes. Buy a plot, build on it, then buy the one next door to grow.</p></div>
           <div class="card"><span class="tagline">Logistics</span><h3>Run your fleet</h3><p>Trucks, trains, boats, container ships and planes. Upgrade vehicles, add capacity and open routes that suit the cargo.</p></div>
           <div class="card"><span class="tagline">Production</span><h3>Plan the chain</h3><p>Raw goods become products through chains of buildings. Watch the rates, find the slow link and fix it.</p></div>
-          <div class="card"><span class="tagline">Towns</span><h3>Towns that grow</h3><p>Towns and cities grow into their land. Neighbours can join up and share growth without swallowing each other.</p></div>
         </div>
       </div>
     </section>
@@ -168,14 +245,47 @@
       <div class="wrap">
         <div class="kicker">Roadmap</div>
         <h2>Where it is going</h2>
-        <p class="lead">Plans can change as the game takes shape. This is the current order.</p>
-        <div class="road">
-          <div class="step"><div class="ver">0.14 - 0.16</div><div><h3>The world</h3><p>Layered worlds that never delete what you build, towns that grow into each other, two hand-made maps, rivers, lakes, seas and islands.</p></div><span class="pill done">Done</span></div>
-          <div class="step"><div class="ver">0.17</div><div><h3>Land plots</h3><p>Buy plots before you build. Plots of different sizes, prices that follow the town and the ground.</p></div><span class="pill done">Done</span></div>
-          <div class="step"><div class="ver">0.18 - 0.31</div><div><h3>Fleets and crews</h3><p>Vehicle classes and garages, building levels, river barges, freighters and canals, named drivers who rank up, and vehicle wear and service.</p></div><span class="pill done">Done</span></div>
-          <div class="step"><div class="ver">0.19 - 0.35</div><div><h3>Production depth</h3><p>Rates, efficiency and a supply plan for every factory, seasons for farms, company skills, and a console-style interface.</p></div><span class="pill done">Done</span></div>
-          <div class="step"><div class="ver">0.36</div><div><h3>Windows download</h3><p>A desktop version with automatic updates. Next: saves on disk, then better lighting and graphics.</p></div><span class="pill now">Now</span></div>
-          <div class="step"><div class="ver">Later</div><div><h3>Steam</h3><p>A Steam page and release once the game is ready for it.</p></div><span class="pill">Planned</span></div>
+        <p class="lead">Plans can change as the game takes shape. The early build you can play now runs from Tier 0 to Tier 2; the later tiers are where most of the game will live.</p>
+        <div class="cols">
+          <div class="col">
+            <h3>Done <span class="pill done">Shipped</span></h3>
+            <ul>
+              <li>Hand-made worlds, rivers, seas and islands (Maps 1 and 2)</li>
+              <li>Land plots, building levels, districts and town paths</li>
+              <li>Fleets, named drivers, wear, garages and mechanics</li>
+              <li>Production depth: rates, supply plans, seasons</li>
+              <li>Rail, ports, ships and planes</li>
+              <li>Windows download with automatic updates</li>
+              <li>Quests across five tiers, with a tutorial beside them</li>
+              <li>Map 3 as a playable beta, with a desert continent and sea channels</li>
+              <li>The goods page: every raw good and product, A to Z</li>
+            </ul>
+          </div>
+          <div class="col">
+            <h3>Now <span class="pill now">In progress</span></h3>
+            <ul>
+              <li>Testing Map 3 with players: pace, balance and the first hour</li>
+              <li>A smoother globe on browsers and laptops</li>
+              <li>Making Tiers 0 to 2 a complete, polished early build</li>
+              <li>Freezing Map 3's layout so saves carry over between builds</li>
+            </ul>
+          </div>
+          <div class="col">
+            <h3>Next <span class="pill">Planned</span></h3>
+            <ul>
+              <li>Depth from Tier 2 on: rail networks, ports, steel, machinery and air freight</li>
+              <li>More goods: 64 are already listed on the goods page as not yet in the game</li>
+              <li>Town stations and dormant towns that wake up as you reach them</li>
+              <li>Balance passes on prices, wear and driver experience</li>
+            </ul>
+          </div>
+          <div class="col">
+            <h3>Later <span class="pill">Planned</span></h3>
+            <ul>
+              <li>A signed Windows installer</li>
+              <li>A Steam page and release once the game is ready for it</li>
+            </ul>
+          </div>
         </div>
       </div>
     </section>
@@ -186,29 +296,47 @@
         <h2>Latest updates</h2>
         <div class="log" style="margin-top: 22px">
           <div>
-            <h3>0.16 - Four continents, squared-up belts</h3>
+            <h3>0.131 - 0.130: a lighter globe, and sea channels</h3>
             <time>October 2026</time>
             <ul>
-              <li>Map 2 reshaped into four continents and island chains at about 46% sea, so ports and airports have real work.</li>
-              <li>Farms, pastures, orchards and mines stand in straight rows and columns.</li>
-              <li>A forestry node by every stand of trees.</li>
-              <li>Plain blue sea that darkens with depth, and continuous dirt tracks between towns.</li>
+              <li>Map 3 gains 22 sea channels, cut through narrow necks of land so ships reach more of the coast.</li>
+              <li>The globe draws far fewer triangles on big maps: the ground is lighter, and bushes, rocks and far trees only draw when you are near them.</li>
+              <li>The F3 readout now shows where the triangles go, so slow spots are easy to find.</li>
             </ul>
           </div>
           <div>
-            <h3>0.15 - Map 2 and node belts</h3>
+            <h3>0.129 - 0.127: Map 3 redrawn, and open for play</h3>
             <time>October 2026</time>
             <ul>
-              <li>Map 2, The Continental, with a great river system, lakes and a gulf.</li>
-              <li>Resource nodes blend into farm belts and mining districts and keep clear of each other.</li>
+              <li>Map 3 is about five times the land of Map 2, with small polar caps and land kept away from the poles so nothing looks squeezed.</li>
+              <li>Every town keeps clear of the sea, lakes and rivers, with room to grow.</li>
+              <li>Saves of Map 3 are a third of the size, and Map 3 opens for play as a beta.</li>
             </ul>
           </div>
           <div>
-            <h3>0.14 - The world comes first</h3>
+            <h3>0.126 - 0.123: a longer start, and a tutorial</h3>
             <time>October 2026</time>
             <ul>
-              <li>Towns that grow into each other and share growth.</li>
-              <li>Passes through mountain ranges, bigger worlds with a choice at the start.</li>
+              <li>Your first town is built from logs (160 for the Supply Yard, 240 for the Market). From Tier 1 it takes lumber, and the Sawmill opens then.</li>
+              <li>Tier 0 has 12 quests, Tier 1 has 20, and a tutorial card walks new players through the first town. It can be switched off.</li>
+            </ul>
+          </div>
+          <div>
+            <h3>0.122 - 0.109: ground you can read, and a desert</h3>
+            <time>October 2026</time>
+            <ul>
+              <li>Green and orange build zones show where every building can and cannot go.</li>
+              <li>The Supply Yard builds from its own town's stock, and the Market shows only delivered materials.</li>
+              <li>Map 3 gets a desert continent and a grid with letters and numbers, and an About page lists the game's size and what it needs to run.</li>
+              <li>The goods page lists every good, with filters for food, minerals and building materials.</li>
+            </ul>
+          </div>
+          <div>
+            <h3>0.16 - 0.14: the world comes first</h3>
+            <time>October 2026</time>
+            <ul>
+              <li>Map 2 reshaped into four continents and island chains at about 46% sea.</li>
+              <li>Towns that grow into each other, passes through mountain ranges, and bigger worlds with a choice at the start.</li>
             </ul>
           </div>
         </div>
@@ -221,9 +349,10 @@
         <h2>FAQ</h2>
         <div style="margin-top: 22px">
           <details><summary>Is it free?</summary><p>The early build in your browser is free to play while the game is in development.</p></details>
+          <details><summary>Which map should I start on?</summary><p>Map 1 is the easiest to learn. Map 2 has more room and a great river system. Map 3 is the biggest and is in beta: it loads slowly the first time and wants a decent graphics card.</p></details>
           <details><summary>Will there be a Windows version?</summary><p>Yes. Use the Download for Windows button at the top. It updates itself in the background and keeps your place. The browser version will stay.</p></details>
           <details><summary>Will it come to Steam?</summary><p>That is the plan. The Steam button will switch on once there is a page to link to.</p></details>
-          <details><summary>Will my save carry over between builds?</summary><p>Not always yet. The game changes quickly, so an early save may stop working after an update. Save versioning is on the list for later.</p></details>
+          <details><summary>Will my save carry over between builds?</summary><p>Mostly, but not always yet. If Map 3's land is edited, saves made before the edit cannot load, so the layout will be frozen as soon as testing allows. Exporting a save to a file from the menu always works.</p></details>
           <details><summary>Does it run on a phone?</summary><p>It is built for a desktop browser first. Phones can load it, but it is not tuned for them yet.</p></details>
         </div>
       </div>

@@ -829,3 +829,7 @@ What changed:
 
 - F3 gains a third line: triangles drawn by kind (ground, trees, towns, sites, vehicles, other), refreshed about once a second. Chris's F3 after 0.130: 13.7M triangles and 5,260 calls from far (9 to 16 fps), 7.2M and 465 calls up close (51 to 57 fps). The ground is 2.4M of that; the rest was unexplained, hence the readout.
 - Far-away tree blocks now hide beyond 3 times the tree detail distance (was 5), which cuts draw calls from far.
+
+## Website: landing page brought up to date (no game change)
+
+- index.html now shows the current build (0.131), flat previews of all three maps (made by tools/maps/preview.py into public/site/map-1..3.jpg: rerun it after any map change), the build in numbers (89 goods, 87 buildings, 12 vehicle types, 5 tiers and 55 quests), a four-column roadmap (done, now, next, later), a fuller dev log and an updated FAQ. Two new screenshots come from Chris's own game captures. The build number on the page is typed by hand: update `id="build"` in index.html with each release.
