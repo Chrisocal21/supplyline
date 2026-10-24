@@ -1100,6 +1100,10 @@ export class HudScene extends Phaser.Scene {
       if (lit > 0) im.rect(1, menuX - 3, y - 3, menuW + 6, h + 6, COLORS.accent, 0.35 * lit, 13);
       im.rect(1, menuX, y, menuW, h, COLORS.accent, 0.55 * lit, 10, COLORS.accent, 1, 2);
     }
+    if (isDemo() && !g.demo && !g.showcase && !this.title && !narrow) {
+      im.rect(2, menuX - 74, mid - 11, 62, 22, 0x2a2411, 1, 11, COLORS.accent, 1);
+      im.text('demoTag', 'DEMO', menuX - 43, mid - 7, { size: 12, bold: true, color: COLORS.accent, align: 'center', layer: 2 });
+    }
     const mc = menuOn ? 0x1b1204 : COLORS.text;
     const gx = narrow ? menuX + menuW / 2 - 9 : menuX + 14;
     for (let r = 0; r < 3; r++) for (let c = 0; c < 3; c++) im.rect(2, gx + c * 7, mid - 9 + r * 7, 5, 5, mc, 1, 1);
@@ -1953,7 +1957,7 @@ export class HudScene extends Phaser.Scene {
       this.sizePick = null;
     }, 'plain');
     cy += 52;
-    im.text('doN', 'Your saved file will load in the full game, so you pick up where you stopped. Steam page coming soon.', x + pad, cy, { size: 11, color: COLORS.muted, wrap: inner, layer: 4 });
+    im.text('doN', 'Your saved file will load in the full game, so you pick up where you stopped. The Steam page is coming soon.', x + pad, cy, { size: 11, color: COLORS.muted, wrap: inner, layer: 4 });
   }
 
   private sizeModal(W: number, H: number): void {
@@ -2149,7 +2153,14 @@ export class HudScene extends Phaser.Scene {
 
   // ---- bottom menu ----
 
+  /** In the demo, what sits at Tier 2 and beyond shows as the full game's, not as a tier to reach. */
   private cardInfo(tool: Tool): Card {
+    const c = this.cardInfoBase(tool);
+    const m = /^Tier (\d+)$/.exec(c.locked ?? '');
+    return isDemo() && m && Number(m[1]) >= DEMO_END_TIER ? { ...c, locked: 'Full game' } : c;
+  }
+
+  private cardInfoBase(tool: Tool): Card {
     const w = this.game3d.world;
     if (isDistrictTool(tool)) {
       const id = districtOfTool(tool);
@@ -2805,7 +2816,7 @@ export class HudScene extends Phaser.Scene {
       const tool = tipId.slice(4) as Tool;
       const info = this.cardInfo(tool);
       lines.push({ text: info.name, bold: true, size: 14 }, { text: info.blurb, color: COLORS.muted });
-      if (info.locked) lines.push({ text: info.locked === 'Coming soon' ? 'Designed, not built yet' : `Unlocks at ${info.locked}`, color: COLORS.warn });
+      if (info.locked) lines.push({ text: info.locked === 'Coming soon' ? 'Designed, not built yet' : info.locked === 'Full game' ? 'In the full game. The free demo ends at Tier 2.' : `Unlocks at ${info.locked}`, color: COLORS.warn });
       for (const d of info.detail) lines.push({ text: d, color: COLORS.muted });
     } else if (tipId === 'questPill') {
       const tier = TIERS[g.world.tier];

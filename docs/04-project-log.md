@@ -885,3 +885,9 @@ What changed:
 ## 0.141: road building uploads only the changed ground
 
 - After 0.138 a road still spiked the frame to about 200 ms: `regrade()` flagged the whole ground position and normal buffers for upload (tens of MB). It now adds an update range per changed row, so only those rows go to the GPU.
+
+## 0.142: the demo reads as a demo
+
+- The demo already ended at Tier 2 with a "Demo complete" screen (stats, website link, save to file). A tester game with `#full` set, or the full installer, plays on with no limit, which is what looked like "just the game".
+- Added a DEMO tag beside the Menu button, and in the demo the build cards for Tier 2 and later show "Full game" (tooltip: in the full game, the demo ends at Tier 2) instead of a tier number.
+- Still open: the end screen links to the website, not Steam, until there is a Steam page.
