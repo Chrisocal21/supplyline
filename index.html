@@ -383,8 +383,8 @@
       showTab(false);
 
       // The public download button stays off until the demo installer exists. Set the demo and Steam addresses here.
-      var LINKS = { download: '', steam: '' };
-      [['download-btn', LINKS.download, 'Latest version'], ['steam-btn', LINKS.steam, 'Wishlist now']].forEach(function (b) {
+      var LINKS = { download: 'https://github.com/Chrisocal21/supplyline/releases/download/demo/Supplyline-Demo-Setup.exe', steam: '' };
+      [['download-btn', LINKS.download, 'For Windows, free'], ['steam-btn', LINKS.steam, 'Wishlist now']].forEach(function (b) {
         var el = document.getElementById(b[0]);
         if (!el || !b[1]) return;
         el.href = b[1];
