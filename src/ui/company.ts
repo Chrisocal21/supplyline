@@ -14,9 +14,6 @@ import {
   fleetOf,
   sellVehicle,
   sellVehicleValue,
-  upgradeVehicle,
-  upgradeVehicleCost,
-  upgradeVehicleError,
   type Place,
   type Site,
   type Vehicle,
@@ -366,13 +363,7 @@ export function fleetPage(im: Im, world: World, v: PageView, scroll: number, hoo
         im.text(`fl-vc${q.id}`, `carries ${VEHICLE_DEFS[q.kind].capacity}`, v.x0 + 230, ry + 6, { size: 11, color: COLORS.muted, layer: 4 });
         im.rect(4, v.x0 + 230, ry + 26, 90, 5, 0x0a0f14, 1, 1);
         im.rect(4, v.x0 + 230, ry + 26, 90 * cond, 5, tint, 1, 1);
-        const up = upgradeVehicleError(world, q.id);
-        const next = VEHICLE_DEFS[q.kind].next;
         const bw = 118;
-        if (next) {
-          button(im, `fl-u${q.id}`, `Upgrade ${money(upgradeVehicleCost(q.kind))}`, v.x0 + W - bw * 2 - 18, ry + 5, bw + 20, rowH - 14, !up, () => hooks.toast(upgradeVehicle(world, q.id) ?? `Upgraded to ${VEHICLE_DEFS[next].label}`), 'main');
-          if (up && W > 760) im.text(`fl-ue${q.id}`, up, v.x0 + W - bw * 2 - 28, ry + 14, { size: 10, color: COLORS.warn, align: 'right', wrap: 240, layer: 4 });
-        } else im.text(`fl-top${q.id}`, 'Top class', v.x0 + W - bw * 2 + 10, ry + 14, { size: 11, color: COLORS.good, layer: 4 });
         button(im, `fl-x${q.id}`, `Sell +${money(sellVehicleValue(q))}`, v.x0 + W - bw + 6, ry + 5, bw - 10, rowH - 14, true, () => hooks.toast(sellVehicle(world, q.id) ?? 'Sold'), 'danger');
       }
       ry += rowH;

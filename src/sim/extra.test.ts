@@ -216,7 +216,7 @@ describe('rail', () => {
     expect(buyOptions(w, farm.id)).toEqual(['boxtruck', 'bigtruck', 'rig', 'convoy']);
     expect(buyVehicle(w, farm.id, 'train')).toMatch(/cannot run/);
     createRoute(w, path, 'rail');
-    expect(buyOptions(w, farm.id)).toEqual(['boxtruck', 'bigtruck', 'rig', 'convoy', 'train']);
+    expect(buyOptions(w, farm.id)).toEqual(['boxtruck', 'bigtruck', 'rig', 'convoy', 'train', 'heavytrain']);
     // A truck bought here has only a rail line to work with, so it waits at the gate.
     expect(buyVehicle(w, farm.id, 'boxtruck')).toBeNull();
     for (let i = 0; i < 100; i++) step(w);

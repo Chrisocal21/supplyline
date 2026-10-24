@@ -3486,11 +3486,13 @@ export function buyOptions(world: World, siteId: number): VehicleKind[] {
   const def = SITE_DEFS[site.kind];
   if (def.dock === 'freight') return (placeOf(world, site)?.stage ?? 2) >= 1 ? ['boxtruck'] : [];
   if (def.dock) return [];
-  if (def.airport) return ['plane'];
+  // Every class of a kind is bought on its own now (there is no upgrade chain): the buy check says what is still locked.
+  const ok = (list: VehicleKind[]): VehicleKind[] => list.filter((k) => VEHICLE_DEFS[k].implemented);
+  if (def.airport) return ok(['plane', 'jet']);
   const out: VehicleKind[] = [];
   if (!def.station) out.push('boxtruck', 'bigtruck', 'rig', 'convoy');
-  if (def.port) out.push('barge', 'boat');
-  if (def.station || hasRail(world, siteId)) out.push('train');
+  if (def.port) out.push(...ok(['barge', 'boat', 'freighter', 'containership']));
+  if (def.station || hasRail(world, siteId)) out.push(...ok(['train', 'heavytrain']));
   return out;
 }
 

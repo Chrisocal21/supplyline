@@ -40,7 +40,6 @@ import {
   relayoutNodes, ensureYards,
   prepareRealisticWorld,
   homesNow,
-  upgradeVehicle,
   duplicateVehicle,
   setAutoBuy,
   acceptOffer,
@@ -2833,12 +2832,6 @@ export class Game3D {
   duplicateVeh(id: number): void {
     const err = duplicateVehicle(this.world, id);
     this.onToast(err ?? 'Bought another just like it');
-  }
-
-  upgradeVeh(id: number): void {
-    // Quiet on success: the card in the menu simply shows the bigger vehicle. Only a problem is announced.
-    const err = upgradeVehicle(this.world, id);
-    if (err) this.onToast(err);
   }
 
   sellVeh(id: number): void {
