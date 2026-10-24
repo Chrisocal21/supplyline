@@ -734,3 +734,7 @@ What changed:
 - The frame readout (F3) also shows draw calls and thousands of triangles for the whole frame, so slowness can be traced to what is drawn.
 - The web page starts on Balanced (no ambient occlusion, bloom or extra antialiasing, pixel ratio 1); the desktop app still starts on High on a good card. A saved choice still wins.
 - Slow play (under 24 fps) lowers the quality step after 4 seconds instead of 7.
+
+## 0.112: grid in the game
+
+- On worlds 600 or more tiles wide (Map 3) a badge at the top left always shows the grid cell the view is centred on and its tile (for example "GRID K4  330, 100"). The world map header shows the same, and the world map has grid lines, with cell names when opened large (ENLARGE).

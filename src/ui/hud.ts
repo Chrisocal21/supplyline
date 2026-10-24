@@ -2147,6 +2147,16 @@ export class HudScene extends Phaser.Scene {
     // The minimap sits in the footer's right corner and rises above it.
     const mini = this.minimapBox(W, H, dx + dockW + 12);
     this.miniShown = !!mini;
+    if (!this.title && this.game3d.world.width >= 600) {
+      // Which grid cell the view is centred on, always on screen, so a screenshot says where it was taken.
+      const w0 = this.game3d.world;
+      const c = viewTile(w0, this.game3d.cam.lon, this.game3d.cam.lat);
+      const cx = Math.max(0, Math.min(w0.width - 1, Math.round(c.x)));
+      const cyy = Math.max(0, Math.min(w0.height - 1, Math.round(c.y)));
+      im.rect(2, 12, TOP + 8, 132, 30, 0x0a0f14, 0.88, 8, COLORS.accent, 0.6, 1);
+      im.text('gridBadge', `GRID ${gridId(cx, cyy)}`, 22, TOP + 14, { size: 15, bold: true, color: COLORS.accent, layer: 3 });
+      im.text('gridBadgeT', `${cx}, ${cyy}`, 132, TOP + 18, { size: 10, color: COLORS.muted, align: 'right', layer: 3 });
+    }
     if (mini) this.drawMinimap(mini);
     else if (!this.title) {
       // No minimap here (switched off, a phone, a small window): the compass stands alone above the footer.
@@ -2294,7 +2304,17 @@ export class HudScene extends Phaser.Scene {
       im.line(3, cx0, cy0, cx0, cy0 + sy * 10, COLORS.accent, 0.9, 2);
     }
     const coord = this.minimap.tileAt(world, 0.5, at.y / world.height);
-    im.text('miniXY', `${coord.x}, ${Math.round(at.y)}`, b.x + 92, b.y + 9, { size: 10, color: COLORS.muted, layer: 2 });
+    im.text('miniXY', `${gridId(coord.x, Math.round(at.y))}   ${coord.x}, ${Math.round(at.y)}`, b.x + 92, b.y + 9, { size: 10, color: COLORS.muted, layer: 2 });
+    if (world.width >= 600) {
+      // The grid over the map: lines every cell, and the names too when it is opened large.
+      const cols = Math.ceil(world.width / GRID_CELL);
+      for (let gx = 0; gx < cols; gx++) {
+        const u = ((((gx * GRID_CELL - this.minimap.offset) % world.width) + world.width) % world.width) / world.width;
+        im.line(3, mx + u * b.mw, my, mx + u * b.mw, my + b.mh, 0xffffff, 0.22, 1);
+        if (this.bigMap) for (let gy = 0; gy * GRID_CELL < world.height; gy++) im.text(`gl${gx}_${gy}`, gridId(gx * GRID_CELL, gy * GRID_CELL), mx + u * b.mw + 3, my + ((gy * GRID_CELL) / world.height) * b.mh + 2, { size: 9, bold: true, color: 0xffffff, layer: 3 });
+      }
+      for (let gy = 1; gy * GRID_CELL < world.height; gy++) im.line(3, mx, my + ((gy * GRID_CELL) / world.height) * b.mh, mx + b.mw, my + ((gy * GRID_CELL) / world.height) * b.mh, 0xffffff, 0.22, 1);
+    }
     const bigH = im.hit('miniBig', b.x + b.w - 96, b.y + 6, 62, 18, () => (this.bigMap = !this.bigMap), 2);
     im.text('miniBigT', this.bigMap ? 'SHRINK' : 'ENLARGE', b.x + b.w - 65, b.y + 9, { size: 10, bold: true, color: bigH ? COLORS.accent : COLORS.muted, align: 'center', layer: 3 });
     const offH = im.hit('miniOff', b.x + b.w - 30, b.y + 6, 22, 18, () => this.toggleMinimap(), 2);
