@@ -2512,7 +2512,6 @@ export function placeError(world: World, kind: SiteKind, x: number, y: number, r
     if (isHomePlot(plot.place, plot.index)) return 'Homes line this stretch of street: not for sale';
     if (t === 'water' || t === 'mountain' || t === 'ice') return `Cannot build on ${t}`;
   } else {
-    if (def.inTown) return `${def.label} goes in a town: pick a free plot beside a town street`;
     const town = placeAt(world, x, y);
     if (town) return town && streetAt(world, x, y) ? `That is ${town.name}'s main street` : `Too close to ${town.name}`;
     const here = def.node ? nodeAt(world, x, y) : undefined;

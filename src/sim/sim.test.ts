@@ -86,14 +86,14 @@ function col(x: number, y0: number, y1: number): Tile[] {
 }
 
 describe('building', () => {
-  it('requires nodes for extraction, and a town plot for industry', () => {
+  it('requires nodes for extraction; industry goes on open ground or a town plot', () => {
     const w = testWorld();
     // Production sites go on open ground too: a node is only the better spot.
     expect(placeError(w, 'forestry', 5, 5)).toBeNull();
     expect(placeError(w, 'forestry', 3, 4)).toBeNull();
     expect(placeError(w, 'farm', 3, 4)).toMatch(/forest node/);
     expect(placeError(w, 'farm', 6, 9)).toBeNull();
-    expect(placeError(w, 'sawmill', 9, 4)).toMatch(/goes in a town/);
+    expect(placeError(w, 'sawmill', 9, 4)).toBeNull();
     expect(placeError(w, 'sawmill', 13, 9)).toBeNull();
     expect(placeError(w, 'sawmill', 13, 11)).toMatch(/Reserved/);
     // plots all around the streets are open from the start

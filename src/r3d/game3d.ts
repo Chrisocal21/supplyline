@@ -2219,12 +2219,14 @@ export class Game3D {
   private spotMesh: THREE.InstancedMesh | null = null;
   private spotBuilt = '';
   private spotSig = '';
-  private spotScan: { next: number; found: Tile[] } | null = null;
+  private spotScan: { next: number; found: Tile[]; sale: Tile[] } | null = null;
 
   private updateSpots(): void {
     const t = this.tool;
-    // Production sites go on any open ground, so every tile that takes one is lit green as well; a node is only the better spot.
-    const open = this.isBuildTool() && !!SITE_DEFS[t as SiteKind]?.produce;
+    // Anything that does not need a resource node (farms, factories, warehouses...) goes on any open ground, so every tile that
+    // takes one is lit green, the same green the road tool shows; a node is only the better spot.
+    const sd = this.isBuildTool() ? SITE_DEFS[t as SiteKind] : undefined;
+    const open = !!sd && !sd.dock && !sd.station && (!sd.node || !!sd.produce);
     const want = t === 'railyard' || t === 'airport' || t === 'port' || open ? (t as SiteKind) : null;
     if (!want) {
       if (this.spotMesh) this.spotMesh.visible = false;
@@ -2233,10 +2235,10 @@ export class Game3D {
       return;
     }
     const w = this.world;
-    const sig = `${want}:${w.sites.length}:${w.routes.length}:${w.tier}:${w.places.map((p) => p.level).join('')}`;
+    const sig = `${want}:${w.sites.length}:${w.routes.length}:${w.tier}:${(w.owned ?? []).length}:${Math.floor(w.money / 250)}:${w.places.map((p) => p.level).join('')}`;
     if (sig !== this.spotSig) {
       this.spotSig = sig;
-      this.spotScan = { next: 0, found: [] };
+      this.spotScan = { next: 0, found: [], sale: [] };
     }
     const scan = this.spotScan;
     if (scan) {
@@ -2252,12 +2254,13 @@ export class Game3D {
         if (ter === 'water' || ter === 'ice' || ter === 'mountain') continue;
         const err = placeError(w, want, x, y);
         if (err === null || err.startsWith('Need $')) scan.found.push({ x, y });
+        else if (err.startsWith(LAND_PREFIX)) scan.sale.push({ x, y });
       }
       const end = i;
       scan.next = end;
       if (end >= total) {
         // Each town's kept airport ground shows gold, all nine tiles of it.
-        const kept: Tile[] = [];
+        const kept: Tile[] = [...scan.sale];
         if (want === 'airport') {
           for (const p of w.places) {
             const pad = airportPad(w, p);
@@ -2284,9 +2287,9 @@ export class Game3D {
     if (all.length === 0) return;
     const geo = new THREE.PlaneGeometry(2.9, 2.9);
     geo.rotateX(-Math.PI / 2);
-    const mat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.38, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 });
+    const mat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.45, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 });
     const mesh = new THREE.InstancedMesh(geo, mat, all.length);
-    const green = new THREE.Color(0x5be58c);
+    const green = new THREE.Color(0xa6ebc4);
     const gold = new THREE.Color(0xffc94a);
     all.forEach((tile, i) => {
       mesh.setMatrixAt(i, this.tileMatrix(tile, 0.1));
