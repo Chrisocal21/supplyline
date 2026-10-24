@@ -2,7 +2,8 @@
 import { diagnose, diagnoseAll, shortOf } from '../sim/diagnose';
 import { LAND_PREFIX, parcelAt, parcelPrice, parcelState } from '../sim/land';
 import Phaser from 'phaser';
-import { GRAPHICS, type GraphicsQuality, type LightingMode } from '../r3d/graphics';
+import { GRAPHICS, gpuName, inBrowser, type GraphicsQuality, type LightingMode } from '../r3d/graphics';
+import { compactWorld } from '../sim/compact';
 import {
   GOODS,
   LEVEL_MATERIALS,
@@ -1172,7 +1173,7 @@ export class HudScene extends Phaser.Scene {
   }
 
   /** Which page of the menu is showing: the home page of folders, or one folder opened. */
-  private menuPage: 'home' | 'business' | 'game' | 'sound' | 'screen' | 'keys' = 'home';
+  private menuPage: 'home' | 'business' | 'game' | 'sound' | 'screen' | 'keys' | 'about' = 'home';
 
   /** The menu: the update strip and a few folders on the home page; each folder opens its own tidy page. */
   private menuPanel(W: number, H: number): void {
@@ -1185,7 +1186,7 @@ export class HudScene extends Phaser.Scene {
 
     const narrow = W < 640;
     const cols = narrow ? 2 : 4;
-    const w = Math.min(720, W - 24);
+    const w = Math.min(this.menuPage === 'about' ? 1040 : 720, W - 24);
     const x = Math.round((W - w) / 2);
     const pad = 20;
     const gap = 10;
@@ -1211,13 +1212,17 @@ export class HudScene extends Phaser.Scene {
       { id: 'mini', label: 'Minimap', key: 'M', on: this.minimapOn, toggle: true, icon: glyph('M'), act: () => this.toggleMinimap() },
       { id: 'perf', label: 'Frame rate', key: 'F3', on: this.perfOn, toggle: true, icon: glyph('F'), act: () => this.togglePerf() },
     ];
-    const folders: { id: 'business' | 'game' | 'sound' | 'screen' | 'keys'; label: string; blurb: string; mark: string }[] = [
+    const folders: { id: 'business' | 'game' | 'sound' | 'screen' | 'keys' | 'about'; label: string; blurb: string; mark: string }[] = [
       { id: 'business', label: 'Run your business', blurb: 'Company, production, fleet, towns, bank, quests', mark: '#' },
       { id: 'game', label: 'Game', blurb: 'How to play, save and load, new world', mark: 'G' },
       { id: 'sound', label: 'Sound', blurb: 'Radio stations and sound effects', mark: 'S' },
       { id: 'screen', label: 'Display', blurb: 'Graphics, minimap and frame rate', mark: 'D' },
     ];
     if (!isTouch()) folders.push({ id: 'keys', label: 'Keybinds', blurb: 'Every key in one place', mark: 'K' });
+    folders.push({ id: 'about', label: 'About', blurb: 'Size, what it needs to run, and how it runs now', mark: 'i' });
+    const aboutCols = narrow ? 1 : 2;
+    const about = this.menuPage === 'about' ? this.aboutSections() : [];
+    const aboutH = (sec: { rows: unknown[] }): number => 26 + sec.rows.length * 18 + 14;
 
     const page = this.menuPage;
     const updH = narrow ? 104 : 82;
@@ -1240,6 +1245,11 @@ export class HudScene extends Phaser.Scene {
       else if (page === 'game') bodyH += tilesH(gameItems.length);
       else if (page === 'screen') bodyH += tilesH(screenItems.length);
       else if (page === 'sound') bodyH += radioH + 12 + sfxH;
+      else if (page === 'about') {
+        const heights = [0, 0];
+        about.forEach((sec, i) => (heights[aboutCols === 1 ? 0 : i % 2] += aboutH(sec)));
+        bodyH += Math.max(...heights);
+      }
       else bodyH += narrow ? keyGroups.length * 120 : 5 * 20 + 40;
     }
     const ph = Math.min(H - 24, 56 + bodyH + pad);
@@ -1326,7 +1336,23 @@ export class HudScene extends Phaser.Scene {
     else if (page === 'game') tiles(gameItems);
     else if (page === 'screen') tiles(screenItems);
     else if (page === 'sound') this.soundCards(x + pad, cy, w - pad * 2, narrow, radioH, sfxH);
-    else {
+    else if (page === 'about') {
+      const colW = (w - pad * 2 - (aboutCols - 1) * 24) / aboutCols;
+      const ys = [cy, cy];
+      about.forEach((sec, i) => {
+        const col = aboutCols === 1 ? 0 : i % 2;
+        const ax = x + pad + col * (colW + 24);
+        let ay = ys[col];
+        im.text(`abT${i}`, sec.title, ax, ay, { size: 11, bold: true, color: COLORS.accent, layer: 4 });
+        im.line(4, ax, ay + 17, ax + colW, ay + 17, COLORS.line, 1, 1);
+        sec.rows.forEach(([k, v, c], ri) => {
+          const ry = ay + 24 + ri * 18;
+          im.text(`abK${i}_${ri}`, k, ax, ry, { size: 12, color: COLORS.muted, layer: 4 });
+          im.text(`abV${i}_${ri}`, v, ax + colW, ry, { size: 12, bold: true, color: c ?? COLORS.text, align: 'right', layer: 4 });
+        });
+        ys[col] = ay + aboutH(sec);
+      });
+    } else {
       const gw = (w - pad * 2) / (narrow ? 1 : keyGroups.length);
       keyGroups.forEach(([title, list], gi) => {
         const gx = narrow ? x + pad : x + pad + gi * gw;
@@ -1339,6 +1365,71 @@ export class HudScene extends Phaser.Scene {
         });
       });
     }
+  }
+
+  private aboutSave = { at: -1e9, bytes: 0 };
+  private aboutGpu = '';
+
+  /** The About page: what the game is, what it needs, and how it is running on this computer right now. */
+  private aboutSections(): { title: string; rows: [string, string, number?][] }[] {
+    const g = this.game3d;
+    const w = g.world;
+    const p = g.perf;
+    const mb = (n: number): string => (n / 1e6).toFixed(1) + ' MB';
+    if (!this.aboutGpu) this.aboutGpu = gpuName();
+    if (this.time.now - this.aboutSave.at > 8000) {
+      try {
+        this.aboutSave = { at: this.time.now, bytes: JSON.stringify(compactWorld(w)).length };
+      } catch {
+        this.aboutSave = { at: this.time.now, bytes: 0 };
+      }
+    }
+    const fps = Math.round(p.fps);
+    const fpsColor = fps >= 55 ? COLORS.good : fps >= 30 ? COLORS.warn : COLORS.bad;
+    const nav = navigator as Navigator & { deviceMemory?: number };
+    const desktop = !inBrowser();
+    return [
+      { title: 'THE GAME', rows: [
+        ['Version', `v${VERSION}`],
+        ['Runs as', desktop ? 'Windows app' : 'Web page (may become the demo)'],
+        ['Download', 'about 31 MB (code 3.6 MB, textures 21 MB)'],
+        ['First load over the web', 'about 8 MB compressed'],
+        ['Worlds', 'Map 1, Map 2 (Map 3 in progress)'],
+      ] },
+      { title: 'WHAT IT NEEDS (draft, until tested on more machines)', rows: [
+        ['Smallest that should run', 'dual core, 4 GB, integrated graphics'],
+        ['Browser', 'Chrome, Edge or Firefox with WebGL 2'],
+        ['Comfortable', '4 cores, 8 GB, a graphics card'],
+        ['Best looks (High, Ultra)', 'a recent dedicated graphics card'],
+        ['Screen', '1366 x 768 or larger'],
+        ['Saves', 'about 1 to 3 MB each in browser storage'],
+      ] },
+      { title: 'THIS COMPUTER', rows: [
+        ['Graphics', this.aboutGpu.length > 34 ? this.aboutGpu.slice(0, 33) + '...' : this.aboutGpu],
+        ['Processor threads', String(navigator.hardwareConcurrency ?? '?')],
+        ['Memory', nav.deviceMemory ? `${nav.deviceMemory} GB or more` : 'not reported'],
+        ['Screen', `${window.screen.width} x ${window.screen.height}, scale ${(window.devicePixelRatio || 1).toFixed(2)}`],
+        ['Game window', `${this.scale.width} x ${this.scale.height}`],
+      ] },
+      { title: 'RIGHT NOW', rows: [
+        ['Frames a second', `${fps} fps`, fpsColor],
+        ['Frame time', `${p.avgMs.toFixed(1)} ms (worst ${p.p95Ms.toFixed(1)} ms)`],
+        ['Game logic', `${p.simMs.toFixed(2)} ms a frame`],
+        ['Drawing', `${p.drawMs.toFixed(1)} ms, ${p.calls} draw calls, ${Math.round(p.tris / 1000)}k triangles`],
+        ['Quality', `${GRAPHICS[g.graphicsQuality].label}${g.autoQuality ? ' (lowers itself when slow)' : ''}`],
+        ['Asleep (far away)', String(p.asleep)],
+      ] },
+      { title: 'THIS WORLD', rows: [
+        ['Map', w.mapId ?? `random ${w.width} x ${w.height}`],
+        ['Size', `${w.width} x ${w.height} tiles (${Math.round((w.width * w.height) / 1000)}k)`],
+        ['Towns', String(w.places.length)],
+        ['Buildings', String(w.sites.length)],
+        ['Vehicles', String(w.vehicles.length)],
+        ['Drivers and mechanics', `${(w.drivers ?? []).length} and ${(w.mechanics ?? []).length}`],
+        ['Time played', `${Math.floor(w.tick / (TICKS_PER_SECOND * 60))} min`],
+        ['Size of a save', this.aboutSave.bytes ? mb(this.aboutSave.bytes) : '...'],
+      ] },
+    ];
   }
 
   /** The Sound folder: the radio, then the sound effects, each in its own card. */

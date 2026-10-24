@@ -742,3 +742,7 @@ What changed:
 ## 0.113: compact saves (Map 3 groundwork)
 
 - A world of 100,000 tiles or more (Map 3) is saved with its ground (terrain, heights, regions) packed into short strings: about 3.2 MB down to under 1 MB, so the autosave and five slots fit browser storage and saving no longer stalls the game. Older and smaller saves load as before. See `src/sim/compact.ts`.
+
+## 0.114: About page
+
+- Menu > About: the game (version, web or Windows app, download size about 31 MB), what it needs (draft: smallest, comfortable, best looks), this computer (graphics card, threads, memory, screen), how it runs right now (fps, frame time, logic and draw time, draw calls, triangles, quality) and this world (map, size, towns, buildings, vehicles, crew, save size). The needs numbers are guesses until more machines are tried.

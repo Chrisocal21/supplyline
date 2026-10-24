@@ -30,6 +30,17 @@ export function readGraphics(): { quality: GraphicsQuality; lighting: LightingMo
 /** True in a web page, false in the desktop app (which exposes `supplyline` from its preload script). */
 export const inBrowser = (): boolean => !(window as unknown as { supplyline?: unknown }).supplyline;
 
+/** The graphics card's name as the browser reports it, for the About page. */
+export function gpuName(): string {
+  try {
+    const gl = document.createElement('canvas').getContext('webgl');
+    const info = gl?.getExtension('WEBGL_debug_renderer_info');
+    return info && gl ? String(gl.getParameter(info.UNMASKED_RENDERER_WEBGL)).replace(/^ANGLE \(|\)$/g, '') : 'not reported';
+  } catch {
+    return 'not reported';
+  }
+}
+
 /** A graphics chip that is built into the processor (or software) cannot take the High preset, so a first run starts lower. */
 function weakGpu(): boolean {
   try {
