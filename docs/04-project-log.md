@@ -896,3 +896,9 @@ What changed:
 
 - `steam/index.html`, served at `/steam/` and linked from the site nav: a store-style preview with trailer slot, screenshots, tags, about, free demo, system requirements, and a "We are looking for 3D artists" box for the coming artwork overhaul.
 - The Wishlist button is off until `LINKS.steam` in that page is set (the main site's `LINKS.steam` in `index.html` too). Requirements and release date are placeholders.
+
+## 0.144: far camps can reach the Supply Yard and Market
+
+- Cause: the "who could buy this" list (`buyersFor`) only offered unjoined buyers within 40 tiles, so a camp further out than that never got a Build road offer to its town's Supply Yard or Market. The sim itself hauls at any distance (a box truck reaches 900 tiles); a test with a camp 150 tiles out delivered logs fine once a road was laid.
+- Fix: the nearest unjoined Supply Yard or Market that wants the camp's goods is always offered, however far. `roadPlan` also retries with a wider search (250000 nodes) when a long way round fails the normal one.
+- Long hauls still carry slowly (about 11 logs a trip), so a nearer camp or a relay is faster.

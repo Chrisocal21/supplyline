@@ -1713,13 +1713,16 @@ export function buyersFor(world: World, site: Site, extra = 3, line: Line = 'mai
   const mine = lineGoods(site, line);
   const seen = new Set(joined.map((t) => t.site.id));
   const d2 = (o: Site): number => wrapDx(world, site.x, o.x) ** 2 + (site.y - o.y) ** 2;
-  const far = world.sites
+  const all = world.sites
     .filter((o) => o.id !== site.id && !seen.has(o.id) && !SITE_DEFS[o.kind].station && !SITE_DEFS[o.kind].hub && !SITE_DEFS[o.kind].produce)
     .map((o) => ({ o, goods: mine.filter((g) => wantsEver(world, o).includes(g)) }))
-    .filter((x) => x.goods.length > 0 && d2(x.o) < 40 * 40)
-    .map((x) => ({ ...x, perMinute: runValue(world, site, x.o, x.goods, Math.sqrt(d2(x.o))) }))
-    .sort((a, b) => b.perMinute - a.perMinute)
-    .slice(0, extra);
+    .filter((x) => x.goods.length > 0)
+    .map((x) => ({ ...x, perMinute: runValue(world, site, x.o, x.goods, Math.sqrt(d2(x.o))) }));
+  // The nearby ones, best first. A town's Supply Yard and Market are always offered however far off, since a town cannot be built
+  // without the goods they ask for and a camp may stand a long way out: the nearest such one that is not already joined is kept.
+  const far = all.filter((x) => d2(x.o) < 40 * 40).sort((a, b) => b.perMinute - a.perMinute).slice(0, extra);
+  const townDock = all.filter((x) => SITE_DEFS[x.o.kind].dock === 'freight' || SITE_DEFS[x.o.kind].dock === 'market').sort((a, b) => d2(a.o) - d2(b.o))[0];
+  if (townDock && !far.includes(townDock)) far.push(townDock);
   for (const x of far) out.push({ site: x.o, goods: x.goods, connected: false, on: false, perMinute: x.perMinute });
   return out;
 }
@@ -1744,7 +1747,8 @@ export function roadPlan(world: World, fromId: number, toId: number): RoutePlan 
   const a = siteById(world, fromId);
   const b = siteById(world, toId);
   if (!a || !b) return null;
-  const path = findPath(world, a, b, 60000, 'road');
+  // A long way round (a far yard) may need a wider search than a near one.
+  const path = findPath(world, a, b, 60000, 'road') ?? findPath(world, a, b, 250000, 'road');
   if (!path) return null;
   const plan = planRoute(world, path, 'road', 'street');
   return plan.error ? null : plan;

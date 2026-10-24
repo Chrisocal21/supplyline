@@ -643,6 +643,28 @@ describe('air routes and station freight', () => {
 });
 
 describe('buyers', () => {
+  it('always offers the town Supply Yard, however far the camp stands', () => {
+    const w = 260;
+    const h = 14;
+    const terrain: Terrain[] = new Array<Terrain>(w * h).fill('grass');
+    for (let x = 0; x < w; x++) {
+      terrain[x] = 'ice';
+      terrain[(h - 1) * w + x] = 'ice';
+    }
+    const world = createBlankWorld(w, h, terrain);
+    world.places.push({ id: 1, name: 'T', x: 200, y: 6, level: 1, growth: 0, delivered: {}, marketTile: { x: 202, y: 6 }, freightTile: { x: 198, y: 6 }, style: 'temperate', taste: {}, radius: 3, homePlots: [] } as never);
+    addDock(world, world.places[0], 'freight');
+    addDock(world, world.places[0], 'market');
+    world.places[0].stage = 1;
+    world.money = 1e6;
+    world.nodes.push({ id: 2, kind: 'forest', x: 90, y: 9, quality: 1, regionId: 0 });
+    placeSite(world, 'forestry', 90, 9);
+    const camp = siteAt(world, 90, 9)!;
+    const yard = world.sites.find((q) => SITE_DEFS[q.kind].dock === 'freight')!;
+    expect(buyersFor(world, camp).map((b) => b.site.id)).toContain(yard.id);
+    expect(buildRoadTo(world, camp.id, yard.id)).toBeNull();
+  });
+
   it('lists joined and nearby buyers, builds a road to one, and lets a camp stop selling', () => {
     const w = open();
     w.money = 100000;
