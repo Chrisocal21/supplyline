@@ -673,3 +673,16 @@ New games now lay out land as a patchwork of plots (src/sim/land.ts): a fixed gr
 - Every Market buys every by-product (feathers, sawdust, bran, whey, wax, husks, straw, pulp, wood chips, spent grain, fish scraps, slag, gravel) at 60% of its price. This is salvage: money only, it does not grow the town and does not count as a kind of good. The Recycling Yard and factory uses remain.
 - Market lists gain flour, sugar and salt from level 2 and spices, pork and grapes from level 3, so every food has a buyer.
 - All maps share one set of rules: Map 1, Map 2 and the next map only differ in terrain, towns and resource positions (createWorldFromMap).
+
+## 0.104: no more by-product jams, and a buyer for everything a new building makes
+
+What the sims showed (skilled bot, four maps, Tier 0 and Tier 1):
+- By-products never stalled the main good, but a by-product shelf over 40% put a "buy a truck / nobody buys it" warning on the building. Following it meant a truck carrying sawdust at $0.6 a unit: a load is worth about $7 and the round trip costs more in fuel, wages and upkeep. That was the money loss.
+- Piles of 400 to 2,900 units of sawdust, wood chips, bran, whey, pulp and feathers stood unsold after 45 minutes, and no run ever bought a by-product truck.
+- Tier 1 buildings made things no level 1 Market bought: jam, butter, juice, feed, mulch, water, pellets, coal, paper, yarn, cotton, ore. Their owners' output piled up.
+- A level 1 Market takes only about 12 units a minute of each good (0.02 a tick times the level), well under what one bakery, dairy or jam factory makes, so one Market is a ceiling on one chain.
+
+What changed:
+- Every building scraps its by-products above half a shelf for 25% of their price, so a leftover never jams anything or needs a truck. The by-product warning only speaks if trucks keep the shelf above 75%.
+- Level 1 Markets now buy jam, butter, juice, water, feed, mulch, pellets and coal. Spirits, books and machinery are on the later Market lists. Pellet mill moved to Tier 1 (it is the sawdust sink); paper mill, spin mill, cotton farm and ore mine moved to Tier 2; hop farm to Tier 3; clay pit to Tier 1. New test: nothing opens before there is a buyer for what it makes.
+- Still open: a town stuck at level 1 for want of bricks (the clay pit can be 100+ road tiles from the town on some maps), and many idle trucks (60 to 90% of the fleet idle in the bot runs).

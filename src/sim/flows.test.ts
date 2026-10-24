@@ -1,7 +1,7 @@
 // The economy has to hold together: every good has somewhere to go, and by-products never have only one way out.
 import { describe, expect, it } from 'vitest';
 import { flows } from './flows';
-import { GOODS, GOOD_LIST, SITE_DEFS } from './defs';
+import { BUILD_GOODS, BUILD_ORDER, GOODS, GOOD_LIST, MARKET_DEMAND, SITE_DEFS, type Good } from './defs';
 
 describe('economy flows', () => {
   const f = flows();
@@ -23,5 +23,46 @@ describe('economy flows', () => {
     // One site of each kind making against one of each using, with the Recycling Yard counted. A wide gap means jams.
     const bad = GOOD_LIST.filter((g) => GOODS[g].kind === 'byproduct').filter((g) => f[g].made > f[g].used * 4).map((g) => `${g} makes ${f[g].made.toFixed(1)} uses ${f[g].used.toFixed(1)}`);
     expect(bad).toEqual([]);
+  });
+
+  it('never opens a building whose product has no buyer yet', () => {
+    // A tester who builds something the moment it opens must be able to sell what it makes: to a Market of the level a town
+    // has by then, or to another open building that uses it. Tier 0 and 1 towns are level 1, Tier 2 towns reach level 3, Tier 3 level 4.
+    const marketLevel = [1, 1, 3, 4];
+    const bad: string[] = [];
+    for (let t = 0; t <= 3; t++) {
+      const open = BUILD_ORDER.filter((k) => SITE_DEFS[k].tier <= t);
+      const used = new Set<Good>();
+      for (const k of open) for (const g of Object.keys(SITE_DEFS[k].recipe?.inputs ?? {})) used.add(g as Good);
+      const market = new Set(MARKET_DEMAND[marketLevel[t] - 1]);
+      for (const k of open) {
+        const d = SITE_DEFS[k];
+        const outs = d.produce ? [d.produce.good] : (Object.keys(d.recipe?.outputs ?? {}) as Good[]);
+        for (const g of outs) if (GOODS[g].kind !== 'byproduct' && !market.has(g) && !used.has(g) && !BUILD_GOODS.includes(g)) bad.push(`tier ${t}: ${k} makes ${g}`);
+      }
+    }
+    expect(bad).toEqual([]);
+  });
+});
+
+describe('by-product shelves', () => {
+  it('never nag the player or need a truck: a standing mill keeps its sawdust shelf at half and says all is well', async () => {
+    const { createBlankWorld, placeSite, setMaking, step, siteAt } = await import('./world');
+    const { diagnoseAll } = await import('./diagnose');
+    const w = createBlankWorld(30, 14, new Array(30 * 14).fill('grass'));
+    w.money = 1e6;
+    w.tier = 3;
+    expect(placeSite(w, 'sawmill', 9, 9)).toBeNull();
+    const saw = siteAt(w, 9, 9)!;
+    setMaking(w, saw.id, true);
+    for (let i = 0; i < 6000; i++) {
+      saw.stock.logs = 30;
+      saw.stock.lumber = 0;
+      step(w);
+    }
+    expect(saw.stock.sawdust ?? 0).toBeLessThan(120 * 0.8);
+    expect(diagnoseAll(w, saw).level).not.toBe('bad');
+    // The leftover sold for scrap, not for nothing.
+    expect(w.earned).toBeGreaterThan(0);
   });
 });

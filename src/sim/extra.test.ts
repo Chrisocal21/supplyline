@@ -304,7 +304,7 @@ describe('towns as districts', () => {
 
   it('turns by-products into their own goods, and does not stall when they pile up', () => {
     const w = townWorld();
-    // Standing alone, so nothing hauls the sawdust away: it piles up to the cap while the lumber is taken.
+    // Standing alone, so nothing hauls the sawdust away: the mill scraps what is left over half a shelf, and the lumber keeps coming.
     put(w, 'sawmill', 9, 9);
     const saw = siteAt(w, 9, 9)!;
     setMaking(w, saw.id, true);
@@ -314,7 +314,8 @@ describe('towns as districts', () => {
       step(w);
     }
     expect(w.produced.lumber ?? 0).toBeGreaterThan(100);
-    expect(stockOf(saw, 'sawdust')).toBe(siteCap(w, saw));
+    expect(stockOf(saw, 'sawdust')).toBeLessThanOrEqual(siteCap(w, saw) * 0.75);
+    expect(stockOf(saw, 'sawdust')).toBeGreaterThan(siteCap(w, saw) * 0.3);
     expect(w.consumed.logs ?? 0).toBeGreaterThan(200);
   });
 

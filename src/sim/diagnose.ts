@@ -32,7 +32,8 @@ export function diagnose(world: World, s: Site, line: Line = 'main'): Diagnosis 
   const shelfFull = def.hub && GOOD_LIST.some((g) => stockOf(s, g) / Math.max(1, cap) >= 0.9);
 
   // The by-product line only speaks up once there is something on the shelf to move.
-  if (line === 'by' && goods.every((g) => stockOf(s, g) / Math.max(1, cap) < 0.4)) return ok('');
+  // A building scraps what is left once a by-product shelf is half full, so this only speaks if trucks keep it above that.
+  if (line === 'by' && goods.every((g) => stockOf(s, g) / Math.max(1, cap) < 0.75)) return ok('');
 
   if (line === 'main' && def.recipe && !s.making) return { level: 'warn', text: `Off. Press Start to make ${word}.`, fix: { kind: 'start' } };
 

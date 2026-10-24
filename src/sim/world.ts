@@ -1741,9 +1741,25 @@ const RECYCLE_PRICE = 0.5;
 /** What a Market pays for a by-product, as a share of the normal price. */
 const SALVAGE_PRICE = 0.6;
 
+/** A building sells off by-products the shelf cannot use for scrap, so a leftover can never jam it or need a truck to clear it. */
+const SCRAP_PRICE = 0.25;
+const SCRAP_FROM = 0.5;
+
+function scrapExtras(world: World, site: Site, cap: number): void {
+  for (const g of produces(site).slice(1)) {
+    if (GOODS[g].kind !== 'byproduct' || stockOf(site, g) <= cap * SCRAP_FROM) continue;
+    const n = Math.floor(stockOf(site, g) - cap * SCRAP_FROM);
+    addStock(site, g, -n);
+    const cents = n * GOODS[g].price * SCRAP_PRICE;
+    world.money += cents;
+    world.earned += cents;
+  }
+}
+
 function stepSite(world: World, site: Site): void {
   const def = SITE_DEFS[site.kind];
   const cap = siteCap(world, site);
+  if ((def.produce || def.recipe) && world.tick % 30 === 0) scrapExtras(world, site, cap);
   if (def.produce) {
     const { good, every, also } = def.produce;
     const speed = siteSpeed(world, site);

@@ -414,15 +414,15 @@ const DEFS = {
  * and kitchen chains, then the specialist plants. A building opens no earlier than the buildings that make its ingredients.
  */
 const OPENS: Record<number, string[]> = {
-  0: ['forestry', 'farm', 'claypit', 'ranch', 'orchard', 'quarry', 'sawmill', 'mill', 'bakery', 'dairy', 'woodyard'],
-  1: ['waterpump', 'chickenfarm', 'vegfarm', 'potatofarm', 'cottonfarm', 'sandpit', 'coalmine', 'oremine', 'harbor', 'sugarfarm',
-    'jamfactory', 'feedmill', 'creamery', 'juicepress', 'sugarrefinery', 'gardensupply', 'scrapyard', 'papermill', 'spinmill',
-    'brickworks', 'stonecutter', 'granitecutter', 'hub', 'garage'],
-  2: ['barleyfarm', 'hopfarm', 'oilseedfarm', 'pigfarm', 'sheepfarm', 'apiary', 'vineyard', 'saltpan', 'coffeefarm', 'mangogrove', 'oilwell',
+  0: ['forestry', 'farm', 'ranch', 'orchard', 'quarry', 'sawmill', 'mill', 'bakery', 'dairy', 'woodyard'],
+  1: ['claypit', 'waterpump', 'chickenfarm', 'vegfarm', 'potatofarm', 'sandpit', 'coalmine', 'harbor', 'sugarfarm',
+    'jamfactory', 'feedmill', 'creamery', 'juicepress', 'sugarrefinery', 'gardensupply', 'scrapyard',
+    'brickworks', 'stonecutter', 'granitecutter', 'hub', 'garage', 'pelletmill'],
+  2: ['cottonfarm', 'papermill', 'spinmill', 'oremine', 'barleyfarm', 'oilseedfarm', 'pigfarm', 'sheepfarm', 'apiary', 'vineyard', 'saltpan', 'coffeefarm', 'mangogrove', 'oilwell',
     'smokehouse', 'fishcannery', 'fishmeal', 'oilpress', 'pastrykitchen', 'noodlemaker', 'cannery', 'butcher', 'woolmill', 'compostyard',
-    'silage', 'pelletmill', 'weavery', 'tailor', 'workshop', 'printery', 'winery', 'distillery', 'cementworks', 'concrete', 'glassworks',
+    'silage', 'weavery', 'tailor', 'workshop', 'printery', 'winery', 'distillery', 'cementworks', 'concrete', 'glassworks',
     'smelter', 'toolworks', 'railyard', 'port'],
-  3: ['spicefarm', 'cocoafarm', 'pizzeria', 'brewery', 'sodaplant', 'icecreamplant', 'crispfryer', 'sausagemaker', 'chocolatier',
+  3: ['hopfarm', 'spicefarm', 'cocoafarm', 'pizzeria', 'brewery', 'sodaplant', 'icecreamplant', 'crispfryer', 'sausagemaker', 'chocolatier',
     'candlemaker', 'pillowmaker', 'refinery', 'steelworks', 'slagcrusher', 'machinery', 'airport'],
 };
 for (const [tier, kinds] of Object.entries(OPENS)) for (const k of kinds) (DEFS as Record<string, SiteDef>)[k].tier = Number(tier);
@@ -622,8 +622,9 @@ export const MARKET_DEMAND: Good[][] = [
   ['bread', 'cheese', 'milk', 'eggs', 'fruit', 'vegetables', 'potatoes', 'firewood', 'fish', 'butter', 'jam', 'juice', 'pastry', 'pasta', 'canned', 'smokedfish', 'cannedfish', 'crisps', 'meat', 'honey', 'water', 'mulch', 'pellets', 'feed', 'paper', 'coffee', 'mango', 'pizza', 'beer', 'wine', 'soda', 'icecream', 'sausage', 'chocolate', 'candles', 'pillows', 'cookoil', 'fuel', 'oil', 'furniture', 'clothes', 'tools', 'books', 'spirits'],
   ['bread', 'cheese', 'milk', 'eggs', 'fruit', 'vegetables', 'potatoes', 'firewood', 'fish', 'butter', 'jam', 'juice', 'pastry', 'pasta', 'canned', 'smokedfish', 'cannedfish', 'crisps', 'meat', 'honey', 'water', 'mulch', 'pellets', 'feed', 'paper', 'coffee', 'mango', 'pizza', 'beer', 'wine', 'soda', 'icecream', 'sausage', 'chocolate', 'candles', 'pillows', 'cookoil', 'fuel', 'oil', 'furniture', 'clothes', 'tools', 'books', 'spirits', 'machinery'],
 ];
-// Every food the Market can sell on to its customers is in its list, so no ingredient or crop is left without a buyer.
-for (const [from, goods] of [[1, ['flour', 'sugar', 'salt']], [2, ['spices', 'pork', 'grapes']]] as [number, Good[]][]) {
+// Every food the Market can sell on to its customers is in its list, so no ingredient or crop is left without a buyer. Everything the
+// first two tiers can make for sale (jam, butter, juice, water, feed, mulch, pellets, coal) sells at a level 1 Market from the start.
+for (const [from, goods] of [[0, ['jam', 'butter', 'juice', 'water', 'feed', 'mulch', 'pellets', 'coal']], [1, ['flour', 'sugar', 'salt']], [2, ['spices', 'pork', 'grapes', 'spirits', 'books']], [3, ['machinery']]] as [number, Good[]][]) {
   for (let l = from; l < MARKET_DEMAND.length; l++) for (const g of goods) if (!MARKET_DEMAND[l].includes(g)) MARKET_DEMAND[l].push(g);
 }
 
