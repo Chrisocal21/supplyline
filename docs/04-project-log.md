@@ -926,3 +926,9 @@ What changed:
 - `reachShortfalls(world, site, line)` in world.ts: joined buyers whose road is longer than the best truck the building has (or a box truck if none), with the smallest truck class that reaches them and why it cannot be bought yet (tier, level, money).
 - The Who buys list gets an "Out of reach" status filter (shown only when there is one), and those cards say "Road N tiles, truck reaches M. Needs a Big Box Truck (reason)" with an amber "Out of reach" badge instead of "Selling here".
 - Not seen on screen yet: real reaches (720 tiles for a rookie box truck, up to 4950 for a Truck Fleet driver) are longer than any road a map allows, so the list is normally empty; the test shrinks the box truck's reach to exercise it.
+
+## 0.149: small hills are levelled
+
+- Roads swung round small hills because a mountain tile costs 36 against 2 for grass and needs a tunnel. `carveHills` in world.ts now turns any mountain of 8 tiles or fewer (8-way joined) into grass at a gentle height when a world is made, for generated worlds and hand-made maps alike. Hills within 3 tiles of a quarry, mine or coal seam stay, since those stand at the foot of rock. Big ranges keep their tunnels.
+- Map 1 loses 12 mountain tiles, Map 2 17, Map 3 963 (of 13078). Saves already made keep their own land (they rebuild from the map plus their own changes), so only new games get this.
+- Not looked at on screen: I could not tell which hill the screenshot showed, so check the one you meant. If a bigger ridge still forces a detour, raise `HILL_TILES`.

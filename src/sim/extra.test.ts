@@ -4,7 +4,7 @@ import { findPath } from './path';
 import { put, stockLevelMats } from './testutil';
 import { runChores } from './bot';
 import { SITE_DEFS, VEHICLE_REACH } from './defs';
-import { reachShortfalls, needs as needsFn, wants as wantsFn, removeRoute, routeAt, addDock, yardSpot, placeError, buildRoadTo, buyersFor, setHubOptions, buyOptions, siteCap, buyVehicle, roadPlan, setMaking, setSendTo, createBlankWorld, createRoute, demolishSite, airPath, createAirRoute, siteCenter, dockDemand, ensureStations, townSites, onNetwork, placeAt, placeSite, planRoute, siteAt, streetAt, step, stockOf, type World } from './world';
+import { carveHills, reachShortfalls, needs as needsFn, wants as wantsFn, removeRoute, routeAt, addDock, yardSpot, placeError, buildRoadTo, buyersFor, setHubOptions, buyOptions, siteCap, buyVehicle, roadPlan, setMaking, setSendTo, createBlankWorld, createRoute, demolishSite, airPath, createAirRoute, siteCenter, dockDemand, ensureStations, townSites, onNetwork, placeAt, placeSite, planRoute, siteAt, streetAt, step, stockOf, type World } from './world';
 
 function open(): World {
   const w = 30;
@@ -639,6 +639,21 @@ describe('air routes and station freight', () => {
     // The train carried furniture out of the platform: it reached the hub, or came back and was sold in town.
     expect((hub.stock.furniture ?? 0) + (w.delivered.furniture ?? 0)).toBeGreaterThan(0);
     expect(station.out?.furniture ?? 0).toBeLessThan(31);
+  });
+});
+
+describe('hills', () => {
+  it('levels a small hill and keeps a big range', () => {
+    const w = 40;
+    const h = 14;
+    const terrain: Terrain[] = new Array<Terrain>(w * h).fill('grass');
+    for (const [x, y] of [[5, 5], [6, 5], [6, 6]]) terrain[y * w + x] = 'mountain';
+    for (let y = 3; y < 9; y++) for (let x = 20; x < 26; x++) terrain[y * w + x] = 'mountain';
+    const world = createBlankWorld(w, h, terrain, 0, new Array<number>(w * h).fill(200));
+    expect(carveHills(world)).toBe(3);
+    expect(world.terrain[5 * w + 5]).toBe('grass');
+    expect(world.elev[5 * w + 5]).toBeLessThan(188);
+    expect(world.terrain[5 * w + 22]).toBe('mountain');
   });
 });
 

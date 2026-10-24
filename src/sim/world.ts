@@ -522,6 +522,7 @@ export function* worldSteps(seed = Math.floor(Math.random() * 1e9), width = 192,
   linkPartners(world);
   yield 'Cutting passes through the mountains';
   carvePasses(world);
+  carveHills(world);
   for (const p of world.places) {
     addDock(world, p, 'market');
     addDock(world, p, 'freight');
@@ -554,6 +555,52 @@ export function carvePasses(world: World): number {
     }
   }
   return opened;
+}
+
+/** A mountain of this many tiles or fewer is a hill: too small to be worth a tunnel, so a road is given the ground instead. */
+export const HILL_TILES = 8;
+
+/**
+ * Level the small hills. A road cannot run through a hill of a tile or two (it would need a tunnel, and costs far more than the
+ * flat), so it swings round it. Any mountain of HILL_TILES tiles or fewer is lowered to open ground; the big ranges keep their
+ * tunnels. A hill beside a quarry, mine or coal seam stays, since those stand at the foot of rock. Returns how many tiles were levelled.
+ */
+export function carveHills(world: World): number {
+  const { width: W, height: H } = world;
+  const seen = new Uint8Array(W * H);
+  const keep = new Uint8Array(W * H);
+  for (const n of world.nodes) {
+    if (n.kind !== 'quarry' && n.kind !== 'mine' && n.kind !== 'coal') continue;
+    for (let dy = -3; dy <= 3; dy++) for (let dx = -3; dx <= 3; dx++) {
+      const y = n.y + dy;
+      if (y >= 0 && y < H) keep[y * W + wrapX(world, n.x + dx)] = 1;
+    }
+  }
+  let levelled = 0;
+  for (let start = 0; start < W * H; start++) {
+    if (seen[start] || world.terrain[start] !== 'mountain') continue;
+    const tiles = [start];
+    seen[start] = 1;
+    for (let i = 0; i < tiles.length; i++) {
+      const x = tiles[i] % W;
+      const y = (tiles[i] - x) / W;
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+        const ny = y + dy;
+        if ((dx === 0 && dy === 0) || ny < 0 || ny >= H) continue;
+        const k = ny * W + wrapX(world, x + dx);
+        if (seen[k] || world.terrain[k] !== 'mountain') continue;
+        seen[k] = 1;
+        tiles.push(k);
+      }
+    }
+    if (tiles.length > HILL_TILES || tiles.some((k) => keep[k])) continue;
+    for (const k of tiles) {
+      world.terrain[k] = 'grass';
+      world.elev[k] = Math.min(world.elev[k], MOUNTAIN_ELEV - 12);
+      levelled += 1;
+    }
+  }
+  return levelled;
 }
 
 export function createWorld(seed = Math.floor(Math.random() * 1e9), width = 192, height = 64): World {
@@ -632,6 +679,7 @@ export function createWorldFromMap(map: MapData): World {
   }
   addMaterialNodes(world);
   if (map.forestNodes) addForestNodes(world);
+  carveHills(world);
   world.layout = NODE_LAYOUT;
   world.blend = true;
   linkPartners(world);
