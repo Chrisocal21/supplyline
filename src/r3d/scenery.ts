@@ -1,4 +1,5 @@
 // Trees, boulders and resource-node markers, placed on the terrain as instanced meshes.
+import { isDesert } from '../sim/desert';
 import { corridorTiles } from '../sim/corridors';
 import * as THREE from 'three';
 import { isSoftNode, type NodeKind } from '../sim/defs';
@@ -346,7 +347,9 @@ export class Scenery {
         const { lon, lat } = tileLonLat(w.width, w.height, x, y);
         // Forests thicken and thin, and grassland has groves and open meadow instead of an even sprinkle.
         const gv = grove(w.seed, x * 0.33, y * 0.33);
-        const count = t === 'forest' ? 16 + Math.round(gv * 10) : t === 'mountain' ? 4 : r() < 0.12 + 0.8 * Math.max(0, gv - 0.35) ? 6 + Math.round(gv * 4) : 0;
+        // Desert has no trees: a lone scrub bush here and there, and stones.
+        const sand = isDesert(w, x, y);
+        const count = sand ? 0 : t === 'forest' ? 16 + Math.round(gv * 10) : t === 'mountain' ? 4 : r() < 0.12 + 0.8 * Math.max(0, gv - 0.35) ? 6 + Math.round(gv * 4) : 0;
         const trees = some(count);
         for (let k = 0; k < trees; k++) {
           const jx = r();
@@ -369,7 +372,7 @@ export class Scenery {
         // Undergrowth and loose stone fill in between the trees, so the land looks lived in and not planted: bushes thicken
         // with the groves, forest floors get a ragged edge of shrubs, and small rocks lie about the fields and woods.
         if ((t === 'forest' || t === 'grass') && !town.has(this.tileIndex(x, y)) && !corridor.has(this.tileIndex(x, y)) && !nearQuarry(x, y)) {
-          const bushes = some(t === 'forest' ? 2 + Math.round(gv * 3) : gv > 0.3 ? 1 + Math.round(gv * 3) : r() < 0.18 ? 1 : 0);
+          const bushes = some(sand ? (r() < 0.05 ? 1 : 0) : t === 'forest' ? 2 + Math.round(gv * 3) : gv > 0.3 ? 1 + Math.round(gv * 3) : r() < 0.18 ? 1 : 0);
           for (let k = 0; k < bushes; k++) {
             const jx = r();
             const jy = r();

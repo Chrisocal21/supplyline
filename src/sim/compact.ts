@@ -25,7 +25,10 @@ export function compactWorld(world: World): unknown {
     runs.push(`${world.regionMap[at]}*${n}`);
     at += n;
   }
-  return { ...world, terrain, elev, regionMap: runs.join(',') };
+  // The desert layer is long runs of one letter: write each run once.
+  let desert = world.desert;
+  if (typeof desert === 'string' && !desert.includes('*')) desert = desert.replace(/(.)\1*/g, (m) => `${m[0]}*${m.length},`);
+  return { ...world, terrain, elev, regionMap: runs.join(','), desert };
 }
 
 /** Turn a parsed save's packed ground back into lists, in place. A save that is not packed is left alone. */
@@ -42,6 +45,8 @@ export function expandWorld<T extends { terrain: unknown; elev: unknown; regionM
     const [id, n] = run.split('*').map(Number);
     for (let k = 0; k < n; k++) regionMap.push(id);
   }
+  const dz = (w as unknown as { desert?: string }).desert;
+  if (typeof dz === 'string' && dz.includes('*')) (w as unknown as { desert: string }).desert = dz.split(',').filter(Boolean).map((r) => r[0].repeat(Number(r.slice(2)))).join('');
   o.terrain = terrain;
   o.elev = elev;
   o.regionMap = regionMap;

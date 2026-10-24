@@ -17,6 +17,8 @@ describe('compact saves', () => {
     expect(back.elev).toEqual(world.elev);
     expect(back.regionMap).toEqual(world.regionMap);
     expect(back.sites.length).toBe(world.sites.length);
+    expect(world.desert?.length).toBe(world.width * world.height);
+    expect(back.desert).toBe(world.desert);
   });
 
   it('does not change the world it packs', () => {

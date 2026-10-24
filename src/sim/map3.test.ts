@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { isDesert } from './desert';
 import map3 from '../maps/map3.json';
 import { NODE_FAMILY, SAME_GAP, nodeGap } from './noderules';
 import { claimAt } from './claims';
@@ -66,5 +67,35 @@ describe('Map 3: The Meridian Sea', () => {
     const ids = WORLD_SIZES.map((q) => q.id);
     expect(ids.slice(0, 3)).toEqual(['map1', 'map2', 'map3']);
     expect(WORLD_SIZES.find((q) => q.id === 'map3')?.inProgress).toBe(true);
+  });
+});
+
+describe('Map 3 deserts', () => {
+  const w = createWorldFromMap(map3 as unknown as MapData);
+  it('has a desert continent and a desert belt, with no trees on the sand', () => {
+    let land = 0;
+    let sand = 0;
+    let treed = 0;
+    for (let y = 0; y < w.height; y++) {
+      for (let x = 0; x < w.width; x++) {
+        const t = w.terrain[y * w.width + x];
+        if (t === 'water' || t === 'ice') continue;
+        land++;
+        if (isDesert(w, x, y)) {
+          sand++;
+          if (t === 'forest') treed++;
+        }
+      }
+    }
+    expect(sand / land).toBeGreaterThan(0.1);
+    expect(sand / land).toBeLessThan(0.3);
+    expect(treed).toBe(0);
+  });
+  it('desert towns are arid, and the start town is not in the desert', () => {
+    const start = w.places[0];
+    expect(isDesert(w, start.x, start.y)).toBe(false);
+    const arid = w.places.filter((p) => isDesert(w, p.x, p.y));
+    expect(arid.length).toBeGreaterThan(10);
+    for (const p of arid) expect(p.style).toBe('arid');
   });
 });

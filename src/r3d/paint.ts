@@ -2,6 +2,7 @@
 // and town ground. The 3D lighting does the shading; this supplies realistic, muted albedo.
 import { corridorTiles } from '../sim/corridors';
 import { SEA_LEVEL, isSoftNode } from '../sim/defs';
+import { isDesert } from '../sim/desert';
 import { townGround, townTiles, type World } from '../sim/world';
 import { CAP_ROWS, LAT_SPAN, textureRows } from './geo';
 
@@ -18,6 +19,9 @@ const PAL = {
   grassB: [120, 133, 92] as RGB,
   dry: [157, 146, 109] as RGB,
   tundra: [128, 138, 112] as RGB,
+  duneA: [196, 164, 108] as RGB,
+  duneB: [222, 192, 134] as RGB,
+  duneDark: [168, 134, 88] as RGB,
   forestA: [45, 65, 49] as RGB,
   forestB: [65, 84, 60] as RGB,
   rockA: [98, 92, 86] as RGB,
@@ -100,6 +104,8 @@ interface Fields {
   forest: Float32Array;
   mountain: Float32Array;
   ice: Float32Array;
+  /** 1 on desert ground (Map 3 on), else 0. */
+  desert: Float32Array;
   /** Elevation relief above sea level, 0..1 (0 over water). */
   relief: Float32Array;
   /** Tiles from the nearest land, 0 on land. */
@@ -115,6 +121,7 @@ function buildFields(world: World): Fields {
   const forest = new Float32Array(W * rows);
   const mountain = new Float32Array(W * rows);
   const ice = new Float32Array(W * rows);
+  const desert = new Float32Array(W * rows);
   const relief = new Float32Array(W * rows);
   const dist = new Float32Array(W * rows).fill(-1);
   const lat = new Float32Array(rows);
@@ -135,6 +142,7 @@ function buildFields(world: World): Fields {
       forest[i] = t === 'forest' ? 1 : 0;
       mountain[i] = t === 'mountain' ? 1 : 0;
       ice[i] = t === 'ice' ? 1 : 0;
+      desert[i] = isDesert(world, x, y) ? 1 : 0;
       relief[i] = Math.max(0, (elev[y * W + x] - SEA_LEVEL) / (255 - SEA_LEVEL));
       if (t !== 'water') {
         dist[i] = 0;
@@ -157,7 +165,7 @@ function buildFields(world: World): Fields {
     }
   }
   for (let i = 0; i < dist.length; i++) if (dist[i] < 0) dist[i] = 8;
-  return { rows, water, forest, mountain, ice, relief, dist, lat };
+  return { rows, water, forest, mountain, ice, desert, relief, dist, lat };
 }
 
 function bilinear(f: Float32Array, W: number, H: number, u: number, v: number): number {
@@ -184,7 +192,7 @@ export function paintGlobe(world: World, ppt: number): Pixels {
   const data = new Uint8ClampedArray(width * height * 4);
   const { grain, patch, warp, broad } = noise();
   const s = 16 / ppt;
-  const { grassA, grassB, dry, tundra, forestA, forestB, rockA, rockB, snow, sand, wetSand, shallow, deep, ice, iceB } = PAL;
+  const { grassA, grassB, dry, tundra, duneA, duneB, duneDark, forestA, forestB, rockA, rockB, snow, sand, wetSand, shallow, deep, ice, iceB } = PAL;
 
   for (let py = 0; py < height; py++) {
     const v = (py + 0.5) / ppt - 0.5;
@@ -236,6 +244,20 @@ export function paintGlobe(world: World, ppt: number): Pixels {
         r = lr + (fo0 - lr) * fa;
         gr = lg + (fo1 - lg) * fa;
         bl = lb + (fo2 - lb) * fa;
+        // Desert: pale sand in long soft ripples with darker drifts, over whatever grew there.
+        const dv = bilinear(f.desert, W, rows, u, v) + (p - 0.5) * 0.3 + (w - 0.5) * 0.2;
+        const da = smoothstep(0.4, 0.6, dv);
+        if (da > 0) {
+          const ripple = 0.5 + 0.5 * Math.sin((px + b * 140 + w * 60) * 0.045 + (py + p * 40) * 0.02);
+          const k = p * 0.55 + ripple * 0.3 + g * 0.15;
+          const dk = smoothstep(0.62, 0.9, b + (g - 0.5) * 0.1) * 0.5;
+          const d0 = duneA[0] + (duneB[0] - duneA[0]) * k + (duneDark[0] - duneA[0]) * dk;
+          const d1 = duneA[1] + (duneB[1] - duneA[1]) * k + (duneDark[1] - duneA[1]) * dk;
+          const d2 = duneA[2] + (duneB[2] - duneA[2]) * k + (duneDark[2] - duneA[2]) * dk;
+          r += (d0 - r) * da;
+          gr += (d1 - gr) * da;
+          bl += (d2 - bl) * da;
+        }
 
         if (rock > 0) {
           const k = p * 0.8 + g * 0.2;

@@ -26,9 +26,9 @@ const siteVersion = (): Plugin => ({
   transformIndexHtml: (html) => html.replace('<strong id="build">0.16</strong>', `<strong id="build">${builtVersion()}</strong>`),
 });
 
-// Two pages: the game's website at / and the game itself at /play/.
+// Three pages: the game's website at /, the goods catalogue at /goods/ and the game itself at /play/.
 export default defineConfig({
   plugins: [versionFile(), siteVersion()],
   server: { port: 3000, strictPort: true, open: false, host: true },
-  build: { rollupOptions: { input: { site: resolve(__dirname, 'index.html'), play: resolve(__dirname, 'play/index.html') } } },
+  build: { rollupOptions: { input: { site: resolve(__dirname, 'index.html'), play: resolve(__dirname, 'play/index.html'), goods: resolve(__dirname, 'goods/index.html') } } },
 });

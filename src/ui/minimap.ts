@@ -4,6 +4,7 @@ import Phaser from 'phaser';
 import { SITE_DEFS, type Terrain } from '../sim/defs';
 import type { World } from '../sim/world';
 import { R } from '../r3d/geo';
+import { isDesert } from '../sim/desert';
 
 // A clean, flat palette: deep sea with a lighter shelf by the coast, soft green land, a pale beach line.
 const LAND: Record<Terrain, [number, number, number]> = {
@@ -97,7 +98,7 @@ export class Minimap {
         const i = y * W + x;
         const t = world.terrain[i];
         const e = (world.elev[i] ?? 128) / 255;
-        let [r, g, b] = LAND[t] ?? LAND.grass;
+        let [r, g, b] = (t !== 'mountain' && t !== 'water' && isDesert(world, x, y) ? [212, 184, 124] : LAND[t]) ?? LAND.grass;
         const next = isWater(x - 1, y) || isWater(x + 1, y) || isWater(x, y - 1) || isWater(x, y + 1);
         let k = 0.92 + e * 0.2;
         if (t === 'water') {

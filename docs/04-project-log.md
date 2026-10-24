@@ -752,3 +752,8 @@ What changed:
 - New games on every map start with the whole world under a pale mist. The ground round the first town (40 tiles) is open; it opens around the company's own buildings (26 tiles), along every road, track and lane (11 tiles), and wherever a route reaches a town. Town docks and district buildings do not open it.
 - Fogged ground draws no trees, rocks, resource-node scenes or towns, so a big world costs only what is open. Old saves have no fog (everything counts as seen). Screenshots and the opening show everything.
 - The fog is kept as one 0 or 1 for every 12-tile square (`explored` in the save; `src/sim/explore.ts`), drawn as a softened mask over the ground (`globeMesh.ts`). Placing a building in the fog is still allowed and opens the ground. The minimap does not show the fog yet.
+
+## 0.116: deserts on Map 3, and the goods page
+
+- Map 3 has a desert continent (the eastern basin) and a desert belt across the south of the great crescent: 17% of the land. Sand ground in dune colours, no trees (a rare scrub bush and stones), towns in the arid style, green oases round lakes and rivers, a small wooded grove by any desert town short of wood so it can still make lumber, and the oil fields prefer the sand. The start town is never in the desert. The map file has a `desert` layer; the world keeps it as `desert` (see `src/sim/desert.ts`) and saves it in runs.
+- New website page /goods/ (`goods/index.html`, `goods/main.ts`): every good A to Z or from raw to built, with what makes it, what it goes into, and who buys it. It is made from the game's own definitions (`src/sim/catalog.ts`), so it cannot go out of date, and it flags any good with no maker or no use. A test fails if a chain is ever cut: all 89 goods have a maker and a use today.

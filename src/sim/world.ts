@@ -441,6 +441,8 @@ export interface World {
   mapId?: string;
   /** The fog: one 0 or 1 for each square of the world (see explore.ts). Missing in old saves, where everything counts as seen. */
   explored?: number[];
+  /** Desert ground: one character for each tile, d or . (see desert.ts). Maps that have no desert leave it out. */
+  desert?: string;
   /** Goes up whenever the fog opens, so the drawing knows to look again. Not part of the game itself. */
   exploreStamp?: number;
   /** Loans, savings and the market fund. Opened the first time the bank sheet is used. */
@@ -582,6 +584,8 @@ export interface MapData {
   islands?: number[][];
   /** Every big stand of trees gets a Forestry node (Map 3 on). */
   forestNodes?: boolean;
+  /** One string per row, one character per tile: d for desert, . for anything else. Map 3 on. */
+  desert?: string[];
 }
 
 const MAP_TERRAIN: Record<string, Terrain> = { '~': 'water', '.': 'grass', f: 'forest', '^': 'mountain', '*': 'ice' };
@@ -597,6 +601,7 @@ export function createWorldFromMap(map: MapData): World {
     }
   }
   const world = createBlankWorld(width, height, terrain, map.seed, elev);
+  if (map.desert) world.desert = map.desert.join('');
   // A map without specialty islands (Map 2) places its oil, coffee and mangoes first, so everything else keeps clear of them.
   const presets = !map.islands?.length ? (map.specials ?? []).map((q) => ({ kind: q.kind as NodeKind, x: q.x, y: q.y, quality: q.quality })) : undefined;
   const f = generateFeatures(terrain, width, height, map.seed, elev, map.places, presets);

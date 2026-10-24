@@ -261,6 +261,38 @@ for (let y = 0; y < H; y++) {
   }
 }
 
+// ---- deserts: a whole dry continent in the east, and a dry belt across part of the great crescent's south ----
+// Green stays round lakes and rivers (oases), so towns there still have wood and water.
+const desert = new Uint8Array(W * H);
+{
+  // The dry continent: the eastern basin, an ellipse with a ragged edge, on whatever land lies in it.
+  const east = new Uint8Array(W * H);
+  for (let y = ICE_ROWS; y < H - ICE_ROWS; y++) {
+    for (let x = 0; x < W; x++) {
+      const ex = wdx(x, 558) / 104;
+      const ey = (y - 152) / 80;
+      if (1 - Math.sqrt(ex * ex + ey * ey) + (fbm(x, y, 20, 409) - 0.5) * 0.5 > 0.08) east[at(x, y)] = 1;
+    }
+  }
+  for (let y = ICE_ROWS; y < H - ICE_ROWS; y++) {
+    for (let x = 0; x < W; x++) {
+      const i = at(x, y);
+      if (terrain[i] === 'water' || terrain[i] === 'ice') continue;
+      // The belt: a wide ellipse with a ragged edge.
+      const ex = wdx(x, 330) / 52;
+      const ey = (y - 172) / 30;
+      const belt = 1 - Math.sqrt(ex * ex + ey * ey) + (fbm(x, y, 18, 411) - 0.5) * 0.7;
+      const onBelt = belt > 0.3;
+      if (!east[i] && !onBelt) continue;
+      // Oases: green round water.
+      let wet = waterDist[i] <= 4;
+      for (let dy = -3; dy <= 3 && !wet; dy++) for (let dx = -3; dx <= 3; dx++) if (river[at(x + dx, y + dy)]) { wet = true; break; }
+      if (wet && fbm(x, y, 9, 412) > 0.25) continue;
+      desert[i] = 1;
+    }
+  }
+}
+
 // ---- climate and woods: big clumps, thickest in the cold north and wet west, none in dry country ----
 const dry = (x, y) => {
   const lat = Math.abs(y + 0.5 - H / 2) / (H / 2);
@@ -270,7 +302,7 @@ for (let y = ICE_ROWS; y < H - ICE_ROWS; y++) {
   for (let x = 0; x < W; x++) {
     const i = at(x, y);
     if (terrain[i] !== 'grass') continue;
-    if (dry(x, y)) continue;
+    if (dry(x, y) || desert[i]) continue;
     const lat = Math.abs(y + 0.5 - H / 2) / (H / 2);
     let want = lat > 0.66 ? 0.36 : lat > 0.4 ? 0.47 : 0.54;
     let bank = false;
@@ -304,7 +336,7 @@ const fits = (cx, cy, R) => {
   });
 };
 const claim = (name, x, y, R) => {
-  placed.push({ name, x: ((x % W) + W) % W, y, radius: R });
+  placed.push({ name, x: ((x % W) + W) % W, y, radius: R, ...(desert[at(x, y)] ? { style: 'arid' } : {}) });
   const e0 = elev[at(x, y)];
   for (let dy = -R - 1; dy <= R + 1; dy++) {
     for (let dx = -R - 1; dx <= R + 1; dx++) {
@@ -368,7 +400,7 @@ const biggest = compSize.indexOf(Math.max(...compSize));
 let start = null;
 let startScore = -1;
 for (let y = NORTH_SEA + 8; y < H - SOUTH_SEA - 8; y += 2) for (let x = 0; x < W; x += 2) {
-  if (comp[at(x, y)] !== biggest || !fits(x, y, 3)) continue;
+  if (comp[at(x, y)] !== biggest || !fits(x, y, 3) || desert[at(x, y)]) continue;
   let woods = 0;
   for (let dy = -10; dy <= 10; dy += 2) for (let dx = -10; dx <= 10; dx += 2) if (terrain[at(x + dx, y + dy)] === 'forest') woods++;
   const lat = Math.abs(y - H / 2) / (H / 2);
@@ -401,6 +433,34 @@ for (let guard = 0; placed.length < CITIES + TOWNS && guard < 6000; guard++) {
   claim(nextName(), best[0], best[1], R);
 }
 
+// ---- oasis groves: a desert town with no wood near it gets a grove 9 to 13 tiles away, so it can still make lumber ----
+for (const p of placed.filter((q) => q.style === 'arid')) {
+  let wood = 0;
+  for (let dy = -30; dy <= 30; dy += 2) for (let dx = -30; dx <= 30; dx += 2) if (terrain[at(p.x + dx, p.y + dy)] === 'forest') wood++;
+  if (wood >= 8) continue;
+  let done = false;
+  for (let r = 10; r <= 15 && !done; r++) {
+    for (let k = 0; k < 16 && !done; k++) {
+      const a = ((k + Math.floor(hash(p.x, p.y, 5) * 16)) / 16) * Math.PI * 2;
+      const cx = Math.round(p.x + Math.cos(a) * r);
+      const cy = Math.round(p.y + Math.sin(a) * r);
+      let ok = cy > NORTH_SEA + 6 && cy < H - SOUTH_SEA - 6;
+      for (let dy = -5; dy <= 5 && ok; dy++) for (let dx = -5; dx <= 5; dx++) {
+        const t = terrain[at(cx + dx, cy + dy)];
+        if (t === 'water' || t === 'mountain' || t === 'ice' || placed.some((q) => Math.hypot(wdx(q.x, cx + dx), q.y - cy - dy) < q.radius + 2)) { ok = false; break; }
+      }
+      if (!ok) continue;
+      for (let dy = -5; dy <= 5; dy++) for (let dx = -5; dx <= 5; dx++) {
+        const d = Math.hypot(dx, dy);
+        const i = at(cx + dx, cy + dy);
+        if (d <= 4.2 + (hash(cx + dx, cy + dy, 8) - 0.5)) { terrain[i] = 'forest'; desert[i] = 0; }
+        else if (d <= 5.4) desert[i] = 0;
+      }
+      done = true;
+    }
+  }
+}
+
 // ---- island goods: coffee on warm highlands, mangoes on warm lowlands, oil on dry coasts, all away from the start continent ----
 const specials = [];
 const SPECIALS = [['coffee', 7], ['mango', 8], ['oil', 9]];
@@ -418,7 +478,7 @@ for (const [kind, count] of SPECIALS) {
       cands.push({ x, y, e: elev[i], h: hash(x, y, 91), coast: seaDist[i] });
     }
   }
-  cands.sort((a, b) => (kind === 'coffee' ? b.e - a.e : a.coast - b.coast + (a.h - b.h) * 3));
+  cands.sort((a, b) => (kind === 'coffee' ? b.e - a.e : a.coast - b.coast + (a.h - b.h) * 3 - (kind === 'oil' ? (desert[at(a.x, a.y)] - desert[at(b.x, b.y)]) * 40 : 0)));
   let got = 0;
   for (const c of cands) {
     if (got >= count) break;
@@ -444,7 +504,13 @@ for (let y = 0; y < H; y++) {
   rows.push(r);
   erows.push(e);
 }
-const map = { id: 'map3', name: 'The Meridian Sea', seed: 3303, width: W, height: H, terrain: rows, elev: erows, places: placed, nodes: [], specials, islands: [], forestNodes: true };
+const drows = [];
+for (let y = 0; y < H; y++) {
+  let r = '';
+  for (let x = 0; x < W; x++) r += desert[at(x, y)] ? 'd' : '.';
+  drows.push(r);
+}
+const map = { id: 'map3', name: 'The Meridian Sea', seed: 3303, width: W, height: H, terrain: rows, elev: erows, places: placed, nodes: [], specials, islands: [], forestNodes: true, desert: drows };
 const out = path.join(__dirname, '../../src/maps/map3.json');
 fs.mkdirSync(path.dirname(out), { recursive: true });
 fs.writeFileSync(out, JSON.stringify(map));
@@ -464,6 +530,16 @@ for (let y = ICE_ROWS; y < H - ICE_ROWS; y++) for (let x = 0; x < W; x++) {
 const total = land + water;
 console.log(`land ${((land / total) * 100).toFixed(1)}%, forest ${((forest / land) * 100).toFixed(0)}% of land, mountain ${((mountain / land) * 100).toFixed(0)}% of land, rivers ${riverCount}`);
 console.log(`places ${placed.length} (${placed.filter((p) => p.radius === 5).length} cities), specials ${specials.length}, land masses ${compSize.filter((n) => n >= 60).length}`);
+let dl = 0;
+let dt = 0;
+for (let i = 0; i < W * H; i++) if (desert[i]) dt++;
+for (let i = 0; i < W * H; i++) if (terrain[i] !== 'water' && terrain[i] !== 'ice') dl++;
+console.log(`desert ${((dt / dl) * 100).toFixed(1)}% of land, ${placed.filter((p) => p.style === 'arid').length} desert towns`);
+for (const p of placed.filter((q) => q.style === 'arid')) {
+  let wood = 0;
+  for (let dy = -30; dy <= 30; dy += 2) for (let dx = -30; dx <= 30; dx += 2) if (terrain[at(p.x + dx, p.y + dy)] === 'forest') wood++;
+  if (wood < 8) report.push(`desert town ${p.name} has little wood near it (${wood})`);
+}
 for (const r of report) console.log(r);
 
 // ---- flat preview ----
@@ -484,7 +560,7 @@ if (png) {
   for (let Y = 0; Y < ph; Y++) {
     for (let X = 0; X < pw; X++) {
       const i = at(Math.floor(X / S), Math.floor(Y / S));
-      const c = river[i] ? [70, 130, 190] : COL[terrain[i]];
+      const c = river[i] ? [70, 130, 190] : desert[i] && terrain[i] !== 'mountain' ? [214, 186, 122] : COL[terrain[i]];
       const shade = terrain[i] === 'water' ? 0.6 + (elev[i] / SEA) * 0.4 : 0.8 + ((elev[i] - SEA) / (255 - SEA)) * 0.5;
       set(X, Y, c.map((v) => Math.min(255, Math.round(v * shade))));
     }

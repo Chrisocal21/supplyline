@@ -1614,7 +1614,7 @@ export class HudScene extends Phaser.Scene {
     if (this.viewMap.ready) return;
     // The map's data is only fetched when someone asks to look at it.
     void import('../maps/map3.json').then((m) => {
-      const map = m.default as unknown as { width: number; height: number; terrain: string[]; elev: string[]; places: { x: number; y: number; radius: number }[]; specials?: { kind: string; x: number; y: number }[] };
+      const map = m.default as unknown as { width: number; height: number; terrain: string[]; elev: string[]; desert?: string[]; places: { x: number; y: number; radius: number }[]; specials?: { kind: string; x: number; y: number }[] };
       const base = document.createElement('canvas');
       base.width = map.width;
       base.height = map.height;
@@ -1626,7 +1626,7 @@ export class HudScene extends Phaser.Scene {
           const t = map.terrain[y][x];
           const e = parseInt(map.elev[y].slice(x * 2, x * 2 + 2), 16);
           const shade = t === '~' ? 0.6 + (e / 96) * 0.4 : 0.8 + ((e - 96) / 159) * 0.5;
-          const col = COL[t] ?? COL['.'];
+          const col = map.desert?.[y]?.[x] === 'd' && t !== '^' && t !== '~' ? [214, 186, 122] : (COL[t] ?? COL['.']);
           const o = (y * map.width + x) * 4;
           img.data[o] = Math.min(255, col[0] * shade);
           img.data[o + 1] = Math.min(255, col[1] * shade);

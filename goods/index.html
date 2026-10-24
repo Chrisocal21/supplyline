@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SupplyLine goods, A to Z</title>
+    <meta name="description" content="Every raw material and product in SupplyLine, from the ground up: what makes it, what it feeds, and who buys it." />
+    <style>
+      :root { --bg: #0b121b; --bg2: #0f1a28; --panel: #131e2d; --line: #26364a; --text: #e9edf2; --muted: #9aa8b8; --gold: #e8c27a; --gold-ink: #231a08; --green: #7fcf9a; --blue: #7fb6e8; --red: #e88a7a; }
+      * { box-sizing: border-box; }
+      html, body { margin: 0; background: var(--bg); color: var(--text); font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; line-height: 1.5; }
+      a { color: inherit; }
+      .wrap { max-width: 1120px; margin: 0 auto; padding: 0 16px; }
+      nav { position: sticky; top: 0; z-index: 10; background: rgba(11, 18, 27, 0.9); backdrop-filter: blur(8px); border-bottom: 1px solid var(--line); }
+      nav .wrap { display: flex; align-items: center; justify-content: space-between; height: 56px; gap: 12px; }
+      .brand { font-weight: 800; letter-spacing: 0.06em; text-decoration: none; }
+      .brand span { color: var(--gold); }
+      .links { display: flex; gap: 18px; align-items: center; font-size: 0.92rem; }
+      .links a { text-decoration: none; color: var(--muted); }
+      .links a:hover { color: var(--text); }
+      .links .play { background: var(--gold); color: var(--gold-ink); padding: 7px 14px; border-radius: 8px; font-weight: 700; }
+      header.page { padding: 40px 0 18px; }
+      .kicker { color: var(--gold); letter-spacing: 0.16em; text-transform: uppercase; font-size: 0.78rem; font-weight: 700; }
+      h1 { font-size: clamp(1.9rem, 6vw, 2.8rem); margin: 6px 0 10px; line-height: 1.1; }
+      .lead { color: var(--muted); max-width: 720px; margin: 0 0 8px; }
+      .check { display: inline-block; margin-top: 8px; font-size: 0.9rem; padding: 5px 12px; border-radius: 999px; border: 1px solid var(--line); }
+      .check.ok { color: var(--green); border-color: rgba(127, 207, 154, 0.5); }
+      .check.bad { color: var(--red); border-color: rgba(232, 138, 122, 0.6); }
+      .tools { position: sticky; top: 56px; z-index: 9; background: var(--bg); padding: 12px 0; border-bottom: 1px solid var(--line); display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+      .tools input { flex: 1 1 220px; background: var(--panel); border: 1px solid var(--line); color: var(--text); border-radius: 8px; padding: 9px 12px; font-size: 1rem; }
+      .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+      .seg button { background: var(--panel); color: var(--muted); border: 0; padding: 9px 14px; font-size: 0.9rem; cursor: pointer; }
+      .seg button.on { background: var(--gold); color: var(--gold-ink); font-weight: 700; }
+      .letters { display: flex; flex-wrap: wrap; gap: 4px; padding: 10px 0 0; }
+      .letters a { text-decoration: none; color: var(--muted); border: 1px solid var(--line); border-radius: 6px; padding: 1px 8px; font-size: 0.85rem; }
+      .letters a:hover { color: var(--text); border-color: var(--gold); }
+      h2.group { margin: 34px 0 10px; font-size: 1.3rem; border-bottom: 1px solid var(--line); padding-bottom: 6px; scroll-margin-top: 130px; }
+      h2.group small { color: var(--muted); font-weight: 400; font-size: 0.85rem; margin-left: 8px; }
+      .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 12px; }
+      .card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; scroll-margin-top: 130px; }
+      .card:target { border-color: var(--gold); }
+      .card h3 { margin: 0; font-size: 1.08rem; display: flex; align-items: center; gap: 8px; }
+      .dot { width: 12px; height: 12px; border-radius: 50%; border: 1px solid rgba(255, 255, 255, 0.3); flex: none; }
+      .meta { color: var(--muted); font-size: 0.82rem; margin: 2px 0 8px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+      .tag { font-size: 0.68rem; letter-spacing: 0.1em; text-transform: uppercase; font-weight: 700; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); }
+      .tag.raw { color: var(--green); border-color: rgba(127, 207, 154, 0.5); }
+      .tag.material { color: var(--blue); border-color: rgba(127, 182, 232, 0.5); }
+      .tag.product { color: var(--gold); border-color: rgba(232, 194, 122, 0.6); }
+      .row { font-size: 0.9rem; margin: 6px 0; }
+      .row b { color: var(--muted); font-weight: 600; display: block; font-size: 0.74rem; letter-spacing: 0.08em; text-transform: uppercase; }
+      .row a { color: var(--blue); text-decoration: none; }
+      .row a:hover { text-decoration: underline; }
+      .none { color: var(--red); }
+      .empty { color: var(--muted); padding: 30px 0; }
+      footer { border-top: 1px solid var(--line); padding: 28px 0 48px; color: var(--muted); font-size: 0.9rem; text-align: center; margin-top: 40px; }
+      footer a { color: var(--gold); text-decoration: none; }
+    </style>
+  </head>
+  <body>
+    <nav>
+      <div class="wrap">
+        <a class="brand" href="/">SUPPLY<span>LINE</span></a>
+        <div class="links">
+          <a href="/#world">The game</a>
+          <a href="/goods/">Goods</a>
+          <a class="play" href="/play/">Play now</a>
+        </div>
+      </div>
+    </nav>
+    <div class="wrap">
+      <header class="page">
+        <div class="kicker">Build <span id="build"></span></div>
+        <h1>Every good in SupplyLine, A to Z</h1>
+        <p class="lead">From the raw materials in the ground to the finished products on the shelf: what makes each one, what it goes into, and which town Market buys it. This page is made from the game's own rules, so it always matches what the game does.</p>
+        <span id="gaps" class="check"></span>
+      </header>
+      <div class="tools">
+        <input id="q" type="search" placeholder="Search goods or buildings..." autocomplete="off" />
+        <div class="seg" id="mode"><button data-m="az" class="on">A to Z</button><button data-m="chain">Raw to built</button></div>
+      </div>
+      <div class="letters" id="letters"></div>
+      <div id="list"></div>
+    </div>
+    <footer>
+      <p>SupplyLine is in development. <a href="/play/">Play the early build</a> · <a href="/">Back to the main page</a></p>
+    </footer>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>
