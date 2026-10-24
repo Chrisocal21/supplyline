@@ -704,3 +704,10 @@ What changed:
 - Fishing boats circle in the water off their harbor with the boat model.
 - Pacing with the careful bot: Tier 1 at 8 minutes, level 2 at 17, level 3 at 34 to 60, Tier 2 (a level 4 town) at 105 minutes on one map and not within 150 on the others. Tier 2 stays the slow gate.
 - Old saves: a test now loads a save missing the newer fields, with a farm still pointing at a field node, and plays on.
+
+## 0.107: a crew of mechanics
+
+- Mechanics work like drivers. Each Mechanic Shop has room for its level plus one. Three applicants a few minutes at a time (better ones as the tier rises) are hired at the shop for a fee ($0, 120, 350, 800, 1,800 by rank) and paid a wage a minute ($2, 3, 4, 6, 9). Rank comes from repairs done (0, 6, 18, 40, 80): Apprentice, Mechanic, Skilled, Master, Chief.
+- A broken truck joins the queue of the mechanic who is free soonest. Each rank above apprentice takes 12% off the repair time and 5% off the bill, and a repair leaves the truck 8% better than new per rank, wearing off as it drives. Each repair adds to the mechanic's experience.
+- No shop, or a shop with nobody hired: the roadside patch (about four minutes, 1.5 times a service, 35% wear left).
+- The shop's panel lists its mechanics (rank, repairs, wage, working or free, Let go), the three applicants with Hire, the trucks waiting, and the shop upgrade. "Train the mechanic" is gone. An old save's trained mechanic level becomes a hired mechanic of that rank on load; a demolished shop's crew is let go. Wages are part of the company's running costs.

@@ -153,7 +153,10 @@ Drag from one site to another: the game finds the cheapest buildable route (brid
 - **Fishing Harbor:** coastal; self-working fishing boats raise the catch; trucks carry fish.
 - **Placement:** anything without a resource node goes on open ground or a town plot; green zone shown for every build tool; nothing on roads.
 - **Models:** a different model at each building level and each town growth level.
-- **Drivers and trucks:** hired drivers, move a driver between trucks, no upgrade buttons (buy the bigger class), level-up checklist panel, Mechanic Shop.
+- **Drivers and trucks:** hired drivers, move a driver between trucks, no upgrade buttons (buy the bigger class), level-up checklist panel. Idle trucks are counted, cost less and can be sold in one click. Smarter sell-to choices (best price, best earnings, highest demand, closest).
+- **Mechanics:** hired like drivers at a Mechanic Shop (ranks from repairs done, wages, applicants, room by shop level). Broken trucks queue for a mechanic; with none, the driver patches them at the roadside.
+- **Farms and nodes:** farms, ranches, orchards and every factory go on open ground; forests, quarries, mines, coal, clay, oil, coffee and mango stay permanent spots.
+- **Opening steps:** buildings open in four tiers; nothing opens before a buyer exists for what it makes. Every Market also buys by-products as salvage.
 - **Speed:** fog of war hides and sleeps things far from the view; graphics levels set how far.
 - **Windows app:** 1920x1080, scrolling build tray, 16 new radio stations.
 

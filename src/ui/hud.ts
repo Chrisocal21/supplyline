@@ -8,8 +8,8 @@ import {
   LEVEL_MATERIALS,
   BUILD_LUMBER,
   DRIVER_RANKS,
-  MECHANIC_COST,
-  MECHANIC_MAX,
+  MECHANIC_JOBS,
+  MECHANIC_RANKS,
   type VehicleKind,
   VEHICLE_REACH,
   GOOD_LIST,
@@ -99,7 +99,7 @@ import { Rates, Sheets, type SheetId } from './sheets';
 import { fitSize } from './company';
 import { SEASONAL, calendar, seasonIndex, seasonOf } from '../sim/seasons';
 import { type CardActions, type CardInfo, circuitMap, routeHeight, routePicture, TRUCK_TILE_H, vehicleCard, vehicleCardHeight, upgradePanel, upgradePanelHeight, vehicleTile } from './vehiclecard';
-import { applicants, condition, fleetEfficiency, nearestShop, trainMechanic, driverName, hireFee, idleDrivers, rankOf, renameDriver, serviceCost, serviceError, serviceVehicle, wageOf } from '../sim/drivers';
+import { applicants, condition, fleetEfficiency, dismissMechanic, hireMechanic, mechanicApplicants, mechanicFee, mechanicRank, mechanicWage, mechanicsAt, repairShop, shopSlots, driverName, hireFee, idleDrivers, rankOf, renameDriver, serviceCost, serviceError, serviceVehicle, wageOf } from '../sim/drivers';
 import { button } from './company';
 import { TITLE_SLIDES, Title, type TitleChoice } from './title';
 import { Radio, STATIONS } from '../audio/radio';
@@ -2622,18 +2622,41 @@ export class HudScene extends Phaser.Scene {
     im.text('spKind', `${def.label}${(def.dock && def.dock !== 'civic') || def.station ? '' : `  ·  Level ${s.level}`}`, x, cy, { size: 12, color: COLORS.muted, layer: 2 });
     cy += 24;
     if (def.garage) {
-      // The Mechanic Shop: its own level, the mechanic's level (trained apart), and the trucks waiting on it.
-      const mech = s.mech ?? 0;
-      const waitingTrucks = world.vehicles.filter((q) => (q.wear ?? 0) >= 1 && nearestShop(world, q)?.id === s.id).length;
-      im.text('gaS', `Shop level ${s.level}  ·  Mechanic level ${mech} of ${MECHANIC_MAX}`, x, cy, { size: 13, bold: true, layer: 2 });
+      // The Mechanic Shop: its level, the mechanics who work here (hired like drivers), the people looking for work, and the trucks waiting.
+      const crew = mechanicsAt(world, s.id);
+      const slots = shopSlots(s);
+      const waitingTrucks = world.vehicles.filter((q) => (q.wear ?? 0) >= 1 && repairShop(world, q)?.id === s.id).length;
+      im.text('gaS', `Shop level ${s.level}  ·  ${crew.length} of ${slots} mechanics`, x, cy, { size: 13, bold: true, layer: 2 });
       cy += 24;
-      im.text('gaD', 'A worn-out truck waits here and comes back repaired. A better shop is quicker and cheaper. A better mechanic sends it back past new, for a while.', x, cy, { size: 11, color: COLORS.muted, wrap: w, layer: 2 });
+      im.text('gaD', 'A worn-out truck waits here for a mechanic and comes back repaired. Better ranks are quicker, cheaper, and send it back past new for a while. A truck with no shop is patched at the roadside.', x, cy, { size: 11, color: COLORS.muted, wrap: w, layer: 2 });
       cy += 56;
       im.text('gaW', waitingTrucks ? `${waitingTrucks} truck${waitingTrucks === 1 ? '' : 's'} waiting for repair` : 'No trucks waiting', x, cy, { size: 12, color: waitingTrucks ? COLORS.warn : COLORS.muted, layer: 2 });
       cy += 24;
-      const next = mech < MECHANIC_MAX ? MECHANIC_COST[mech + 1] : 0;
-      this.button('gaT', mech < MECHANIC_MAX ? `Train the mechanic  $${next}` : 'Mechanic fully trained', x, cy, w, 40, mech < MECHANIC_MAX && world.money >= next, () => g.onToast(trainMechanic(world, s.id) ?? 'The mechanic is better'), 'main');
-      cy += 50;
+      crew.forEach((m, k) => {
+        const rank = mechanicRank(m);
+        const nextAt = MECHANIC_JOBS[rank + 1];
+        const busy = (m.freeAt ?? 0) > world.tick;
+        im.text(`gaMn${k}`, `${m.name}  ·  ${MECHANIC_RANKS[rank]}`, x, cy, { size: 12, bold: true, layer: 2 });
+        im.text(`gaMs${k}`, `${m.jobs} repairs${nextAt !== undefined ? `, ${nextAt - m.jobs} to the next rank` : ''}  ·  $${mechanicWage(m)} a minute  ·  ${busy ? 'working' : 'free'}`, x, cy + 16, { size: 11, color: COLORS.muted, wrap: w - 86, layer: 2 });
+        this.button(`gaMf${k}`, 'Let go', x + w - 78, cy + 2, 78, 28, true, () => g.onToast(dismissMechanic(world, m.id) ?? `${m.name} has left`), 'plain');
+        cy += 38;
+      });
+      if (crew.length < slots) {
+        im.text('gaAh', 'Looking for work', x, cy, { size: 12, bold: true, color: COLORS.accent, layer: 2 });
+        cy += 20;
+        mechanicApplicants(world).forEach((a, k) => {
+          const fee = mechanicFee(a);
+          im.text(`gaAn${k}`, `${a.name}  ·  ${MECHANIC_RANKS[mechanicRank({ jobs: a.trips })]}`, x, cy, { size: 12, layer: 2 });
+          this.button(`gaAh${k}`, `Hire $${fee}`, x + w - 100, cy - 4, 100, 28, world.money >= fee, () => {
+            const r = hireMechanic(world, a.key, s.id);
+            g.onToast('error' in r ? r.error : `${r.mechanic.name} joined the shop`);
+          }, 'main');
+          cy += 34;
+        });
+      } else {
+        im.text('gaFull', 'The shop is full: upgrade it for room for another mechanic.', x, cy, { size: 11, color: COLORS.muted, wrap: w, layer: 2 });
+        cy += 24;
+      }
       const upErr = upgradeError(world, s.id);
       this.button('gaU', upErr ? `Upgrade the shop: ${upErr}` : `Upgrade the shop to level ${s.level + 1}  $${fmt(upgradeCost(s))}`, x, cy, w, 40, !upErr, () => g.upgrade(s.id), 'plain');
       cy += 50;

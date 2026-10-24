@@ -1,4 +1,4 @@
-# Supply Yard / Distribution Warehouse: numbers draft
+# Supply Yard / Distribution Warehouse: numbers draft (built from 0.72 on; see 06 section 0A for the final rules)
 
 DRAFT. Every number here is my proposal, not a decision. Edit what feels wrong. Goods use only what exists today (no granite, fire wood, mulch yet).
 

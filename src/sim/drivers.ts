@@ -1,7 +1,7 @@
 // Drivers and upkeep: every vehicle has a named driver, and wears as it covers ground until it is serviced. The names and the
 // wear are the groundwork for a fuller crew and maintenance system; for now a worn vehicle is a little slower and a service
 // puts it right.
-import { APPLICANT_TICKS, DRIVER_HIRE, DRIVER_TRIPS, DRIVER_WAGE, MECHANIC_BUFF, MECHANIC_COST, MECHANIC_MAX, SHOP_WAIT, SITE_DEFS, VEHICLE_DEFS, type VehicleKind } from './defs';
+import { APPLICANT_TICKS, DRIVER_HIRE, DRIVER_TRIPS, DRIVER_WAGE, MECHANIC_BUFF, MECHANIC_CHEAPER, MECHANIC_FASTER, MECHANIC_HIRE, MECHANIC_JOBS, MECHANIC_WAGE, SHOP_WAIT, SITE_DEFS, VEHICLE_DEFS, type VehicleKind } from './defs';
 import type { Site, Vehicle, World } from './world';
 
 const FIRST = [
@@ -216,13 +216,14 @@ export function dismissDriver(world: World, driverId: number): string | null {
 
 /** Once a second: every vehicle has a driver on file, and drivers of sold or removed vehicles wait for another. */
 export function tendDrivers(world: World): void {
+  tendMechanics(world);
   for (const v of world.vehicles) if (v.driverId !== 0) driverOf(world, v);
   const live = new Set(world.vehicles.map((v) => v.id));
   for (const d of world.drivers ?? []) if (d.vehicleId !== null && !live.has(d.vehicleId)) d.vehicleId = null;
 }
 
 /** Wages for every driver on the books, per minute. */
-export const wagesPerMinute = (world: World): number => (world.drivers ?? []).reduce((n, d) => n + wageOf(d), 0);
+export const wagesPerMinute = (world: World): number => (world.drivers ?? []).reduce((n, d) => n + wageOf(d), 0) + (world.mechanics ?? []).reduce((n, m) => n + MECHANIC_WAGE[mechanicRank(m)], 0);
 
 // ---- the mechanic shop ----
 
@@ -249,17 +250,102 @@ export function shopCost(v: Pick<Vehicle, 'kind' | 'wear'>, shop: Site): number 
   return base === 0 ? 0 : Math.max(10, Math.round((base * (1 - 0.1 * (shop.level - 1))) / 5) * 5);
 }
 
-/** Train the shop's mechanic one level: a repair then takes a vehicle further past new. Paid apart from the shop's own upgrades. */
-export function trainMechanic(world: World, siteId: number): string | null {
-  const s = world.sites.find((x) => x.id === siteId);
-  if (!s || !SITE_DEFS[s.kind].garage) return 'Only a Mechanic Shop has a mechanic';
-  const lv = s.mech ?? 0;
-  if (lv >= MECHANIC_MAX) return 'The mechanic is at the top level';
-  const cost = MECHANIC_COST[lv + 1];
-  if (world.money < cost) return `Need $${cost.toLocaleString('en-US')} to train the mechanic`;
-  world.money -= cost;
-  s.mech = lv + 1;
+// ---- the people who repair ----
+
+/** A mechanic the company employs. They are paid whether or not there is work, and their experience goes with them. */
+export interface Mechanic {
+  id: number;
+  name: string;
+  /** Repairs done: sets their rank. */
+  jobs: number;
+  /** The Mechanic Shop they work at, or null while they wait for one. */
+  shopId: number | null;
+  /** The tick they finish the job they are on. */
+  freeAt?: number;
+}
+
+export const mechanicRank = (m: Pick<Mechanic, 'jobs'>): number => MECHANIC_JOBS.filter((n) => m.jobs >= n).length - 1;
+export const mechanicWage = (m: Pick<Mechanic, 'jobs'>): number => MECHANIC_WAGE[mechanicRank(m)];
+export const mechanicsAt = (world: World, shopId: number): Mechanic[] => (world.mechanics ?? []).filter((m) => m.shopId === shopId);
+/** How many mechanics a shop has room for. */
+export const shopSlots = (shop: Pick<Site, 'level'>): number => 1 + shop.level;
+
+/** The people looking for repair work right now: three, fixed for a period like the drivers, and better ones as the game goes on. */
+export function mechanicApplicants(world: World): Applicant[] {
+  const day = Math.floor(world.tick / APPLICANT_TICKS);
+  const taken = world.hiredMech && world.hiredMech.day === day ? world.hiredMech.keys : [];
+  const top = Math.min(3, world.tier);
+  const out: Applicant[] = [];
+  for (let i = 0; i < 3; i++) {
+    const key = day * 10 + i;
+    if (taken.includes(key)) continue;
+    const rank = hash(day * 5 + i + 91, world.seed) % (top + 1);
+    out.push({ key, name: nameFor(world.seed + 7, day, i), trips: MECHANIC_JOBS[rank] });
+  }
+  return out;
+}
+
+export const mechanicFee = (a: Pick<Applicant, 'trips'>): number => MECHANIC_HIRE[mechanicRank({ jobs: a.trips })];
+
+/** Hire an applicant at a Mechanic Shop that has room. */
+export function hireMechanic(world: World, key: number, shopId: number): { error: string } | { mechanic: Mechanic } {
+  const shop = world.sites.find((s) => s.id === shopId);
+  if (!shop || !SITE_DEFS[shop.kind].garage) return { error: 'Mechanics work at a Mechanic Shop' };
+  if (mechanicsAt(world, shopId).length >= shopSlots(shop)) return { error: `This shop has room for ${shopSlots(shop)} mechanics: upgrade it for more` };
+  const a = mechanicApplicants(world).find((x) => x.key === key);
+  if (!a) return { error: 'That person has found another job' };
+  const fee = mechanicFee(a);
+  if (world.money < fee) return { error: `Need $${fee.toLocaleString('en-US')} to hire ${a.name}` };
+  world.money -= fee;
+  const day = Math.floor(world.tick / APPLICANT_TICKS);
+  if (!world.hiredMech || world.hiredMech.day !== day) world.hiredMech = { day, keys: [] };
+  world.hiredMech.keys.push(key);
+  const m: Mechanic = { id: world.nextId++, name: a.name, jobs: a.trips, shopId };
+  (world.mechanics ??= []).push(m);
+  return { mechanic: m };
+}
+
+/** Let a mechanic go. Whoever they were repairing goes back to waiting. */
+export function dismissMechanic(world: World, mechanicId: number): string | null {
+  const m = (world.mechanics ?? []).find((x) => x.id === mechanicId);
+  if (!m) return 'No such mechanic';
+  world.mechanics = (world.mechanics ?? []).filter((x) => x.id !== mechanicId);
+  for (const v of world.vehicles) if (v.repairBy === mechanicId) {
+    v.repairBy = undefined;
+    v.repairAt = undefined;
+  }
   return null;
+}
+
+/** Once a second: an old save's trained shop mechanic becomes a hired one, and mechanics of a demolished shop are let go. */
+export function tendMechanics(world: World): void {
+  for (const s of world.sites) {
+    if (!SITE_DEFS[s.kind].garage || !s.mech) continue;
+    (world.mechanics ??= []).push({ id: world.nextId++, name: nameFor(world.seed + 7, s.id, s.mech), jobs: MECHANIC_JOBS[Math.min(s.mech, MECHANIC_JOBS.length - 1)], shopId: s.id });
+    s.mech = undefined;
+  }
+  if (world.mechanics?.length) {
+    const shops = new Set(world.sites.filter((s) => SITE_DEFS[s.kind].garage).map((s) => s.id));
+    const gone = world.mechanics.filter((m) => m.shopId === null || !shops.has(m.shopId));
+    for (const m of gone) dismissMechanic(world, m.id);
+  }
+}
+
+/** The shop a vehicle would go to: the nearest that has a mechanic. */
+export function repairShop(world: World, v: Vehicle): Site | undefined {
+  const home = world.sites.find((x) => x.id === v.homeId);
+  if (!home) return undefined;
+  let best: Site | undefined;
+  let bd = Infinity;
+  for (const s of world.sites) {
+    if (!SITE_DEFS[s.kind].garage || mechanicsAt(world, s.id).length === 0) continue;
+    const d = Math.hypot(Math.min(Math.abs(s.x - home.x), world.width - Math.abs(s.x - home.x)), s.y - home.y);
+    if (d < bd) {
+      bd = d;
+      best = s;
+    }
+  }
+  return best;
 }
 
 /**
@@ -267,10 +353,11 @@ export function trainMechanic(world: World, siteId: number): string | null {
  * the shop's level and grows with the distance, and comes back with the mechanic's buff. With none it stays broken until serviced by hand.
  */
 export function stepBreakdown(world: World, v: Vehicle): void {
-  const shop = nearestShop(world, v);
+  const shop = repairShop(world, v);
   if (!shop) {
-    // No Mechanic Shop: the driver patches it up at the roadside. It takes a few minutes, costs more than a shop and leaves it
-    // only partly mended, so a shop is still worth building.
+    // No shop with a mechanic: the driver patches it up at the roadside. It takes a few minutes, costs more than a shop and leaves it
+    // only partly mended, so a mechanic is still worth hiring.
+    v.repairBy = undefined;
     if (v.repairAt === undefined) v.repairAt = world.tick + PATCH_WAIT;
     if (world.tick < v.repairAt) return;
     const patch = Math.round((serviceCost(v) * PATCH_COST) / 5) * 5;
@@ -281,14 +368,24 @@ export function stepBreakdown(world: World, v: Vehicle): void {
     return;
   }
   if (v.repairAt === undefined) {
+    // Join the queue of the mechanic who will be free soonest. A better rank is quicker, and the shop's level and the distance count too.
     const home = world.sites.find((x) => x.id === v.homeId);
     const dist = home ? Math.hypot(shop.x - home.x, shop.y - home.y) : 0;
-    v.repairAt = world.tick + Math.max(300, Math.round(SHOP_WAIT + dist * 10 - 150 * (shop.level - 1)));
+    const crew = mechanicsAt(world, shop.id).sort((a, b) => (a.freeAt ?? 0) - (b.freeAt ?? 0));
+    const m = crew[0];
+    const job = Math.max(300, Math.round((SHOP_WAIT + dist * 10 - 150 * (shop.level - 1)) * (1 - MECHANIC_FASTER * mechanicRank(m))));
+    v.repairAt = Math.max(world.tick, m.freeAt ?? 0) + job;
+    m.freeAt = v.repairAt;
+    v.repairBy = m.id;
   }
   if (world.tick < v.repairAt) return;
-  const cost = shopCost(v, shop);
+  const m = (world.mechanics ?? []).find((x) => x.id === v.repairBy);
+  const rank = m ? mechanicRank(m) : 0;
+  const cost = Math.max(10, Math.round((shopCost(v, shop) * (1 - MECHANIC_CHEAPER * rank)) / 5) * 5);
   if (world.money < cost) return;
   world.money -= cost;
-  v.wear = -MECHANIC_BUFF * (shop.mech ?? 0);
+  v.wear = -MECHANIC_BUFF * rank;
   v.repairAt = undefined;
+  v.repairBy = undefined;
+  if (m) m.jobs += 1;
 }

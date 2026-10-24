@@ -1,7 +1,27 @@
 # SUPPLYLINE: DESIGN BRIEF (paste this whole file into Claude.ai)
 
-Version of the game this describes: **0.53** (written 2026-10-18).
+Version of the game this describes: **0.53** (written 2026-10-18), with the corrections in section 0A for **0.107** (2026-10-24). Where section 0A and the text below disagree, section 0A is right.
 Everything below was read from the game's real code, not from memory. If this file and an idea in your head disagree, **this file is what the game does today.**
+
+---
+
+## 0A. CHANGES SINCE 0.53 (this overrides anything below that disagrees)
+
+- **Start:** $6,000 (not $1,500). Running costs are lower: vehicles 1.5% of price a minute, buildings 0.5% a level, districts 1%. Driver wages $1, 1, 2, 3, 4 a minute by rank. Towns pay the full list price.
+- **Supply Yard** (every town, built from lumber): holds **building materials only** (lumber, stone, bricks, blocks, sand, gravel, granite, cement, concrete, glass, steel, tools) for the town's builds and **pays nothing**. Its own trucks (bought on its Trucks tab) carry them to the Market site. **Distribution Warehouse** (the hub): finished goods for other towns. **Market**: finished goods and fresh food, and every by-product at 60% of its price (salvage: money only, no town growth).
+- **Closed towns:** every town starts closed (Supply Yard 80 lumber, then Market 120 lumber) and opens as the player delivers lumber; building them pays nothing.
+- **Goods and sites:** about 45 more goods and 38 more sites (crops, animals, water, salt, spices, cocoa, fish, kitchens, brewery, winery, distillery, and more). Recipes mix several inputs. The Recycling Yard and each building's own scrap sale (by-products above half a shelf sell for 25% of price) keep any by-product from jamming a line. See 08-goods-and-sites-draft.md.
+- **Buildings open in four steps** (tier 0: forestry, farm, ranch, orchard, quarry, sawmill, mill, bakery, dairy, wood yard; tier 1, 2, 3 add the rest). A building never opens before there is a buyer for what it makes (flows test).
+- **Nodes:** forest, quarry, mine, coal, clay, oil, coffee and mango are permanent spots: the site that works one must stand on it, and nothing else can. Farmland, pasture and orchard are no longer places on the map: a farm, ranch or orchard brings its own fields and can go on any open ground or town plot, as can every factory, warehouse, Sand Pit, Water Pump and Salt Pan. Open ground is shown green when placing.
+- **Vehicles:** no upgrade or trade-up buttons. Buy the bigger class and move the driver into it (the old truck waits for a new driver). Quests say "Buy". An idle vehicle (barely moved for a minute) costs less, the Fleet sheet has a button to sell the idle surplus, and a building with idle trucks is not told to build more.
+- **Selling:** a truck set to best price, best earnings, highest demand or closest counts trucks already on the way and the fuel for the round trip, and changes buyer only when the new one is clearly better.
+- **Mechanics:** like drivers. Hired at a Mechanic Shop from three applicants who change every few minutes (rank from repairs done: Apprentice, Mechanic, Skilled, Master, Chief), paid a wage, up to the shop level plus one per shop. A worn truck queues for the mechanic free soonest; higher ranks repair faster, cheaper and past new. No shop or no mechanic: the driver patches the truck at the roadside after about four minutes, for 1.5 times a service, to 35% wear. There is no mechanic training any more.
+- **Towns:** level 1 to 2 needs lumber only (250); later levels add the style's own materials in smaller amounts (see LEVEL_MATERIALS in defs.ts). Towns on Maps 1 and 2 with no clay or quarry within 30 tiles get one nearer.
+- **Markets** use up about 50% more of each good a minute.
+- **Fishing Harbor:** coastal; its boats circle offshore and raise the catch; trucks carry the fish.
+- **Speed:** fog of war hides and stops working on buildings, towns and vehicles far from the view; graphics levels set how far.
+- **Windows app:** opens at 1920 by 1080; the build menu spreads across the window and scrolls.
+- **Testing:** `playBot(seed, ticks, onNote, 'skilled')` plays a careful game (one home town, trucks serviced, cash in reserve) and is the measure for balance; PACING=1 npx vitest run src/sim/pacing.test.ts prints its pace.
 
 ---
 
@@ -48,7 +68,7 @@ Everything below was read from the game's real code, not from memory. If this fi
 ## 2. HOW A PLAYER EXPERIENCES IT
 
 1. **Title screen:** slideshow of real screenshots, buttons Continue / New Game. Radio can play.
-2. **New game:** pick a hand-made map (Map 1 or Map 2). Start with **$1,500**, tier 0.
+2. **New game:** pick a hand-made map (Map 1 or Map 2). Start with **$6,000**, tier 0.
 3. **Quest bar** at the top always shows the next step with a hint. The first tier teaches: build a Forestry Camp, buy a truck, build a Sawmill in a town, join them with a road, switch the sawmill on, sell lumber to the Market, sell 100 lumber.
 4. **Build tray** at the bottom: tabs Production, Processing, Manufacturing, Heavy Industry, Districts, Logistics. Pick a card, click the world.
 5. **Click a building** to open its panel: switch products on, pick who it **sells to**, buy and manage vehicles, upgrade it.
@@ -90,7 +110,7 @@ Base price examples (before the 65% sale multiplier): grain 2, logs 3, stone 5, 
 
 ## 5. BUILDINGS
 
-Tiers unlock buildings. Cost is the level 1 price. Processing buildings sit **inside towns on for-sale lots**. Producers sit **on resource nodes in the countryside**.
+Tiers unlock buildings. Cost is the level 1 price. Processing buildings sit **inside towns on for-sale lots**. Producers sit on resource nodes in the countryside (forest, quarry, mine, coal, clay, oil, coffee, mango) or, for farms, ranches, orchards and the like, on any open ground.
 
 ### Producers (on nodes) `[BUILT]`
 | Building | Makes | Also | Tier | Cost |
@@ -146,7 +166,7 @@ From tier 1 on, raw sites run about 1.5x slower so trucks and roads, not the gro
 | Port | Coastal terminal for ships. | 2 | 4,000 |
 | Airport | 3x3 air cargo terminal. | 3 | 2,500 |
 
-Towns also have **Market** (everyday goods), **Supply Yard** (raw and bulk goods, opens at town level 2) and **Rail Station**. The player never places these; towns make them.
+Towns also have **Market** (everyday goods), **Supply Yard** (building materials only, built from lumber; see section 0A) and **Rail Station**. The player never places these; towns make them.
 
 ### Building levels (1 to 10) `[BUILT]`
 - Speed multiplier by level: 1, 1.8, 3.2, 4.6, 6.2, 8, 10, 12.5, 15.5, 19.
@@ -162,7 +182,7 @@ Towns also have **Market** (everyday goods), **Supply Yard** (raw and bulk goods
 
 ## 6. VEHICLES
 
-Vehicles belong to a **home building**. Managed from that building's panel (buy, trade up, sell). No vehicle tab, no placing vehicles on the map by hand.
+Vehicles belong to a **home building**. Managed from that building's panel (buy, sell, move a driver). No vehicle tab, no placing vehicles on the map by hand.
 
 | Vehicle | Mode | Carries | Cost | Tier | Needs building level |
 |---|---|---|---|---|---|
@@ -179,7 +199,7 @@ Vehicles belong to a **home building**. Managed from that building's panel (buy,
 | Freighter | sea | 160 | 9,000 | 3 | 2 |
 | Container Ship | sea | 520 | 28,000 | 4 | 3 |
 
-- **Trade up** swaps a vehicle for the next class and returns **50%** of its price.
+- **Trade up is gone** (0.89): buy the bigger class and move the driver into it. Selling a vehicle returns part of its price.
 - Road vehicles get a **body by cargo**: flatbed (logs, lumber, stone, steel...), open-top (grain, coal, ore...), tanker (milk, oil, cement...), box (everything else). Cosmetic and naming only.
 - **Ships** have a draft: barges sail rivers and lakes, boats need a wide channel, freighters and container ships need open sea.
 - **Highways** cost x2.4 per tile and trucks cover them in 65% of the time. Unlock tier 1.
@@ -219,7 +239,7 @@ This is the heart of the game. Read carefully.
 
 ## 8. MONEY AND ECONOMY
 
-- **Start:** $1,500. **Money never goes below zero.** There is no bankruptcy and no failure state. `[DECIDED so far]`
+- **Start:** $6,000 (was $1,500). **Money never goes below zero.** There is no bankruptcy and no failure state. `[DECIDED so far]`
 - **Selling price (per unit)** is, in words: base price x 0.65 x town taste x random event x path and district bonuses x a bonus for town level (+12% per level above 1) x a **saturation factor** x your Haggler perk.
   - **Saturation:** if the dock is already full of that good it pays down to 40% of normal; if it is empty it pays up to 130%. So you must **spread deliveries**.
 - **Events:** about every 1 minute at 1x there is a 65% chance a random good gets either a **surge (+60%)** or a **slump (-35%)** for 3 minutes. Max 2 at once.
@@ -243,7 +263,7 @@ Hamlet (pop 60) -> Village (400) -> Town (2,200) -> City (11,000) -> Metropolis 
 
 ### What towns want
 - **Market** buys everyday goods; the list grows by level (level 1: flour, bread, lumber, cheese; level 5 adds machinery, etc.).
-- **Supply Yard** (from level 2) buys raw goods and by-products (logs, grain, ore, coal, gravel, slag, oil...) and later ingots, cement, yarn, steel.
+- **Supply Yard**: only building materials (section 0A); it pays nothing. Raw goods and by-products go to Markets and factories.
 
 ### Specialisation paths `[BUILT]`
 At level 3 a town can commit to a path for **$3,000**. It is permanent.

@@ -651,11 +651,20 @@ export const LEVEL_MATERIALS: Record<TownStyle, Stock[]> = {
 };
 
 /** Goods a Supply Yard keeps in store for building: lumber for the Market, and the level materials. Its own trucks carry them to the Market site. */
-/** The mechanic's skill is trained apart from the shop. What each level costs to train, and how far past new a repair takes a truck. Draft numbers. */
-export const MECHANIC_MAX = 5;
-export const MECHANIC_COST = [0, 400, 900, 1800, 3500, 7000];
+/**
+ * Mechanics are people, like drivers: hired from the people looking for work, paid a wage every minute, and better with
+ * experience. A rank comes from the repairs they have done. A better rank repairs faster and cheaper, and sends a truck back
+ * past new for a while (the buff, for each rank above apprentice). A shop has room for its level plus one mechanics. Draft numbers.
+ */
+export const MECHANIC_RANKS = ['Apprentice', 'Mechanic', 'Skilled mechanic', 'Master mechanic', 'Chief mechanic'];
+export const MECHANIC_JOBS = [0, 6, 18, 40, 80];
+export const MECHANIC_WAGE = [2, 3, 4, 6, 9];
+export const MECHANIC_HIRE = [0, 120, 350, 800, 1800];
 export const MECHANIC_BUFF = 0.08;
-/** A truck that is fully worn waits this long for the shop, faster with a better shop, slower with distance. Ticks. */
+/** Each rank above apprentice: a share off the repair time and off the bill. */
+export const MECHANIC_FASTER = 0.12;
+export const MECHANIC_CHEAPER = 0.05;
+/** A truck that is fully worn waits this long for a mechanic, faster with a better shop and rank, slower with distance. Ticks. */
 export const SHOP_WAIT = 900;
 
 export const BUILD_GOODS: Good[] = ['lumber', 'stone', 'granite', 'blocks', 'bricks', 'sand', 'gravel', 'cement', 'concrete', 'glass', 'steel', 'tools'];

@@ -70,7 +70,7 @@ import { generateLand } from './mapgen';
 import { checkQuests } from './quests';
 import { stepBank, type BankState } from './bank';
 import { SHORTCUT_EVERY, optimizeRoutes } from './shortcuts';
-import { WEAR_SLOWDOWN, WEAR_TILES, stepBreakdown, applicants, assignDriver, driverById, hireDriver, hireFee, type Driver } from './drivers';
+import { WEAR_SLOWDOWN, WEAR_TILES, stepBreakdown, applicants, assignDriver, driverById, hireDriver, hireFee, type Driver, type Mechanic } from './drivers';
 import { saleMult, wearMult } from './perks';
 import { seasonMult } from './seasons';
 import { districtDemand, stepEconomy, townGrowthMult, townLoadMult, townPriceMult, townSpeedMult, townStorageMult } from './town';
@@ -161,7 +161,7 @@ export interface Site {
   extra?: number[];
   /** Distribution Hubs: 'overflow' only takes goods from a supplier whose store is filling up; 'all' takes everything on offer. */
   hubMode?: 'overflow' | 'all';
-  /** Mechanic Shops: the mechanic's level, trained apart from the shop's own. */
+  /** Old saves: the shop's trained mechanic level, turned into a hired mechanic on load. */
   mech?: number;
   /** Supply Yards: building goods held in store for the town's Market site, until its own trucks carry them there. */
   depot?: Stock;
@@ -313,6 +313,8 @@ export interface Vehicle {
   pick?: PickMode;
   /** How much of the last minute or so this vehicle spent moving, 0 to 1 (unset: a new vehicle, counted as busy). */
   busy?: number;
+  /** The mechanic repairing it, while it waits at a Mechanic Shop. */
+  repairBy?: number;
   /** Which line of its home's goods it carries. Unset means the main good. */
   line?: Line;
   /** What it is built to haul: a flatbed takes logs, an open-top takes grain, a tanker takes milk. Unset means a box, which takes anything. */
@@ -424,6 +426,9 @@ export interface World {
   fuel?: number;
   /** Everyone the company employs to drive, with or without a vehicle. */
   drivers?: Driver[];
+  /** The mechanics on the payroll, and which applicants of the day have already been hired. */
+  mechanics?: Mechanic[];
+  hiredMech?: { day: number; keys: number[] };
   /** The applicant slots already hired from in the current period. */
   hired?: { day: number; keys: number[] };
   districtIncome?: number;
