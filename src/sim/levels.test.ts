@@ -46,7 +46,7 @@ describe('building levels', () => {
     expect(upgradeSite(w, port.id)).toMatch(/max level/);
   });
 
-  it('limit the vehicles a line runs until the building is upgraded', () => {
+  it('limit the vehicles a building holds until it is upgraded', () => {
     const w = world();
     const camp = add(w, 'forestry');
     for (let i = 0; i < fleetLimit(1); i++) expect(buyVehicle(w, camp.id, 'boxtruck')).toBeNull();

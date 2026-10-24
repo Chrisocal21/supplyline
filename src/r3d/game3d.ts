@@ -656,7 +656,7 @@ export class Game3D {
   /** A new game on Map 1, or (given a seed, for tests and screenshots) on a generated world. `size` picks one of WORLD_SIZES: a random world of that size when it is not Map 1. */
   newWorld(seed?: number, size?: WorldSizeId): void {
     const def = [...WORLD_SIZES, ...RANDOM_SIZES].find((q) => q.id === size);
-    const world = def?.id === 'map2' ? createWorldFromMap(map2 as MapData) : def && !def.made ? createWorld(seed ?? Math.floor(Math.random() * 1e9), def.width, def.height) : seed === undefined ? createWorldFromMap(map1 as MapData) : createWorld(seed);
+    const world = def?.inProgress ? createWorldFromMap(map1 as MapData) : def?.id === 'map2' ? createWorldFromMap(map2 as MapData) : def && !def.made ? createWorld(seed ?? Math.floor(Math.random() * 1e9), def.width, def.height) : seed === undefined ? createWorldFromMap(map1 as MapData) : createWorld(seed);
     prepareRealisticWorld(world);
     enableLandRules(world);
     this.loadWorld(world);

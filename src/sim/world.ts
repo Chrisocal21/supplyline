@@ -574,6 +574,8 @@ export interface MapData {
   specials?: { kind: string; x: number; y: number; quality: number }[];
   /** [x, y, radius] of the specialty islands, where the usual resources are held back to a few. */
   islands?: number[][];
+  /** Every big stand of trees gets a Forestry node (Map 3 on). */
+  forestNodes?: boolean;
 }
 
 const MAP_TERRAIN: Record<string, Terrain> = { '~': 'water', '.': 'grass', f: 'forest', '^': 'mountain', '*': 'ice' };
@@ -616,6 +618,7 @@ export function createWorldFromMap(map: MapData): World {
     world.nodes = nodes;
   }
   addMaterialNodes(world);
+  if (map.forestNodes) addForestNodes(world);
   world.layout = NODE_LAYOUT;
   world.blend = true;
   linkPartners(world);
@@ -662,6 +665,63 @@ function addMaterialNodes(world: World): void {
       const at = spot(p, kind);
       if (!at) continue;
       world.nodes.push({ id: world.nodes.length + 1, kind, x: at.x, y: at.y, quality: 1, regionId: world.regionMap[at.y * world.width + at.x] ?? 0 });
+    }
+  }
+}
+
+/**
+ * Every big stand of trees gets a forestry node: each connected wood of this many tiles or more that has none gets one at the
+ * tile nearest its middle, kept clear of towns and of other nodes by the usual spacing.
+ */
+const BIG_WOOD = 26;
+function addForestNodes(world: World): void {
+  const { width: W, height: H } = world;
+  const seen = new Uint8Array(W * H);
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      const i = y * W + x;
+      if (seen[i] || world.terrain[i] !== 'forest') continue;
+      const wood: number[] = [i];
+      seen[i] = 1;
+      for (let k = 0; k < wood.length; k++) {
+        const c = wood[k];
+        const cx = c % W;
+        const cy = (c - cx) / W;
+        for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+          const ny = cy + dy;
+          if (ny < 0 || ny >= H) continue;
+          const j = ny * W + wrapX(world, cx + dx);
+          if (seen[j] || world.terrain[j] !== 'forest') continue;
+          seen[j] = 1;
+          wood.push(j);
+        }
+      }
+      if (wood.length < BIG_WOOD) continue;
+      const set = new Set(wood);
+      const has = world.nodes.some((n) => {
+        if (n.kind !== 'forest') return false;
+        for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) if (set.has(Math.min(H - 1, Math.max(0, n.y + dy)) * W + wrapX(world, n.x + dx))) return true;
+        return false;
+      });
+      if (has) continue;
+      // The tile nearest the middle of the wood that keeps its spacing.
+      let mx = 0;
+      let my = 0;
+      for (const c of wood) {
+        mx += c % W;
+        my += Math.floor(c / W);
+      }
+      mx /= wood.length;
+      my /= wood.length;
+      const order = [...wood].sort((a, b) => Math.hypot((a % W) - mx, Math.floor(a / W) - my) - Math.hypot((b % W) - mx, Math.floor(b / W) - my));
+      for (const c of order) {
+        const nx = c % W;
+        const ny = Math.floor(c / W);
+        if (plannedTownAt(world, nx, ny) || placeAt(world, nx, ny)) continue;
+        if (world.nodes.some((n) => nodeGap({ kind: 'forest', x: nx, y: ny }, n, W) < (NODE_FAMILY[n.kind] === NODE_FAMILY.forest ? SAME_GAP : OTHER_GAP))) continue;
+        world.nodes.push({ id: world.nodes.length + 1, kind: 'forest', x: nx, y: ny, quality: 1, regionId: world.regionMap[c] ?? 0 });
+        break;
+      }
     }
   }
 }
@@ -3665,7 +3725,7 @@ export function buyVehicle(world: World, siteId: number, kind: VehicleKind, line
   const err = buyError(world, siteId, kind);
   if (err) return err;
   const owner = siteById(world, siteId)!;
-  if (fleetOf(world, siteId, line).length >= fleetLimit(owner.level)) return `This line runs ${fleetLimit(owner.level)} vehicles at level ${owner.level}. Upgrade the building to run more`;
+  if (fleetOf(world, siteId).length >= fleetLimit(owner.level)) return `This building's yard holds ${fleetLimit(owner.level)} vehicles at level ${owner.level}. Upgrade the building to hold more`;
   // The driver is the player's pick: someone waiting for a vehicle, or an applicant to hire. Without a pick, a rookie comes with it.
   let driver: Driver | undefined;
   if (who?.use !== undefined) {

@@ -44,6 +44,7 @@
 | How to keep the game light? | Fog of war: far things are hidden and sleep; range set by zoom and graphics level | Oct 23, 2026 |
 | How are mechanics handled? | Hired like drivers at a Mechanic Shop, ranks from repairs done, wages; no shop means a roadside patch | Oct 24, 2026 |
 | What happens to idle trucks? | They cost less, are counted apart from working ones, and the Fleet sheet sells the surplus | Oct 24, 2026 |
+| How many vehicles can a building hold? | 4 at level 1, 2 more per level, across all lines | Oct 24, 2026 |
 | How does a town's first step work? | Level 1 to 2 needs lumber only; later levels add the style's materials | Oct 24, 2026 |
 
 ---
@@ -55,7 +56,7 @@
 | Should trains need stations (stops with their own storage) instead of joining sites directly? | Makes rail feel different from roads, but adds a building and more clicks. It would also let trains serve town centres: today track cannot reach a Market or Freight Yard, so a train ends at a hub or an outer-lot factory |
 | Should a station also send goods out? | Today a station only receives. Factories on outer lots can be reached by track directly; the two inner corner lots cannot |
 | Do the new goods and chains pace right? | The careful bot reaches Tier 1 at 8 minutes and town level 3 at 34 to 60; Tier 2 (a level 4 town) is slow. A person should check the feel |
-| How big should Map 3 be, and what should it look like? | Larger than Map 2, natural and different, with the groundwork for size done first |
+| How big should Map 3 be, and when can it be played? | It is made at 768 by 256 (four times Map 2) and shown in the menu. It opens for play after the groundwork for size (streamed ground, trees near the camera, indexes, compact saves) |
 | Are the quest numbers right? | They are first guesses. The bot says Tier 3 arrives around 135 game minutes; a human playthrough will say if that feels right |
 | Do the paths feel different enough? | Four paths change price, factory speed, load size and storage. Only a person playing two paths can say if the choice matters |
 | Do running costs bite at the right moment? | Vehicles cost 5% of their price a minute. Bigger classes only pay for themselves when there is enough to carry |

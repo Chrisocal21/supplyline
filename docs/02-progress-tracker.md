@@ -17,7 +17,7 @@
 - Exhaust follows the locomotive's stack rather than the route's centre point.
 
 **Overall progress:** about 72% (by checklist count; all of it runs, most of it is playtested only through automated clicks)
-**Last updated:** October 24, 2026 (release 0.107)
+**Last updated:** October 24, 2026 (release 0.108)
 **Status:** Active
 
 **Current release:** [0.11 - A fuller, more detailed world](release-0.11.md)
@@ -455,6 +455,7 @@ Notes from playing a Large world (41 fps, 24 ms a frame, draw 10 ms): roads look
 | Oct 23, 2026 | 0.97 to 0.98: fog of war for speed, factories on open ground, green build zone for every build tool | see project log |
 | Oct 23 to 24, 2026 | 0.99 to 0.106: $6,000 start and lower running costs, smarter sell-to choices, by-product scrap and buyers for every early product, staged building menu, idle vehicles, nearer clay and stone, roadside patch, fishing boats sail | see project log |
 | Oct 24, 2026 | 0.107: a hired crew of mechanics | see project log |
+| Oct 24, 2026 | 0.108: yard vehicle limits by building level; Map 3 made and shown in the menu as in progress | see project log |
 | Oct 11, 2026 | Direction changed to a 3D globe. Rebuilt the renderer in Three.js, added terrain, towns, nodes, push/pull hubs, vehicle classes, levels, demolish, new HUD | 45% (new, larger scope) |
 
 ---
@@ -476,7 +477,8 @@ Game plan after 0.107:
 
 - [ ] Look at it on screen (the headless screenshot tool keeps timing out): green build zone, houses off roads, building models at each level, harbor and sailing boats, fog of war at the edge of view, the Fleet "sell idle" button, the Mechanic Shop crew panel
 - [ ] A real playtest of a new game on Map 2: early game feel, first 10 minutes (nothing sells until the Market stands), town growth, Tier 2 (needs a level 4 town; the careful bot gets there at about 105 minutes on one map and not within 150 on others)
-- [ ] Map 3: a new, larger hand-made map (no long straight strips, natural turning coasts, a forestry node for every big stand of trees); first the groundwork for size: streamed ground texture, trees only near the camera, a grid index for lookups, a compact save format. Maps 1 and 2 stay as they are
+- [x] Map 3 made (768 by 256, bending coasts, a Forestry node for every big wood) and shown in the world menu as in progress, view only
+- [ ] Map 3 groundwork before it can be played: streamed ground texture, trees only near the camera, a grid index for lookups, a compact save format. Maps 1 and 2 stay as they are
 - [ ] Spice and cocoa farms still reuse the coffee and mango models
 - [ ] Parked balance: wear formula, prices, driver XP slowing with rank, pacing numbers
 - [ ] Parked towns: train stations in towns, dormant towns

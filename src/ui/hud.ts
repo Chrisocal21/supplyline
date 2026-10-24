@@ -855,6 +855,10 @@ export class HudScene extends Phaser.Scene {
       this.panelRect = null;
       this.sheetCam.setVisible(false);
       this.driverModal(W, H);
+    } else if (this.viewMap) {
+      this.panelRect = null;
+      this.sheetCam.setVisible(false);
+      this.mapViewModal(W, H);
     } else if (this.sizePick) {
       this.panelRect = null;
       this.sheetCam.setVisible(false);
@@ -1506,9 +1510,85 @@ export class HudScene extends Phaser.Scene {
     this.sizePick = 'menu';
   }
 
+  /** A map that is still being made can be looked at here, and not played. */
+  private viewMap: { id: WorldSizeId; ready: boolean } | null = null;
+
+  private openMapView(id: WorldSizeId): void {
+    const key = `preview-${id}`;
+    this.viewMap = { id, ready: this.textures.exists(key) };
+    if (this.viewMap.ready) return;
+    // The map's data is only fetched when someone asks to look at it.
+    void import('../maps/map3.json').then((m) => {
+      const map = m.default as unknown as { width: number; height: number; terrain: string[]; elev: string[]; places: { x: number; y: number; radius: number }[]; specials?: { kind: string; x: number; y: number }[] };
+      const c = document.createElement('canvas');
+      c.width = map.width;
+      c.height = map.height;
+      const ctx = c.getContext('2d')!;
+      const img = ctx.createImageData(map.width, map.height);
+      const COL: Record<string, number[]> = { '~': [52, 108, 160], '.': [118, 158, 84], f: [52, 104, 60], '^': [140, 128, 116], '*': [232, 238, 242] };
+      for (let y = 0; y < map.height; y++) {
+        for (let x = 0; x < map.width; x++) {
+          const t = map.terrain[y][x];
+          const e = parseInt(map.elev[y].slice(x * 2, x * 2 + 2), 16);
+          const shade = t === '~' ? 0.6 + (e / 96) * 0.4 : 0.8 + ((e - 96) / 159) * 0.5;
+          const col = COL[t] ?? COL['.'];
+          const o = (y * map.width + x) * 4;
+          img.data[o] = Math.min(255, col[0] * shade);
+          img.data[o + 1] = Math.min(255, col[1] * shade);
+          img.data[o + 2] = Math.min(255, col[2] * shade);
+          img.data[o + 3] = 255;
+        }
+      }
+      ctx.putImageData(img, 0, 0);
+      for (const p of map.places) {
+        ctx.fillStyle = p.radius === 5 ? '#f6c84a' : '#ffffff';
+        ctx.fillRect(p.x - p.radius, p.y - p.radius, p.radius * 2 + 1, p.radius * 2 + 1);
+      }
+      const dots: Record<string, string> = { coffee: '#785028', mango: '#fa9c28', oil: '#141418' };
+      for (const q of map.specials ?? []) {
+        ctx.fillStyle = dots[q.kind] ?? '#fff';
+        ctx.fillRect(q.x - 1, q.y - 1, 4, 4);
+      }
+      if (!this.textures.exists(key)) this.textures.addCanvas(key, c);
+      if (this.viewMap && this.viewMap.id === id) this.viewMap.ready = true;
+    });
+  }
+
+  private mapViewModal(W: number, H: number): void {
+    const im = this.im;
+    const v = this.viewMap!;
+    const def = WORLD_SIZES.find((q) => q.id === v.id)!;
+    im.rect(3, 0, 0, W, H, 0x05080c, 0.8);
+    im.block({ x: 0, y: 0, w: W, h: H });
+    const w = Math.min(1180, W - 24);
+    const pad = 22;
+    const inner = w - pad * 2;
+    const picH = Math.round(inner / 3);
+    const h = 96 + picH + 120 + pad;
+    const x = (W - w) / 2;
+    const y = Math.max(TOP + 6, (H - h) / 2);
+    im.rect(4, x, y, w, h, COLORS.panel, 1, 18, COLORS.accent, 1, 2);
+    let cy = y + pad;
+    im.text('mvT', def.label, x + pad, cy, { size: 21, bold: true, layer: 4 });
+    im.text('mvB', 'IN PROGRESS  ·  VIEW ONLY', x + w - pad, cy + 6, { size: 12, bold: true, color: COLORS.accent, align: 'right', layer: 4 });
+    cy += 34;
+    if (v.ready) im.image('mvPic', `preview-${v.id}`, x + pad, cy, inner, picH, 1, 4);
+    else {
+      im.rect(4, x + pad, cy, inner, picH, 0x0b1118, 1, 8, COLORS.line, 1);
+      im.text('mvL', 'Loading the map...', x + w / 2, cy + picH / 2 - 8, { size: 14, color: COLORS.muted, align: 'center', layer: 4 });
+    }
+    cy += picH + 12;
+    im.text('mvD', `${def.blurb}  Yellow squares are cities, white squares towns. Brown, orange and black dots are the coffee, mango and oil islands.`, x + pad, cy, { size: 12, color: COLORS.muted, wrap: inner, layer: 4 });
+    cy += 54;
+    const ch = im.hit('mvClose', x + pad, cy, inner, 42, () => (this.viewMap = null), 4);
+    im.rect(4, x + pad, cy, inner, 42, ch ? 0x2a3646 : 0x1b2430, 1, 21, COLORS.line, 1);
+    im.text('mvCT', 'Back to the worlds', x + w / 2, cy + 12, { size: 14, bold: true, align: 'center', layer: 4 });
+  }
+
   private beginWorld(id: WorldSizeId): void {
     if (this.building) return;
     const def = WORLD_SIZES.find((q) => q.id === id)!;
+    if (def.inProgress) return;
     const g = this.game3d;
     const done = (): void => {
       this.sizePick = null;
@@ -1705,10 +1785,10 @@ export class HudScene extends Phaser.Scene {
     cy += 66;
     for (const def of WORLD_SIZES) {
       const tiles = Math.round((def.width * (def.width / 2)) / 1000);
-      const hov = !this.building && im.hit(`sz${def.id}`, x + pad, cy, inner, rowH, () => this.beginWorld(def.id), 4);
+      const hov = !this.building && im.hit(`sz${def.id}`, x + pad, cy, inner, rowH, () => (def.inProgress ? this.openMapView(def.id) : this.beginWorld(def.id)), 4);
       im.rect(4, x + pad, cy, inner, rowH, hov ? 0x1f2b3a : 0x131a24, 1, 12, hov ? COLORS.accent : COLORS.line, 1);
       im.text(`sz${def.id}n`, def.label, x + pad + 16, cy + 11, { size: 17, bold: true, color: hov ? COLORS.accent : COLORS.text, layer: 4 });
-      im.text(`sz${def.id}s`, `${def.width} wide  ·  about ${tiles}k tiles`, x + pad + inner - 16, cy + 14, { size: 11, color: COLORS.muted, align: 'right', layer: 4 });
+      im.text(`sz${def.id}s`, def.inProgress ? `IN PROGRESS  ·  VIEW ONLY  ·  ${def.width} wide` : `${def.width} wide  ·  about ${tiles}k tiles`, x + pad + inner - 16, cy + 14, { size: 11, bold: !!def.inProgress, color: def.inProgress ? COLORS.accent : COLORS.muted, align: 'right', layer: 4 });
       im.text(`sz${def.id}b`, def.blurb, x + pad + 16, cy + 38, { size: 12, color: COLORS.muted, wrap: inner - 32, layer: 4 });
       cy += rowH + 8;
     }
@@ -2740,7 +2820,7 @@ export class HudScene extends Phaser.Scene {
     const err = upgradeError(world, s.id);
     const can = !err;
     const next = s.level + 1;
-    const boost = `Makes ${LEVEL_SPEED[s.level]}x as much, stores ${LEVEL_CAP[s.level]}x more and runs ${fleetLimit(next)} vehicles a line.`;
+    const boost = `Makes ${LEVEL_SPEED[s.level]}x as much, stores ${LEVEL_CAP[s.level]}x more and its yard holds ${fleetLimit(next)} vehicles.`;
     const hov = im.hit('upgrade', x, y, w, h, () => can && g.upgrade(s.id), 3);
     im.rect(2, x, y, w, h, can ? (hov ? 0xf4b84f : COLORS.accent) : 0x161d27, 1, 16, can ? COLORS.accent : COLORS.line, 1);
     im.text('ugT', `Upgrade to level ${next}`, x + 24, y + 14, { size: 22, bold: true, color: can ? 0x1b1204 : COLORS.muted, layer: 4 });

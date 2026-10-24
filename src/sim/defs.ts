@@ -559,8 +559,8 @@ export const MAX_LEVEL = 10;
 export const LEVEL_EARN: Record<number, number> = { 7: 150_000, 8: 400_000, 9: 800_000, 10: 1_500_000 };
 /** Ports and airports grow with the town beside them and stop at level 3. */
 export const maxLevelOf = (def: { airport?: boolean; port?: boolean }): number => (def.airport || def.port ? 3 : MAX_LEVEL);
-/** How many vehicles a building runs on each of its product lines: the yard grows with the building. */
-export const FLEET_BASE = 3;
+/** How many vehicles a building can keep in all, across every line: the yard grows with the building, so no building holds hundreds. */
+export const FLEET_BASE = 2;
 export const FLEET_PER_LEVEL = 2;
 export const fleetLimit = (level: number): number => FLEET_BASE + FLEET_PER_LEVEL * level;
 export const UPGRADE_COST_FACTOR = 1.2;
@@ -1010,7 +1010,7 @@ export const TIERS: TierDef[] = [
 ];
 
 /** The worlds a new game can start on: made maps, placed by hand. Random worlds are not offered; they remain for tests and development. */
-export type WorldSizeId = 'map1' | 'map2' | 'small' | 'medium' | 'large';
+export type WorldSizeId = 'map1' | 'map2' | 'map3' | 'small' | 'medium' | 'large';
 export interface WorldSizeDef {
   id: WorldSizeId;
   label: string;
@@ -1019,10 +1019,13 @@ export interface WorldSizeDef {
   blurb: string;
   /** A made map (src/maps), not a generated world. */
   made?: boolean;
+  /** Still being made: the menu shows it, but it cannot be played yet. */
+  inProgress?: boolean;
 }
 export const WORLD_SIZES: WorldSizeDef[] = [
   { id: 'map1', label: 'Map 1: The Known World', width: 288, height: 124, made: true, blurb: 'A hand-made world map: continents, islands and seas, with coffee, mango and oil islands to ship from. A good place to start.' },
   { id: 'map2', label: 'Map 2: The Continental', width: 384, height: 128, made: true, blurb: 'A large hand-made world, about 46% water: four differently shaped continents and island chains, mountain ranges, a great river system to a gulf, lakes, about 55 towns and cities. Coffee, mangoes and some oil lie overseas, so docks and planes matter.' },
+  { id: 'map3', label: 'Map 3: The Meridian Sea', width: 768, height: 256, made: true, inProgress: true, blurb: 'In progress, view only. Four times the land of Map 2: a great crescent continent round an inland sea, a cold northern land, a ringed eastern basin and belts of islands. Bending coasts, curving ranges, a Forestry spot for every big wood.' },
 ];
 /** Generated worlds, for tests and development only (open the game with #seed=N). */
 export const RANDOM_SIZES: WorldSizeDef[] = [

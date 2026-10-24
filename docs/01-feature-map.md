@@ -157,6 +157,8 @@ Drag from one site to another: the game finds the cheapest buildable route (brid
 - **Mechanics:** hired like drivers at a Mechanic Shop (ranks from repairs done, wages, applicants, room by shop level). Broken trucks queue for a mechanic; with none, the driver patches them at the roadside.
 - **Farms and nodes:** farms, ranches, orchards and every factory go on open ground; forests, quarries, mines, coal, clay, oil, coffee and mango stay permanent spots.
 - **Opening steps:** buildings open in four tiers; nothing opens before a buyer exists for what it makes. Every Market also buys by-products as salvage.
+- **Yard limits:** a building holds 4 vehicles at level 1 and 2 more per level (22 at level 10), across all its lines.
+- **Map 3 (in progress):** The Meridian Sea, 768 by 256, viewable in the world menu only. Same rules as every map; only terrain, towns and resources differ.
 - **Speed:** fog of war hides and sleeps things far from the view; graphics levels set how far.
 - **Windows app:** 1920x1080, scrolling build tray, 16 new radio stations.
 

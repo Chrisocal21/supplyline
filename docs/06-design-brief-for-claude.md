@@ -17,6 +17,8 @@ Everything below was read from the game's real code, not from memory. If this fi
 - **Selling:** a truck set to best price, best earnings, highest demand or closest counts trucks already on the way and the fuel for the round trip, and changes buyer only when the new one is clearly better.
 - **Mechanics:** like drivers. Hired at a Mechanic Shop from three applicants who change every few minutes (rank from repairs done: Apprentice, Mechanic, Skilled, Master, Chief), paid a wage, up to the shop level plus one per shop. A worn truck queues for the mechanic free soonest; higher ranks repair faster, cheaper and past new. No shop or no mechanic: the driver patches the truck at the roadside after about four minutes, for 1.5 times a service, to 35% wear. There is no mechanic training any more.
 - **Towns:** level 1 to 2 needs lumber only (250); later levels add the style's own materials in smaller amounts (see LEVEL_MATERIALS in defs.ts). Towns on Maps 1 and 2 with no clay or quarry within 30 tiles get one nearer.
+- **Yards:** a building holds 4 vehicles at level 1 and 2 more per level, across all lines (22 at level 10).
+- **Map 3** (The Meridian Sea, 768 by 256) exists and is listed in the world menu as in progress, view only. Maps 1 and 2 are unchanged.
 - **Markets** use up about 50% more of each good a minute.
 - **Fishing Harbor:** coastal; its boats circle offshore and raise the catch; trucks carry the fish.
 - **Speed:** fog of war hides and stops working on buildings, towns and vehicles far from the view; graphics levels set how far.
