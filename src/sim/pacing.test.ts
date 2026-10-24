@@ -5,6 +5,7 @@ import { it } from 'vitest';
 declare const process: { env: Record<string, string | undefined>; stdout: { write(s: string): void } };
 import map1 from '../maps/map1.json';
 import map2 from '../maps/map2.json';
+import map3 from '../maps/map3.json';
 import { playBot } from './bot';
 import { createWorldFromMap, type MapData } from './world';
 import { SITE_DEFS, SITE_UPKEEP, TIERS, VEHICLE_DEFS, VEHICLE_UPKEEP } from './defs';
@@ -20,9 +21,9 @@ run('pacing report', () => {
   const verbose = !!process.env.PACING_NOTES;
   const t0 = Date.now();
   const style = process.env.PACING_STYLE === 'quest' ? 'quest' : 'skilled';
-  // PACING_MAP=map1 or map2 plays the hand-made maps, with their own towns and resources; the default is a random world.
+  // PACING_MAP=map1, map2 or map3 plays the hand-made maps, with their own towns and resources; the default is a random world.
   const mapName = process.env.PACING_MAP;
-  const start = mapName === 'map1' ? createWorldFromMap(map1 as unknown as MapData) : mapName === 'map2' ? createWorldFromMap(map2 as unknown as MapData) : undefined;
+  const start = mapName === 'map1' ? createWorldFromMap(map1 as unknown as MapData) : mapName === 'map2' ? createWorldFromMap(map2 as unknown as MapData) : mapName === 'map3' ? createWorldFromMap(map3 as unknown as MapData) : undefined;
   const r = playBot(seed, Math.round(hours * 36000), verbose ? (n) => process.stdout.write(`${min(n.tick).padStart(10)}  ${n.text}
 `) : undefined, style, start);
   const w = r.world;
