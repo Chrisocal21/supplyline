@@ -391,7 +391,13 @@ export class HudScene extends Phaser.Scene {
     this.input.on('wheel', (p: Phaser.Input.Pointer, _o: unknown, _dx: number, dy: number) => {
       if (this.title) return;
       if (this.sheet) this.sheets.scrollBy(dy);
-      else if (this.driverPick) this.pickScroll += dy;
+      else if (this.trayRect && this.trayRowMax > 0 && this.trayOpen() && p.x >= this.trayRect.x && p.x <= this.trayRect.x + this.trayRect.w && p.y >= this.trayRect.y && p.y <= this.trayRect.y + this.trayRect.h) {
+        this.trayWheel += dy;
+        if (Math.abs(this.trayWheel) >= 40) {
+          this.trayRow = Math.max(0, Math.min(this.trayRowMax, this.trayRow + (this.trayWheel > 0 ? 1 : -1)));
+          this.trayWheel = 0;
+        }
+      } else if (this.driverPick) this.pickScroll += dy;
       else if (this.dash !== null) {
         if (this.truckDetail !== null) this.truckScroll += dy;
         else this.dashScroll += dy;
@@ -1948,6 +1954,13 @@ export class HudScene extends Phaser.Scene {
     };
   }
 
+  /** The build tray's scroll: the first row shown, how far it can go, and where it is on screen (for the wheel). */
+  private trayRow = 0;
+  private trayRowMax = 0;
+  private trayKey = '';
+  private trayRect: { x: number; y: number; w: number; h: number } | null = null;
+  private trayWheel = 0;
+
   private trayOpen(): boolean {
     // Picking a card hides the tray so the map is clear; Esc or the tab brings it back.
     return this.activeTab !== 'select' && this.game3d.tool === 'select';
@@ -2028,22 +2041,44 @@ export class HudScene extends Phaser.Scene {
     const IMG = narrow ? 50 : 68;
     const tools = narrow ? tab.tools.filter((t) => !this.cardInfo(t).locked || g.tool === t) : tab.tools;
     const n = tools.length;
-    const avail = mini ? Math.max(CW + TRAY_PAD * 2, 2 * (mini.x - 12 - W / 2)) : W - (narrow ? 24 : 48);
+    // The tray spreads across the whole window, and rises above the minimap if it would cover it. When there are more rows than
+    // fit between the top bar and the dock, the rest scroll: the wheel over the tray, or the bar at its right edge.
+    const avail = W - (narrow ? 24 : 48);
     const perRow = Math.max(1, Math.min(n, Math.floor((avail - TRAY_PAD * 2 + 10) / (CW + 10))));
     const rows = Math.ceil(n / perRow);
     const trayW = perRow * CW + (perRow - 1) * 10 + TRAY_PAD * 2;
-    const trayH = 24 + TRAY_PAD * 2 + rows * CH + (rows - 1) * 10;
     const tx = Math.round(W / 2 - trayW / 2);
-    const ty = footY - DOCK_GAP - trayH;
+    const floorY = mini && tx + trayW > mini.x - 6 ? Math.min(footY - DOCK_GAP, mini.y - 8) : footY - DOCK_GAP;
+    const maxRows = Math.max(1, Math.floor((floorY - (TOP + 8) - 24 - TRAY_PAD * 2 + 10) / (CH + 10)));
+    const shown = Math.min(rows, maxRows);
+    if (this.trayKey !== tab.id) {
+      this.trayKey = tab.id;
+      this.trayRow = 0;
+    }
+    this.trayRowMax = rows - shown;
+    this.trayRow = Math.max(0, Math.min(this.trayRowMax, this.trayRow));
+    const trayH = 24 + TRAY_PAD * 2 + shown * CH + (shown - 1) * 10;
+    const ty = floorY - trayH;
+    this.trayRect = { x: tx, y: ty, w: trayW, h: trayH };
     im.rect(1, tx, ty, trayW, trayH, 0x0b1117, 0.97, 4, COLORS.line, 1);
     im.rect(1, tx, ty, trayW, 3, COLORS.accent, 0.9, 0);
     im.block({ x: tx, y: ty, w: trayW, h: trayH });
     const head = tab.label.toUpperCase();
     im.text('trayHead', head, tx + TRAY_PAD + 4, ty + 10, { size: 11, bold: true, color: COLORS.accent, layer: 2 });
     im.text('trayTitle', tab.blurb, tx + TRAY_PAD + 4 + head.length * 7.4 + 14, ty + 10, { size: 11, color: COLORS.muted, layer: 2, wrap: narrow ? trayW - 2 * TRAY_PAD - 8 : undefined });
+    if (this.trayRowMax > 0) {
+      const trackH = trayH - 24 - TRAY_PAD * 2;
+      const barH = Math.max(30, (trackH * shown) / rows);
+      const barY = ty + TRAY_PAD + 24 + (trackH - barH) * (this.trayRow / this.trayRowMax);
+      im.rect(1, tx + trayW - 9, ty + TRAY_PAD + 24, 4, trackH, 0xffffff, 0.08, 2);
+      im.rect(1, tx + trayW - 9, barY, 4, barH, 0xffffff, 0.35, 2);
+      im.text('trayMore', `Scroll for more  ·  ${this.trayRow + 1}-${this.trayRow + shown} of ${rows} rows`, tx + trayW - TRAY_PAD - 14, ty + 10, { size: 11, color: COLORS.muted, align: 'right', layer: 2 });
+    }
+    const first = this.trayRow * perRow;
     tools.forEach((tool, i) => {
-      const cx = tx + TRAY_PAD + (i % perRow) * (CW + 10);
-      const cy = ty + TRAY_PAD + 24 + Math.floor(i / perRow) * (CH + 10);
+      if (i < first || i >= first + shown * perRow) return;
+      const cx = tx + TRAY_PAD + ((i - first) % perRow) * (CW + 10);
+      const cy = ty + TRAY_PAD + 24 + Math.floor((i - first) / perRow) * (CH + 10);
       const info = this.cardInfo(tool);
       const on = g.tool === tool;
       const id = `card${tool}`;
@@ -2065,7 +2100,7 @@ export class HudScene extends Phaser.Scene {
       if (hov) im.tip(id);
     });
     if (coach) this.coachRing(coachRect.x, coachRect.y, coachRect.w, coachRect.h, coachText);
-    this.bottomInset = H - footY + DOCK_GAP + trayH;
+    this.bottomInset = H - floorY + trayH;
   }
 
   /** Where the minimap goes, or null when it is off or there is no room for it beside the dock. */
