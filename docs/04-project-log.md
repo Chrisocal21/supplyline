@@ -932,3 +932,7 @@ What changed:
 - Roads swung round small hills because a mountain tile costs 36 against 2 for grass and needs a tunnel. `carveHills` in world.ts now turns any mountain of 8 tiles or fewer (8-way joined) into grass at a gentle height when a world is made, for generated worlds and hand-made maps alike. Hills within 3 tiles of a quarry, mine or coal seam stay, since those stand at the foot of rock. Big ranges keep their tunnels.
 - Map 1 loses 12 mountain tiles, Map 2 17, Map 3 963 (of 13078). Saves already made keep their own land (they rebuild from the map plus their own changes), so only new games get this.
 - Not looked at on screen: I could not tell which hill the screenshot showed, so check the one you meant. If a bigger ridge still forces a detour, raise `HILL_TILES`.
+
+## 0.150: green for buildable land, orange for locked
+
+- While a building tool is active, plots the player owns (or that are free to anyone) get a green outline and wash; plots for sale get an orange outline and wash. Before, owned plots were gold and for-sale plots only a thin white outline, which vanished against desert ground. The per-tile green and orange of the exact placement check is unchanged.
