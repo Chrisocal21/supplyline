@@ -135,7 +135,7 @@ const sitesIn = (category: string): Tool[] => BUILD_ORDER.filter((k) => SITE_DEF
 type FilterPage = 'supply' | 'sell';
 
 /** The widest a full window gets, so on a wide screen the text stays readable and there is no sea of empty space. */
-const WINDOW_MAX = 1400;
+const WINDOW_MAX = 1800;
 interface ListFilter {
   q: string;
   status: string;
@@ -366,6 +366,10 @@ export class HudScene extends Phaser.Scene {
         if (p.isDown) this.sheets.scrollBy(p.prevPosition.y - p.y);
         return;
       }
+      if (p.wasTouch && this.driverPick) {
+        if (p.isDown) this.pickScroll += p.prevPosition.y - p.y;
+        return;
+      }
       if (p.wasTouch && this.dash !== null) {
         if (p.isDown) {
           if (this.truckDetail !== null) this.truckScroll += p.prevPosition.y - p.y;
@@ -387,6 +391,7 @@ export class HudScene extends Phaser.Scene {
     this.input.on('wheel', (p: Phaser.Input.Pointer, _o: unknown, _dx: number, dy: number) => {
       if (this.title) return;
       if (this.sheet) this.sheets.scrollBy(dy);
+      else if (this.driverPick) this.pickScroll += dy;
       else if (this.dash !== null) {
         if (this.truckDetail !== null) this.truckScroll += dy;
         else this.dashScroll += dy;
@@ -1537,6 +1542,9 @@ export class HudScene extends Phaser.Scene {
   }
 
   /** The driver picker: who is open and for what. Buying a vehicle or changing a driver both go through it. */
+  private pickScroll = 0;
+  private pickSeen: object | null = null;
+  private pickMax = 0;
   private driverPick: { mode: 'buy'; siteId: number; vehicle: VehicleKind; line: Line } | { mode: 'swap'; vehicleId: number } | null = null;
 
   private driverModal(W: number, H: number): void {
@@ -1545,13 +1553,16 @@ export class HudScene extends Phaser.Scene {
     const world = g.world;
     const pick = this.driverPick;
     if (!pick) return;
+    if (this.pickSeen !== pick) {
+      this.pickSeen = pick;
+      this.pickScroll = 0;
+    }
     const close = (): void => {
       this.driverPick = null;
     };
     im.rect(1, 0, 0, W, H, 0x05080c, 0.78);
     im.block({ x: 0, y: 0, w: W, h: H });
-    im.hit('dpScrim', 0, 0, W, H, close, 1);
-    const w = Math.min(720, W - 24);
+    const w = Math.min(860, W - 24);
     const x = Math.round((W - w) / 2);
     const pad = 22;
     const inner = w - pad * 2;
@@ -1564,7 +1575,11 @@ export class HudScene extends Phaser.Scene {
     const h = Math.min(H - TOP - 12, 150 + (pick.mode === 'buy' ? 58 : 0) + (idle.length ? 30 + idle.length * (rowH + 6) : 0) + (working.length ? 30 + working.length * (rowH + 6) : 0) + 30 + apps.length * (rowH + 6) + 60);
     const y = Math.max(TOP + 6, Math.round((H - h) / 2));
     im.rect(2, x, y, w, h, COLORS.panel, 1, 18, COLORS.accent, 1, 2);
-    im.hit('dpPanel', x, y, w, h, () => undefined, 2);
+    im.block({ x, y, w, h });
+    im.hit('dpS1', 0, 0, W, y, close, 1);
+    im.hit('dpS2', 0, y + h, W, H - y - h, close, 1);
+    im.hit('dpS3', 0, y, x, h, close, 1);
+    im.hit('dpS4', x + w, y, W - x - w, h, close, 1);
     let cy = y + pad;
     const what = pick.mode === 'buy' ? `a new ${VEHICLE_DEFS[pick.vehicle].label}` : (() => {
       const v = world.vehicles.find((q) => q.id === pick.vehicleId);
@@ -1574,6 +1589,14 @@ export class HudScene extends Phaser.Scene {
     im.text('dpS', `Who drives ${what}? A better driver reaches farther, but asks more.`, x + pad, cy + 28, { size: 12, color: COLORS.muted, wrap: inner - 100, layer: 5 });
     button(im, 'dpX', 'CANCEL', x + w - pad - 90, cy - 2, 90, 34, true, close, 'quiet');
     cy += 62;
+    // Everything under the header scrolls when the list is longer than the window.
+    const bodyTop = cy - 6;
+    const bodyBottom = y + h - 10;
+    this.cim.clipBox = { x, y: bodyTop, w, h: bodyBottom - bodyTop };
+    this.sheetCam.setVisible(true).setViewport(x, bodyTop, w, bodyBottom - bodyTop).setScroll(x, bodyTop);
+    const bodyStart = cy;
+    cy -= this.pickScroll;
+    const bim = this.cim;
     const done = (ok: boolean): void => {
       if (ok) this.driverPick = null;
     };
@@ -1581,20 +1604,20 @@ export class HudScene extends Phaser.Scene {
       done(pick.mode === 'buy' ? g.buyWith(pick.siteId, pick.vehicle, pick.line, who) : g.giveDriver(pick.vehicleId, who));
     };
     const row = (id: string, ry: number, name: string, rank: number, trips: number, wage: number, label: string, fee: number, ok: boolean, go: () => void): void => {
-      im.rect(2, x + pad, ry, inner, rowH, 0x0f161d, 1, 8, COLORS.line, 1);
-      im.text(`${id}n`, name, x + pad + 14, ry + 8, { size: 14, bold: true, layer: 5 });
-      im.text(`${id}r`, `${DRIVER_RANKS[rank]}  ·  ${trips} trips  ·  $${wage}/min wage`, x + pad + 14, ry + 28, { size: 11, color: COLORS.muted, layer: 5 });
-      for (let i = 0; i < 5; i++) im.rect(5, x + pad + inner - 250 + i * 13, ry + 20, 10, 10, i <= rank ? COLORS.accent : 0x0a0f14, 1, 1, i <= rank ? COLORS.accent : COLORS.line, 1);
-      button(im, `${id}b`, fee > 0 ? `${label}  $${fee}` : label, x + pad + inner - 170, ry + 8, 156, 34, ok, go, 'main');
+      bim.rect(2, x + pad, ry, inner, rowH, 0x0f161d, 1, 8, COLORS.line, 1);
+      bim.text(`${id}n`, name, x + pad + 14, ry + 8, { size: 14, bold: true, layer: 5 });
+      bim.text(`${id}r`, `${DRIVER_RANKS[rank]}  ·  ${trips} trips  ·  $${wage}/min wage`, x + pad + 14, ry + 28, { size: 11, color: COLORS.muted, layer: 5 });
+      for (let i = 0; i < 5; i++) bim.rect(5, x + pad + inner - 250 + i * 13, ry + 20, 10, 10, i <= rank ? COLORS.accent : 0x0a0f14, 1, 1, i <= rank ? COLORS.accent : COLORS.line, 1);
+      button(bim, `${id}b`, fee > 0 ? `${label}  $${fee}` : label, x + pad + inner - 170, ry + 8, 156, 34, ok, go, 'main');
     };
     if (pick.mode === 'buy') {
-      im.rect(2, x + pad, cy, inner, 48, 0x0f161d, 1, 8, COLORS.line, 1);
-      im.text('dpQ', 'No preference: a free rookie comes with it', x + pad + 14, cy + 15, { size: 13, layer: 5 });
-      button(im, 'dpQb', 'TAKE A ROOKIE', x + pad + inner - 170, cy + 7, 156, 34, true, () => run({}), 'quiet');
+      bim.rect(2, x + pad, cy, inner, 48, 0x0f161d, 1, 8, COLORS.line, 1);
+      bim.text('dpQ', 'No preference: a free rookie comes with it', x + pad + 14, cy + 15, { size: 13, layer: 5 });
+      button(bim, 'dpQb', 'TAKE A ROOKIE', x + pad + inner - 170, cy + 7, 156, 34, true, () => run({}), 'quiet');
       cy += 58;
     }
     if (idle.length) {
-      im.text('dpIh', 'WAITING FOR A VEHICLE', x + pad, cy, { size: 11, bold: true, color: COLORS.muted, layer: 5 });
+      bim.text('dpIh', 'WAITING FOR A VEHICLE', x + pad, cy, { size: 11, bold: true, color: COLORS.muted, layer: 5 });
       cy += 22;
       idle.forEach((d) => {
         row(`dpI${d.id}`, cy, d.name, rankOf(d.trips), d.trips, wageOf(d), 'USE', 0, true, () => run({ use: d.id }));
@@ -1603,7 +1626,7 @@ export class HudScene extends Phaser.Scene {
       cy += 6;
     }
     if (working.length) {
-      im.text('dpWh', 'DRIVING NOW  (their vehicle is parked without a driver)', x + pad, cy, { size: 11, bold: true, color: COLORS.muted, layer: 5 });
+      bim.text('dpWh', 'DRIVING NOW  (their vehicle is parked without a driver)', x + pad, cy, { size: 11, bold: true, color: COLORS.muted, layer: 5 });
       cy += 22;
       working.forEach((d) => {
         row(`dpW${d.id}`, cy, d.name, rankOf(d.trips), d.trips, wageOf(d), 'MOVE HERE', 0, true, () => run({ use: d.id }));
@@ -1611,15 +1634,25 @@ export class HudScene extends Phaser.Scene {
       });
       cy += 6;
     }
-    im.text('dpAh', 'LOOKING FOR WORK', x + pad, cy, { size: 11, bold: true, color: COLORS.muted, layer: 5 });
+    bim.text('dpAh', 'LOOKING FOR WORK', x + pad, cy, { size: 11, bold: true, color: COLORS.muted, layer: 5 });
     cy += 22;
-    if (apps.length === 0) im.text('dpA0', 'Nobody new right now. Check back in a few minutes.', x + pad, cy, { size: 12, color: COLORS.muted, layer: 5 });
+    if (apps.length === 0) bim.text('dpA0', 'Nobody new right now. Check back in a few minutes.', x + pad, cy, { size: 12, color: COLORS.muted, layer: 5 });
     apps.forEach((a) => {
       const fee = hireFee(a);
       const cost = (pick.mode === 'buy' ? VEHICLE_DEFS[pick.vehicle].cost : 0) + fee;
       row(`dpA${a.key}`, cy, a.name, rankOf(a.trips), a.trips, wageOf(a), 'HIRE', fee, world.money >= cost, () => run({ hire: a.key }));
       cy += rowH + 6;
     });
+    const contentH = cy + this.pickScroll - bodyStart + 16;
+    this.pickMax = Math.max(0, contentH - (bodyBottom - bodyStart));
+    this.pickScroll = Math.max(0, Math.min(this.pickMax, this.pickScroll));
+    if (this.pickMax > 0) {
+      const trackH = bodyBottom - bodyTop - 8;
+      const barH = Math.max(30, (trackH * (bodyBottom - bodyTop)) / (contentH + 8));
+      const by = bodyTop + 4 + (trackH - barH) * (this.pickScroll / this.pickMax);
+      im.rect(5, x + w - 10, bodyTop + 4, 4, trackH, 0xffffff, 0.06, 2);
+      im.rect(5, x + w - 10, by, 4, barH, 0xffffff, 0.3, 2);
+    }
   }
 
   private sizeModal(W: number, H: number): void {
@@ -4048,14 +4081,18 @@ export class HudScene extends Phaser.Scene {
     };
     im.rect(1, 0, 0, W, H, 0x04070a, 0.86);
     im.block({ x: 0, y: 0, w: W, h: H });
-    im.hit('tmScrim', 0, 0, W, H, close, 1);
-    const w = Math.min(W - 24, 1160);
+    const w = Math.min(W - 24, 1560);
     const h = Math.min(H - TOP - 12, 800);
     const x = Math.round((W - w) / 2);
     const y = TOP + 6;
     im.rect(2, x, y, w, h, 0x0b1117, 1, 4, COLORS.line, 1);
     im.rect(2, x, y, w, 3, COLORS.accent, 0.9, 0);
-    im.hit('tmPanel', x, y, w, h, () => undefined, 2);
+    // Click outside the window to close it. The window itself is not one big hit area, so its scrolling list can take clicks.
+    im.block({ x, y, w, h });
+    im.hit('tmS1', 0, 0, W, y, close, 1);
+    im.hit('tmS2', 0, y + h, W, H - y - h, close, 1);
+    im.hit('tmS3', 0, y, x, h, close, 1);
+    im.hit('tmS4', x + w, y, W - x - w, h, close, 1);
     // Header: which truck, whose it is, and the way back.
     im.text('tmT', name.toUpperCase(), x + 22, y + 16, { size: 22, bold: true, layer: 3 });
     im.text('tmS', `${home?.name ?? 'Home'}  ·  ${info.status.text}`, x + 22, y + 44, { size: 12, color: info.status.color, wrap: w - 260, layer: 3 });

@@ -1,5 +1,5 @@
 // Supplyline for Windows: the built game in its own window, with saves on disk and updates that download in the background.
-const { app, BrowserWindow, protocol, net, ipcMain, shell, Menu, session } = require('electron');
+const { app, BrowserWindow, protocol, net, ipcMain, shell, Menu, session, screen } = require('electron');
 const path = require('path');
 const { pathToFileURL } = require('url');
 
@@ -47,9 +47,11 @@ function startUpdater() {
 }
 
 function createWindow() {
+  // Open at full HD (1920 by 1080), or as large as the screen allows.
+  const area = screen.getPrimaryDisplay().workAreaSize;
   win = new BrowserWindow({
-    width: 1600,
-    height: 900,
+    width: Math.min(1920, area.width),
+    height: Math.min(1080, area.height),
     minWidth: 960,
     minHeight: 600,
     backgroundColor: '#03060b',
