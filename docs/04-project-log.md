@@ -861,3 +861,7 @@ What changed:
 - In a browser the game is a demo (`src/demo.ts`): it plays Map 1 only, and when the player reaches Tier 2 (all Tier 0 and Tier 1 quests done) it pauses on a "Demo complete" screen with their stats, a download link, "Save my progress to a file" (the desktop game loads that file) and "Play the demo again". The world menu shows Maps 2 and 3 as DESKTOP ONLY. The desktop app is never limited. Testers open the game with #full on the address to lift the limit in a browser (it is remembered), and #nofull to put it back.
 - Each map's menu text now says what it is and why it was built: Map 1 to teach, Map 2 for rivers, ports and planes, Map 3 for scale and the long game. The website's map cards, FAQ and tier ladder say the same, and its buttons read "Play the free demo" and "Download the full game".
 - Deferred on purpose (testers only for now): code signing, Steam store page and a Steam demo.
+
+## 0.137: resource nodes stay visible from far out
+
+- 0.132 hid each node's detailed scene beyond 4 times the tree detail distance, so zooming out left only the painted patch on the ground, while roads and towns stayed. Now every node that is not drawn in full gets a coloured pin (forest green, field gold, pasture light green, quarry grey, mine rust, coal black, clay orange, oil black, coffee brown, mango orange), all in one draw call, shown out to the same distance as town models (450). Built-on nodes show no pin.

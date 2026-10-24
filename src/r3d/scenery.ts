@@ -233,6 +233,7 @@ export class Scenery {
     const w = this.world;
     const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9 });
     const geos = new Map<NodeKind, THREE.BufferGeometry>();
+    const marks: { id: number; kind: NodeKind; matrix: THREE.Matrix4 }[] = [];
     for (const n of w.nodes) {
       if (isSoftNode(n.kind)) continue;
       let g = geos.get(n.kind);
@@ -254,13 +255,61 @@ export class Scenery {
       m.matrixWorldNeedsUpdate = true;
       this.group.add(m);
       this.props.set(n.id, m);
+      marks.push({ id: n.id, kind: n.kind, matrix: m.matrix });
     }
+    this.buildFarMarks(marks);
+  }
+
+  /** A cheap stand-in for every node scene, drawn from far out where the full scene is not: a coloured pin, one draw call in all. */
+  private farMarks: THREE.InstancedMesh | null = null;
+  private readonly farIndex = new Map<number, { i: number; matrix: THREE.Matrix4 }>();
+  private static readonly MARK_COLOR: Partial<Record<NodeKind, number>> = {
+    forest: 0x2f6f3c,
+    farmland: 0xe0c04a,
+    pasture: 0x9ad06a,
+    quarry: 0xa7adb5,
+    mine: 0xb06a4a,
+    coal: 0x2a2a2e,
+    clay: 0xd2784a,
+    oil: 0x16161a,
+    coffee: 0x7a4a2a,
+    mango: 0xf0a030,
+  };
+
+  private buildFarMarks(marks: { id: number; kind: NodeKind; matrix: THREE.Matrix4 }[]): void {
+    if (marks.length === 0) return;
+    const geo = new THREE.ConeGeometry(1.5, 4, 6);
+    geo.translate(0, 2, 0);
+    const mesh = new THREE.InstancedMesh(geo, new THREE.MeshStandardMaterial({ roughness: 0.8 }), marks.length);
+    const col = new THREE.Color();
+    marks.forEach((m, i) => {
+      mesh.setMatrixAt(i, ZERO);
+      mesh.setColorAt(i, col.setHex(Scenery.MARK_COLOR[m.kind] ?? 0xffffff));
+      this.farIndex.set(m.id, { i, matrix: m.matrix });
+    });
+    mesh.instanceMatrix.needsUpdate = true;
+    if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+    mesh.frustumCulled = false;
+    mesh.visible = false;
+    this.group.add(mesh);
+    this.farMarks = mesh;
+  }
+
+  /** Show or hide one node's pin: shown when its scene is too far to draw and nothing has been built on it. */
+  private setFarMark(id: number, on: boolean): void {
+    const f = this.farIndex.get(id);
+    if (!f || !this.farMarks) return;
+    this.farMarks.setMatrixAt(f.i, on ? f.matrix : ZERO);
+    this.farMarks.instanceMatrix.needsUpdate = true;
   }
 
   /** Hide the scene on nodes that have a building on them. */
   setNodesUsed(used: Set<number>): void {
     this.propUsed = new Set(used);
-    for (const [id, m] of this.props) m.visible = !used.has(id) && m.userData.far !== true;
+    for (const [id, m] of this.props) {
+      m.visible = !used.has(id) && m.userData.far !== true;
+      this.setFarMark(id, !used.has(id) && m.userData.far === true);
+    }
   }
   private propUsed = new Set<number>();
 
@@ -993,8 +1042,11 @@ export class Scenery {
       if (far !== (m.userData.far === true)) {
         m.userData.far = far;
         m.visible = !far && !this.propUsed.has(id);
+        this.setFarMark(id, far && !this.propUsed.has(id));
       }
     }
+    // The pins show out to the same distance as the town models.
+    if (this.farMarks) this.farMarks.visible = eye.length() - R < 450;
     for (const r of this.regions) {
       toEye.subVectors(eye, r.center);
       up.copy(r.center).normalize();
