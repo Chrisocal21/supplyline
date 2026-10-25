@@ -8,7 +8,7 @@ import { tileLonLat } from '../sim/mapgen';
 import { parcelState, parcelsOf } from '../sim/land';
 import { seasonLook } from './season';
 import { LAND_PREFIX } from '../sim/land';
-import { placeError, plotTiles, reservedGround, siteAt, terrainAt, townBlocks, townGates, townGround, type Rot, type World } from '../sim/world';
+import { placeError, plannedTownAt, plotTiles, reservedGround, siteAt, terrainAt, townBlocks, townGates, townGround, wrapX, type Rot, type World } from '../sim/world';
 import type { SiteKind } from '../sim/defs';
 import { HeightField, LAT_SPAN, R, basisMatrix, lonLatToVec } from './geo';
 import { Parts } from './parts';
@@ -698,17 +698,27 @@ export class Scenery {
       if (state !== 'sale' && state !== 'owned' && state !== 'free') continue;
       const isOpen = state !== 'sale';
       const out = isOpen ? open : locked;
+      // A plot's outline stops where the town's ground begins: that ground is held for the town and is never part of a plot for sale.
+      const mine = (x: number, y: number): boolean => !plannedTownAt(w, wrapX(w, x), y);
       for (let i = 0; i < p.w; i++) {
-        at(p.x + i, p.y, 0.11, out);
-        at(p.x + i + 1, p.y, 0.11, out);
-        at(p.x + i, p.y + p.h, 0.11, out);
-        at(p.x + i + 1, p.y + p.h, 0.11, out);
+        if (mine(p.x + i, p.y)) {
+          at(p.x + i, p.y, 0.11, out);
+          at(p.x + i + 1, p.y, 0.11, out);
+        }
+        if (mine(p.x + i, p.y + p.h - 1)) {
+          at(p.x + i, p.y + p.h, 0.11, out);
+          at(p.x + i + 1, p.y + p.h, 0.11, out);
+        }
       }
       for (let j = 0; j < p.h; j++) {
-        at(p.x, p.y + j, 0.11, out);
-        at(p.x, p.y + j + 1, 0.11, out);
-        at(p.x + p.w, p.y + j, 0.11, out);
-        at(p.x + p.w, p.y + j + 1, 0.11, out);
+        if (mine(p.x, p.y + j)) {
+          at(p.x, p.y + j, 0.11, out);
+          at(p.x, p.y + j + 1, 0.11, out);
+        }
+        if (mine(p.x + p.w - 1, p.y + j)) {
+          at(p.x + p.w, p.y + j, 0.11, out);
+          at(p.x + p.w, p.y + j + 1, 0.11, out);
+        }
       }
     }
     const lines = (pos: number[], color: number, opacity: number): THREE.LineSegments => {

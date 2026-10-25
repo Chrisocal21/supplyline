@@ -2,9 +2,9 @@
 import { describe, expect, it } from 'vitest';
 import map1 from '../maps/map1.json';
 import map2 from '../maps/map2.json';
-import { LAND_PREFIX, buyParcel, enableLandRules, parcelAt, parcelPrice, parcelState, parcelsOf } from './land';
+import { LAND_PREFIX, buyParcel, enableLandRules, landError, parcelAt, parcelPrice, parcelState, parcelsOf } from './land';
 import { SITE_DEFS } from './defs';
-import { createWorld, createWorldFromMap, placeError, placeSite, prepareRealisticWorld, type MapData, type World } from './world';
+import { createWorld, createWorldFromMap, placeError, placeSite, plannedTownAt, prepareRealisticWorld, wrapX, type MapData, type World } from './world';
 
 const worlds = (): World[] => [createWorld(5), createWorldFromMap(map1 as MapData), createWorldFromMap(map2 as MapData)];
 
@@ -140,4 +140,21 @@ describe('plots with nodes', () => {
     expect(placeError(w, 'forestry', n.x, n.y)).toBeNull();
     expect(buyParcel(w, parcelAt(w, n.x, n.y)!.id)).toBe('This ground is free to build on');
   }, 30000);
+
+  it('never lets a plot sell the ground a town will grow over, even a plot that holds a resource node', () => {
+    for (const w of worlds()) {
+      enableLandRules(w);
+      let reserved = 0;
+      for (const p of parcelsOf(w).parcels) {
+        for (let y = p.y; y < p.y + p.h; y++) {
+          for (let x = p.x; x < p.x + p.w; x++) {
+            if (!plannedTownAt(w, wrapX(w, x), y)) continue;
+            reserved += 1;
+            expect(landError(w, [{ x, y }]), `plot ${p.id} at ${x},${y}`).toBe('That ground belongs to the town');
+          }
+        }
+      }
+      expect(reserved).toBeGreaterThan(100);
+    }
+  }, 120000);
 });

@@ -6,7 +6,7 @@
 //
 // The rules apply only to worlds that switch them on (world.landRules), which new games do: worlds from tests and older
 // saves build where they like, as before.
-import { terrainAt, townTiles, wrapX, type World } from './world';
+import { plannedTownAt, terrainAt, townTiles, wrapX, type World } from './world';
 
 export const CELL = 4;
 export const LAND_PREFIX = 'Plot for sale';
@@ -91,7 +91,8 @@ export function parcelsOf(world: World): Grid {
           if (t === null || t === 'water' || t === 'ice') continue;
           p.land += 1;
           p.value += PER_TILE[t];
-          if (town.has(k)) p.town = true;
+          // Ground a town holds is the town's from the first day: where it stands now, and where it will have grown to.
+          if (town.has(k) || plannedTownAt(world, wrapX(world, x), y)) p.town = true;
           const q = nodeAt.get(k);
           if (q !== undefined) p.nodes.push(q);
         }
@@ -157,6 +158,8 @@ export function parcelPrice(p: Parcel): number {
 export function landError(world: World, tiles: { x: number; y: number }[]): string | null {
   if (!world.landRules) return null;
   for (const t of tiles) {
+    // Ground a town will grow over is the town's, whatever plot it lies in.
+    if (plannedTownAt(world, t.x, t.y)) return 'That ground belongs to the town';
     const p = parcelAt(world, t.x, t.y);
     if (!p) continue;
     const state = parcelState(world, p);
