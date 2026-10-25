@@ -1042,3 +1042,7 @@ What changed:
 
 - The wide Manage sheet has a floating rail of pages grouped into Business and Progress; the open page is a lit gold pill, the rest are plain until hovered, and the key hints are quiet letters.
 - The header has a small MANAGE / PAGE breadcrumb over a bigger display title, and an angled close button that lights gold on hover.
+
+## 0.169: stat tiles, second bit of the UI redesign
+
+- Stat tiles are soft rounded cards: a coloured dot by the label, the number large (shrunk to fit), and a short accent line along the foot instead of the left edge bar.

@@ -63,9 +63,12 @@ export function sectionHead(im: Im, id: string, text: string, x: number, y: numb
 
 /** A big number with its label, in a square tile. */
 export function stat(im: Im, id: string, x: number, y: number, w: number, h: number, label: string, value: string, color: number = COLORS.text, edge: number = COLORS.accent): void {
-  panel(im, x, y, w, h, edge);
-  im.text(`${id}l`, label.toUpperCase(), x + 14, y + 8, { size: 10, bold: true, color: COLORS.muted, layer: 3 });
-  im.text(`${id}v`, value, x + 14, y + 22, { size: 24, bold: true, color, layer: 3 });
+  // A soft rounded card: a coloured dot by the label, the number large, and a short accent line along the foot.
+  im.rect(3, x, y, w, h, PANEL, 0.85, 8, COLORS.line, 0.6);
+  im.circle(3, x + 17, y + 14, 3, edge);
+  im.text(`${id}l`, label.toUpperCase(), x + 26, y + 8, { size: 10, bold: true, color: COLORS.muted, layer: 3 });
+  im.text(`${id}v`, value, x + 14, y + 22, { size: fitSize(value, w - 28, 26, 14, 0.5), bold: true, color, layer: 3 });
+  im.rect(3, x + 14, y + h - 2, 28, 2, edge, 0.9, 1);
 }
 
 /** Text sized to fit a width: the size asked for, or smaller down to a floor. */
