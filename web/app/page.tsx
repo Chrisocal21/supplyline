@@ -22,7 +22,7 @@ export default function Home() {
         <div className="hero-bg" />
         <div className="wrap hero-in">
           <span className="chip">In development{BUILD ? ` · Build ${BUILD}` : ''}</span>
-          <img className="hero-logo" src="/logo-full.jpg" alt="SupplyLine: a globe with a road, a railway and a factory" width={1000} height={1000} />
+          <img className="hero-logo" src="/site/logo-full.jpg" alt="SupplyLine: a globe with a road, a railway and a factory" width={1000} height={1000} />
           <h1><span className="sr">SupplyLine: </span>Feed the world, one truck at a time.</h1>
           <p className="tag">{TAGLINE}</p>
           <div className="btn-row">

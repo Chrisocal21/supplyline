@@ -11,7 +11,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: 'SupplyLine - a logistics game on a 3D globe',
     description: 'In development. Free Windows demo. Steam to come.',
-    images: ['/logo-full.jpg'],
+    images: ['/site/logo-full.jpg'],
   },
   icons: { icon: '/favicon.svg' },
   // Keeps dark-mode extensions from repainting the page, which is already dark.

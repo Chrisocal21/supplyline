@@ -39,7 +39,7 @@ export default function Store() {
             </div>
           </div>
           <aside className="panel">
-            <img className="store-logo" src="/logo-full.jpg" alt="SupplyLine logo" width={1000} height={1000} />
+            <img className="store-logo" src="/site/logo-full.jpg" alt="SupplyLine logo" width={1000} height={1000} />
             <p>Build farms, forests and factories on a 3D globe. Then move the goods by truck, train, ship and plane, and watch the towns grow.</p>
             <dl className="rows">
               <div><dt>Developer</dt><dd>Probably Fine Studios</dd></div>

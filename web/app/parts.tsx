@@ -15,7 +15,7 @@ export function LinkButton({ href, primary, label, note, soon }: { href: string;
 export function Logo({ size = 34, mark = true }: { size?: number; mark?: boolean }) {
   return (
     <a className="brand" href="/" aria-label="SupplyLine home">
-      {mark ? <img src="/logo.svg" alt="" width={size} height={size} /> : null}
+      {mark ? <img src="/favicon.svg" alt="" width={size} height={size} /> : null}
       <span className="brand-name">SUPPLY<span>LINE</span></span>
     </a>
   );

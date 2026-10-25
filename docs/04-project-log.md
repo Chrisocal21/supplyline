@@ -971,3 +971,8 @@ What changed:
 - Logo: the supplied emblem is `docs/supplyline-logo-original.png` and shows on the home page and the store page preview. Small uses (favicon, app icon, footer) use a simplified globe mark drawn in code (`public/favicon.svg`). The top bar is the title only. `build/icon.png` and `electron/icon.png` are re-rendered from the mark.
 - Fishing Boat picture fixed: the gallery list now reads every vehicle in `VEHICLE_DEFS`, not `VEHICLE_ORDER`, which leaves the fishing boat out. 357 pictures.
 - Game code is untouched apart from that gallery list.
+
+## 0.157: the logo files reach the live site
+
+- The home page logo and the store page logo were 404 on the live site: they sat in `web/public`, which is ignored by git and rebuilt from `public/site` and `public/title` at build time. The picture now lives at `public/site/logo-full.jpg`, and the small mark is the game's own `public/favicon.svg`. Anything the site needs must live in `public/`, never directly in `web/public`.
+- Checked with `SL_SITE=1 vite build`: both files are in `dist`.
