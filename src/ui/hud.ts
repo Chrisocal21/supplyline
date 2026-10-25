@@ -93,7 +93,7 @@ import {
   type MapData,
   needsNode,
 } from '../sim/world';
-import { nextQuest } from '../sim/quests';
+import { nextQuest, tierUnlocks } from '../sim/quests';
 import { tutorialNext, tutorialSkip } from '../sim/tutorial';
 import { Game3D, districtOfTool, isDistrictTool, type HoverInfo, type OverlayItem, type Tool } from '../r3d/game3d';
 import { DISTRICTS, DISTRICT_ORDER, isSoftNode } from '../sim/defs';
@@ -633,8 +633,13 @@ export class HudScene extends Phaser.Scene {
 
   private pickByNumber(i: number): void {
     const tab = TABS.find((t) => t.id === this.activeTab);
-    const tool = tab?.tools[i];
+    const tool = tab ? this.shownTools(tab.tools)[i] : undefined;
     if (tool) this.setTool(tool);
+  }
+
+  /** The cards a category shows: only what can be built now (and the tool in hand). Locked ones wait for the wiki and the tier-up. */
+  private shownTools(tools: readonly Tool[]): Tool[] {
+    return tools.filter((t) => !this.cardInfo(t).locked || this.game3d.tool === t);
   }
 
   // ---- frame ----
@@ -857,7 +862,19 @@ export class HudScene extends Phaser.Scene {
     this.topBar(W);
     const growing = !this.sheet && !g.draft && !this.saves ? this.pendingGrowth() : undefined;
     if (g.canGoBack && !this.sheet && !this.saves && !this.graphicsOpen && !this.menuOpen && this.dash === null) this.backButton(W, H);
-    if (this.demoOver()) {
+    // A new tier: the game stops and shows what it opens, until the player confirms. Older saves start as already seen.
+    w.tierShown ??= w.tier;
+    const tierUp = w.tierShown < w.tier && !this.title && !g.demo && !g.showcase;
+    if (tierUp) {
+      g.setKeys(0, 0, 0);
+      if (g.speed !== 0) {
+        this.speedBeforeTier = g.speed;
+        g.speed = 0;
+      }
+      this.panelRect = null;
+      this.sheetCam.setVisible(false);
+      this.tierModal(W, H);
+    } else if (this.demoOver()) {
       g.setKeys(0, 0, 0);
       g.speed = 0;
       this.panelRect = null;
@@ -910,7 +927,7 @@ export class HudScene extends Phaser.Scene {
     }
     this.offersLayer(W, H);
     this.trackTutorial();
-    if (!this.sheet) this.tutorialCard(W, H);
+    if (!this.sheet && !tierUp) this.tutorialCard(W, H);
     if (this.menuOpen) this.menuPanel(W, H);
     else this.menuPage = 'home';
     if (!this.searchSeen || this.menuOpen || g.removal) this.hideSearch();
@@ -1952,6 +1969,72 @@ export class HudScene extends Phaser.Scene {
     im.text('doN', 'Your saved file will load in the full game, so you pick up where you stopped. The Steam page is coming soon.', x + pad, cy, { size: 11, color: COLORS.muted, wrap: inner, layer: 4 });
   }
 
+  private speedBeforeTier = 1;
+
+  /** The tier-up card: the new tier, every building it opens with its picture, and the rest as a list. Confirm carries on. */
+  private tierModal(W: number, H: number): void {
+    const im = this.im;
+    const g = this.game3d;
+    const w = g.world;
+    const tier = (w.tierShown ?? 0) + 1;
+    const def = TIERS[tier];
+    const kinds = BUILD_ORDER.filter((k) => SITE_DEFS[k].tier === tier);
+    const labels = new Set(kinds.map((k) => SITE_DEFS[k].label));
+    const rest = tierUnlocks(tier).filter((t) => !labels.has(t));
+    im.rect(3, 0, 0, W, H, 0x05080c, 0.78);
+    im.block({ x: 0, y: 0, w: W, h: H });
+    const pw = Math.min(1040, W - 24);
+    const pad = 24;
+    const inner = pw - pad * 2;
+    const cols = Math.max(2, Math.floor((inner + 8) / 124));
+    const cw = (inner - 8 * (cols - 1)) / cols;
+    const rows = Math.ceil(kinds.length / cols);
+    const restRows = Math.ceil(rest.length / 3);
+    const fixed = 110 + (rest.length ? 34 + restRows * 22 : 0) + 76;
+    // The cards shrink to fit the window: a big tier opens twenty-odd buildings.
+    const ch = Math.max(56, Math.min(96, (H - TOP - 24 - fixed) / Math.max(1, rows) - 8));
+    const img = Math.min(56, ch - 36);
+    const ph = fixed + rows * (ch + 8);
+    const x = (W - pw) / 2;
+    const y = Math.max(TOP + 6, (H - ph) / 2);
+    im.rect(4, x, y, pw, ph, 0x0b1117, 0.98, 10, COLORS.accent, 0.7);
+    let cy = y + pad;
+    im.text('tuK', `TIER ${tier} UNLOCKED`, x + pad, cy, { size: 11, bold: true, color: COLORS.accent, layer: 4 });
+    im.text('tuT', (def?.name ?? `Tier ${tier}`).toUpperCase(), x + pad, cy + 14, { size: 32, bold: true, display: true, layer: 4 });
+    im.text('tuS', 'New buildings are in the build bar now. Every one is also in the Wiki.', x + pad, cy + 54, { size: 12, color: COLORS.muted, layer: 4 });
+    cy += 86;
+    kinds.forEach((k, i) => {
+      const d = SITE_DEFS[k];
+      const tx = x + pad + (i % cols) * (cw + 8);
+      const ty = cy + Math.floor(i / cols) * (ch + 8);
+      im.rect(4, tx, ty, cw, ch, 0x0f161d, 1, 8, COLORS.line, 0.6);
+      if (img > 16 && this.textures.exists(`thumb-${k}`)) im.image(`tuI${k}`, `thumb-${k}`, tx + cw / 2 - img / 2, ty + 4, img, img, 1, 5);
+      im.text(`tuN${k}`, d.label, tx + cw / 2, ty + ch - 30, { size: fitSize(d.label, cw - 10, 12, 8), bold: true, align: 'center', layer: 5 });
+      im.text(`tuC${k}`, `$${fmt(d.cost)}  ·  ${d.category}`, tx + cw / 2, ty + ch - 15, { size: 9, color: COLORS.muted, align: 'center', layer: 5 });
+    });
+    cy += rows * (ch + 8);
+    if (rest.length) {
+      im.text('tuAlso', 'ALSO OPENS', x + pad, cy + 6, { size: 10, bold: true, color: COLORS.muted, layer: 4 });
+      cy += 28;
+      rest.forEach((t, i) => {
+        const tx = x + pad + (i % 3) * (inner / 3);
+        const ty = cy + Math.floor(i / 3) * 22;
+        im.circle(4, tx + 4, ty + 8, 3, COLORS.accent);
+        im.text(`tuR${i}`, t, tx + 14, ty, { size: 13, layer: 4 });
+      });
+      cy += restRows * 22;
+    }
+    const bw = 220;
+    const bx = x + pw - pad - bw;
+    const by = y + ph - pad - 44;
+    const hov = im.hit('tuOk', bx, by, bw, 44, () => {
+      w.tierShown = tier;
+      if (w.tierShown >= w.tier) g.speed = this.speedBeforeTier || 1;
+    }, 5);
+    im.slab(4, bx, by, bw, 44, hov ? 0xe6c98e : COLORS.accent, 1);
+    im.text('tuOkT', 'CONFIRM', bx + bw / 2, by + 11, { size: 20, bold: true, display: true, color: 0x1b1204, align: 'center', layer: 5 });
+  }
+
   private sizeModal(W: number, H: number): void {
     const im = this.im;
     im.rect(3, 0, 0, W, H, 0x05080c, 0.7);
@@ -2351,12 +2434,12 @@ export class HudScene extends Phaser.Scene {
     if (!open) return;
 
     // Tray: the cards for the open category float above the dock, wrapping onto more rows when there are many.
-    // On a phone the cards shrink to three across and only show what can be built now, so the tray stays short.
+    // On a phone the cards shrink to three across. Only what can be built now is shown (see shownTools).
     const narrow = W < 640;
     const CW = narrow ? Math.floor((W - 24 - TRAY_PAD * 2 + 10) / 3) - 10 : CARD_W;
     const CH = narrow ? 96 : CARD_H;
     const IMG = narrow ? 50 : 68;
-    const tools = narrow ? tab.tools.filter((t) => !this.cardInfo(t).locked || g.tool === t) : tab.tools;
+    const tools = this.shownTools(tab.tools);
     const n = tools.length;
     // The tray spreads across the whole window, and rises above the minimap if it would cover it. When there are more rows than
     // fit between the top bar and the dock, the rest scroll: the wheel over the tray, or the bar at its right edge.

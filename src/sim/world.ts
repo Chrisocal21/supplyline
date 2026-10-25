@@ -382,6 +382,8 @@ export interface World {
   realisticLots?: boolean;
   /** Chosen at game start. 'hard' is the opt-in pressure mode; nothing reads it yet, so both play the same for now. Missing means relaxed. */
   difficulty?: 'relaxed' | 'hard';
+  /** The highest tier whose unlocks the player has seen and confirmed. Missing on older saves: treated as the current tier. */
+  tierShown?: number;
   /** New games: a building outside a town needs its land plot bought first (see land.ts). Missing means build anywhere. */
   landRules?: boolean;
   /** Land plots the player owns, by plot id. */

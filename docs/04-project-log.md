@@ -1123,3 +1123,8 @@ What changed:
 - Every free node keeps a small marker at any distance until a building goes on it (it used to show only from far out). The marker fits the resource: a rock cluster for quarry, mine, coal and clay; a dark glossy pool for oil; young pines for forest; a tilled patch for farmland and pasture; round bushes for orchard, coffee and mango. One instanced mesh per shape.
 - Rocks are smaller than the 0.181 ones.
 - The Orchard no longer makes sawdust.
+
+## 0.186: unlocks
+
+- The build tray shows only what can be built now (shownTools); number keys pick from that list. Locked cards are gone on every screen size, not just phones.
+- Reaching a tier stops the game and shows a card: the tier name, every building it opens with its picture, price and category, and the rest (vehicles, highways, rail, building level, bridge length). Confirm carries on at the old speed. `world.tierShown` remembers what was seen; older saves start as seen. The tutorial card hides while it shows.
