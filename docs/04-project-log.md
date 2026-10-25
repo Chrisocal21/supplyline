@@ -989,3 +989,10 @@ What changed:
 - `Im.slab()` draws the website's angled button. The shared buttons (`button` in company.ts and `HudScene.button`), the menu's update button, the Finance buttons and the towns back button use it, with uppercase labels in the display face.
 - The Manage sidebar shows SUPPLY in white and LINE in gold, like the website's title.
 - Left square on purpose: the speed buttons, segmented tabs and the phone touch bar (toggle groups read better square).
+
+## 0.160: a Mac build, and the testers' page moves to /access
+
+- Mac: `build.mac` in package.json makes a .dmg and a .zip for Apple silicon (arm64) and Intel (x64), named `Supplyline-<version>-<arch>`. The release workflow now has a draft job, Windows and Mac jobs (macos-latest), then a publish job that waits for Windows (a failed Mac build does not hold the release). `npm run dist:mac` builds one on a Mac.
+- Not signed with an Apple certificate (needs the paid Apple Developer account, $99 a year), only ad hoc (`identity: "-"`), so macOS asks the player to press Open Anyway the first time. A Mac also will not install updates into an unsigned app, so on a Mac the updater only says a new version is out and points to the testers' page. The app gets a Mac menu (Cmd+Q, Cmd+H, full screen).
+- `/access/` replaces `/dockside/`: styled like the website, the same code, a Windows button and Apple silicon and Intel Mac buttons from the latest release, leading with the one for the visitor's computer, and steps for opening it on a Mac. `public/dockside/index.html` forwards old links.
+- The website's questions and the store page's requirements mention the Mac. The demo stays Windows only for now.

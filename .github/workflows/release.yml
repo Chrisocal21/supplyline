@@ -1,13 +1,22 @@
-# Builds the Windows installer and publishes it as a GitHub release. Push a tag that matches package.json, like v0.38.0, to run it; the desktop app picks
-# the new release up on its own and offers a restart.
-name: Release Windows build
+# Builds the Windows installer and the Mac downloads and publishes them as one GitHub release. Push a tag that matches package.json, like v0.38.0,
+# to run it. Installed Windows copies pick the new release up on their own and offer a restart; Mac copies are told a new version is out.
+name: Release build
 on:
   push:
     tags: ['v*']
 permissions:
   contents: write
 jobs:
+  # Make the release first, as a draft, so the two builds do not race to create it.
+  draft:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: gh release view ${{ github.ref_name }} || gh release create ${{ github.ref_name }} --title "${{ github.ref_name }}" --notes "Windows installer and Mac downloads (Apple silicon and Intel). Installed Windows copies update themselves." --draft
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   windows:
+    needs: draft
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -17,14 +26,31 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: npx vite build
-      # Make the release first, so the uploads do not race to create it.
-      - run: gh release view ${{ github.ref_name }} || gh release create ${{ github.ref_name }} --title "${{ github.ref_name }}" --notes "Windows installer. Installed copies update themselves." --draft
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - run: npx electron-builder --win --publish always
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      # Publish it once every file is up.
+  mac:
+    needs: draft
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - run: npx vite build
+      # Not signed with an Apple certificate yet (that needs a paid Apple Developer account), so it is signed ad hoc.
+      - run: npx electron-builder --mac --publish always
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+  # Publish it once every file is up. A failed Mac build does not hold back the Windows release.
+  publish:
+    needs: [windows, mac]
+    if: always() && needs.windows.result == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
       - run: gh release edit ${{ github.ref_name }} --draft=false --latest
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

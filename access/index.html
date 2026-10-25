@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="noindex, nofollow" />
+    <meta name="darkreader-lock" />
+    <title>SupplyLine - tester access</title>
+    <link rel="icon" href="/favicon.svg" />
+    <style>
+      @font-face { font-family: 'Barlow Condensed'; font-weight: 700; src: url('/fonts/barlow-condensed-700.woff2') format('woff2'); font-display: swap; }
+      @font-face { font-family: 'Barlow Condensed'; font-weight: 800; src: url('/fonts/barlow-condensed-800.woff2') format('woff2'); font-display: swap; }
+      :root { color-scheme: dark; --bg: #0a1115; --panel: #111a20; --panel-alt: #1c282e; --line: #2c3a40; --line-hi: #3b4b51; --text: #eeeae1; --muted: #a5b0b3; --accent: #d2b478; --accent-hi: #e6c98e; --ink: #1b1204; --bad: #e68b7c; --head: 'Barlow Condensed', 'Arial Narrow', sans-serif; }
+      * { box-sizing: border-box; }
+      body { margin: 0; min-height: 100vh; background: var(--bg) radial-gradient(ellipse at 50% 0%, #1a2a32, var(--bg) 65%); color: var(--text); font-family: 'Segoe UI', system-ui, -apple-system, Roboto, sans-serif; line-height: 1.55; display: grid; place-items: center; padding: 32px 16px; }
+      main { width: min(560px, 100%); text-align: center; }
+      .logo { width: min(260px, 60vw); height: auto; display: block; margin: 0 auto 6px; }
+      .kicker { font-family: var(--head); font-weight: 700; letter-spacing: 0.22em; text-transform: uppercase; color: var(--accent); font-size: 0.95rem; }
+      h1 { font-family: var(--head); font-weight: 800; text-transform: uppercase; font-size: clamp(2rem, 7vw, 2.8rem); line-height: 1.02; margin: 6px 0 12px; }
+      p { color: var(--muted); margin: 0 0 14px; }
+      .card { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 26px; margin-top: 18px; text-align: left; }
+      form { display: flex; gap: 10px; justify-content: center; }
+      input { width: 130px; font: inherit; font-size: 1.3rem; letter-spacing: 8px; text-align: center; padding: 10px; border-radius: 10px; border: 1px solid var(--line-hi); background: var(--bg); color: var(--text); }
+      input:focus { outline: none; border-color: var(--accent); }
+      .btn { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 58px; padding: 10px 28px; border: 1px solid var(--line-hi); background: var(--panel-alt); color: var(--text); text-decoration: none; font-family: var(--head); font-weight: 700; font-size: 1.25rem; letter-spacing: 0.08em; text-transform: uppercase; line-height: 1.1; cursor: pointer; clip-path: polygon(12px 0, 100% 0, calc(100% - 12px) 100%, 0 100%); transition: background 0.15s ease, transform 0.15s ease; }
+      .btn:hover { background: #26363e; transform: translateY(-1px); }
+      .btn small { font-family: 'Segoe UI', system-ui, sans-serif; font-weight: 500; font-size: 0.75rem; letter-spacing: 0.02em; text-transform: none; color: var(--muted); margin-top: 3px; }
+      .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--ink); }
+      .btn.primary:hover { background: var(--accent-hi); }
+      .btn.primary small { color: #5a4720; }
+      .btn[aria-disabled='true'] { opacity: 0.5; pointer-events: none; }
+      button.btn { font-family: var(--head); }
+      .downloads { display: grid; gap: 10px; }
+      .mac { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+      @media (max-width: 460px) { .mac { grid-template-columns: 1fr; } }
+      .label { font-size: 0.72rem; letter-spacing: 0.14em; text-transform: uppercase; font-weight: 700; color: var(--muted); margin: 18px 0 8px; }
+      .label:first-child { margin-top: 0; }
+      details { margin-top: 16px; border-top: 1px solid var(--line); padding-top: 12px; }
+      summary { cursor: pointer; font-weight: 700; color: var(--text); }
+      details ol { color: var(--muted); padding-left: 20px; margin: 10px 0 0; }
+      details li { margin-bottom: 6px; }
+      code { background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 1px 6px; color: var(--text); font-size: 0.85em; }
+      #bad { color: var(--bad); min-height: 1.4em; margin: 10px 0 0; text-align: center; }
+      .foot { margin-top: 22px; font-size: 0.85rem; color: var(--muted); }
+      .foot a { color: var(--accent); text-decoration: none; }
+      [hidden] { display: none !important; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <img class="logo" src="/site/logo-sm.png" alt="SupplyLine" />
+      <div class="kicker">Tester access</div>
+      <h1>The full game</h1>
+      <p>All three maps and every tier. Please do not share this page, and tell Chris what breaks.</p>
+
+      <div class="card" id="gate-card">
+        <form id="gate">
+          <input id="code" inputmode="numeric" autocomplete="off" maxlength="4" placeholder="Code" aria-label="Access code" />
+          <button class="btn primary" type="submit">Open</button>
+        </form>
+        <p id="bad"></p>
+      </div>
+
+      <div class="card" id="vault" hidden>
+        <div class="label">Windows 10 or 11</div>
+        <div class="downloads">
+          <a class="btn" id="dl-win" href="#" aria-disabled="true">Download for Windows<small>Looking for the latest version...</small></a>
+        </div>
+        <div class="label">Mac</div>
+        <div class="mac">
+          <a class="btn" id="dl-arm" href="#" aria-disabled="true">Apple silicon<small>M1 to M4 and later</small></a>
+          <a class="btn" id="dl-x64" href="#" aria-disabled="true">Intel Mac<small>Older Macs</small></a>
+        </div>
+        <details>
+          <summary>Opening it on a Mac the first time</summary>
+          <ol>
+            <li>Open the downloaded file and drag Supplyline into Applications.</li>
+            <li>The game is not signed with an Apple certificate yet, so the first time, macOS will say it cannot check it. Open System Settings, then Privacy and Security, and press <b>Open Anyway</b> next to Supplyline.</li>
+            <li>If it says the app is damaged, open Terminal and run <code>xattr -cr /Applications/Supplyline.app</code>, then open it again.</li>
+            <li>The Windows game updates itself. On a Mac, come back here for each new version; the game tells you when one is out.</li>
+          </ol>
+        </details>
+        <p class="foot">Current build <b id="build">-</b>. Not sure which Mac you have? Apple menu, then About This Mac: it says Apple M1 (or later) or Intel.</p>
+      </div>
+      <p class="foot"><a href="/">SupplyLine</a> is a Probably Fine Studios game.</p>
+    </main>
+    <script>
+      // Only the fingerprint of the code is here, and the downloads are looked up after it is right. A hurdle, not a vault.
+      var IS_MAC = /Mac/i.test(navigator.platform || navigator.userAgent);
+      function setLink(id, asset, note) {
+        var el = document.getElementById(id);
+        if (!asset) { el.querySelector('small').textContent = 'Not published yet'; return; }
+        el.href = asset.browser_download_url;
+        el.removeAttribute('aria-disabled');
+        if (note) el.querySelector('small').textContent = note;
+      }
+      function look() {
+        fetch('https://api.github.com/repos/Chrisocal21/supplyline/releases/latest')
+          .then(function (r) { return r.ok ? r.json() : null; })
+          .then(function (rel) {
+            var assets = (rel && rel.assets) || [];
+            var find = function (re) { return assets.filter(function (a) { return re.test(a.name); })[0]; };
+            var v = String((rel && rel.tag_name) || '').replace(/^v/, '');
+            document.getElementById('build').textContent = v || '-';
+            setLink('dl-win', find(/\.exe$/i), 'Version ' + v);
+            setLink('dl-arm', find(/arm64\.dmg$/i));
+            setLink('dl-x64', find(/x64\.dmg$/i));
+            // Lead with the button for the computer this page is open on.
+            document.getElementById(IS_MAC ? 'dl-arm' : 'dl-win').classList.add('primary');
+          })
+          .catch(function () { document.querySelector('#dl-win small').textContent = 'Could not reach the downloads. Try again.'; });
+      }
+      document.getElementById('gate').addEventListener('submit', function (e) {
+        e.preventDefault();
+        var v = document.getElementById('code').value.trim();
+        crypto.subtle.digest('SHA-256', new TextEncoder().encode('supplyline:' + v)).then(function (buf) {
+          var hex = Array.prototype.map.call(new Uint8Array(buf), function (b) { return ('0' + b.toString(16)).slice(-2); }).join('');
+          if (hex === 'd620efe62dd9e74f333803101bc23b5d6d6a5f3c487930b983f4a322f7d5f209') {
+            document.getElementById('gate-card').hidden = true;
+            document.getElementById('vault').hidden = false;
+            look();
+          } else document.getElementById('bad').textContent = 'That code is not right.';
+        });
+      });
+    </script>
+  </body>
+</html>

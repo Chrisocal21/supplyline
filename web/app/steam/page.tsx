@@ -95,7 +95,7 @@ export default function Store() {
               <h3>System requirements</h3>
               <table className="reqs">
                 <tbody>
-                  <tr><th>OS</th><td>Windows 10 or 11, 64-bit</td></tr>
+                  <tr><th>OS</th><td>Windows 10 or 11, 64-bit, or macOS 12 or later (Apple silicon or Intel)</td></tr>
                   <tr><th>Graphics</th><td>A dedicated graphics card is best. The big map is heavy.</td></tr>
                   <tr><th>Storage</th><td>About 500 MB</td></tr>
                   <tr><th>Input</th><td>Mouse and keyboard</td></tr>

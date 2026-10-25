@@ -1,4 +1,6 @@
-// Supplyline for Windows: the built game in its own window, with saves on disk and updates that download in the background.
+// Supplyline for Windows and Mac: the built game in its own window, with saves on disk and updates that download in the background.
+// The Mac app is not signed with an Apple certificate yet, and a Mac will not install an update into an unsigned app, so on a Mac it only
+// says a new version is out and where to get it.
 const { app, BrowserWindow, protocol, net, ipcMain, shell, Menu, session, screen } = require('electron');
 const path = require('path');
 const fs = require('fs');
@@ -14,6 +16,7 @@ const DIST = path.join(__dirname, '..', 'dist');
 // The demo installer is the same app with slDemo set in its packaged package.json (tools/build-demo.cjs). Nothing is written to the
 // project folder, so a full build made at the same time can never pick it up.
 const DEMO = require('../package.json').slDemo === true;
+const MAC = process.platform === 'darwin';
 let win = null;
 let updater = null;
 let pending = null;
@@ -33,9 +36,11 @@ function startUpdater() {
   } catch {
     return;
   }
-  updater.autoDownload = true;
-  updater.autoInstallOnAppQuit = true;
-  updater.on('update-available', (info) => send('update', { state: 'downloading', version: info.version }));
+  updater.autoDownload = !MAC;
+  updater.autoInstallOnAppQuit = !MAC;
+  updater.on('update-available', (info) =>
+    send('update', MAC ? { state: 'error', message: `Version ${info.version} is out: download it from the testers page` } : { state: 'downloading', version: info.version }),
+  );
   updater.on('update-downloaded', (info) => {
     pending = { state: 'ready', version: info.version };
     send('update', pending);
@@ -65,7 +70,8 @@ function createWindow() {
     icon: path.join(__dirname, 'icon.png'),
     webPreferences: { preload: path.join(__dirname, 'preload.cjs'), contextIsolation: true, nodeIntegration: false, additionalArguments: DEMO ? ['--sl-demo'] : [], backgroundThrottling: false, autoplayPolicy: 'no-user-gesture-required' },
   });
-  Menu.setApplicationMenu(null);
+  // A Mac needs its app menu for Cmd+Q, Cmd+H and full screen. Windows has no menu bar.
+  Menu.setApplicationMenu(MAC ? Menu.buildFromTemplate([{ role: 'appMenu' }, { role: 'editMenu' }, { role: 'windowMenu' }]) : null);
   win.once('ready-to-show', () => win.show());
   // Saves live in the page's storage. Write it to disk often and when the window closes, so a crash or a killed process loses little.
   const flush = () => session.defaultSession.flushStorageData();

@@ -1,7 +1,7 @@
 {
   "name": "supplyline",
   "private": true,
-  "version": "0.159.0",
+  "version": "0.160.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -14,7 +14,8 @@
     "desktop": "vite build && electron .",
     "dist": "vite build && electron-builder --win --publish never",
     "dist:demo": "vite build && node tools/build-demo.cjs",
-    "release": "vite build && electron-builder --win --publish always"
+    "release": "vite build && electron-builder --win --publish always",
+    "dist:mac": "vite build && electron-builder --mac --publish never"
   },
   "dependencies": {
     "electron-updater": "^6.8.9",
@@ -59,6 +60,33 @@
         }
       ],
       "icon": "build/icon.png"
+    },
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.png",
+      "category": "public.app-category.simulation-games",
+      "artifactName": "Supplyline-${version}-${arch}.${ext}",
+      "identity": "-",
+      "hardenedRuntime": false,
+      "gatekeeperAssess": false
+    },
+    "dmg": {
+      "title": "Supplyline ${version}"
     },
     "nsis": {
       "oneClick": true,

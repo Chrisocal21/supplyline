@@ -43,9 +43,9 @@ const website = (): Plugin => ({
   },
 });
 
-// The game at /play/, the goods catalogue at /goods/ and the testers' page at /dockside/. The website at / and /steam/ comes from web/.
+// The game at /play/, the goods catalogue at /goods/ and the testers' page at /access/ (old /dockside/ links forward to it from public/dockside). The website at / and /steam/ comes from web/.
 export default defineConfig({
   plugins: [versionFile(), website()],
   server: { port: 3000, strictPort: true, open: false, host: true },
-  build: { rollupOptions: { input: { play: resolve(__dirname, 'play/index.html'), goods: resolve(__dirname, 'goods/index.html'), dockside: resolve(__dirname, 'dockside/index.html') } } },
+  build: { rollupOptions: { input: { play: resolve(__dirname, 'play/index.html'), goods: resolve(__dirname, 'goods/index.html'), access: resolve(__dirname, 'access/index.html') } } },
 });
