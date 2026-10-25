@@ -469,9 +469,10 @@ describe('tier quests', () => {
     const before = w.money;
     checkQuests(w, (t) => log.push(t));
     checkQuests(w, (t) => log.push(t));
-    expect(w.questsDone).toEqual(['t0-camp']);
-    expect(w.money - before).toBe(TIERS[0].quests.find((q) => q.id === 't0-camp')!.reward);
-    expect(log.filter((l) => /Quest complete/.test(l))).toHaveLength(1);
+    // t0-camps (now "keep more logs coming") asks for just 1 camp too, so it completes alongside t0-camp.
+    expect(w.questsDone).toEqual(['t0-camp', 't0-camps']);
+    expect(w.money - before).toBe(TIERS[0].quests.find((q) => q.id === 't0-camp')!.reward + TIERS[0].quests.find((q) => q.id === 't0-camps')!.reward);
+    expect(log.filter((l) => /Quest complete/.test(l))).toHaveLength(2);
 
     // A finished quest stays finished after the building is gone.
     w.sites = w.sites.filter((s) => s.kind !== 'forestry');
@@ -489,7 +490,7 @@ describe('tier quests', () => {
     setSendTo(w, siteAt(w, 9, 9)!.id, siteAt(w, 22, 6)!.id, true);
     w.places[0].stage = 2;
     // The farm-goods quests at the end of the tier are covered by their own tests: count them done here.
-    (w.questsDone ??= []).push(...['t0-camps', 't0-ranch', 't0-milk', 't0-orchard', 't0-fruit', 't0-earn']);
+    (w.questsDone ??= []).push(...['t0-camps', 't0-yardtruck', 't0-ranch', 't0-milk', 't0-orchard', 't0-fruit', 't0-earn']);
     checkQuests(w, (t) => log.push(t));
     expect(w.tier).toBe(1);
     expect(log.some((l) => /Tier 1 unlocked/.test(l))).toBe(true);
