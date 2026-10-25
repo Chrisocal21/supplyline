@@ -1046,3 +1046,8 @@ What changed:
 ## 0.169: stat tiles, second bit of the UI redesign
 
 - Stat tiles are soft rounded cards: a coloured dot by the label, the number large (shrunk to fit), and a short accent line along the foot instead of the left edge bar.
+
+## 0.170: cards and section heads, third bit of the UI redesign
+
+- Cards (panel) are rounded with a softer border and a thin inset colour line instead of the square edge bar; hot cards get a gold outline.
+- Section heads drop the gold square: capitals over a faint rule with a short gold underline.

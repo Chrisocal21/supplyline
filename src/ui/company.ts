@@ -49,16 +49,16 @@ const PANEL_HI = 0x17212b;
 
 /** A square console panel with a coloured edge down its left side. */
 export function panel(im: Im, x: number, y: number, w: number, h: number, edge: number = COLORS.line, hot = false): void {
-  im.rect(3, x, y, w, h, hot ? PANEL_HI : PANEL, 1, 3, COLORS.line, 1);
-  im.rect(3, x, y, 3, h, edge, 1, 0);
+  im.rect(3, x, y, w, h, hot ? PANEL_HI : PANEL, 0.9, 6, hot ? COLORS.accent : COLORS.line, hot ? 0.6 : 0.55);
+  im.rect(3, x + 1, y + 8, 2, Math.max(0, h - 16), edge, 1, 1);
 }
 
 /** A section title: a small coloured square, the words in capitals, and a rule across. */
 export function sectionHead(im: Im, id: string, text: string, x: number, y: number, w: number, right?: string): void {
-  im.rect(3, x, y + 4, 8, 8, COLORS.accent, 1, 1);
-  im.text(`${id}t`, text.toUpperCase(), x + 16, y + 1, { size: 11, bold: true, color: COLORS.text, layer: 3 });
+  const t = im.text(`${id}t`, text.toUpperCase(), x, y + 1, { size: 11, bold: true, color: COLORS.text, layer: 3 });
   if (right) im.text(`${id}r`, right, x + w, y + 1, { size: 11, color: COLORS.muted, align: 'right', layer: 3 });
-  im.line(3, x, y + 20, x + w, y + 20, COLORS.line, 0.8, 1);
+  im.line(3, x, y + 20, x + w, y + 20, COLORS.line, 0.45, 1);
+  im.rect(3, x, y + 19, Math.min(t.w, 40), 2, COLORS.accent, 1, 1);
 }
 
 /** A big number with its label, in a square tile. */
