@@ -2049,8 +2049,8 @@ export class HudScene extends Phaser.Scene {
         bx -= bw;
         const hov = im.hit(id, bx, by, bw, bh, fn, 4);
         const fill = style === 'main' ? (hov ? 0xf2b04c : COLORS.accent) : style === 'bad' ? (hov ? 0x4a2420 : 0x2a1a1a) : hov ? 0x2a3b50 : 0x1b2735;
-        im.rect(4, bx, by, bw, bh, fill, 1, 10, style === 'plain' ? COLORS.accent : style === 'bad' ? COLORS.bad : fill, 1);
-        im.text(`${id}t`, label, bx + bw / 2, by + 9, { size: 12, bold: true, color: style === 'main' ? 0x1b1204 : style === 'bad' ? COLORS.bad : COLORS.accent, align: 'center', layer: 4 });
+        im.slab(4, bx, by, bw, bh, fill, 1, style === 'plain' ? COLORS.line : style === 'bad' ? COLORS.bad : fill, 1);
+        im.text(`${id}t`, label.toUpperCase(), bx + bw / 2, by + 7, { size: 16, bold: true, display: true, color: style === 'main' ? 0x1b1204 : style === 'bad' ? COLORS.bad : COLORS.accent, align: 'center', layer: 4 });
         bx -= 8;
       };
       const saveId = `svSave${i}`;
@@ -2085,8 +2085,8 @@ export class HudScene extends Phaser.Scene {
       const fw = (inner - cw - 20) / 2;
       const fb = (id: string, label: string, fx: number, fn: () => void): void => {
         const hov = im.hit(id, fx, cy, fw, 42, fn, 4);
-        im.rect(4, fx, cy, fw, 42, hov ? 0x2a3b50 : 0x1b2735, 1, 21, COLORS.accent, 1);
-        im.text(`${id}t`, label, fx + fw / 2, cy + 12, { size: 14, bold: true, color: COLORS.accent, align: 'center', layer: 4 });
+        im.slab(4, fx, cy, fw, 42, hov ? 0x2a3646 : 0x16212a, 1, hov ? COLORS.accent : COLORS.line, 1);
+        im.text(`${id}t`, label.toUpperCase(), fx + fw / 2, cy + 10, { size: 18, bold: true, display: true, color: COLORS.accent, align: 'center', layer: 4 });
       };
       fb('svExport', 'Export this game', x + pad, () => this.downloadSave());
       const impId = 'svImport';
@@ -2096,8 +2096,8 @@ export class HudScene extends Phaser.Scene {
       });
     }
     const ch = im.hit('svClose', x + w - pad - cw, cy, cw, 42, () => (this.saves = null), 4);
-    im.rect(4, x + w - pad - cw, cy, cw, 42, ch ? 0x2a3646 : 0x1b2430, 1, 21, COLORS.line, 1);
-    im.text('svCloseT', mode === 'new' ? 'Cancel' : 'Close', x + w - pad - cw / 2, cy + 12, { size: 14, bold: true, align: 'center', layer: 4 });
+    im.slab(4, x + w - pad - cw, cy, cw, 42, ch ? 0x2a3646 : 0x16212a, 1, ch ? COLORS.accent : COLORS.line, 1);
+    im.text('svCloseT', mode === 'new' ? 'CANCEL' : 'CLOSE', x + w - pad - cw / 2, cy + 10, { size: 18, bold: true, display: true, align: 'center', layer: 4 });
     if (mode === 'new') {
       const nw = inner - cw - 10;
       const armed = this.armed('svNoSave');

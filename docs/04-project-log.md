@@ -1069,3 +1069,7 @@ What changed:
 ## 0.174: saved games window
 
 - The saved games window gets the same frame as the world chooser: soft border, a small gold kicker over a left-aligned display title, and softer slot cards.
+
+## 0.175: saved games buttons
+
+- Every button in the saved games window (save, load, export, delete, the footer row) is now an angled slab with display lettering, like the rest of the menus.
