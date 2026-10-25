@@ -1073,3 +1073,7 @@ What changed:
 ## 0.175: saved games buttons
 
 - Every button in the saved games window (save, load, export, delete, the footer row) is now an angled slab with display lettering, like the rest of the menus.
+
+## 0.176: page tabs
+
+- The page tabs on Production (Buildings, Goods) and on a town (Market, Specialisation, Districts) use the same quiet tabs as How to play: capitals, faint border, the open one outlined in gold.

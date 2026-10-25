@@ -471,8 +471,9 @@ export class Sheets {
         pick(id);
         this.scroll = 0;
       }, 3);
-      im.rect(3, tx, y, tw, 42, on ? 0x1f2c3a : hov ? 0x1a2431 : 0x131b25, 1, 14, on ? COLORS.accent : COLORS.line, 1, on ? 2 : 1);
-      im.text(`${idp}T-${id}`, label, tx + tw / 2, y + 12, { size: 15, bold: true, color: on ? COLORS.accent : COLORS.text, align: 'center', layer: 4 });
+      // Pill tabs, as in How to play: the open one outlined in gold, the rest quiet until hovered.
+      im.rect(3, tx, y, tw, 40, on ? 0x16212a : hov ? 0x121a21 : 0x0d141a, 1, 20, on ? COLORS.accent : COLORS.line, on ? 1 : 0.5, on ? 1.5 : 1);
+      im.text(`${idp}T-${id}`, label.toUpperCase(), tx + tw / 2, y + 12, { size: 13, bold: true, color: on ? COLORS.accent : hov ? COLORS.text : 0xc4ccce, align: 'center', layer: 4 });
     });
     return 56;
   }
