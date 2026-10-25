@@ -1021,3 +1021,9 @@ What changed:
 - Empty states: `emptyState()` (icon, title, one line) for an empty Production page; `statusLine()` replaces the greyed-out "All vehicles in good shape" and "No idle vehicles to sell" buttons on Fleet, which now share one row.
 - Town cards skip the Market lines while the town is still building its yard or Market, so no more "Well stocked" before anything was sold.
 - Finance hides the Buy cash card until real money is switched on.
+
+## 0.165: the HUD
+
+- Top and bottom bars: darker glass with a 1 px gold rule and a soft shadow falling onto the world, instead of a flat band and a 2 px line.
+- Toolbar tabs: square-shouldered, labels uppercase in the display face, the selected one marked by a gold underline.
+- The Menu button is angled, its label in the display face.

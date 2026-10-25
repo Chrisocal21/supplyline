@@ -1052,9 +1052,11 @@ export class HudScene extends Phaser.Scene {
 
     // The header: one dark strip across the top with a thin accent edge, like a game HUD.
     const headH = narrow ? y + h + 6 + 40 + 8 : y + h + 8;
-    im.rect(1, 0, 0, W, headH, 0x0a0f14, 0.9);
-    im.rect(1, 0, headH - 2, W, 2, COLORS.accent, 0.5);
-    im.rect(1, 0, 0, W, 1, 0xffffff, 0.06);
+    // A glass bar with a fine gold rule and a soft shadow falling onto the world below it.
+    im.rect(1, 0, 0, W, headH, 0x070c0f, 0.9);
+    im.rect(1, 0, headH - 1, W, 1, COLORS.accent, 0.55);
+    im.rect(1, 0, 0, W, 1, 0xffffff, 0.05);
+    for (let i = 0; i < 6; i++) im.rect(1, 0, headH + i * 3, W, 3, 0x000000, 0.16 * (1 - i / 6));
     im.block({ x: 0, y: 0, w: W, h: headH });
 
     // Money, at the left. Click it for the bank.
@@ -1083,7 +1085,7 @@ export class HudScene extends Phaser.Scene {
       if (this.menuOpen && !g.demo && !g.showcase) g.save();
     }, 1);
     const menuOn = this.menuOpen;
-    im.rect(1, menuX, y, menuW, h, menuOn ? COLORS.accent : menuHov ? 0x2a3646 : 0x1a2430, 1, 10, menuOn || menuHov ? COLORS.accent : COLORS.line, 1, menuOn ? 2 : 1);
+    im.slab(1, menuX, y, menuW, h, menuOn ? COLORS.accent : menuHov ? 0x2a3646 : 0x1a2430, 1, menuOn || menuHov ? COLORS.accent : COLORS.line, 1);
     // The autosave: a small "Saved" note that fades after each save, and a red warning when the game cannot save.
     if (!g.demo && !g.showcase && !this.title) {
       const ago = Date.now() - g.savedAt;
@@ -1111,7 +1113,7 @@ export class HudScene extends Phaser.Scene {
     const gx = narrow ? menuX + menuW / 2 - 9 : menuX + 14;
     for (let r = 0; r < 3; r++) for (let c = 0; c < 3; c++) im.rect(2, gx + c * 7, mid - 9 + r * 7, 5, 5, mc, 1, 1);
     if (!narrow) {
-      im.text('menuLbl', 'MENU', menuX + 40, mid - 9, { size: 15, bold: true, color: mc, layer: 2 });
+      im.text('menuLbl', 'MENU', menuX + 40, mid - 10, { size: 18, bold: true, display: true, color: mc, layer: 2 });
       if (!isTouch()) {
         im.rect(2, menuX + menuW - 40, mid - 10, 30, 20, menuOn ? 0x1b1204 : 0x0d1319, menuOn ? 0.25 : 1, 5, menuOn ? 0x1b1204 : COLORS.line, 1);
         im.text('menuKey', 'Esc', menuX + menuW - 25, mid - 7, { size: 11, bold: true, color: menuOn ? 0x1b1204 : COLORS.muted, align: 'center', layer: 2 });
@@ -2273,8 +2275,9 @@ export class HudScene extends Phaser.Scene {
     const dx = Math.round(W / 2 - dockW / 2);
     const dy = H - DOCK_H - 2;
     const footY = dy - 6;
-    im.rect(1, 0, footY, W, H - footY, 0x0a0f14, 0.9);
-    im.rect(1, 0, footY, W, 2, COLORS.accent, 0.5);
+    for (let i = 0; i < 6; i++) im.rect(1, 0, footY - (i + 1) * 3, W, 3, 0x000000, 0.16 * (1 - i / 6));
+    im.rect(1, 0, footY, W, H - footY, 0x070c0f, 0.9);
+    im.rect(1, 0, footY, W, 1, COLORS.accent, 0.55);
     im.block({ x: 0, y: footY, w: W, h: H - footY });
     im.rect(1, dx, dy, dockW, DOCK_H, 0x111a22, 1, 14, COLORS.line, 1);
     // First-time help: a pulsing ring on the exact button the current quest needs.
@@ -2290,9 +2293,10 @@ export class HudScene extends Phaser.Scene {
         coachText = `Tap ${t.label}`;
       }
       const hov = im.hit(`tab${t.id}`, x, y, tabW, DOCK_TAB_H, () => (on && t.id !== 'select' && g.tool === 'select' ? this.openTab('select') : this.openTab(t.id)));
-      im.rect(1, x, y, tabW, DOCK_TAB_H, on ? 0x1f2c3a : hov ? 0x1a2431 : 0x131b25, 1, 12, on ? COLORS.accent : 0x131b25, 1, on ? 2 : 0);
+      im.rect(1, x, y, tabW, DOCK_TAB_H, on ? 0x1c2830 : hov ? 0x18222b : 0x111a20, 1, 4, on ? COLORS.accent : hov ? 0x3b4b51 : 0x111a20, on ? 0.7 : 1, 1);
+      if (on) im.rect(1, x + 8, y + DOCK_TAB_H - 3, tabW - 16, 3, COLORS.accent, 1, 0);
       im.image(`tabImg${t.id}`, t.icon, x + (tabW - 36) / 2, y + 6, 36, 36, on ? 1 : 0.85, 2);
-      im.text(`tabT${t.id}`, t.label, x + tabW / 2, y + 46, { size: tabW < 84 ? 10 : 12, bold: true, color: on ? COLORS.accent : COLORS.text, align: 'center', layer: 2 });
+      im.text(`tabT${t.id}`, t.label.toUpperCase(), x + tabW / 2, y + 44, { size: tabW < 84 ? 12 : 14, bold: true, display: true, color: on ? COLORS.accent : COLORS.text, align: 'center', layer: 2 });
       if (!isTouch()) im.text(`tabK${t.id}`, String(i + 1), x + 7, y + 4, { size: 10, color: COLORS.muted, layer: 2 });
     });
     if (!open && coach) this.coachRing(coachRect.x, coachRect.y, coachRect.w, coachRect.h, coachText);
