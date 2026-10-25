@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { SITE_DEFS, SITE_FOOTPRINT, type SiteKind } from '../sim/defs';
+import { SITE_DEFS, SITE_FOOTPRINT, bodyTiles, type SiteKind } from '../sim/defs';
 import { LOT, TILE_UNITS } from '../scale';
 import { airportGeometry } from './airport';
 import { siteFit, siteGeometryAt } from './models';
@@ -14,11 +14,15 @@ describe('a building fits the ground it is given', () => {
         const g = siteGeometryAt(kind, level);
         g.computeBoundingBox();
         const b = g.boundingBox!;
-        const f = siteFit(kind, level);
-        const ext = Math.max(-b.min.x, b.max.x, -b.min.z, b.max.z) * f;
-        if (ext > LOT / 2 + 1e-6) over.push(`${kind}@${level} reaches ${ext.toFixed(2)}`);
-        expect(f).toBeGreaterThan(0.4);
-        expect(f).toBeLessThanOrEqual(1);
+        const raw = Math.max(-b.min.x, b.max.x, -b.min.z, b.max.z);
+        // On one tile (a town lot, or an old save), and on the 2x2 block a new building holds once its body has grown into it.
+        for (const size of [1, bodyTiles(level)]) {
+          const f = siteFit(kind, level, size);
+          if (raw * f > (size * LOT) / 2 + 1e-6) over.push(`${kind}@${level} on ${size} reaches ${(raw * f).toFixed(2)}`);
+          expect(f).toBeLessThanOrEqual(1);
+        }
+        // The grown body is not squeezed much: the block is made for it.
+        if (level >= 4) expect(siteFit(kind, level, bodyTiles(level))).toBeGreaterThan(0.8);
       }
     }
     expect(over).toEqual([]);

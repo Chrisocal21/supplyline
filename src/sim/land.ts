@@ -184,6 +184,7 @@ export function buyParcel(world: World, id: number): string | null {
 /** Switch the land rules on for a new world and hand over the first plots: the start town's nearest forest, field and meadow. */
 export function enableLandRules(world: World): void {
   world.landRules = true;
+  world.growRoom = true;
   world.owned = [];
   const home = world.places[0];
   if (!home) return;

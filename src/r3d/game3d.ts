@@ -32,7 +32,7 @@ import type { AudioScene } from '../audio/sfx';
 import { Parts } from './parts';
 import { GROW_MS, growMaterial } from './grow';
 import { tileLonLat } from '../sim/mapgen';
-import { LEVEL_CAP } from '../sim/defs';
+import { LEVEL_CAP, bodyTiles } from '../sim/defs';
 import { assignDriver, hireDriver } from '../sim/drivers';
 import { findPath } from '../sim/path';
 import {
@@ -96,7 +96,11 @@ import {
   siteAt,
   siteById,
   siteCenter,
+  siteBodyCenter,
   siteIsBig,
+  holdsBlock,
+  blockFor,
+  blockTiles,
   siteTiles,
   airportRot,
   airportPad,
@@ -1191,11 +1195,11 @@ export class Game3D {
    * Stands a building on its ground: the tile frame, narrowed east-west the way the town's lots are (a tile is narrower the
    * nearer the poles), then turned to face its driveway side, then fitted inside its lot.
    */
-  private siteMatrix(tile: Tile, yaw: number, kind: SiteKind, level: number, lift = 0): THREE.Matrix4 {
+  private siteMatrix(tile: Tile, yaw: number, kind: SiteKind, level: number, lift = 0, size = 1): THREE.Matrix4 {
     const w = this.world;
     const { lat } = tileLonLat(w.width, w.height, tile.x, tile.y);
     const sq = THREE.MathUtils.clamp(Math.cos(lat), w.realisticLots ? 0.15 : 0.55, 1);
-    const f = siteFit(kind, level);
+    const f = siteFit(kind, level, size);
     return this.tileMatrix(tile, lift)
       .multiply(new THREE.Matrix4().makeScale(sq, 1, 1))
       .multiply(new THREE.Matrix4().makeRotationY(yaw))
@@ -1439,7 +1443,7 @@ export class Game3D {
           if (side) yaw = side[2];
         }
       }
-      m.matrix.copy(this.siteMatrix(siteCenter(this.world, s), yaw, s.kind, lvl));
+      m.matrix.copy(this.siteMatrix(siteBodyCenter(this.world, s), yaw, s.kind, lvl, 0, s.res !== undefined ? bodyTiles(lvl) : 1));
       m.userData.base = m.matrix.clone();
       m.matrixWorldNeedsUpdate = true;
     }
@@ -2283,6 +2287,7 @@ export class Game3D {
     this.ghostKind = null;
     this.placeRot = null;
     if (this.ghost) this.ghost.visible = false;
+    this.showHoldRings(null, true);
     if (this.hover) this.setHover(this.hover.tile);
   }
 
@@ -2444,6 +2449,7 @@ export class Game3D {
       this.hover = null;
       this.ring.visible = false;
       if (this.ghost) this.ghost.visible = false;
+      this.showHoldRings(null, true);
       return;
     }
     this.hover = this.describe(tile);
@@ -2459,7 +2465,10 @@ export class Game3D {
     (this.ring.material as THREE.MeshBasicMaterial).color.set(ok ? 0xffffff : forSale ? 0xf4b84f : 0xff6b5e);
     if (buildTool) this.showGhost(this.tool as SiteKind, tile, ok, forSale);
     else if (districtTool && this.hover.spot) this.showDistrictGhost(this.hover.spot, districtOfTool(this.tool as DistrictTool), ok);
-    else if (this.ghost) this.ghost.visible = false;
+    else if (this.ghost) {
+      this.ghost.visible = false;
+      this.showHoldRings(null, true);
+    }
   }
 
   /** What the lot among is: hills, shore, woods or open ground. It decides how the district is dressed. */
@@ -2522,6 +2531,32 @@ export class Game3D {
     this.ghost.matrix.copy(this.siteMatrix(tile, (this.ghostRot(kind, tile) * Math.PI) / 2, kind, 1, 0.02));
     this.ghost.matrixWorldNeedsUpdate = true;
     this.ghost.visible = true;
+    // A building on open ground holds the 2x2 block of its last level from the start: show all of it.
+    if (holdsBlock(this.world, kind, tile.x, tile.y)) {
+      const held = blockFor(this.world, tile.x, tile.y, this.placeRot ?? undefined);
+      this.showHoldRings(blockTiles(this.world, tile.x, tile.y, 'res' in held ? held.res : (this.placeRot ?? 0)), ok && 'res' in held);
+    } else this.showHoldRings(null, true);
+  }
+
+  /** Rings round the ground a building being placed will hold (all four tiles), green where it can, red where it cannot. */
+  private holdRings: THREE.Mesh[] = [];
+  private showHoldRings(tiles: Tile[] | null, ok: boolean): void {
+    while (this.holdRings.length < 4) {
+      const m = new THREE.Mesh(this.selRing.geometry, new THREE.MeshBasicMaterial({ color: 0x7fe3a0, transparent: true, opacity: 0.8, depthTest: false }));
+      m.renderOrder = 10;
+      m.matrixAutoUpdate = false;
+      m.visible = false;
+      this.scene.add(m);
+      this.holdRings.push(m);
+    }
+    this.holdRings.forEach((m, i) => {
+      const t = tiles?.[i];
+      m.visible = !!t;
+      if (!t) return;
+      (m.material as THREE.MeshBasicMaterial).color.set(ok ? 0x7fe3a0 : 0xff7a6a);
+      m.matrix.copy(this.tileMatrix(t, 0.12));
+      m.matrixWorldNeedsUpdate = true;
+    });
   }
 
   pointerDown(x: number, y: number, button: number): void {
@@ -2889,7 +2924,7 @@ export class Game3D {
    */
   private railTarget(t: Tile): Tile {
     const here = siteAt(this.world, t.x, t.y);
-    if (here && siteIsBig(here.kind) && this.isRouteTool()) return { x: here.x, y: here.y };
+    if (here && (siteIsBig(here.kind) || here.res !== undefined) && this.isRouteTool()) return { x: here.x, y: here.y };
     if (this.tool !== 'rail') return t;
     if (!here || !SITE_DEFS[here.kind].dock) return t;
     const st = this.world.sites.find((s) => s.placeId === here.placeId && SITE_DEFS[s.kind].station);

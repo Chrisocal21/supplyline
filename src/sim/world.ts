@@ -46,6 +46,8 @@ import {
   type RouteMode,
   SITE_DEFS,
   SITE_FOOTPRINT,
+  RESERVED_GROUND,
+  bodyTiles,
   SPAN_LIMIT,
   START_MONEY,
   TOWN_LEVELS,
@@ -204,6 +206,11 @@ export interface Site {
    * game turns it to face its road. An airport always has one: its road comes in at the middle of that side.
    */
   rot?: Rot;
+  /**
+   * A building on open ground holds a 2x2 block of tiles from the start, the ground of its last level (see RESERVED_GROUND).
+   * This is which way the block lies: the gate tile is its front corner, the block runs across and behind it. Unset: one tile.
+   */
+  res?: Rot;
 }
 
 export type Rot = 0 | 1 | 2 | 3;
@@ -211,15 +218,14 @@ export type Rot = 0 | 1 | 2 | 3;
 export const FRONT: readonly Tile[] = [{ x: 0, y: 1 }, { x: 1, y: 0 }, { x: 0, y: -1 }, { x: -1, y: 0 }];
 
 /**
- * The ground a building covers, in whole tiles: `w` across its front and `d` deep behind it, both odd so the gate is in the
- * middle of the front edge. Most buildings are one tile; a long one, like an airport, is a rectangle. A bigger building only
- * ever stands on open ground outside a town: a town lot is one tile.
+ * The ground a long building covers, in whole tiles: `w` across its front and `d` deep behind it, both odd so the gate is in
+ * the middle of the front edge. Most buildings are one tile; a long one, like an airport, is a rectangle.
  */
 export function siteSize(kind: SiteKind): { w: number; d: number } {
   return SITE_FOOTPRINT[kind] ?? { w: 1, d: 1 };
 }
 
-/** Whether a building covers more than the one tile its gate stands on. */
+/** Whether a building is a long one (an airport): it covers more than the one tile its gate stands on, whatever its level. */
 export function siteIsBig(kind: SiteKind): boolean {
   const z = siteSize(kind);
   return z.w * z.d > 1;
@@ -228,9 +234,16 @@ export function siteIsBig(kind: SiteKind): boolean {
 /** The step across a building's front (either way: the footprint is the same both ways), for each `Rot`. */
 const ACROSS: readonly Tile[] = [{ x: 1, y: 0 }, { x: 0, y: 1 }, { x: 1, y: 0 }, { x: 0, y: 1 }];
 
+/** The ground a building holds: a long building's field, or a 2x2 reserved block; null for a building on one tile. */
+function groundOf(s: Pick<Site, 'kind' | 'rot' | 'res'>): { w: number; d: number; rot: Rot; centred: boolean } | null {
+  if (siteIsBig(s.kind)) return { ...siteSize(s.kind), rot: s.rot ?? 0, centred: true };
+  if (s.res !== undefined) return { ...RESERVED_GROUND, rot: s.res, centred: false };
+  return null;
+}
+
 /**
- * The middle of the ground a building covers. A big building's site tile is its gate, in the middle of its front edge, where
- * roads join it; the rest of it lies behind.
+ * The middle of the ground a building covers, as a tile. A long building's site tile is its gate, in the middle of its front
+ * edge, where roads join it; the rest of it lies behind. A building holding a 2x2 block has its gate tile as the front corner.
  */
 export function siteCenter(world: World, s: Pick<Site, 'kind' | 'x' | 'y' | 'rot'>): Tile {
   const back = (siteSize(s.kind).d - 1) / 2;
@@ -239,14 +252,35 @@ export function siteCenter(world: World, s: Pick<Site, 'kind' | 'x' | 'y' | 'rot
   return { x: wrapX(world, s.x - f.x * back), y: s.y - f.y * back };
 }
 
-/** Every tile a building covers. */
-export function siteTiles(world: World, s: Pick<Site, 'kind' | 'x' | 'y' | 'rot'>): Tile[] {
-  const { w, d } = siteSize(s.kind);
-  if (w * d === 1) return [{ x: s.x, y: s.y }];
-  const f = FRONT[s.rot ?? 0];
-  const a = ACROSS[s.rot ?? 0];
+/**
+ * Where the body of a building stands, as a point between tiles: on its gate tile while it is small, in the middle of its
+ * whole 2x2 block once it has grown into it.
+ */
+export function siteBodyCenter(world: World, s: Pick<Site, 'kind' | 'x' | 'y' | 'rot' | 'res' | 'level'>): { x: number; y: number } {
+  if (s.res === undefined || siteIsBig(s.kind) || bodyTiles(s.level) === 1) return siteCenter(world, s);
+  const f = FRONT[s.res];
+  const a = ACROSS[s.res];
+  return { x: s.x + a.x * 0.5 - f.x * 0.5, y: s.y + a.y * 0.5 - f.y * 0.5 };
+}
+
+/** The tiles of a 2x2 block with its gate corner at (x, y), lying toward `res`. */
+export function blockTiles(world: World, x: number, y: number, res: Rot): Tile[] {
+  const f = FRONT[res];
+  const a = ACROSS[res];
   const out: Tile[] = [];
-  for (let v = 0; v < d; v++) for (let u = -(w - 1) / 2; u <= (w - 1) / 2; u++) out.push({ x: wrapX(world, s.x + a.x * u - f.x * v), y: s.y + a.y * u - f.y * v });
+  for (let v = 0; v < RESERVED_GROUND.d; v++) for (let u = 0; u < RESERVED_GROUND.w; u++) out.push({ x: wrapX(world, x + a.x * u - f.x * v), y: y + a.y * u - f.y * v });
+  return out;
+}
+
+/** Every tile a building holds. */
+export function siteTiles(world: World, s: Pick<Site, 'kind' | 'x' | 'y' | 'rot' | 'res'>): Tile[] {
+  const body = groundOf(s);
+  if (!body) return [{ x: s.x, y: s.y }];
+  const f = FRONT[body.rot];
+  const a = ACROSS[body.rot];
+  const out: Tile[] = [];
+  const u0 = body.centred ? -(body.w - 1) / 2 : 0;
+  for (let v = 0; v < body.d; v++) for (let u = u0; u < u0 + body.w; u++) out.push({ x: wrapX(world, s.x + a.x * u - f.x * v), y: s.y + a.y * u - f.y * v });
   return out;
 }
 
@@ -406,6 +440,8 @@ export interface World {
   pendingTownIntro?: number;
   /** New games: a building outside a town needs its land plot bought first (see land.ts). Missing means build anywhere. */
   landRules?: boolean;
+  /** New worlds: a building on open ground holds a 2x2 block from the day it is placed (see RESERVED_GROUND). Old saves keep one tile. */
+  growRoom?: boolean;
   /** Land plots the player owns, by plot id. */
   owned?: number[];
   /** Trucks buildings are asking for. Not saved: they come back on their own if the need is still there. */
@@ -1006,15 +1042,16 @@ export function siteAt(world: World, x: number, y: number): Site | undefined {
   const exact = world.sites.find((s) => s.x === wx && s.y === y);
   if (exact) return exact;
   for (const s of world.sites) {
-    if (!siteIsBig(s.kind)) continue;
-    const { w, d } = siteSize(s.kind);
-    const f = FRONT[s.rot ?? 0];
-    const a = ACROSS[s.rot ?? 0];
+    const body = groundOf(s);
+    if (!body) continue;
+    const f = FRONT[body.rot];
+    const a = ACROSS[body.rot];
     const dx = wrapDx(world, s.x, wx);
     const dy = y - s.y;
     const along = dx * f.x + dy * f.y;
     const across = dx * a.x + dy * a.y;
-    if (along <= 0 && along > -d && Math.abs(across) <= (w - 1) / 2) return s;
+    const lo = body.centred ? -(body.w - 1) / 2 : 0;
+    if (along <= 0 && along > -body.d && across >= lo && across < lo + body.w) return s;
   }
   if (!world.realisticLots) return undefined;
   for (const site of world.sites) {
@@ -2852,6 +2889,44 @@ export function setAutoBuy(world: World, siteId: number, on: boolean): void {
 /** Steepest step a placed building may sit on: looser than BUILD_SLOPE, which also shapes the world when it is made. */
 const PLACE_SLOPE = 40;
 
+/** Whether a building put at (x, y) holds a 2x2 block: new worlds, on open ground outside towns and away from resource nodes. */
+export function holdsBlock(world: World, kind: SiteKind, x: number, y: number): boolean {
+  const def = SITE_DEFS[kind];
+  if (!world.growRoom || def.dock || def.station || def.port || def.harbor || def.airport || def.railyard) return false;
+  if (needsNode(def) || nodeAt(world, x, y)) return false;
+  return !plotAt(world, x, y) && !civicAt(world, x, y);
+}
+
+/** Why the three tiles beside a gate tile at (x, y) cannot be held with the block lying toward `res`, or null. */
+function blockError(world: World, x: number, y: number, res: Rot): string | null {
+  for (const t of blockTiles(world, x, y, res).slice(1)) {
+    const ter = terrainAt(world, t.x, t.y);
+    if (ter !== 'grass' && ter !== 'forest') return 'A building keeps a 2x2 patch of open, dry ground to grow into';
+    if (siteAt(world, t.x, t.y) || nodeAt(world, t.x, t.y) || placeAt(world, t.x, t.y) || plannedTownAt(world, t.x, t.y) || padAt(world, t.x, t.y) || civicAt(world, t.x, t.y) || plotAt(world, t.x, t.y)) {
+      return 'A building needs a free 2x2 patch to grow into, and that ground is taken';
+    }
+    const rt = routeAt(world, t.x, t.y);
+    if (rt && !rt.free) return 'A road or track runs through the ground this building would grow into';
+    if (slopeAt(world, t.x, t.y) > PLACE_SLOPE) return 'Too steep: this building needs a level 2x2 patch to grow into';
+    if (world.landRules) {
+      const e = landError(world, [t]);
+      if (e) return e;
+    }
+  }
+  return null;
+}
+
+/** Which way the 2x2 block of a building at (x, y) lies: `want` if that fits, otherwise the first way that does. */
+export function blockFor(world: World, x: number, y: number, want?: Rot): { res: Rot } | { error: string } {
+  let first = '';
+  for (const r of want === undefined ? ([0, 1, 2, 3] as Rot[]) : [want]) {
+    const e = blockError(world, x, y, r);
+    if (!e) return { res: r };
+    first ||= e;
+  }
+  return { error: first };
+}
+
 export function placeError(world: World, kind: SiteKind, x: number, y: number, rot?: Rot): string | null {
   const def = SITE_DEFS[kind];
   if (def.dock || def.station) return 'Towns build their own docks and stations';
@@ -2914,6 +2989,10 @@ export function placeError(world: World, kind: SiteKind, x: number, y: number, r
     if (def.port || def.harbor) {
       const e = portError(world, x, y);
       if (e) return e;
+    }
+    if (holdsBlock(world, kind, x, y)) {
+      const held = blockFor(world, x, y, rot);
+      if ('error' in held) return held.error;
     }
   }
   // A building never goes on a road or a track.
@@ -3434,6 +3513,7 @@ export function placeSite(world: World, kind: SiteKind, x: number, y: number, ro
   }
   const wx = wrapX(world, x);
   const node = def.node ? nodeAt(world, wx, y) : undefined;
+  const held = holdsBlock(world, kind, wx, y) ? blockFor(world, wx, y, rot) : null;
   world.money -= cost;
   world.sites.push({
     id: world.nextId++,
@@ -3450,6 +3530,7 @@ export function placeSite(world: World, kind: SiteKind, x: number, y: number, ro
     making: def.recipe ? false : undefined,
     sendTo: [],
     ...(turn !== undefined ? { rot: turn } : {}),
+    ...(held && 'res' in held ? { res: held.res } : {}),
   });
   for (const d of world.sites) if (SITE_DEFS[d.kind].store) refreshFed(world, d);
   const home = plotAt(world, wx, y);

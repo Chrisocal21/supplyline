@@ -1095,21 +1095,22 @@ export function vehicleGeometry(kind: VehicleKind): THREE.BufferGeometry {
 const fitCache = new Map<string, number>();
 
 /**
- * How much a building's plan is shrunk to stand inside its lot: 1 when it already fits, less when a bigger level spills over.
+ * How much a building's plan is shrunk to stand inside the ground it covers (`size` tiles across, one by default): 1 when it already fits, less when a bigger level spills over.
  * A model never needs to know the lot it stands on, so the same rule fits whatever model a building is given later. Height is
  * never squeezed: an upgrade that cannot grow wider grows taller. Ports, stations and airports are laid out on their own ground.
  */
-export function siteFit(kind: SiteKind, level: number): number {
+export function siteFit(kind: SiteKind, level: number, size = 1): number {
   const def = SITE_DEFS[kind];
   if (def.airport || def.port || def.station) return 1;
-  const key = `${kind}@${Math.max(0, level)}`;
+  const key = `${kind}@${Math.max(0, level)}x${size}`;
   let f = fitCache.get(key);
   if (f === undefined) {
     const geo = siteGeometryAt(kind, level);
     geo.computeBoundingBox();
     const b = geo.boundingBox!;
     const ext = Math.max(-b.min.x, b.max.x, -b.min.z, b.max.z);
-    f = ext > LOT / 2 ? LOT / 2 / ext : 1;
+    const half = (size * LOT) / 2;
+    f = ext > half ? half / ext : 1;
     fitCache.set(key, f);
   }
   return f;

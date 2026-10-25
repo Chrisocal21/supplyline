@@ -1058,6 +1058,19 @@ export const SITE_FOOTPRINT: Partial<Record<SiteKind, { w: number; d: number }>>
   airport: { w: 5, d: 3 },
 };
 
+/**
+ * A building on open ground holds a 2x2 block of tiles from the day it is placed, the ground of its last level, so an upgrade
+ * only ever grows into ground it already holds: nothing is torn down or moved to make room. Up to level 3 the building stands
+ * on its one gate tile; from level 4 its body fills the whole block.
+ */
+export const RESERVED_GROUND = { w: 2, d: 2 };
+/** The level at which a building's body grows from its gate tile to the whole reserved block. */
+export const BODY_GROWS_AT = 4;
+/** The width and depth, in tiles, a building's body covers at a level, inside the ground it holds. */
+export function bodyTiles(level: number): number {
+  return level >= BODY_GROWS_AT ? 2 : 1;
+}
+
 /** The label of a quest, by id, for a "locked until..." message. Looks through every tier's list. */
 export function questLabelOf(id: string): string | undefined {
   for (const t of TIERS) {

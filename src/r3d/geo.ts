@@ -176,7 +176,7 @@ export class HeightField {
   private readonly airfields = new Set<number>();
 
   /**
-   * Grade a level field under every airport that does not have one yet: the height of the ground across its 3x3 tiles,
+   * Grade a level field under every airport that does not have one yet: the height of the ground across its whole field,
    * flat to the edge and blended back into the land round it. Returns the tiles whose height changed.
    */
   levelAirfields(): Set<number> {
@@ -195,12 +195,12 @@ export class HeightField {
         cnt += 1;
       }
       if (!cnt) continue;
-      const pad: Pad = { x: c.x + 0.5, y: c.y + 0.5, height: sum / cnt, core: 2.2, outer: 3.6 };
+      const pad: Pad = { x: c.x + 0.5, y: c.y + 0.5, height: sum / cnt, core: 3.1, outer: 4.6 };
       this.addPad(pad);
-      for (let dy = -5; dy <= 5; dy++) {
+      for (let dy = -6; dy <= 6; dy++) {
         const y = c.y + dy;
         if (y < 0 || y >= H) continue;
-        for (let dx = -5; dx <= 5; dx++) touched.add(y * W + (((c.x + dx) % W) + W) % W);
+        for (let dx = -6; dx <= 6; dx++) touched.add(y * W + (((c.x + dx) % W) + W) % W);
       }
     }
     return touched;
