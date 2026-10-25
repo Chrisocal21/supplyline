@@ -19,6 +19,7 @@ import {
   type SiteKind,
 } from './defs';
 import { questState } from './quests';
+import { LAND_PREFIX, buyParcel, parcelAt, parcelPrice } from './land';
 import { hireMechanic, mechanicApplicants, serviceError, serviceVehicle } from './drivers';
 import { buildDistrict, choosePath, districtCost, districtError, districtLevel, districtSatisfaction, pathError } from './town';
 import {
@@ -135,17 +136,32 @@ export function playBot(seed: number, ticks: number, onNote?: (n: BotNote) => vo
   const tried = new Map<string, number>();
 
   // ---- finding places ----
+  /**
+   * Whether a building can go here. On a world with land rules the ground is bought first when that is all that stands in the way,
+   * as a player would: the plot for sale is paid for, then the building is placed on it.
+   */
+  const canPlace = (kind: SiteKind, x: number, y: number): boolean => {
+    let e = placeError(w, kind, x, y);
+    if (e && e.startsWith(LAND_PREFIX)) {
+      const plot = parcelAt(w, x, y);
+      if (plot && w.money >= parcelPrice(plot) + SITE_DEFS[kind].cost + 60 && buyParcel(w, plot.id) === null) {
+        note('bought a plot of land');
+        e = placeError(w, kind, x, y);
+      }
+    }
+    return e === null;
+  };
   const lotFor = (kind: SiteKind, town: Place): { x: number; y: number } | null => {
     for (const t of plotTiles(w, town)) {
       const x = wrapX(w, t.x);
-      if (placeError(w, kind, x, t.y) === null) return { x, y: t.y };
+      if (canPlace(kind, x, t.y)) return { x, y: t.y };
     }
     return null;
   };
   const nodeFor = (kind: SiteKind, near: Place): { x: number; y: number } | null => {
     const nk = SITE_DEFS[kind].node;
     const nodes = w.nodes.filter((n) => n.kind === nk).sort((a, b) => d2(a, near) - d2(b, near));
-    for (const n of nodes) if (placeError(w, kind, n.x, n.y) === null) return { x: n.x, y: n.y };
+    for (const n of nodes) if (canPlace(kind, n.x, n.y)) return { x: n.x, y: n.y };
     return null;
   };
   const openFor = (kind: SiteKind, near: Place): { x: number; y: number } | null => {
@@ -155,7 +171,7 @@ export function playBot(seed: number, ticks: number, onNote?: (n: BotNote) => vo
           if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
           const x = wrapX(w, near.x + dx);
           const y = near.y + dy;
-          if (placeError(w, kind, x, y) === null) return { x, y };
+          if (canPlace(kind, x, y)) return { x, y };
         }
       }
     }

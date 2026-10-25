@@ -24,6 +24,9 @@ jobs:
         with:
           node-version: 22
       - run: npm ci
+      # The installer version comes from package.json: take it from the tag so the files land on this release.
+      - run: npm version ${GITHUB_REF_NAME#v} --no-git-tag-version --allow-same-version
+        shell: bash
       - run: npm test
       - run: npx vite build
       - run: npx electron-builder --win --publish always
@@ -38,6 +41,9 @@ jobs:
         with:
           node-version: 22
       - run: npm ci
+      # The installer version comes from package.json: take it from the tag so the files land on this release.
+      - run: npm version ${GITHUB_REF_NAME#v} --no-git-tag-version --allow-same-version
+        shell: bash
       - run: npx vite build
       # Not signed with an Apple certificate yet (that needs a paid Apple Developer account), so it is signed ad hoc.
       - run: npx electron-builder --mac --publish always

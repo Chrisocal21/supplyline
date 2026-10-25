@@ -9,7 +9,11 @@ export const DEMO_MAP = 'map1';
 
 const KEY = 'sl-full';
 
+/** The free demo is switched off while the levels are unfinished: every build plays the whole game. Set true to bring it back. */
+export const DEMO_ON = false;
+
 export function isDemo(): boolean {
+  if (!DEMO_ON) return false;
   // The desktop demo installer says so itself; the full desktop game is never limited.
   if (!inBrowser()) return (window as unknown as { supplyline?: { demo?: boolean } }).supplyline?.demo === true;
   try {

@@ -7,7 +7,8 @@ import map1 from '../maps/map1.json';
 import map2 from '../maps/map2.json';
 import map3 from '../maps/map3.json';
 import { playBot } from './bot';
-import { createWorldFromMap, type MapData } from './world';
+import { createWorld, createWorldFromMap, prepareRealisticWorld, type MapData } from './world';
+import { enableLandRules } from './land';
 import { SITE_DEFS, SITE_UPKEEP, TIERS, VEHICLE_DEFS, VEHICLE_UPKEEP } from './defs';
 import { questState } from './quests';
 import { upkeepPerMinute } from './town';
@@ -24,8 +25,17 @@ run('pacing report', () => {
   // PACING_MAP=map1, map2 or map3 plays the hand-made maps, with their own towns and resources; the default is a random world.
   const mapName = process.env.PACING_MAP;
   const start = mapName === 'map1' ? createWorldFromMap(map1 as unknown as MapData) : mapName === 'map2' ? createWorldFromMap(map2 as unknown as MapData) : mapName === 'map3' ? createWorldFromMap(map3 as unknown as MapData) : undefined;
+  // PACING_DOWNTOWN=1 plays a new-game world: land to buy, no town lots, factories on open ground.
+  if (process.env.PACING_DOWNTOWN) {
+    const w0 = start ?? createWorld(seed);
+    prepareRealisticWorld(w0);
+    enableLandRules(w0);
+    return runWith(w0);
+  }
+  return runWith(start);
+  function runWith(startWorld: ReturnType<typeof createWorld> | undefined): void {
   const r = playBot(seed, Math.round(hours * 36000), verbose ? (n) => process.stdout.write(`${min(n.tick).padStart(10)}  ${n.text}
-`) : undefined, style, start);
+`) : undefined, style, startWorld);
   const w = r.world;
   const lines: string[] = [];
   lines.push(`seed ${seed}: ${hours} game hours in ${((Date.now() - t0) / 1000).toFixed(1)} s (sim ${(r.stepMs / 1000).toFixed(1)} s, bot ${(r.decideMs / 1000).toFixed(1)} s)`);
@@ -41,4 +51,5 @@ run('pacing report', () => {
   const tier = TIERS[w.tier];
   if (tier) lines.push(`open quests in tier ${w.tier}: ${tier.quests.filter((q) => !questState(w, tier, q).done).map((q) => q.label).join('; ')}`);
   process.stdout.write(lines.join('\n') + '\n');
+  }
 }, 600000);

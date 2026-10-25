@@ -45,7 +45,7 @@ export default function Store() {
               <div><dt>Developer</dt><dd><a href={LINKS.studio} rel="noopener">Probably Fine Studios</a></dd></div>
               <div><dt>Publisher</dt><dd><a href={LINKS.studio} rel="noopener">Probably Fine Studios</a></dd></div>
               <div><dt>Release</dt><dd>To be announced</dd></div>
-              <div><dt>Status</dt><dd>In development, free demo available</dd></div>
+              <div><dt>Status</dt><dd>In development</dd></div>
             </dl>
             <ul className="tags">
               {['Logistics', 'Management', 'Building', 'Trains', 'Economy', 'Singleplayer', 'Relaxed'].map((t) => <li key={t}>{t}</li>)}
@@ -56,10 +56,9 @@ export default function Store() {
         <div className="buy">
           <div>
             <h3>Wishlist SupplyLine</h3>
-            <p>Be told when it launches. The free demo plays Tiers 0 and 1 on Map 1.</p>
+            <p>Be told when it launches.</p>
           </div>
           <div className="btn-row">
-            <a className="btn" href="/#demo">Download the free demo<small>Windows and Mac, free</small></a>
             <LinkButton primary href={LINKS.steam} label="Wishlist on Steam" note="Wishlist now" soon="Coming soon" />
           </div>
         </div>
@@ -86,11 +85,6 @@ export default function Store() {
             </section>
           </div>
           <div className="stack">
-            <section className="panel bar">
-              <h3>Free demo</h3>
-              <p>Map 1, Tiers 0 and 1. It ends when you reach Tier 2, and you can save your progress to a file and carry it into the full game.</p>
-              <p style={{ marginTop: 10 }}>The full game adds Maps 2 and 3, rail, ports, ships, planes, steel and machinery.</p>
-            </section>
             <section className="panel bar">
               <h3>System requirements</h3>
               <table className="reqs">

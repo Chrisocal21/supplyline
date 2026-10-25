@@ -6,8 +6,6 @@
 name: Demo build
 on:
   workflow_dispatch:
-  push:
-    tags: ['demo-v*']
 permissions:
   contents: write
 jobs:

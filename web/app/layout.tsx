@@ -10,7 +10,7 @@ export const metadata: Metadata = {
   description: 'SupplyLine is a logistics game on a 3D globe, in development by Probably Fine Studios. Build farms, forests and factories, and move goods by truck, train, ship and plane. The free demo is a Windows download.',
   openGraph: {
     title: 'SupplyLine - a logistics game on a 3D globe',
-    description: 'In development. Free Windows demo. Steam to come.',
+    description: 'In development.',
     images: ['/site/logo-full.jpg'],
   },
   icons: { icon: '/favicon.svg' },
