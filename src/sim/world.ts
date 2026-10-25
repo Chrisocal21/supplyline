@@ -2889,19 +2889,30 @@ export function setAutoBuy(world: World, siteId: number, on: boolean): void {
 /** Steepest step a placed building may sit on: looser than BUILD_SLOPE, which also shapes the world when it is made. */
 const PLACE_SLOPE = 40;
 
-/** Whether a building put at (x, y) holds a 2x2 block: new worlds, on open ground outside towns and away from resource nodes. */
-export function holdsBlock(world: World, kind: SiteKind, x: number, y: number): boolean {
+/**
+ * Whether a building put at (x, y) holds a 2x2 block, in new worlds: 'hard' on open ground outside towns, where it is
+ * refused unless the whole block is free; 'soft' on a resource node, where it holds the block when there is room beside the
+ * node and otherwise stands on its one tile (a node is where it is, so it is never turned away for room).
+ */
+export function holdKind(world: World, kind: SiteKind, x: number, y: number): 'hard' | 'soft' | null {
   const def = SITE_DEFS[kind];
-  if (!world.growRoom || def.dock || def.station || def.port || def.harbor || def.airport || def.railyard) return false;
-  if (needsNode(def) || nodeAt(world, x, y)) return false;
-  return !plotAt(world, x, y) && !civicAt(world, x, y);
+  if (!world.growRoom || def.dock || def.station || def.port || def.harbor || def.airport || def.railyard) return null;
+  if (plotAt(world, x, y) || civicAt(world, x, y)) return null;
+  return needsNode(def) || nodeAt(world, x, y) ? 'soft' : 'hard';
+}
+
+/** Whether a building put at (x, y) must have a whole 2x2 block free (see holdKind). */
+export function holdsBlock(world: World, kind: SiteKind, x: number, y: number): boolean {
+  return holdKind(world, kind, x, y) === 'hard';
 }
 
 /** Why the three tiles beside a gate tile at (x, y) cannot be held with the block lying toward `res`, or null. */
 function blockError(world: World, x: number, y: number, res: Rot): string | null {
   for (const t of blockTiles(world, x, y, res).slice(1)) {
     const ter = terrainAt(world, t.x, t.y);
-    if (ter !== 'grass' && ter !== 'forest') return 'A building keeps a 2x2 patch of open, dry ground to grow into';
+    // Beside a resource node the ground may be the node's own (a quarry's rock, a mine's hillside), but never water.
+    const own = terrainAt(world, x, y);
+    if (ter !== 'grass' && ter !== 'forest' && !(ter === own && nodeAt(world, x, y) && ter !== 'water' && ter !== 'ice')) return 'A building keeps a 2x2 patch of open, dry ground to grow into';
     if (siteAt(world, t.x, t.y) || nodeAt(world, t.x, t.y) || placeAt(world, t.x, t.y) || plannedTownAt(world, t.x, t.y) || padAt(world, t.x, t.y) || civicAt(world, t.x, t.y) || plotAt(world, t.x, t.y)) {
       return 'A building needs a free 2x2 patch to grow into, and that ground is taken';
     }
@@ -3513,7 +3524,8 @@ export function placeSite(world: World, kind: SiteKind, x: number, y: number, ro
   }
   const wx = wrapX(world, x);
   const node = def.node ? nodeAt(world, wx, y) : undefined;
-  const held = holdsBlock(world, kind, wx, y) ? blockFor(world, wx, y, rot) : null;
+  const hold = holdKind(world, kind, wx, y);
+  const held = hold ? blockFor(world, wx, y, rot) : null;
   world.money -= cost;
   world.sites.push({
     id: world.nextId++,

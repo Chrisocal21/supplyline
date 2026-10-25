@@ -57,4 +57,20 @@ describe('ground held for growth', () => {
     expect(siteAt(w, 10, 10)!.res).toBeUndefined();
     expect(siteTiles(w, siteAt(w, 10, 10)!)).toHaveLength(1);
   });
+
+  it('a camp on a resource node holds the room beside it when there is some, and still stands on its node when there is none', () => {
+    const w = world();
+    w.nodes.push({ id: 90, kind: 'forest', x: 10, y: 10, quality: 1 } as never);
+    expect(placeError(w, 'forestry', 10, 10)).toBeNull();
+    expect(placeSite(w, 'forestry', 10, 10)).toBeNull();
+    const camp = siteAt(w, 10, 10)!;
+    expect(camp.res).toBeDefined();
+    expect(siteTiles(w, camp)).toHaveLength(4);
+    // A node on a one-tile spit with water all round: never refused for room, just no more ground held.
+    w.nodes.push({ id: 91, kind: 'forest', x: 25, y: 20, quality: 1 } as never);
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [-1, -1], [1, -1], [-1, 1]]) w.terrain[(20 + dy) * 40 + 25 + dx] = 'water';
+    expect(placeSite(w, 'forestry', 25, 20)).toBeNull();
+    expect(siteAt(w, 25, 20)!.res).toBeUndefined();
+    expect(siteTiles(w, siteAt(w, 25, 20)!)).toHaveLength(1);
+  });
 });

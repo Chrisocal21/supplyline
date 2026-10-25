@@ -101,7 +101,7 @@ import {
   siteCenter,
   siteBodyCenter,
   siteIsBig,
-  holdsBlock,
+  holdKind,
   blockFor,
   blockTiles,
   siteTiles,
@@ -2539,9 +2539,12 @@ export class Game3D {
     this.ghost.matrixWorldNeedsUpdate = true;
     this.ghost.visible = true;
     // A building on open ground holds the 2x2 block of its last level from the start: show all of it.
-    if (holdsBlock(this.world, kind, tile.x, tile.y)) {
+    const hold = holdKind(this.world, kind, tile.x, tile.y);
+    if (hold) {
       const held = blockFor(this.world, tile.x, tile.y, this.placeRot ?? undefined);
-      this.showHoldRings(blockTiles(this.world, tile.x, tile.y, 'res' in held ? held.res : (this.placeRot ?? 0)), ok && 'res' in held);
+      // On a resource node the building takes the room if there is any, and stands on its one tile if not.
+      if ('res' in held) this.showHoldRings(blockTiles(this.world, tile.x, tile.y, held.res), ok);
+      else this.showHoldRings(hold === 'hard' ? blockTiles(this.world, tile.x, tile.y, this.placeRot ?? 0) : null, false);
     } else this.showHoldRings(null, true);
     // A building turned by hand takes its road at its front: an arrow on the driveway tile shows where to meet it.
     if (this.placeRot !== null || siteIsBig(kind)) {
