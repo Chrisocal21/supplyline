@@ -167,7 +167,7 @@ From tier 1 on, raw sites run about 1.5x slower so trucks and roads, not the gro
 | Warehouse | Stores goods. Holds overflow when buyers are full; factories next to it draw inputs from it. | 1 | 300 |
 | Rail Yard | Edge-of-town terminal where trains load and unload. | 2 | 3,000 |
 | Port | Coastal terminal for ships. | 2 | 4,000 |
-| Airport | 3x3 air cargo terminal. | 3 | 2,500 |
+| Airport | 5x3 air cargo terminal: a long runway across the back, the road in at the front. | 3 | 2,500 |
 
 Towns also have **Market** (everyday goods), **Supply Yard** (building materials only, built from lumber; see section 0A) and **Rail Station**. The player never places these; towns make them.
 

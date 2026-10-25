@@ -598,7 +598,7 @@ function international(p: Parts): void {
   perimeter(p);
 }
 
-/** The airport as it looks at a level: the 3x3-tile field with its runway, and the terminal that level adds. */
+/** The airport as it looks at a level: the 5x3-tile field with its long runway, and the terminal that level adds. */
 export function airportGeometry(level: number): THREE.BufferGeometry {
   const p = new Parts();
   field(p);

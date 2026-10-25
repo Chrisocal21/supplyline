@@ -398,7 +398,7 @@ const DEFS = {
   } as SiteDef,
   airport: {
     label: 'Airport',
-    blurb: 'An air cargo terminal on a 3x3 field: the runway runs across the back and the road comes in at the front. Goods are loaded onto cargo planes here, and unloaded and sent into town when planes land. Upgrades build out the terminal, from airfield to regional to international.',
+    blurb: 'An air cargo terminal on a 5x3 field: a long runway runs across the back and the road comes in at the front, where an arrow shows the turn. Goods are loaded onto cargo planes here, and unloaded and sent into town when planes land. Upgrades build out the terminal, from airfield to regional to international.',
     real: 'Like a real air cargo terminal: freight is loaded onto planes and unloaded again.',
     category: 'logistics',
     cost: 2500,

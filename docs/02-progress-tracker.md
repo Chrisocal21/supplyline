@@ -502,3 +502,11 @@ Done earlier:
 - No HTML in any output
 - No emojis in any output
 - SVG icons only when genuinely needed
+
+#### Footprints, held ground and the wiki (0.197 to 0.205)
+- The airport is now a 5x3 rectangle (long runway across the back); R turns it and the long side turns with it. The old 3x3 note above is superseded.
+- One lot size (`LOT`, 3.1 units) for town lot pads, site fences and the fit rule. A model is shrunk to fit the ground it covers (`siteFit`), height is never squeezed.
+- New worlds: a building on open ground holds a 2x2 block from placement, and a building on a resource node holds one when there is room. Body is one tile to level 3, the whole block from level 4.
+- A building turned by hand is entered from its front tile (`entryTile`); an arrow marks it while placing and while drawing a road.
+- Land plots never include a town's grown footprint; no resource node lies inside one (tested).
+- The wiki data (`web/app/wiki/data.json`) and the model pictures (`docs/model-previews`) are regenerated with `node tools/export-wiki.cjs` and `node tools/model-gallery.cjs`.

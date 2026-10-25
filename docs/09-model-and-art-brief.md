@@ -35,7 +35,7 @@ By-products appear as piles or bins on the site (straw bales, husk heaps, feathe
 
 ## 2. Technical rules for every model
 
-- Format: glTF 2.0 (.glb), Y up, 1 unit = 1 metre-ish "game unit". One town tile is 3.3 units wide; a town lot pad is 2.6 x 2.6. Most sites stand on about a 3 x 3 tile ground area (airports, ports and campuses are larger: say so in the model name; confirm exact footprints with the game before final art).
+- Format: glTF 2.0 (.glb), Y up, 1 unit = 1 metre-ish "game unit". One town tile is 3.3 units wide; a town lot pad is 3.1 x 3.1 (`LOT` in src/scale.ts). A building on open ground holds a 2 x 2 tile block from the day it is placed: its body stands on one tile (3.1 wide) up to level 3 and fills the whole block (6.2 wide) from level 4. Town lots are one tile at every level. The airport is 5 x 3 tiles (16.4 x 9.8 units), long side along the runway, front (+z) where the road comes in. The game shrinks any model's plan to fit its ground and never squeezes height, so models should be authored to those widths.
 - Origin: centre of the footprint, on the ground (y = 0). The front or door faces +Z. Streets run along X and Z.
 - Style: low poly, flat or softly shaded colours, no baked dirt, small colour palette shared across models (a single 512 px palette texture or vertex colours). Wood, brick, tin, glass and metal read by colour alone.
 - Triangle budgets (the game draws hundreds at once and many players have laptops):
