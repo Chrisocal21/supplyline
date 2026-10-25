@@ -122,28 +122,38 @@ export class Title {
       im.rect(1, 0, H - b1, W, b1 - b0, 0x05080c, a);
     }
 
-    // The logo.
-    const size = Math.round(Math.max(40, Math.min(124, W * 0.082)));
-    const track = size * 0.07;
-    let total = 0;
-    LOGO.split('').forEach((ch, i) => {
-      this.widths[i] = im.text(`tl-m${i}`, ch, 0, -400, { size, bold: true, layer: 3, alpha: 0 }).w;
-      total += this.widths[i] + (i < LOGO.length - 1 ? track : 0);
-    });
-    const ly = Math.round(H * 0.15);
-    let x = Math.round((W - total) / 2);
-    LOGO.split('').forEach((ch, i) => {
-      const k = ease((t - 0.1 - i * 0.05) / 0.6);
-      const rise = (1 - k) * size * 0.3;
-      const color = i < SPLIT ? WHITE : COLORS.accent;
-      im.text(`tl-s${i}`, ch, x + 3, ly + rise + 4, { size, bold: true, color: 0x000000, alpha: 0.5 * k, layer: 3 });
-      im.text(`tl-l${i}`, ch, x, ly + rise, { size, bold: true, color, alpha: k, layer: 3 });
-      x += this.widths[i] + track;
-    });
+    // The logo: the picture when it has loaded, the name in letters until then.
+    const hasLogo = this.ready('title-logo');
+    const logoSize = Math.round(Math.max(150, Math.min(H * 0.4, W * 0.62, 470)));
+    const ly = Math.round(H * 0.025);
+    const logoK = ease((t - 0.1) / 0.8);
+    let tagY: number;
+    if (hasLogo) {
+      const s = logoSize * (0.94 + 0.06 * logoK);
+      im.image('tl-logo', 'title-logo', Math.round((W - s) / 2), Math.round(ly + (logoSize - s) / 2), s, s, logoK, 3);
+      tagY = ly + logoSize * 0.95;
+    } else {
+      const size = Math.round(Math.max(40, Math.min(124, W * 0.082)));
+      const track = size * 0.07;
+      let total = 0;
+      LOGO.split('').forEach((ch, i) => {
+        this.widths[i] = im.text(`tl-m${i}`, ch, 0, -400, { size, bold: true, layer: 3, alpha: 0, display: true }).w;
+        total += this.widths[i] + (i < LOGO.length - 1 ? track : 0);
+      });
+      const top = Math.round(H * 0.15);
+      let x = Math.round((W - total) / 2);
+      LOGO.split('').forEach((ch, i) => {
+        const k = ease((t - 0.1 - i * 0.05) / 0.6);
+        im.text(`tl-l${i}`, ch, x, top + (1 - k) * size * 0.3, { size, bold: true, color: i < SPLIT ? WHITE : COLORS.accent, alpha: k, layer: 3, display: true });
+        x += this.widths[i] + track;
+      });
+      tagY = top + size * 1.3;
+    }
     const tagA = ease((t - 0.7) / 0.7);
-    const tagSize = Math.round(Math.max(15, size * 0.2));
-    im.text('tl-tagS', 'Build the chain. Feed the world.', W / 2 + 1, ly + size * 1.3 + 2, { size: tagSize, color: 0x000000, align: 'center', alpha: tagA * 0.7, layer: 3 });
-    im.text('tl-tag', 'Build the chain. Feed the world.', W / 2, ly + size * 1.3, { size: tagSize, color: 0xf0f4f8, align: 'center', alpha: tagA, layer: 3 });
+    const tagSize = Math.round(Math.max(20, Math.min(34, H * 0.04)));
+    im.text('tl-tagS', 'FEED THE WORLD, ONE TRUCK AT A TIME.', W / 2 + 1, tagY + 2, { size: tagSize, bold: true, display: true, color: 0x000000, align: 'center', alpha: tagA * 0.7, layer: 3 });
+    im.text('tl-tag', 'FEED THE WORLD, ONE TRUCK AT A TIME.', W / 2, tagY, { size: tagSize, bold: true, display: true, color: 0xf0f4f8, align: 'center', alpha: tagA, layer: 3 });
+    const buttonsTop = Math.round(tagY + tagSize * 1.9);
 
     // The caption for the picture on show.
     const local = clock - Math.floor(clock / SHOW) * SHOW;
@@ -152,8 +162,8 @@ export class Title {
     const cx = Math.max(28, W * 0.05);
     const cy = H - Math.max(120, H * 0.17);
     im.rect(3, cx, cy + 2, 4, 62, COLORS.accent, capA);
-    im.text('tl-chS', cap.head, cx + 19, cy + 2, { size: 30, bold: true, color: 0x000000, alpha: capA * 0.6, layer: 3 });
-    im.text('tl-ch', cap.head, cx + 18, cy, { size: 30, bold: true, color: WHITE, alpha: capA, layer: 3 });
+    im.text('tl-chS', cap.head, cx + 19, cy + 2, { size: 34, bold: true, display: true, color: 0x000000, alpha: capA * 0.6, layer: 3 });
+    im.text('tl-ch', cap.head, cx + 18, cy, { size: 34, bold: true, display: true, color: WHITE, alpha: capA, layer: 3 });
     im.text('tl-csS', cap.sub, cx + 19, cy + 41, { size: 15, color: 0x000000, alpha: capA * 0.6, wrap: Math.min(W * 0.5, 560), layer: 3 });
     im.text('tl-cs', cap.sub, cx + 18, cy + 40, { size: 15, color: 0xe3eaf1, alpha: capA, wrap: Math.min(W * 0.5, 560), layer: 3 });
 
@@ -168,7 +178,7 @@ export class Title {
       const items: { id: TitleChoice; label: string; primary: boolean }[] = this.hasSave
         ? [{ id: 'continue', label: 'Continue', primary: true }, { id: 'new', label: 'New game', primary: false }]
         : [{ id: 'new', label: 'New game', primary: true }];
-      const by0 = Math.round(H * 0.5);
+      const by0 = Math.max(buttonsTop, Math.round(H * 0.5));
       const wait = this.gate();
       items.forEach((it, i) => {
         const k = ease((t - 0.9 - i * 0.15) / 0.5) * (wait ? 0.4 : 1);
@@ -180,10 +190,10 @@ export class Title {
           const pulse = 0.5 + 0.5 * Math.sin(t * 2.6);
           im.rect(2, bx - 6, by - 6, bw + 12, bh + 12, COLORS.accent, (0.1 + 0.1 * pulse + (hov ? 0.12 : 0)) * k, 12);
           im.rect(3, bx, by, bw, bh, hov ? 0xf4b24c : COLORS.accent, k, 6);
-          im.text(`tl-bt${it.id}`, it.label.toUpperCase(), bx + bw / 2, by + 15, { size: 19, bold: true, color: 0x1b1204, align: 'center', alpha: k, layer: 3 });
+          im.text(`tl-bt${it.id}`, it.label.toUpperCase(), bx + bw / 2, by + 12, { size: 24, bold: true, display: true, color: 0x1b1204, align: 'center', alpha: k, layer: 3 });
         } else {
           im.rect(2, bx, by, bw, bh, hov ? 0x1c2735 : 0x0d131b, 0.72 * k, 6, hov ? COLORS.accent : 0xffffff, hov ? 1 : 0.28);
-          im.text(`tl-bt${it.id}`, it.label.toUpperCase(), bx + bw / 2, by + 15, { size: 19, bold: true, color: hov ? COLORS.accent : WHITE, align: 'center', alpha: k, layer: 3 });
+          im.text(`tl-bt${it.id}`, it.label.toUpperCase(), bx + bw / 2, by + 12, { size: 24, bold: true, display: true, color: hov ? COLORS.accent : WHITE, align: 'center', alpha: k, layer: 3 });
         }
       });
       const hintA = ease((t - 1.6) / 0.8) * (0.55 + 0.35 * Math.sin(t * 2.2));
@@ -195,7 +205,7 @@ export class Title {
       const bx = Math.round((W - bw) / 2);
       const by = Math.round(H * 0.52);
       const label = this.choice === 'continue' ? 'LOADING YOUR GAME' : 'BUILDING A NEW WORLD';
-      im.text('tl-ld', label, W / 2, by - 30, { size: 14, bold: true, color: WHITE, align: 'center', layer: 3 });
+      im.text('tl-ld', label, W / 2, by - 30, { size: 18, bold: true, display: true, color: WHITE, align: 'center', layer: 3 });
       im.rect(3, bx, by, bw, 8, 0x0d131b, 0.8, 4, 0xffffff, 0.25);
       const run = (lt * 0.55) % 1;
       const head = Math.min(1, 0.12 + 0.88 * (1 - Math.exp(-lt * 0.9)));

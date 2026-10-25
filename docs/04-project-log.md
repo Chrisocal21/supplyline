@@ -976,3 +976,9 @@ What changed:
 
 - The home page logo and the store page logo were 404 on the live site: they sat in `web/public`, which is ignored by git and rebuilt from `public/site` and `public/title` at build time. The picture now lives at `public/site/logo-full.jpg`, and the small mark is the game's own `public/favicon.svg`. Anything the site needs must live in `public/`, never directly in `web/public`.
 - Checked with `SL_SITE=1 vite build`: both files are in `dist`.
+
+## 0.158: the game's title screen matches the website
+
+- The title screen draws the new logo (`public/title/logo.png`, the supplied emblem with a soft round edge baked into its alpha) in place of the letters, with the website's headline under it, "Feed the world, one truck at a time." The letters stay as the fallback until the picture loads.
+- The website's display face, Barlow Condensed (600, 700 and 800 in `public/fonts`, `@font-face` in `play/index.html`), is available to any text through `display: true` in `TextOpts` (`DISPLAY` in imui.ts). The title screen's headline, button labels, picture captions and loading label use it. Text redraws in it once the font has loaded.
+- Menus and HUD still use the body face. Next steps for the same look: menu headings, angled buttons, the logo in the menu.

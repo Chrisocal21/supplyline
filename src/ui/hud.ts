@@ -246,6 +246,7 @@ export class HudScene extends Phaser.Scene {
   /** The title screen's pictures load first, so the opening is never blank. */
   preload(): void {
     TITLE_SLIDES.forEach((sl, i) => this.load.image(`title-${i}`, `/${sl.file}`));
+    this.load.image('title-logo', '/title/logo.png');
   }
 
   create(): void {

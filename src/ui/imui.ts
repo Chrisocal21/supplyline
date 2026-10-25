@@ -3,6 +3,8 @@
 import Phaser from 'phaser';
 
 export const FONT = "'Segoe UI', 'Inter', system-ui, -apple-system, Roboto, sans-serif";
+/** The titles' face, shared with the website: tall and condensed, for the title screen and big headings. */
+export const DISPLAY = "'Barlow Condensed', 'Arial Narrow', 'Segoe UI', sans-serif";
 const TEXT_RES = Math.max(2, Math.ceil(window.devicePixelRatio || 1));
 
 export const COLORS = {
@@ -29,6 +31,8 @@ export interface TextOpts {
   wrap?: number;
   alpha?: number;
   spacing?: boolean;
+  /** Draw in the display face (the title screen and big headings) instead of the body face. */
+  display?: boolean;
 }
 
 export interface Box {
@@ -64,6 +68,11 @@ export class Im {
     private readonly home?: Phaser.GameObjects.Layer,
   ) {
     this.maxLayer = layers - 1;
+    // The display face arrives after the first frames: redraw every text in it once it has.
+    if (typeof document !== 'undefined' && document.fonts) {
+      void document.fonts.load("700 20px 'Barlow Condensed'");
+      document.fonts.addEventListener('loadingdone', () => this.texts.forEach((t) => (t._sig = undefined)));
+    }
     for (let i = 0; i < layers; i++) {
       const g = scene.add.graphics().setDepth(i * 10);
       home?.add(g);
@@ -153,17 +162,18 @@ export class Im {
   text(id: string, str: string, x: number, y: number, o: TextOpts = {}): { w: number; h: number } {
     const size = o.size ?? 13;
     const color = o.color ?? COLORS.text;
-    const sig = `${size}|${color}|${o.bold ? 1 : 0}|${o.stroke ?? -1}|${o.wrap ?? 0}|${o.align ?? 'left'}`;
+    const sig = `${size}|${color}|${o.bold ? 1 : 0}|${o.stroke ?? -1}|${o.wrap ?? 0}|${o.align ?? 'left'}|${o.display ? 1 : 0}`;
+    const family = o.display ? DISPLAY : FONT;
     let t = this.texts.get(id);
     if (!t) {
-      t = this.scene.add.text(0, 0, '', { fontFamily: FONT, resolution: TEXT_RES }) as Pooled;
+      t = this.scene.add.text(0, 0, '', { fontFamily: family, resolution: TEXT_RES }) as Pooled;
       this.home?.add(t);
       this.texts.set(id, t);
     }
     if (t._sig !== sig) {
       t._sig = sig;
       t.setStyle({
-        fontFamily: FONT,
+        fontFamily: family,
         fontSize: `${size}px`,
         color: css(color),
         fontStyle: o.bold ? 'bold' : 'normal',

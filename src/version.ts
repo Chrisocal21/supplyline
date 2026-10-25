@@ -1,3 +1,3 @@
 /** The build number, matching the commit it ships in (0.7, 0.8, ...), and a short line on what that update covered. Bump both with every commit. */
-export const VERSION = '0.157';
-export const VERSION_NOTE = 'The new logo now loads on the live website';
+export const VERSION = '0.158';
+export const VERSION_NOTE = 'The title screen shows the new logo, in the same font as the website';
