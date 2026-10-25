@@ -1105,3 +1105,9 @@ What changed:
 ## 0.182: keys that make sense
 
 - C opens Company (was Y), V picks the road tool (was C), G opens Graphics (was O), O opens Objectives (was G). Menu labels, the rail letters, the keybinds page, the hint strip and the tutorial match.
+
+## 0.183: room to build, node quality
+
+- Open-ground buildings may stand in woodland outside forestry nodes (paying to clear it, as before), and on steeper ground (PLACE_SLOPE 40, placement only; BUILD_SLOPE still shapes world generation). On seed 11 the tiles a Sawmill can use went from 580 to 1,968; a road can use 3,695.
+- Hovering a building on a resource node shows the node quality (Impure, Normal or Pure) and its output change.
+- With a building tool picked and nothing pointed at, the hint explains the colours: green open ground, orange kept for a town or too steep; node buildings say to point at a marker and that Pure makes the most.

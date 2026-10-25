@@ -246,7 +246,7 @@ describe('places for airports and rail yards', () => {
       }
     }
     expect(lonely).not.toBeNull();
-    expect(placeError(w, 'railyard', lonely!.x, lonely!.y)).toMatch(/edge of a town|steep/);
+    expect(placeError(w, 'railyard', lonely!.x, lonely!.y)).toMatch(/edge of a town|steep|flat, open ground/);
     expect(placeSite(w, 'railyard', spot.x, spot.y)).toBeNull();
     const yard = siteAt(w, spot.x, spot.y)!;
     // Track can leave it at once.

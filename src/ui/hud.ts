@@ -93,6 +93,7 @@ import {
   wrapDx,
   createWorldFromMap,
   type MapData,
+  needsNode,
 } from '../sim/world';
 import { nextQuest } from '../sim/quests';
 import { tutorialNext, tutorialSkip } from '../sim/tutorial';
@@ -2656,7 +2657,12 @@ export class HudScene extends Phaser.Scene {
       const cost = h ? buildCost(w, g.tool as SiteKind, h.tile.x, h.tile.y) : d.cost;
       const cleared = cost > d.cost ? ` (incl. $${fmt(cost - d.cost)} to clear forest)` : '';
       const spots = g.tool === 'airport' ? '  ·  green tiles show where it can go, gold is ground kept for a town\'s airport' : '  ·  green tiles show where it can go';
-      text = h ? (h.error ? h.error : `${byInput('Click', 'Tap')} to build ${d.label} for $${fmt(cost)}${cleared}${byInput(turn, '')}`) : `${d.label} $${fmt(d.cost)}${g.tool === 'railyard' || g.tool === 'airport' || g.tool === 'port' ? spots : ''}`;
+      // With nothing pointed at, say what kind of ground this building wants, so the map's colours make sense from the start.
+      const where = needsNode(d)
+        ? `  ·  goes on a ${d.node} node: point at a marker. Pure nodes make the most, Impure the least`
+        : g.tool === 'railyard' || g.tool === 'airport' || g.tool === 'port' ? spots
+          : "  ·  Green: open ground, yours to build on. Orange: kept for a town's streets and homes, or too steep. Roads may still cross it";
+      text = h ? (h.error ? h.error : `${byInput('Click', 'Tap')} to build ${d.label} for $${fmt(cost)}${cleared}${byInput(turn, '')}`) : `${d.label} $${fmt(d.cost)}${where}`;
     } else if (h) {
       text = h.site?.name ?? (h.place ? h.place.name : h.node ? `${h.node.kind} node` : (h.region?.name ?? ''));
     }
@@ -2862,6 +2868,12 @@ export class HudScene extends Phaser.Scene {
       const s = h.site;
       const def = SITE_DEFS[s.kind];
       out.push({ text: s.name, bold: true, size: 14 }, { text: `${def.label}${(def.dock && def.dock !== 'civic') || def.station ? '' : ` · Level ${s.level}`}`, color: COLORS.muted });
+      // A site on a resource node keeps saying how good the node is: Impure, Normal or Pure.
+      const node = s.nodeId === null ? undefined : w.nodes.find((q) => q.id === s.nodeId);
+      if (node) {
+        const q = NODE_QUALITY[node.quality];
+        out.push({ text: `${q.label} ${node.kind} node · ${q.mult >= 1 ? '+' : ''}${Math.round((q.mult - 1) * 100)}% output`, color: node.quality === 2 ? COLORS.good : node.quality === 0 ? COLORS.warn : COLORS.text });
+      }
       const st = this.siteStatus(s);
       out.push({ text: st.text, color: st.color });
       const goods = Array.from(new Set([...produces(s), ...wants(w, s)])).filter((gd) => stockOf(s, gd) > 0 || (def.dock || def.station ? false : true));

@@ -2805,6 +2805,9 @@ export function setAutoBuy(world: World, siteId: number, on: boolean): void {
 // ---- player actions. Each returns an error string, or null on success. ----
 
 /** Why a site cannot be placed here, or null if it can. Does not change the world. */
+/** Steepest step a placed building may sit on: looser than BUILD_SLOPE, which also shapes the world when it is made. */
+const PLACE_SLOPE = 40;
+
 export function placeError(world: World, kind: SiteKind, x: number, y: number, rot?: Rot): string | null {
   const def = SITE_DEFS[kind];
   if (def.dock || def.station) return 'Towns build their own docks and stations';
@@ -2844,9 +2847,10 @@ export function placeError(world: World, kind: SiteKind, x: number, y: number, r
       return `${def.label} must be built on a ${def.node} node`;
     } else if (def.airport) {
       // An airport checks all nine of its tiles below; it clears forest and levels the ground itself.
-    } else if (t !== 'grass' && !((def.port || def.harbor || def.node === 'forest') && t === 'forest')) {
-      return t === 'forest' ? 'Forests are reserved for forestry nodes' : `Cannot build on ${t}`;
-    } else if (!def.port && !def.harbor && slopeAt(world, x, y) > BUILD_SLOPE) {
+    } else if (t !== 'grass' && t !== 'forest') {
+      // Open woodland is fair ground, as it is for roads: the building clears the trees it stands on.
+      return `Cannot build on ${t}`;
+    } else if (!def.port && !def.harbor && slopeAt(world, x, y) > PLACE_SLOPE) {
       return 'Too steep to build on';
     }
     if (world.landRules) {
