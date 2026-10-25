@@ -3646,6 +3646,8 @@ function newVehicle(world: World, homeId: number, kind: VehicleKind): Vehicle {
     homeId,
     routeId: 0,
     destId: 0,
+    // Unpinned, a new vehicle chases the best price rather than just spreading out: it should pay for itself from the start.
+    pick: 'price',
     kind,
     idx: 0,
     dir: 1,

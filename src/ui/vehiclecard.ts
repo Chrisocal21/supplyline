@@ -186,7 +186,8 @@ export function routePicture(im: Im, world: World, v: Vehicle, id: string, x: nu
   const held = !!v.awaitOrders;
   im.line(3, x, y + 2, x + w, y + 2, COLORS.line, 1);
   im.text(`${id}rh`, 'DELIVERS TO', x, y + 12, { size: 10, bold: true, color: COLORS.muted, layer: 4 });
-  im.text(`${id}rs`, held ? 'NO ORDERS YET  ·  PICK A BUYER BELOW' : pinned ? `ONLY TO ${pinned.site.name.toUpperCase()}` : all.length > 1 ? 'ANY BUYER  ·  CHOOSES BY' : '', x + 92, y + 12, { size: 10, bold: true, color: held ? COLORS.warn : pinned ? COLORS.accent : COLORS.muted, layer: 4 });
+  const mode = PICK_LABEL[info.pick ?? 'any'].toUpperCase();
+  im.text(`${id}rs`, held ? 'NO ORDERS YET  ·  PICK A BUYER BELOW' : pinned ? `ONLY TO ${pinned.site.name.toUpperCase()}` : all.length > 0 ? `ANY BUYER  ·  ${mode}` : '', x + 92, y + 12, { size: 10, bold: true, color: held ? COLORS.warn : pinned ? COLORS.accent : COLORS.muted, layer: 4 });
   const anyW = 112;
   if (all.length > 0) button(im, `${id}ra`, pinned || held ? 'ANY BUYER' : 'ANY BUYER  (ON)', x + w - anyW, y + 7, anyW, 20, !!pinned || held, () => act.setDest(0), 'quiet');
   else im.text(`${id}rn`, 'No buyer is joined to this building yet', x + w - 6, y + 12, { size: 10, color: COLORS.warn, align: 'right', layer: 4 });
@@ -244,8 +245,8 @@ export function routePicture(im: Im, world: World, v: Vehicle, id: string, x: nu
   if (runs.length === 0) {
     im.text(`${id}rz`, 'Lay a road, track or lane to a buyer and it shows up here.', tx, top + 14, { size: 11, color: COLORS.muted, wrap: tw, layer: 4 });
   }
-  if (all.length > 1) {
-    // How it chooses while no buyer is pinned.
+  if (all.length > 0) {
+    // How it chooses while no buyer is pinned: shown even with one buyer, so the strategy is already set once more join.
     const cy = top + bodyH + 8;
     const n = PICK_MODES.length;
     const gap = 4;

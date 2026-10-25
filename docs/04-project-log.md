@@ -1136,3 +1136,8 @@ What changed:
 ## 0.188: markers only where they belong
 
 - Confirmed: farmland, pasture and orchard (the soft nodes that go anywhere) never had a marker; the unused field shape and their colours are removed so the code says so. Markers stay on fixed resources: quarry, mine, coal, clay (rocks), oil (pool), forest (pines) and the island coffee and mango groves (bushes).
+
+## 0.189: buyer filters restored, default to best price
+
+- The SPREAD OUT / HIGHEST DEMAND / BEST PRICE / CLOSEST / BEST EARNINGS row on a truck card is back even with a single buyer joined, so the strategy is already set once more buyers connect.
+- A new vehicle now picks BEST PRICE by default when unpinned (Any buyer), instead of spreading out blindly; the header line next to DELIVERS TO shows which strategy is active.
