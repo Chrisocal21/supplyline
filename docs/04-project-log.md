@@ -1088,3 +1088,7 @@ What changed:
 
 - The building window drops the gold top bar for the soft frame, the name is in the display font, Show on map and close are angled buttons, and the page tabs match the Manage tabs.
 - Its number tiles (market and site stats) now use the shared stat card from company.ts.
+
+## 0.179: vehicle cards
+
+- Vehicle cards, tiles, the route picture, buyer tiles and the circuit map use 8 px corners; the thick left edge bars become the thin inset line used on the Manage cards, and the buyer chips are rounder.

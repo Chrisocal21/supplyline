@@ -90,7 +90,7 @@ export function vehicleCard(im: Im, world: World, v: Vehicle, name: string, home
   const id = `vc${v.id}`;
 
   // The badge, the name, and the class under it.
-  im.rect(3, px, y + 12, 52, 52, 0x0b1117, 1, 3, color, 1);
+  im.rect(3, px, y + 12, 52, 52, 0x0b1117, 1, 8, color, 1);
   vehicleIcon(im, vd.mode, px + 26, y + 38, color);
   im.text(`${id}n`, name, px + 64, y + 12, { size: 16, bold: true, layer: 4 });
   im.text(`${id}c`, vd.label.toUpperCase(), px + 64, y + 34, { size: 10, bold: true, color, layer: 4 });
@@ -154,7 +154,7 @@ export function vehicleCard(im: Im, world: World, v: Vehicle, name: string, home
     const passed = i < at;
     const need = passed || cur ? '' : d.tier > world.tier ? `Tier ${d.tier}` : homeLevel < d.needLevel ? `Yard level ${d.needLevel}` : 'Ready';
     const lit = cur ? color : passed ? 0x1f3a31 : 0x0e141a;
-    im.rect(4, cx, ly, cw, 34, lit, 1, 3, cur ? color : i === at + 1 ? COLORS.accent : COLORS.line, 1);
+    im.rect(4, cx, ly, cw, 34, lit, 1, 8, cur ? color : i === at + 1 ? COLORS.accent : COLORS.line, 1);
     const ink = cur ? 0x10161c : passed ? COLORS.good : i === at + 1 ? COLORS.text : COLORS.muted;
     const label = d.label.toUpperCase();
     im.text(`${id}lc${i}`, label, cx + cw / 2, ly + 5, { size: fitSize(label, cw - 8, 10, 7), bold: true, color: ink, align: 'center', layer: 5 });
@@ -197,8 +197,8 @@ export function routePicture(im: Im, world: World, v: Vehicle, id: string, x: nu
   const hc = home ? SITE_DEFS[home.kind].color : COLORS.muted;
   const fh = Math.min(bodyH, 64);
   const fy = top + (bodyH - fh) / 2;
-  im.rect(3, x, fy, fw, fh, 0x0e151c, 1, 3, hc, 1);
-  im.rect(3, x, fy, 4, fh, hc, 1, 0);
+  im.rect(3, x, fy, fw, fh, 0x0e151c, 1, 8, hc, 1);
+  im.rect(3, x + 1, fy + 8, 2, Math.max(0, fh - 16), hc, 1, 1);
   im.text(`${id}f1`, 'LOADS AT', x + 12, fy + 6, { size: 9, bold: true, color: COLORS.muted, layer: 4 });
   const hn = home?.name ?? 'Home';
   im.text(`${id}f2`, hn, x + 12, fy + 19, { size: fitSize(hn, fw - 20, 12, 8), bold: true, layer: 4 });
@@ -222,8 +222,8 @@ export function routePicture(im: Im, world: World, v: Vehicle, id: string, x: nu
     im.line(3, tx - 8, my - 4, tx - 2, my, lc, 1, lw);
     im.line(3, tx - 8, my + 4, tx - 2, my, lc, 1, lw);
     const hov = im.hit(`${id}b${r.site.id}`, tx, ty, tw, TILE_H, () => act.setDest(pin ? 0 : r.site.id), 3);
-    im.rect(3, tx, ty, tw, TILE_H, pin ? 0x2a2411 : hov ? 0x1c2836 : on ? 0x111a23 : 0x0b1015, 1, 3, pin || hov ? COLORS.accent : COLORS.line, 1);
-    im.rect(3, tx, ty, 4, TILE_H, on ? col : COLORS.line, 1, 0);
+    im.rect(3, tx, ty, tw, TILE_H, pin ? 0x2a2411 : hov ? 0x1c2836 : on ? 0x111a23 : 0x0b1015, 1, 8, pin || hov ? COLORS.accent : COLORS.line, 1);
+    im.rect(3, tx + 1, ty + 8, 2, TILE_H - 16, on ? col : COLORS.line, 1, 1);
     const ink = on ? COLORS.text : COLORS.muted;
     im.text(`${id}bn${r.site.id}`, r.site.name, tx + 12, ty + 6, { size: fitSize(r.site.name, tw - 100, 12, 8), bold: true, color: ink, layer: 4 });
     im.text(`${id}bk${r.site.id}`, `${SITE_DEFS[r.site.kind].label}  ·  ${r.tiles} tiles`, tx + 12, ty + 23, { size: 9, color: COLORS.muted, layer: 4 });
@@ -253,7 +253,7 @@ export function routePicture(im: Im, world: World, v: Vehicle, id: string, x: nu
       const label = PICK_LABEL[m].toUpperCase();
       const cx = x + i * (cw + gap);
       const hov = im.hit(`${id}pk${m}`, cx, cy, cw, 24, () => !pinned && act.setPick(m), 3);
-      im.rect(3, cx, cy, cw, 24, on ? COLORS.accent : hov && !pinned ? 0x26364a : 0x121920, 1, 3, on ? COLORS.accent : COLORS.line, 1);
+      im.rect(3, cx, cy, cw, 24, on ? COLORS.accent : hov && !pinned ? 0x26364a : 0x121920, 1, 12, on ? COLORS.accent : COLORS.line, 1);
       im.text(`${id}pt${m}`, label, cx + cw / 2, cy + 7, { size: fitSize(label, cw - 8, 9, 6), bold: true, color: on ? 0x1b1204 : pinned ? COLORS.muted : COLORS.text, align: 'center', layer: 4 });
     });
   }
@@ -268,9 +268,9 @@ export function vehicleTile(im: Im, v: Vehicle, name: string, x: number, y: numb
   const id = `vt${v.id}`;
   const hov = im.hit(id, x, y, w, TRUCK_TILE_H, open, 3);
   panel(im, x, y, w, TRUCK_TILE_H, info.status.color, hov);
-  if (hov) im.rect(3, x, y, w, TRUCK_TILE_H, COLORS.accent, 0, 3, COLORS.accent, 1);
+  if (hov) im.rect(3, x, y, w, TRUCK_TILE_H, COLORS.accent, 0, 8, COLORS.accent, 1);
   const px = x + 16;
-  im.rect(3, px, y + 12, 48, 48, 0x0b1117, 1, 3, color, 1);
+  im.rect(3, px, y + 12, 48, 48, 0x0b1117, 1, 8, color, 1);
   vehicleIcon(im, vd.mode, px + 24, y + 36, color);
   const textW = w - 16 - 64 - 34;
   im.text(`${id}n`, name, px + 60, y + 10, { size: 15, bold: true, layer: 4 });
@@ -296,7 +296,7 @@ export function circuitMap(im: Im, world: World, v: Vehicle, x: number, y: numbe
   const id = `cm${v.id}`;
   const vd = VEHICLE_DEFS[v.kind];
   const color = MODE_COLOR[vd.mode] ?? COLORS.accent;
-  im.rect(3, x, y, w, h, 0x0a1016, 1, 3, COLORS.line, 1);
+  im.rect(3, x, y, w, h, 0x0a1016, 1, 8, COLORS.line, 1);
   const route = vehicleRoute(world, v);
   if (!route || route.path.length < 2) {
     im.text(`${id}n`, 'No circuit yet: join this building to a buyer and the truck will start running it.', x + w / 2, y + h / 2 - 8, { size: 12, color: COLORS.muted, align: 'center', wrap: w - 60, layer: 4 });
