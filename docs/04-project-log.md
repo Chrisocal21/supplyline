@@ -1083,3 +1083,8 @@ What changed:
 - The money box, quest bar and speed pill use the menus soft frame (8 px corners, faint border) instead of full round pills.
 - Money is in the display font, and the tier is a gold ring with a gold number, like the How to play steps.
 - The minimap drops its gold border and top bar for the same soft frame; the gold corner brackets stay.
+
+## 0.178: building window
+
+- The building window drops the gold top bar for the soft frame, the name is in the display font, Show on map and close are angled buttons, and the page tabs match the Manage tabs.
+- Its number tiles (market and site stats) now use the shared stat card from company.ts.

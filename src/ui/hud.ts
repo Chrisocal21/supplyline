@@ -105,7 +105,7 @@ import { VERSION, VERSION_NOTE } from '../version';
 import { Rates, Sheets, type SheetId } from './sheets';
 import { drawIcon, type IconName } from './icons';
 
-import { fitSize } from './company';
+import { fitSize, stat } from './company';
 import { SEASONAL, calendar, seasonIndex, seasonOf } from '../sim/seasons';
 import { type CardActions, type CardInfo, circuitMap, routeHeight, routePicture, TRUCK_TILE_H, vehicleCard, vehicleCardHeight, upgradePanel, upgradePanelHeight, vehicleTile } from './vehiclecard';
 import { applicants, condition, fleetEfficiency, dismissMechanic, hireMechanic, mechanicApplicants, mechanicFee, mechanicRank, mechanicWage, mechanicsAt, repairShop, shopSlots, driverName, hireFee, idleDrivers, rankOf, renameDriver, serviceCost, serviceError, serviceVehicle, wageOf } from '../sim/drivers';
@@ -3284,8 +3284,7 @@ export class HudScene extends Phaser.Scene {
     const y = TOP + 6;
     const h = H - y - 12;
     this.sideDim(W, H, x, w, () => (this.dash = null));
-    im.rect(1, x, y, w, h, 0x0b1117, 0.985, 4, COLORS.line, 1);
-    im.rect(1, x, y, w, 3, COLORS.accent, 0.9, 0);
+    im.rect(1, x, y, w, h, 0x0b1117, 0.97, 10, COLORS.line, 0.7);
     im.block({ x, y, w, h });
 
     // Header, fixed: the building's picture, its name, what it is and how it is doing, and the way out.
@@ -3293,10 +3292,10 @@ export class HudScene extends Phaser.Scene {
     const hasThumb = this.textures.exists(thumb);
     const tx0 = hasThumb ? x + 98 : x + 22;
     if (hasThumb) {
-      im.rect(1, x + 18, y + 14, 66, 66, 0x131b25, 1, 3, COLORS.line, 1);
+      im.rect(1, x + 18, y + 14, 66, 66, 0x131b25, 1, 8, COLORS.line, 0.6);
       im.image('dhThumb', thumb, x + 21, y + 17, 60, 60, 1, 2);
     }
-    const nameH = im.text('dhName', s.name.toUpperCase(), tx0, y + 14, { size: 24, bold: true, wrap: w - 360, layer: 2 }).h;
+    const nameH = im.text('dhName', s.name.toUpperCase(), tx0, y + 12, { size: 30, bold: true, display: true, wrap: w - 360, layer: 2 }).h;
     const subY = y + 18 + Math.max(28, nameH);
     const node = s.nodeId === null ? undefined : world.nodes.find((n) => n.id === s.nodeId);
     const town = siteTown(world, s);
@@ -3310,13 +3309,14 @@ export class HudScene extends Phaser.Scene {
       this.dash = null;
       g.lookAt(s.x, s.y, 45, g.cam.heading, g.cam.pitchManual);
     }, 3);
-    im.rect(3, x + w - 196, y + 18, 132, 40, mh ? 0x26364a : 0x131b25, 1, 3, mh ? COLORS.accent : COLORS.line, 1);
-    im.text('dhMapT', 'SHOW ON MAP', x + w - 130, y + 31, { size: 12, bold: true, align: 'center', layer: 3 });
+    im.slab(3, x + w - 196, y + 18, 132, 40, mh ? 0x2a3646 : 0x16212a, 1, mh ? COLORS.accent : COLORS.line, 1);
+    im.text('dhMapT', 'SHOW ON MAP', x + w - 130, y + 28, { size: 17, bold: true, display: true, align: 'center', layer: 4 });
     const ch = im.hit('dhClose', x + w - 54, y + 18, 40, 40, () => (this.dash = null), 3);
-    im.rect(3, x + w - 54, y + 18, 40, 40, ch ? 0x2a3646 : 0x131b25, 1, 3, ch ? COLORS.accent : COLORS.line, 1);
-    im.line(3, x + w - 40, y + 32, x + w - 28, y + 44, COLORS.text, 1, 2.5);
-    im.line(3, x + w - 28, y + 32, x + w - 40, y + 44, COLORS.text, 1, 2.5);
-    im.line(2, x + 14, y + headH, x + w - 14, y + headH, COLORS.line, 1);
+    im.slab(3, x + w - 56, y + 18, 42, 40, ch ? COLORS.accent : 0x16212a, 1, ch ? COLORS.accent : COLORS.line, 1);
+    const xc = ch ? 0x1b1204 : COLORS.text;
+    im.line(4, x + w - 41, y + 32, x + w - 29, y + 44, xc, 1, 2.5);
+    im.line(4, x + w - 29, y + 32, x + w - 41, y + 44, xc, 1, 2.5);
+    im.line(2, x + 18, y + headH, x + w - 18, y + headH, COLORS.line, 0.6);
 
     // Pages: one thing at a time, so nothing is crowded. The tab row stays put while the page scrolls.
     if (this.dashPageFor !== s.id) {
@@ -3346,9 +3346,9 @@ export class HudScene extends Phaser.Scene {
           this.dashPage = id;
           this.dashScroll = 0;
         }, 3);
-        im.rect(3, tx, y + headH + 10, tw, 42, on ? 0x17212b : hov ? 0x10181f : 0x0e141a, 1, 3, COLORS.line, 1);
-        if (on) im.rect(3, tx, y + headH + 48, tw, 4, COLORS.accent, 1, 0);
-        im.text(`dpT${id}`, label.toUpperCase(), tx + tw / 2, y + headH + 23, { size: 13, bold: true, color: on ? COLORS.accent : COLORS.text, align: 'center', layer: 4 });
+        // The same quiet tabs as the Manage pages.
+        im.rect(3, tx, y + headH + 10, tw, 40, on ? 0x16212a : hov ? 0x121a21 : 0x0d141a, 1, 20, on ? COLORS.accent : COLORS.line, on ? 1 : 0.5, on ? 1.5 : 1);
+        im.text(`dpT${id}`, label.toUpperCase(), tx + tw / 2, y + headH + 22, { size: 13, bold: true, color: on ? COLORS.accent : hov ? COLORS.text : 0xc4ccce, align: 'center', layer: 4 });
       });
       tabsH = 56;
     }
@@ -3483,9 +3483,7 @@ export class HudScene extends Phaser.Scene {
     tiles.forEach(([label, value, color], i) => {
       const tx = x + (i % cols) * (tw + gap);
       const ty = y + Math.floor(i / cols) * 66;
-      im.rect(2, tx, ty, tw, 58, 0x131a24, 1, 10, COLORS.line, 1);
-      im.text(`dk${i}v`, value, tx + 14, ty + 9, { size: 22, bold: true, color, layer: 3 });
-      im.text(`dk${i}l`, label, tx + 14, ty + 38, { size: 10, bold: true, color: COLORS.muted, layer: 3 });
+      stat(im, `dk${i}`, tx, ty, tw, 58, label, value, color, color === COLORS.text ? COLORS.info : color);
     });
     return 58 + (Math.ceil(tiles.length / cols) - 1) * 66;
   }
@@ -4095,9 +4093,7 @@ export class HudScene extends Phaser.Scene {
     tiles.forEach(([label, value, color], i) => {
       const tx = x + (i % cols) * (tw + gap);
       const ty = y + Math.floor(i / cols) * 66;
-      im.rect(2, tx, ty, tw, 58, 0x131a24, 1, 10, COLORS.line, 1);
-      im.text(`st${i}v`, value, tx + 14, ty + 9, { size: 22, bold: true, color, layer: 3 });
-      im.text(`st${i}l`, label, tx + 14, ty + 38, { size: 10, bold: true, color: COLORS.muted, layer: 3 });
+      stat(im, `st${i}`, tx, ty, tw, 58, label, value, color, color === COLORS.text ? COLORS.info : color);
     });
     return 58 + (Math.ceil(tiles.length / cols) - 1) * 66;
   }
