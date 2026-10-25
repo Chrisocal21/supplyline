@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import { LINKS } from '../content';
-import { GOODS, SITES } from '../wiki/wiki';
+import { COUNTS } from '../counts';
 import { Footer, LinkButton, Nav } from '../parts';
 
 export const metadata: Metadata = {
@@ -71,7 +71,7 @@ export default function Store() {
               <p>Towns need goods. You grow the food, cut the wood and dig the stone, then deliver it. Fill the towns&apos; shelves and a village becomes a town, a city, a metropolis.</p>
               <ul className="plain-list">
                 <li>A 3D globe with three hand-made maps, from a small teaching world to a huge one with about 190 towns.</li>
-                <li>{GOODS.length} goods and {SITES.length} buildings, from raw logs to steel and machinery.</li>
+                <li>{COUNTS.goods} goods and {COUNTS.buildings} buildings, from raw logs to steel and machinery.</li>
                 <li>Move goods by truck, train, ship and plane, with roads, rails, bridges and canals.</li>
                 <li>Named drivers who rank up, and mechanics who keep the fleet running.</li>
                 <li>Five tiers of goals, with a guide for your first town and a relaxed mode with no punishment.</li>

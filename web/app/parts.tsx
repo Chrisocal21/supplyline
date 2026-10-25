@@ -33,7 +33,6 @@ export function Nav({ home }: { home: boolean }) {
           <a className="hide-s" href={`${h}#news`}>Updates</a>
           <a className="hide-s" href={`${h}#studio`}>The studio</a>
           <a className="hide-s" href={`${h}#contact`}>Contact</a>
-          <a href="/wiki/">Wiki</a>
           <a className="btn primary sm" href={`${h}#demo`}>Get the demo</a>
         </nav>
       </div>
@@ -50,8 +49,6 @@ export function Footer() {
           <p>A <a href={LINKS.studio} rel="noopener">Probably Fine Studios</a> game. Made by Chris and a handful of friends with opinions, some of whom need to patch their build. The models are made with AI, because none of us can do 3D.</p>
         </div>
         <nav className="footer-links">
-          <a href="/wiki/">Wiki</a>
-          <a href="/wiki/gallery/">Gallery</a>
           <a href="/steam/">Store page preview</a>
           <a href={LINKS.studio} rel="noopener">Studio</a>
         </nav>

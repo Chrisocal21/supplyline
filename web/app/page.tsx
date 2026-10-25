@@ -1,19 +1,7 @@
 import { BUILD, DEMO_POINTS, DEMO_TIERS, FAQ, LINKS, MAPS, NEWS, PILLARS, ROADMAP, SHOTS, STUDIO, TAGLINE, TIERS } from './content';
 import { ContactForm } from './ContactForm';
 import { Footer, LinkButton, Nav } from './parts';
-import { GOODS, SITES, VEHICLES, siteByKind, siteImage, vehicleImage } from './wiki/wiki';
-
-/** Models shown on the home page, each linking to its wiki page. */
-const SHOWCASE: [string, string, string][] = [
-  ...(['forestry', 'sawmill', 'steelworks', 'port'] as const).flatMap((k): [string, string, string][] => {
-    const s = siteByKind(k);
-    return s ? [[siteImage(s, 3), s.label, `/wiki/buildings/${k}/`]] : [];
-  }),
-  ...(['rig', 'heavytrain', 'freighter', 'jet'] as const).flatMap((k): [string, string, string][] => {
-    const v = VEHICLES.find((x) => x.kind === k);
-    return v ? [[vehicleImage(v), v.label, `/wiki/vehicles/${k}/`]] : [];
-  }),
-];
+import { COUNTS } from './counts';
 
 export default function Home() {
   return (
@@ -32,9 +20,9 @@ export default function Home() {
           </div>
         </div>
         <div className="stats wrap">
-          <div><b>{SITES.length}</b><span>Buildings</span></div>
-          <div><b>{GOODS.length}</b><span>Goods</span></div>
-          <div><b>{VEHICLES.length}</b><span>Vehicles</span></div>
+          <div><b>{COUNTS.buildings}</b><span>Buildings</span></div>
+          <div><b>{COUNTS.goods}</b><span>Goods</span></div>
+          <div><b>{COUNTS.vehicles}</b><span>Vehicles</span></div>
           <div><b>{MAPS.length}</b><span>Maps</span></div>
         </div>
       </header>
@@ -69,26 +57,6 @@ export default function Home() {
               </dl>
               <div className="stamp">Probably fine</div>
             </aside>
-          </div>
-        </section>
-
-        <section className="section showcase" id="models">
-          <div className="wrap">
-            <div className="head-row">
-              <div>
-                <div className="kicker">The wiki</div>
-                <h2>Every building and vehicle, up close</h2>
-              </div>
-              <a className="btn" href="/wiki/">Open the wiki</a>
-            </div>
-            <div className="models">
-              {SHOWCASE.map(([src, label, href]) => (
-                <a key={href} href={href} className="model-card">
-                  <img src={src} alt={label} loading="lazy" />
-                  <span>{label}</span>
-                </a>
-              ))}
-            </div>
           </div>
         </section>
 

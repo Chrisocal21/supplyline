@@ -471,6 +471,10 @@ Notes from playing a Large world (41 fps, 24 ms a frame, draw 10 ms): roads look
 - [x] **Full-screen sheets.** Towns, Production, Quests and the guide take the whole screen under the top bar, and the Towns list uses up to three columns.
 - [x] **Selection panel no longer runs under the dock.** It scrolls (wheel, or drag on touch) inside the space above it. Hover hints no longer show under open sheets.
 
+## Website wiki parked (0.206)
+
+- [x] The website wiki (/wiki pages, gallery and the 55 MB of model pictures) is no longer built or shipped, to keep Vercel storage down. The code is kept in `docs/wiki-parked` (with its data.json); `tools/export-wiki.cjs` writes there. The site is now 8.5 MB (was over 60). The in-game Wiki (I) is unchanged. To bring it back: move `docs/wiki-parked` to `web/app/wiki`, restore the gallery copy in `web/scripts/assets.cjs`, and the nav and footer links.
+
 ## Level 0 menu, unlock cards and wood sales (0.206)
 
 - [x] **Quarry is Tier 1**, and stays locked until a town reaches level 2 (`SITE_UNLOCK_QUEST.quarry = t1-town2`): stone is first needed for a town's next step.

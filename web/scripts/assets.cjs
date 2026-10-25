@@ -3,6 +3,4 @@ const fs = require('fs');
 const path = require('path');
 const root = path.join(__dirname, '..', '..');
 for (const d of ['site', 'title']) fs.cpSync(path.join(root, 'public', d), path.join(root, 'web', 'public', d), { recursive: true });
-// The model pictures the wiki shows (made by tools/model-gallery.cjs).
-const gallery = path.join(root, 'docs', 'model-previews');
-if (fs.existsSync(gallery)) fs.cpSync(gallery, path.join(root, 'web', 'public', 'wiki', 'models'), { recursive: true });
+// The wiki pictures (docs/model-previews) are not shipped: the wiki is parked in docs/wiki-parked until it comes back.

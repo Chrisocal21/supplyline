@@ -1,5 +1,5 @@
 // Usage: node tools/export-wiki.cjs
-// Writes web/app/wiki/data.json from the game's own definitions (buildings, vehicles, districts, goods), so the wiki never
+// Writes docs/wiki-parked/data.json from the game's own definitions (buildings, vehicles, districts, goods), so the wiki never
 // disagrees with the game. Run it after changing src/sim/defs.ts, then commit the file.
 const fs = require('fs');
 const path = require('path');
@@ -35,7 +35,7 @@ const root = path.join(__dirname, '..');
     const vehicles = Object.entries(defs.VEHICLE_DEFS).map(([kind, d]) => ({ kind, label: d.label, blurb: d.blurb, mode: d.mode, tier: d.tier, cost: d.cost, capacity: d.capacity, needLevel: d.needLevel, next: d.next || '', reach: (defs.VEHICLE_REACH && defs.VEHICLE_REACH[kind]) || 0 }));
     const districts = Object.entries(defs.DISTRICTS).map(([id, d]) => ({ id, label: d.label, blurb: d.blurb, minLevel: d.minLevel, cost: d.cost, revenue: d.revenue, goods: d.goods.map((g) => ({ good: g, label: goodLabel(g) })), effect: d.effect || '' }));
     const goods = cat.catalog().filter((g) => !g.planned).map((g) => ({ id: g.id, label: g.label, price: g.price, kind: g.kind, depth: g.depth, forBuilding: g.forBuilding, marketLevel: g.marketLevel, madeBy: g.madeBy.filter((m) => m.site).map((m) => ({ site: m.site, label: m.label, byProduct: m.byProduct })), usedBy: g.usedBy.filter((u) => u.site).map((u) => ({ site: u.site, label: u.label })) }));
-    const out = path.join(root, 'web', 'app', 'wiki', 'data.json');
+    const out = path.join(root, 'docs', 'wiki-parked', 'data.json');
     fs.writeFileSync(out, JSON.stringify({ sites, vehicles, districts, goods }, null, 1));
     console.log(`wrote ${out}: ${sites.length} buildings, ${vehicles.length} vehicles, ${districts.length} districts, ${goods.length} goods`);
   } finally {
