@@ -431,6 +431,8 @@ export interface World {
   version: 4;
   /** New worlds reserve measured, multi-tile sports campuses. Missing means the legacy layout. */
   realisticLots?: boolean;
+  /** New worlds: towns keep only their Market and Supply Yard plots (see LayoutEnv.downtown). */
+  downtown?: boolean;
   /** Chosen at game start. 'hard' is the opt-in pressure mode; nothing reads it yet, so both play the same for now. Missing means relaxed. */
   difficulty?: 'relaxed' | 'hard';
   /** The highest tier whose unlocks the player has seen and confirmed. Missing on older saves: treated as the current tier. */
@@ -884,6 +886,12 @@ export function relayoutNodes(world: World): void {
 export function prepareRealisticWorld(world: World): void {
     if (world.sites.some(s => !SITE_DEFS[s.kind].dock)) throw new Error('Realistic layouts must be prepared before construction begins.');
     world.realisticLots = true;
+    // The town's street frontage is downtown from the start: housing, shopfronts and districts, not lots for sale.
+    world.downtown = true;
+    for (const place of world.places) {
+      place.homePlots = [];
+      place.lotless = true;
+    }
     const reserved = new Set<number>();
     for (const place of world.places) {
       const layout = layoutOf(world, place);
@@ -1129,7 +1137,7 @@ const plannedGrids = new WeakMap<World, { key: string; grid: Int32Array }>();
 function plannedGrid(world: World): Int32Array {
   let radii = 0;
   world.places.forEach((p, i) => (radii += ((p.radius ?? 3) + p.id) * (i + 1)));
-  const key = `${world.places.length}:${!!world.realisticLots}:${radii}`;
+  const key = `${world.places.length}:${!!world.realisticLots}${!!world.downtown}:${radii}`;
   const hit = plannedGrids.get(world);
   if (hit && hit.key === key) return hit.grid;
   const grid = new Int32Array(world.width * world.height);
@@ -1159,7 +1167,7 @@ const streetCache = new WeakMap<Place, { key: string; tiles: Set<number> }>();
  * with any dead end that is left (say past a building that stands in the way) trimmed.
  */
 export function townStreets(world: World, place: Place): Set<number> {
-  const key = `${world.routes.length}:${world.sites.length}:${place.level}:${!!world.realisticLots}`;
+  const key = `${world.routes.length}:${world.sites.length}:${place.level}:${!!world.realisticLots}${!!world.downtown}`;
   const hit = streetCache.get(place);
   if (hit && hit.key === key) return hit.tiles;
   const W = world.width;
@@ -1377,6 +1385,7 @@ export function homesNow(place: Place, level = place.level): number[] {
 
 /** How many lots a town has for building at a level (not counting its Market and Supply Yard plots). */
 export function lotsAt(place: Place, level = place.level): number {
+  if (place.lotless) return 0;
   return plotCount(radiusOf(place)) - 2 - homesNow(place, level).length;
 }
 
@@ -1532,10 +1541,26 @@ export function siteSpeed(world: World, site: Site): number {
   return boats * LEVEL_SPEED[site.level - 1] * ground * (town ? townSpeedMult(town, site.kind) : 1) * seasonMult(site.kind, world.tick);
 }
 
+/** In a downtown world a factory stands on open ground and belongs to the town within this many tiles of it, so a town's path still speeds its factories. */
+export const TOWN_CATCHMENT = 14;
+
+function townNear(world: World, site: Site): Place | undefined {
+  let best: Place | undefined;
+  let bd = TOWN_CATCHMENT;
+  for (const p of world.places) {
+    const d = Math.hypot(wrapDx(world, p.x, site.x), p.y - site.y);
+    if (d <= bd) {
+      bd = d;
+      best = p;
+    }
+  }
+  return best;
+}
+
 /** The town a site belongs to: its docks and station, and the buildings on its district plots. */
 export function siteTown(world: World, site: Site): Place | undefined {
   if (site.placeId !== null) return world.places.find((p) => p.id === site.placeId);
-  if (site.townId === undefined) site.townId = plotAt(world, site.x, site.y)?.place.id ?? null;
+  if (site.townId === undefined) site.townId = plotAt(world, site.x, site.y)?.place.id ?? (world.downtown ? townNear(world, site)?.id : undefined) ?? null;
   return site.townId === null ? undefined : world.places.find((p) => p.id === site.townId);
 }
 

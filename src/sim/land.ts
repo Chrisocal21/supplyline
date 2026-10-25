@@ -191,6 +191,22 @@ export function enableLandRules(world: World): void {
   world.owned = [];
   const home = world.places[0];
   if (!home) return;
+  // A fourth starter plot, plain open ground beside the home town, for the first factory: a town keeps its own streets for housing.
+  if (world.downtown) {
+    let best: Parcel | null = null;
+    let bd = Infinity;
+    for (const p of parcelsOf(world).parcels) {
+      if (p.town || p.nodes.length > 0 || p.land < p.w * p.h || parcelState(world, p) !== 'sale') continue;
+      let dx = Math.abs(p.x + p.w / 2 - home.x);
+      dx = Math.min(dx, world.width - dx);
+      const d = Math.hypot(dx, p.y + p.h / 2 - home.y);
+      if (d < bd && d > 5) {
+        bd = d;
+        best = p;
+      }
+    }
+    if (best) world.owned.push(best.id);
+  }
   for (const kind of ['forest', 'farmland', 'pasture'] as const) {
     let best: { x: number; y: number } | null = null;
     let bd = Infinity;

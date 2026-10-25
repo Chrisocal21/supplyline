@@ -471,6 +471,15 @@ Notes from playing a Large world (41 fps, 24 ms a frame, draw 10 ms): roads look
 - [x] **Full-screen sheets.** Towns, Production, Quests and the guide take the whole screen under the top bar, and the Towns list uses up to three columns.
 - [x] **Selection panel no longer runs under the dock.** It scrolls (wheel, or drag on touch) inside the space above it. Hover hints no longer show under open sheets.
 
+## Downtown, skylines and scale (0.207)
+
+- [x] **Scale chart** (`docs/scale.md`, `src/scale.ts` BUILDING_HEIGHT, picture `docs/scale-lineup.png`): 1 unit is 10 m, a tile 32.7 m; cottage 7 m up to a 150 m core tower. The highest peak is now 160 m (was 65 m), so mountains stand above the skyline.
+- [x] **Downtown (new worlds only, `world.downtown`):** a town keeps only its Market and Supply Yard as plots (`DOWNTOWN_PLOTS`) and holds 12 (town) or 20 (city) district lots (`DOWNTOWN_CIVIC`). The rest of its street frontage is housing that rises with the town's level. The ground a town holds is exactly the same as before (tested), so nothing is given up or taken. Old saves keep their lots.
+- [x] **Skylines** (`src/sim/skyline.ts`): each town is low (stays at terraces and fills out), mid-rise, or tall (towers at level 5), fixed by where it stands and its style. A major city is never low. Heights fall off smoothly from the centre, so neighbours are always close in height.
+- [x] **Districts are shopfronts:** the district stands at the front of its lot and the housing rises behind it, as tall as the skyline allows there. Sports campuses are untouched.
+- [x] **Factories go on open ground near a town.** They count as that town's within 14 tiles (`TOWN_CATCHMENT`), so a town's path still speeds them. A fourth free starter plot of plain open ground is handed out with the three node plots. Quest hints and tab text now say "open ground near the town".
+- [ ] Not done: night windows, a see-through option for towers hiding roads, picking through towers, a different look for unbuilt district lots, towers in the wiki and demo base, and the pacing re-check with factories outside town.
+
 ## Website wiki parked (0.206)
 
 - [x] The website wiki (/wiki pages, gallery and the 55 MB of model pictures) is no longer built or shipped, to keep Vercel storage down. The code is kept in `docs/wiki-parked` (with its data.json); `tools/export-wiki.cjs` writes there. The site is now 8.5 MB (was over 60). The in-game Wiki (I) is unchanged. To bring it back: move `docs/wiki-parked` to `web/app/wiki`, restore the gallery copy in `web/scripts/assets.cjs`, and the nav and footer links.

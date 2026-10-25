@@ -149,7 +149,7 @@ const INTRO_SLIDES: { title: string; lines: string[] }[] = [
     title: 'Where to build',
     lines: [
       'Forests, fields, pastures and hills show a glowing ring where a raw producer belongs: open Production and click the ring.',
-      'Factories like a Sawmill or Bakery go on a for-sale lot inside a town instead: open Processing and click a lot beside a street.',
+      'Factories like a Sawmill or Bakery go on open ground near a town instead: open Processing and click a green spot. A town keeps its own streets for housing and districts.',
       'Towns already stand on the map. You grow them; you never place a new one.',
     ],
   },
@@ -218,9 +218,9 @@ const TYPE_LABEL: Record<string, string> = {
 const TABS: Tab[] = [
   { id: 'select', label: 'Select', icon: 'thumb-select', blurb: 'Inspect buildings and towns', tools: [] },
   { id: 'production', label: 'Production', icon: 'thumb-forestry', blurb: 'Extract raw goods from forests, farmland, pasture, clay, hills and mountains', tools: sitesIn('production') },
-  { id: 'processing', label: 'Processing', icon: 'thumb-sawmill', blurb: 'Food and materials. Build these on a free plot in a town.', tools: sitesIn('processing') },
-  { id: 'manufacturing', label: 'Manufacturing', icon: 'thumb-workshop', blurb: 'Paper, textiles, furniture. Build these on a free plot in a town.', tools: sitesIn('manufacturing') },
-  { id: 'heavy', label: 'Heavy Industry', icon: 'thumb-smelter', blurb: 'Stone, metal, glass and machinery. Build these on a free plot in a town.', tools: sitesIn('heavy') },
+  { id: 'processing', label: 'Processing', icon: 'thumb-sawmill', blurb: 'Food and materials. Build these on open ground near a town.', tools: sitesIn('processing') },
+  { id: 'manufacturing', label: 'Manufacturing', icon: 'thumb-workshop', blurb: 'Paper, textiles, furniture. Build these on open ground near a town.', tools: sitesIn('manufacturing') },
+  { id: 'heavy', label: 'Heavy Industry', icon: 'thumb-smelter', blurb: 'Stone, metal, glass and machinery. Build these on open ground near a town.', tools: sitesIn('heavy') },
   { id: 'districts', label: 'Districts', icon: 'thumb-d:farmersmarket', blurb: 'Civic buildings that make a town earn. Point at a free lot beside a street, or a sports ground kept for it. Click one you have built to take it up a level.', tools: DISTRICT_ORDER.map((id) => `d:${id}` as Tool) },
   { id: 'logistics', label: 'Logistics', icon: 'thumb-route', blurb: 'Roads, highways, rails, air and sea routes, hubs, yards, airports, ports and clearing the way', tools: ['route', 'auto', 'highway', 'rail', 'air', 'sea', 'hub', 'garage', 'railyard', 'airport', 'port', 'demolish'] },
 ];
@@ -2598,7 +2598,7 @@ export class HudScene extends Phaser.Scene {
       thumb: `thumb-${tool}`,
       blurb: d.blurb,
       detail: [
-        ...(d.node && isSoftNode(d.node) ? ['Build on any green tile or town plot. It brings its own fields, paddock or trees.'] : d.node ? [`Build on a free ${d.node} node.`] : d.inTown ? ['Build on a free district plot in a town, then connect it to its Market with the street.'] : ['Build on open ground.']),
+        ...(d.node && isSoftNode(d.node) ? ['Build on any green tile or town plot. It brings its own fields, paddock or trees.'] : d.node ? [`Build on a free ${d.node} node.`] : d.inTown ? ['Build on open ground near a town, then road it to the Market.'] : ['Build on open ground.']),
         ...(d.recipe
           ? [`Uses ${Object.entries(d.recipe.inputs).map(([g, n]) => `${n} ${GOODS[g as Good].label.toLowerCase()}`).join(' + ')}`, `Makes ${Object.entries(d.recipe.outputs).map(([g, n], i) => `${n} ${GOODS[g as Good].label.toLowerCase()}${i > 0 ? ' (by-product)' : ''}`).join(' + ')}`]
           : []),

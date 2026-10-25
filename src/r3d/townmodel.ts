@@ -8,7 +8,8 @@ import { Parts } from './parts';
 import { addCityBlock, addResidence } from './architecture';
 import { addTree } from './vegetation';
 import { sportsCampus } from './sports';
-import { LOT, STREET, TILE_UNITS, type LightAnchor } from '../scale';
+import { LOT, SHOP_FLOOR_HEIGHT, STREET, TILE_UNITS, storeys, type LightAnchor } from '../scale';
+import { skylineCap, type Skyline } from '../sim/skyline';
 
 const LOT_HALF = LOT / 2;
 
@@ -74,6 +75,9 @@ export interface TownModelOptions {
   squeeze: number;
   /** A major city: longer streets, and blocks and towers instead of houses as it grows. */
   city: boolean;
+  /** A downtown town (new worlds): its street frontage is housing, shops and towers that rise with the level, up to what its skyline allows. */
+  downtown?: boolean;
+  skyline?: Skyline;
   style: TownStyle;
   /** The town's streets as built so far, as offsets from the centre. */
   streets: { x: number; y: number; main: boolean }[];
@@ -124,11 +128,11 @@ export function townGeometry(o: TownModelOptions): THREE.BufferGeometry {
     p.anchor = null;
   };
 
-  const tall = (cx: number, cz: number, yaw: number, w: number, d: number, h: number, kind: 'block' | 'tower'): void => {
+  const tall = (cx: number, cz: number, yaw: number, w: number, d: number, h: number, kind: 'block' | 'tower', wallColour?: number): void => {
     p.anchor = [cx, cz];
     addCityBlock(p, {
       x: cx, z: cz, yaw, w, d, h, tower: kind === 'tower',
-      wall: kind === 'tower' ? pick(TOWERS) : pick(BLOCKS),
+      wall: wallColour ?? (kind === 'tower' ? pick(TOWERS) : pick(BLOCKS)),
       variant: Math.abs(Math.round(cx * 31 + cz * 73 + o.seed)) % 3,
     });
     p.tex = 0;
@@ -277,6 +281,13 @@ export function townGeometry(o: TownModelOptions): THREE.BufferGeometry {
   // Just past the finished houses, the next ones are being built: sites in several stages, so the town is plainly in
   // development and fills in as it grows. A fully grown town has none.
   const frontier = fillFrac >= 1 ? 0 : Math.max(2, Math.min(8, Math.round(around.length * 0.14)));
+  /** How tall a downtown building at this tile is, in metres: the skyline's cap, falling smoothly away from the centre. 0 means houses. */
+  const downtownMetres = (tx: number, ty: number): number => {
+    if (!o.downtown || !o.skyline) return 0;
+    const fall = Math.max(0, 1 - Math.hypot(tx, ty) / ((city ? 11 : 8) * 1.15));
+    const want = skylineCap(o.skyline, level) * (0.3 + 0.7 * Math.pow(fall, 1.3)) * (0.9 + cellRng(tx, ty)() * 0.1);
+    return want < 9 ? 0 : SHOP_FLOOR_HEIGHT + 3.2 * (storeys(want) - 1);
+  };
   // Each district is a building on its own lot, turned to face the street its door opens on, with a drive to it.
   const marks: TownLandmark[] = [];
   for (const d of o.districts ?? []) {
@@ -298,6 +309,14 @@ export function townGeometry(o: TownModelOptions): THREE.BufferGeometry {
         { x: (startX + endX) / 2, y: 0.043, z: (startZ + endZ) / 2 });
     } else {
       districtLandmark(p, d.id, d.level, cx, cz, yawToward(fx, fz), d.setting);
+      // The district is the shopfront of its block: the housing rises behind it, as tall as the town's skyline allows here.
+      const up = downtownMetres(d.x, d.y);
+      if (up >= 12) {
+        const yaw = yawToward(fx, fz);
+        const [bx, bz] = at(cx, cz, yaw, 0, -0.95);
+        stream = cellRng(d.x, d.y);
+        tall(bx, bz, yaw, TILE * 0.72, 1.3, up / 10, up >= 60 ? 'tower' : 'block', up > 30 ? undefined : pick(look.walls));
+      }
     }
     p.tex = 6;
     if (!d.campus) p.box(fx === 0 ? 0.6 : 0.5, 0.012, fz === 0 ? 0.6 : 0.5, 0xa39e92, { x: cx + fx * 1.2 * sq, y: 0.03, z: cz + fz * 1.2 });
@@ -306,6 +325,32 @@ export function townGeometry(o: TownModelOptions): THREE.BufferGeometry {
   }
 
   const built: { x: number; y: number }[] = [];
+  /**
+   * A downtown tile: one building across its frontage, as tall as the town's skyline allows at this distance from the centre
+   * (a smooth fall-off, so neighbours are always close in height). Returns false for houses, which use the frontage loop below.
+   */
+  const downtownTile = (t: { x: number; y: number }): boolean => {
+    const fr = fronts(t.x, t.y);
+    if (!o.downtown || !o.skyline || fr.length === 0) return false;
+    stream = cellRng(t.x, t.y);
+    const metres = downtownMetres(t.x, t.y);
+    if (metres === 0) return false;
+    const [a, b] = fr[0];
+    const acrossX = b !== 0;
+    const main = streetMap.get(tkey(t.x + a, t.y + b))?.main ?? false;
+    const bw = (acrossX ? TILE * sq : TILE) * 0.84;
+    const bd = Math.min(2.3, TILE * 0.7);
+    const setback = (main ? 0.5 : 0.42) + 0.16 + bd / 2;
+    const x = acrossX ? X(t.x) : X(t.x + a) - a * setback;
+    const z = acrossX ? Z(t.y + b) - b * setback : Z(t.y);
+    const hx = (acrossX ? bw : bd) / 2;
+    const hz = (acrossX ? bd : bw) / 2;
+    if (!offRoad(x, z, hx, hz) || !free(x - hx - 0.04, z - hz - 0.04, x + hx + 0.04, z + hz + 0.04)) return true;
+    placed.push([x - hx, z - hz, x + hx, z + hz]);
+    const tower = metres >= 60;
+    tall(x, z, yawToward(-a, -b), bw, bd, metres / 10, tower ? 'tower' : 'block', metres > 30 ? undefined : pick(look.walls));
+    return true;
+  };
   around.forEach((h, idx) => {
     stream = cellRng(h.t.x, h.t.y);
     const [a, b] = fronts(h.t.x, h.t.y)[0];
@@ -333,6 +378,7 @@ export function townGeometry(o: TownModelOptions): THREE.BufferGeometry {
   // Homes stand shoulder to shoulder along the street in front of each built-up tile, facing it behind a small front
   // garden, with the gardens running back behind them. In a big city the centre climbs into blocks and towers.
   for (const t of built) {
+    if (downtownTile(t)) continue;
     const fr = fronts(t.x, t.y);
     if (fr.length === 0) continue;
     stream = cellRng(t.x, t.y);
@@ -346,7 +392,7 @@ export function townGeometry(o: TownModelOptions): THREE.BufferGeometry {
       const sz = Z(t.y + b);
       const close = 1 - Math.hypot(t.x, t.y) / ((city ? 11 : 8) * 1.2);
       const yawBase = yawToward(-a, -b);
-      const bigCity = city && level >= 2;
+      const bigCity = city && level >= 2 && !o.downtown;
       let s = -span / 2;
       while (s < span / 2) {
         const w = bigCity ? 1.1 + r() * 0.5 : 0.62 + r() * 0.22;
@@ -369,8 +415,8 @@ export function townGeometry(o: TownModelOptions): THREE.BufferGeometry {
           const hmax = level === 2 ? 1.6 : level === 3 ? 3.4 : level === 4 ? 6 : 9.5;
           const height = 0.9 + hmax * (0.25 + Math.max(0, close) * 0.75) * (0.7 + r() * 0.5);
           tall(x, z, yaw, w, d, height, level >= 3 && r() < 0.2 + Math.max(0, close) * 0.45 ? 'tower' : 'block');
-        } else if (level >= 4 && close > 0.5 && r() < 0.5) tall(x, z, yaw, w, d, 1.3 + r() * 1.5, 'tower');
-        else if (level >= 3 && close > 0.3 && r() < 0.6) tall(x, z, yaw, w, d, 0.8 + r() * 0.6, 'block');
+        } else if (!o.downtown && level >= 4 && close > 0.5 && r() < 0.5) tall(x, z, yaw, w, d, 1.3 + r() * 1.5, 'tower');
+        else if (!o.downtown && level >= 3 && close > 0.3 && r() < 0.6) tall(x, z, yaw, w, d, 0.8 + r() * 0.6, 'block');
         else home(x, z, yaw, w, d, 0.34 + r() * 0.3 + (level >= 2 ? 0.15 : 0));
         // Now and then a tree in the back garden.
         if (r() < 0.3) {

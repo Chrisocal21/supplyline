@@ -45,6 +45,8 @@ export interface Place {
   radius: number;
   /** Plots (by index) that are already homes along the street, not for sale. */
   homePlots: number[];
+  /** A downtown town (new worlds) has no building lots: its street frontage is held for housing and districts. */
+  lotless?: boolean;
   /** The specialisation this town committed to, if any. */
   path?: PathId | null;
   /** Districts built in the town, by id, with their level. */

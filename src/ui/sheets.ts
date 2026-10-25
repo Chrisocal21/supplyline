@@ -88,7 +88,7 @@ const GUIDE: GuideSection[] = [
         step: 2,
         title: 'Make better goods',
         sum: 'A factory turns raw goods into better ones.',
-        body: 'Open Processing.\nPick a factory, like a Sawmill.\nClick a for-sale lot in a town.\nClick your new factory and press Start.',
+        body: 'Open Processing.\nPick a factory, like a Sawmill.\nClick open ground near a town.\nClick your new factory and press Start.',
         todo: 'Logs go in, lumber comes out.',
         icon: 'thumb-sawmill',
       },
@@ -1252,7 +1252,7 @@ export class Sheets {
     if (this.wikiPage === 'buildings') {
       entries = [...BUILD_ORDER].sort((a, b) => SITE_DEFS[a].tier - SITE_DEFS[b].tier).map((k) => {
         const d = SITE_DEFS[k];
-        const where = d.node ? `On a ${d.node} node` : d.inTown ? 'On a town district plot' : 'On open ground';
+        const where = d.node ? `On a ${d.node} node` : d.inTown ? 'On open ground near a town' : 'On open ground';
         const lines = [`$${d.cost.toLocaleString('en-US')}  ·  ${d.category}  ·  ${where}`, d.blurb];
         if (d.recipe) lines.push(`Uses ${lower(d.recipe.inputs)}`, `Makes ${lower(d.recipe.outputs)}`);
         return { key: k, name: d.label, tier: d.tier, thumb: `thumb-${k}`, color: d.color, lines };

@@ -141,6 +141,7 @@ import { buildingSurfaces, loadSurfaces } from './surfaces';
 import { GRAPHICS, nightLight, readAutoQuality, readGraphics, saveAutoQuality, saveGraphics, type GraphicsQuality, type LightingMode } from './graphics';
 import { TILE_UNITS, type LightAnchor } from '../scale';
 import { LAND_PREFIX, buyParcel, enableLandRules, parcelAt, parcelPrice } from '../sim/land';
+import { skylineOf } from '../sim/skyline';
 import { RoadNet, makeHighwayTexture, makeRailTexture, makeRoadTexture } from './roads';
 import { Scenery } from './scenery';
 import { buildDemo, demoSpots } from './demo';
@@ -1577,7 +1578,7 @@ export class Game3D {
       const { lat } = tileLonLat(w.width, w.height, p.x, p.y);
       const squeeze = THREE.MathUtils.clamp(Math.cos(lat), w.realisticLots ? 0.15 : 0.55, 1);
       const mesh = new THREE.Mesh(
-        townGeometry({ level: p.level, seed: p.id + w.seed, squeeze, city: radiusOf(p) > 3, style: p.style, streets, plots, homes, districts, roads }),
+        townGeometry({ level: p.level, seed: p.id + w.seed, squeeze, city: radiusOf(p) > 3, downtown: w.downtown, skyline: w.downtown ? skylineOf(p) : undefined, style: p.style, streets, plots, homes, districts, roads }),
         siteMaterial,
       );
       mesh.castShadow = true;

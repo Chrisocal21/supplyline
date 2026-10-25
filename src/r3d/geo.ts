@@ -7,7 +7,7 @@ import { siteCenter, siteTiles, townTiles, type Tile, type World } from '../sim/
 /** Globe radius in world units. One tile is about 3.3 units wide at the equator. */
 export let R = 100;
 /** Terrain relief: how far the highest peak stands above sea level. */
-export const MAX_RELIEF = 6.5;
+export const MAX_RELIEF = 16;
 /** Rows of polar cap texture beyond the playable grid, on each side. */
 export let CAP_ROWS = 16;
 

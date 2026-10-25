@@ -22,6 +22,24 @@ export const HUMAN = {
   floorHeight: meters(3.2),
 };
 
+/**
+ * How tall things are, in real metres (see docs/scale.md). One world unit is 10 m and one tile is 32.7 m, so a lot holds one
+ * building. The town model reads these, and so should every model made for the game.
+ */
+export const BUILDING_HEIGHT = {
+  cottage: 7,
+  terrace: 12,
+  lowBlock: 27,
+  midRise: 54,
+  tower: 115,
+  /** The tallest a Metropolis core may be. */
+  coreCap: 150,
+};
+/** A ground floor with a shopfront is taller than the floors above it. */
+export const SHOP_FLOOR_HEIGHT = 4.5;
+/** Storeys in a building of this height: a shopfront ground floor, then ordinary floors. */
+export const storeys = (heightMetres: number): number => Math.max(1, 1 + Math.round((heightMetres - SHOP_FLOOR_HEIGHT) / 3.2));
+
 export const ROAD_VEHICLE = {
   width: meters(2.55),
   height: meters(4),

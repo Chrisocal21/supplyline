@@ -14,6 +14,8 @@ export interface LayoutEnv {
   elev?: number[];
   places: Place[];
   realisticLots?: boolean;
+  /** New worlds: the town keeps only its Market and Supply Yard plots. The rest of the street frontage is downtown, held for housing blocks, shopfronts and districts. */
+  downtown?: boolean;
   /** Towns may grow into their nearest neighbour (see blendPartner). Set on new worlds; old saves keep their gaps. */
   blend?: boolean;
   nodes?: (Tile & { kind?: string })[];
@@ -51,11 +53,16 @@ export interface TownLayout {
   axis: 'h' | 'v';
 }
 
+/** A downtown town has only its Market and its Supply Yard as plots: everything else goes on open ground, or is a district. */
+export const DOWNTOWN_PLOTS = 2;
 export const TOWN_PLOTS = 12;
 export const CITY_PLOTS = 28;
 /** District lots a town sets aside beside its streets, nearest the centre first. */
 export const CIVIC_LOTS = 22;
 export const CITY_CIVIC_LOTS = 26;
+/** A downtown town holds fewer district lots (a town builds some of the districts, not all): the rest of its frontage is housing. */
+export const DOWNTOWN_CIVIC = 12;
+export const DOWNTOWN_CITY_CIVIC = 20;
 const MAX_TOWN_LEVEL = 5;
 /** The main street may wander this far off its axis: about one tile sideways every three along. */
 const MAX_SLOPE = 0.34;
@@ -117,13 +124,13 @@ export function blendRoll(width: number, a: Tile, b: Tile): number {
   return hash(Math.min(a.x, b.x) * 3 + Math.min(dx, width - dx), Math.min(a.y, b.y) * 5 + Math.abs(a.y - b.y), 91);
 }
 
-const cache = new WeakMap<Place, { env: LayoutEnv; n: number; realistic: boolean; layout: TownLayout }>();
+const cache = new WeakMap<Place, { env: LayoutEnv; n: number; realistic: boolean; downtown: boolean; layout: TownLayout }>();
 
 export function townLayout(env: LayoutEnv, place: Place): TownLayout {
   const hit = cache.get(place);
-  if (hit && hit.env === env && hit.n === env.places.length && hit.realistic === !!env.realisticLots) return hit.layout;
+  if (hit && hit.env === env && hit.n === env.places.length && hit.realistic === !!env.realisticLots && hit.downtown === !!env.downtown) return hit.layout;
   const layout = build(env, place);
-  cache.set(place, { env, n: env.places.length, realistic: !!env.realisticLots, layout });
+  cache.set(place, { env, n: env.places.length, realistic: !!env.realisticLots, downtown: !!env.downtown, layout });
   return layout;
 }
 
@@ -269,7 +276,7 @@ function build(env: LayoutEnv, place: Place): TownLayout {
     if (c && !plots.some((p) => key(p) === key(c))) plots.push({ x: c.x, y: c.y, entry: { x: c.entry.x, y: c.entry.y } });
   }
   for (const c of ordered) {
-    if (plots.length >= plotCount(R)) break;
+    if (plots.length >= (env.downtown ? DOWNTOWN_PLOTS : plotCount(R))) break;
     if (plots.some((p) => key(p) === key(c))) continue;
     plots.push({ x: c.x, y: c.y, entry: { x: c.entry.x, y: c.entry.y } });
   }
@@ -277,7 +284,7 @@ function build(env: LayoutEnv, place: Place): TownLayout {
   // The next lots in the same order are for districts, so they keep their place as the town grows.
   const civic: LayoutCivic[] = [];
   for (const c of ordered) {
-    if (civic.length >= (city ? CITY_CIVIC_LOTS : CIVIC_LOTS)) break;
+    if (civic.length >= (env.downtown ? (city ? DOWNTOWN_CITY_CIVIC : DOWNTOWN_CIVIC) : city ? CITY_CIVIC_LOTS : CIVIC_LOTS)) break;
     if (plotKeys.has(key(c))) continue;
     civic.push({ x: c.x, y: c.y, entry: { x: c.entry.x, y: c.entry.y }, level: c.entry.level });
   }
