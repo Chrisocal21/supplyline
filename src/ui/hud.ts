@@ -37,6 +37,8 @@ import {
   WORLD_SIZES,
   type WorldSizeId,
   type SiteKind,
+  SITE_UNLOCK_QUEST,
+  questLabelOf,
 } from '../sim/defs';
 import {
   buildCost,
@@ -2498,10 +2500,12 @@ export class HudScene extends Phaser.Scene {
       };
     }
     const d = SITE_DEFS[tool as SiteKind];
+    const unlockQuest = SITE_UNLOCK_QUEST[tool as SiteKind];
+    const questLocked = unlockQuest && !w.questsDone.includes(unlockQuest);
     return {
       name: d.label,
       cost: `$${fmt(d.cost)}`,
-      locked: d.tier > w.tier ? `Tier ${d.tier}` : null,
+      locked: d.tier > w.tier ? `Tier ${d.tier}` : questLocked ? `Needs: ${questLabelOf(unlockQuest!) ?? 'an earlier quest'}` : null,
       thumb: `thumb-${tool}`,
       blurb: d.blurb,
       detail: [

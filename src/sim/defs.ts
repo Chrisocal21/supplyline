@@ -950,9 +950,9 @@ export const TIERS: TierDef[] = [
       { id: 't0-camps', label: 'Keep more logs coming', hint: 'One camp makes only about 9 logs a minute. Build another Forestry Camp on a ringed forest spot, buy it a truck, road it to the town, and switch its Supply Yard sale on, same as the first camp, so the yard and Market get built sooner.', goal: { kind: 'build', site: 'forestry', count: 1 }, reward: 200 },
       { id: 't0-yard', label: 'Build the Supply Yard: 160 logs', hint: 'Keep the logs coming. A Supply Yard is what lets a town grow at all: it stores the lumber, bricks and other building materials a town needs to level up. When 160 logs have arrived here the yard is built.', goal: { kind: 'townbuilt', stage: 1, count: 1 }, reward: 500 },
       { id: 't0-yardtruck', label: 'Buy a truck at the Supply Yard', hint: 'Click the Supply Yard itself, open its Trucks tab, and press Buy Box Truck. Pick a driver for it. The Yard only stores goods; it has no trucks of its own until you buy one. This truck carries the stored logs on to the Market site, which stands right beside it in the town.', goal: { kind: 'fleet', count: 2 }, reward: 150 },
-      { id: 't0-market', label: 'Build the Market', hint: 'Fill the yard store with 240 more logs. The Supply Yard truck you just bought carries them on to the Market site by itself. A Market is the building that actually pays you for goods; once it stands, Tier 1 opens.', goal: { kind: 'townbuilt', stage: 2, count: 1 }, reward: 500 },
+      { id: 't0-market', label: 'Build the Market', hint: 'Fill the yard store with 240 more logs. The Supply Yard truck you just bought carries them on to the Market site by itself. A Market is the building that actually pays you for goods; once it stands, Tier 1 opens and the Dairy Ranch unlocks in Production.', goal: { kind: 'townbuilt', stage: 2, count: 1 }, reward: 500 },
       { id: 't0-ranch', label: 'Build a Dairy Ranch', hint: 'Open Production, pick Dairy Ranch and click open ground near the town: a ranch brings its own pasture, no inputs needed, same as the camp. Unlike logs, what it makes (milk, eggs, fruit, vegetables, potatoes) sells for real money at the Market straight away.', goal: { kind: 'build', site: 'ranch', count: 1 }, reward: 150 },
-      { id: 't0-milk', label: 'Sell 40 milk to the Market', hint: 'Join the Dairy Ranch to the town with a road and switch the Market on under Sell to, same two steps as the camp. Its trucks carry milk to the Market, which pays for it: your first real income on top of what quests pay.', goal: { kind: 'deliver', good: 'milk', amount: 40 }, reward: 300 },
+      { id: 't0-milk', label: 'Sell 40 milk to the Market', hint: 'Join the Dairy Ranch to the town with a road and switch the Market on under Sell to, same two steps as the camp. Its trucks carry milk to the Market, which pays for it: your first real income on top of what quests pay. Selling it unlocks the Orchard.', goal: { kind: 'deliver', good: 'milk', amount: 40 }, reward: 300 },
       { id: 't0-orchard', label: 'Build an Orchard', hint: 'Production tab. An orchard brings its own trees and can stand on any open ground, just like the ranch. Fruit sells to the Market too, and selling more than one kind of good is part of what makes a town want to grow.', goal: { kind: 'build', site: 'orchard', count: 1 }, reward: 150 },
       { id: 't0-fruit', label: 'Sell 40 fruit to the Market', hint: 'Road the Orchard to the town and switch its sale on, same pattern as the ranch. Fruit pays more than milk, and a town sold two kinds of food grows sooner than one fed a single good.', goal: { kind: 'deliver', good: 'fruit', amount: 40 }, reward: 300 },
       { id: 't0-earn', label: 'Earn $400 from sales', hint: 'Full trucks on short roads earn the most: a half-empty truck or a long haul eats into what a sale is worth. The Company sheet shows what you earn and what your buildings and trucks cost to run each minute.', goal: { kind: 'earn', amount: 400 }, reward: 400 },
@@ -964,10 +964,10 @@ export const TIERS: TierDef[] = [
     blurb: 'The town is growing and wants more than planks. Widen the range, keep the trucks running and build the town up.',
     quests: [
       { id: 't1-sawmill', label: 'Build a Sawmill in a town', hint: 'Open Processing, pick Sawmill, then click a for-sale lot beside a town street. A Sawmill is your first processing building: it turns one good into another (logs into lumber) instead of making something from nothing, the way a camp or farm does. From Tier 1 a town grows from lumber, not raw logs.', goal: { kind: 'build', site: 'sawmill', count: 1 }, reward: 150 },
-      { id: 't1-lumber', label: 'Make 60 lumber', hint: 'Road a Forestry Camp to the Sawmill, then click the Sawmill and turn on Lumber under Production: a processing building makes nothing until its recipe is switched on. Logs go in, lumber comes out.', goal: { kind: 'make', good: 'lumber', amount: 60 }, reward: 200 },
-      { id: 't1-farm', label: 'Build a Farm', hint: 'Open Production, pick Farm and click open ground near the town: a farm brings its own fields, same as the ranch and orchard. Grain does not sell well on its own; it is the raw good that starts the flour and bread chain you build next.', goal: { kind: 'build', site: 'farm', count: 1 }, reward: 150 },
-      { id: 't1-mill', label: 'Build a Flour Mill', hint: 'Open Processing, pick Flour Mill and click a for-sale lot beside a town street. Join the farm to it with a road, then switch Flour on: grain in, flour out. Flour is only a halfway good, worth little until it becomes bread.', goal: { kind: 'build', site: 'mill', count: 1 }, reward: 150 },
-      { id: 't1-bakery', label: 'Build a Bakery', hint: 'Processing tab. Flour in, bread out, and every town Market buys bread: the first good in this chain that actually pays well. Road the mill to the bakery and the bakery to the Market, same as any other sale.', goal: { kind: 'build', site: 'bakery', count: 1 }, reward: 250 },
+      { id: 't1-lumber', label: 'Make 60 lumber', hint: 'Road a Forestry Camp to the Sawmill, then click the Sawmill and turn on Lumber under Production: a processing building makes nothing until its recipe is switched on. Logs go in, lumber comes out. Making it unlocks the Farm.', goal: { kind: 'make', good: 'lumber', amount: 60 }, reward: 200 },
+      { id: 't1-farm', label: 'Build a Farm', hint: 'Open Production, pick Farm and click open ground near the town: a farm brings its own fields, same as the ranch and orchard. Grain does not sell well on its own; it is the raw good that starts the flour and bread chain you build next. Building it unlocks the Flour Mill.', goal: { kind: 'build', site: 'farm', count: 1 }, reward: 150 },
+      { id: 't1-mill', label: 'Build a Flour Mill', hint: 'Open Processing, pick Flour Mill and click a for-sale lot beside a town street. Join the farm to it with a road, then switch Flour on: grain in, flour out. Flour is only a halfway good, worth little until it becomes bread. Building it unlocks the Bakery.', goal: { kind: 'build', site: 'mill', count: 1 }, reward: 150 },
+      { id: 't1-bakery', label: 'Build a Bakery', hint: 'Processing tab. Flour in, bread out, and every town Market buys bread: the first good in this chain that actually pays well. Road the mill to the bakery and the bakery to the Market, same as any other sale. Building it unlocks the Dairy.', goal: { kind: 'build', site: 'bakery', count: 1 }, reward: 250 },
       { id: 't1-dairy', label: 'Build a Dairy', hint: 'Processing tab: milk in, cheese out. Put a Dairy Ranch on open ground and road its milk to the Dairy. Cheese pays more than raw milk, and whey, the by-product left over, sells at the Market too, so nothing from the chain is wasted.', goal: { kind: 'build', site: 'dairy', count: 1 }, reward: 250 },
       { id: 't1-variety', label: 'Sell 3 different goods', hint: 'Bread, cheese, milk, fruit: whatever your lines are making now. A town does not grow just from one good arriving in bulk; it needs a spread of different goods, so build more than one chain rather than scaling up a single one.', goal: { kind: 'variety', count: 3 }, reward: 600 },
       { id: 't1-town2', label: 'Grow a town to level 2', hint: 'A Village needs 250 lumber at its Supply Yard and a few kinds of goods sold at its Market: the Towns sheet shows exactly what it still wants. Once it reaches level 2, what you add next is your call; the game stops lining up the order for you.', goal: { kind: 'town', level: 2, count: 1 }, reward: 600 },
@@ -1030,6 +1030,30 @@ export const TIERS: TierDef[] = [
     ],
   },
 ];
+
+/**
+ * A handful of early buildings stay locked behind one specific earlier quest, on top of the usual Tier lock: the guided
+ * run from the first camp to town level 2 unlocks its own next building one small step at a time, rather than dumping
+ * every Tier 0 or Tier 1 building on the player at once. Nothing past that point is gated this way: once a town reaches
+ * level 2 the player is meant to choose their own order (see the Tier 1 quest list), so the rest only need their Tier.
+ */
+export const SITE_UNLOCK_QUEST: Partial<Record<SiteKind, string>> = {
+  ranch: 't0-market',
+  orchard: 't0-milk',
+  farm: 't1-lumber',
+  mill: 't1-farm',
+  bakery: 't1-mill',
+  dairy: 't1-bakery',
+};
+
+/** The label of a quest, by id, for a "locked until..." message. Looks through every tier's list. */
+export function questLabelOf(id: string): string | undefined {
+  for (const t of TIERS) {
+    const q = t.quests.find((x) => x.id === id);
+    if (q) return q.label;
+  }
+  return undefined;
+}
 
 /** The worlds a new game can start on: made maps, placed by hand. Random worlds are not offered; they remain for tests and development. */
 export type WorldSizeId = 'map1' | 'map2' | 'map3' | 'small' | 'medium' | 'large';
