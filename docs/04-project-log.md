@@ -1027,3 +1027,7 @@ What changed:
 - Top and bottom bars: darker glass with a 1 px gold rule and a soft shadow falling onto the world, instead of a flat band and a 2 px line.
 - Toolbar tabs: square-shouldered, labels uppercase in the display face, the selected one marked by a gold underline.
 - The Menu button is angled, its label in the display face.
+
+## 0.166: /access shows the latest build up front
+
+- The latest release is fetched as the page opens and shown under the intro (version and date), so the code is only needed for the downloads.

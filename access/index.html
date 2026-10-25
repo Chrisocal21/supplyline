@@ -56,6 +56,10 @@
       #bad { color: var(--bad); min-height: 1.4em; margin: 10px 0 0; text-align: center; }
       .foot { margin-top: 22px; font-size: 0.85rem; color: var(--muted); }
       .foot a { color: var(--accent); text-decoration: none; }
+      .latest { display: inline-flex; align-items: center; gap: 8px; margin-top: 14px; padding: 6px 14px; border: 1px solid rgba(210, 180, 120, 0.5); background: rgba(42, 36, 17, 0.6); color: var(--text); font-size: 0.9rem; }
+      .latest b { color: var(--accent); }
+      .latest .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
+      #latest-date { color: var(--muted); }
       [hidden] { display: none !important; }
     </style>
   </head>
@@ -66,6 +70,7 @@
         <div class="kicker">Tester access</div>
         <h1>The full game</h1>
         <p>All three maps and every tier, for Windows and Mac. Please do not share this page, and tell Chris what breaks.</p>
+        <p class="latest"><span class="dot"></span>Latest build <b id="latest">checking...</b><span id="latest-date"></span></p>
       </div>
 
       <div>
@@ -120,9 +125,15 @@
         el.removeAttribute('aria-disabled');
         if (note) el.querySelector('small').textContent = note;
       }
+      // The latest release is looked up once, as the page opens, so its version shows before the code is entered.
+      var latest = fetch('https://api.github.com/repos/Chrisocal21/supplyline/releases/latest').then(function (r) { return r.ok ? r.json() : null; });
+      latest.then(function (rel) {
+        var v = String((rel && rel.tag_name) || '').replace(/^v/, '');
+        document.getElementById('latest').textContent = v || 'unknown';
+        if (rel && rel.published_at) document.getElementById('latest-date').textContent = ' · ' + new Date(rel.published_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+      }).catch(function () { document.getElementById('latest').textContent = 'unknown'; });
       function look() {
-        fetch('https://api.github.com/repos/Chrisocal21/supplyline/releases/latest')
-          .then(function (r) { return r.ok ? r.json() : null; })
+        latest
           .then(function (rel) {
             var assets = (rel && rel.assets) || [];
             var find = function (re) { return assets.filter(function (a) { return re.test(a.name); })[0]; };
