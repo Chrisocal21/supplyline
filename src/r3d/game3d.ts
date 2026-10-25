@@ -87,6 +87,9 @@ import {
   placeSite,
   planRoute,
   routeAt,
+  entryTile,
+  siteSize,
+  FRONT,
   routeTicks,
   vehicleRoute,
   ensureDistrictSites,
@@ -1324,6 +1327,7 @@ export class Game3D {
     const usedNodes = new Set(w.sites.map((s) => s.nodeId).filter((n): n is number => n !== null));
     this.scenery.showMarkers(this.activeNodeKind(), usedNodes);
     this.scenery.showGates(this.isRouteTool());
+    this.syncEntryArrows();
     this.scenery.setRoadZones(this.isRouteTool() ? this.routeMode : null, `${w.sites.length}.${w.places.map((p) => `${p.level}${Object.values(p.districtLots ?? {}).join('_')}`).join(',')}`);
     this.scenery.setParcels(this.isBuildTool() && !!w.landRules, String((w.owned ?? []).length));
     // A building that goes on open ground: show where it can stand and where it cannot, round the view.
@@ -2288,6 +2292,7 @@ export class Game3D {
     this.placeRot = null;
     if (this.ghost) this.ghost.visible = false;
     this.showHoldRings(null, true);
+    if (this.ghostArrow) this.ghostArrow.visible = false;
     if (this.hover) this.setHover(this.hover.tile);
   }
 
@@ -2450,6 +2455,7 @@ export class Game3D {
       this.ring.visible = false;
       if (this.ghost) this.ghost.visible = false;
       this.showHoldRings(null, true);
+    if (this.ghostArrow) this.ghostArrow.visible = false;
       return;
     }
     this.hover = this.describe(tile);
@@ -2468,6 +2474,7 @@ export class Game3D {
     else if (this.ghost) {
       this.ghost.visible = false;
       this.showHoldRings(null, true);
+    if (this.ghostArrow) this.ghostArrow.visible = false;
     }
   }
 
@@ -2536,6 +2543,78 @@ export class Game3D {
       const held = blockFor(this.world, tile.x, tile.y, this.placeRot ?? undefined);
       this.showHoldRings(blockTiles(this.world, tile.x, tile.y, 'res' in held ? held.res : (this.placeRot ?? 0)), ok && 'res' in held);
     } else this.showHoldRings(null, true);
+    if (this.ghostArrow) this.ghostArrow.visible = false;
+    // A building turned by hand takes its road at its front: an arrow on the driveway tile shows where to meet it.
+    if (this.placeRot !== null || siteIsBig(kind)) {
+      const rot = this.ghostRot(kind, tile);
+      const out = siteIsBig(kind) ? (siteSize(kind).d - 1) / 2 + 1 : 1;
+      const entry = { x: wrapX(this.world, tile.x + FRONT[rot].x * out), y: tile.y + FRONT[rot].y * out };
+      const gate = { x: wrapX(this.world, tile.x + FRONT[rot].x * (out - 1)), y: tile.y + FRONT[rot].y * (out - 1) };
+      this.ghostArrow ??= this.arrowMesh();
+      this.placeArrow(this.ghostArrow, entry, gate);
+    } else if (this.ghostArrow) this.ghostArrow.visible = false;
+  }
+
+  /** A flat arrow that lies on the ground and points along +z, for marking where a road meets a building. */
+  private arrowMesh(): THREE.Mesh {
+    if (!this.arrowGeo) {
+      const sh = new THREE.Shape();
+      sh.moveTo(0, 1.25);
+      sh.lineTo(0.85, 0.2);
+      sh.lineTo(0.3, 0.2);
+      sh.lineTo(0.3, -1.1);
+      sh.lineTo(-0.3, -1.1);
+      sh.lineTo(-0.3, 0.2);
+      sh.lineTo(-0.85, 0.2);
+      sh.closePath();
+      this.arrowGeo = new THREE.ShapeGeometry(sh);
+      this.arrowGeo.rotateX(Math.PI / 2);
+    }
+    const m = new THREE.Mesh(this.arrowGeo, new THREE.MeshBasicMaterial({ color: 0xf2b04c, transparent: true, opacity: 0.95, depthTest: false, side: THREE.DoubleSide }));
+    m.renderOrder = 12;
+    m.matrixAutoUpdate = false;
+    m.visible = false;
+    this.scene.add(m);
+    return m;
+  }
+  private arrowGeo: THREE.ShapeGeometry | null = null;
+  private entryArrows: THREE.Mesh[] = [];
+  private ghostArrow: THREE.Mesh | null = null;
+  private arrowKey = '';
+
+  /** Put an arrow on `entry` pointing at `gate`: where the road has to meet the building. */
+  private placeArrow(m: THREE.Mesh, entry: Tile, gate: Tile): void {
+    const dx = wrapDx(this.world, entry.x, gate.x);
+    const dy = gate.y - entry.y;
+    m.matrix.copy(this.tileMatrix(entry, 0.2)).multiply(new THREE.Matrix4().makeRotationY(Math.atan2(dx, dy)));
+    m.matrixWorldNeedsUpdate = true;
+    m.visible = true;
+  }
+
+  /** While a road is being drawn, an arrow on the driveway tile of every building the player has turned: the road joins there. */
+  private syncEntryArrows(): void {
+    const w = this.world;
+    if (this.tool !== 'route' && this.tool !== 'highway') {
+      for (const m of this.entryArrows) m.visible = false;
+      this.arrowKey = '';
+      return;
+    }
+    const vt = viewTileOf(w, this.cam.lon, this.cam.lat);
+    const key = `${w.sites.length}.${w.routes.length}.${Math.round(vt.x / 4)}.${Math.round(vt.y / 4)}`;
+    if (key === this.arrowKey) return;
+    this.arrowKey = key;
+    const spots = w.sites
+      .filter((s) => s.rot !== undefined && Math.abs(wrapDx(w, vt.x, s.x)) <= 40 && Math.abs(s.y - vt.y) <= 40)
+      .map((s) => ({ s, e: entryTile(w, s.x, s.y), d: Math.hypot(wrapDx(w, vt.x, s.x), s.y - vt.y) }))
+      .filter((o): o is { s: Site; e: Tile; d: number } => !!o.e && !routeAt(w, o.e.x, o.e.y, 'road'))
+      .sort((a, b) => a.d - b.d)
+      .slice(0, 48);
+    while (this.entryArrows.length < spots.length) this.entryArrows.push(this.arrowMesh());
+    this.entryArrows.forEach((m, i) => {
+      const o = spots[i];
+      if (o) this.placeArrow(m, o.e, { x: o.s.x, y: o.s.y });
+      else m.visible = false;
+    });
   }
 
   /** Rings round the ground a building being placed will hold (all four tiles), green where it can, red where it cannot. */
