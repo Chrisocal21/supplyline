@@ -137,7 +137,7 @@ export default function Home() {
                   <LinkButton href={LINKS.demoMacArm} label="Mac" note="Apple silicon (M1 and later)" soon="Coming soon" />
                   <LinkButton href={LINKS.demoMacIntel} label="Intel Mac" note="Older Macs" soon="Coming soon" />
                 </div>
-                <p className="demo-note">On a Mac, the first time: System Settings, Privacy and Security, Open Anyway.</p>
+                <p className="demo-note">First time on Windows, if it warns: More info, then Run anyway. On a Mac: System Settings, Privacy and Security, then Open Anyway.</p>
               </div>
               <ol className="tiers">
                 {TIERS.map((t, i) => (

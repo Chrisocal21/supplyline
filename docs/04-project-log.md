@@ -1001,3 +1001,9 @@ What changed:
 
 - `tools/build-demo.cjs --mac` builds the demo as `Supplyline-Demo-arm64.dmg` and `-x64.dmg`. The demo workflow ("Demo build") now has a release job, then Windows and Mac jobs, each uploading to the fixed "demo" release, so the addresses never change.
 - Website: every "get the demo" button goes to the demo section, which has Windows, Mac (Apple silicon) and Intel Mac buttons and the Open Anyway note. The Mac question in the FAQ covers the first open and that the Mac version does not update itself yet.
+
+## 0.162: /access on one screen, with Windows steps
+
+- On screens 900 px and wider, /access puts the logo and heading on the left and the downloads on the right, so it fits without scrolling (checked at 1915 by 965 and 1366 by 680). Phones stack and scroll.
+- New "Installing it on Windows" steps (SmartScreen: More info, Run anyway; Keep in the browser; it updates itself), next to the Mac steps, both folded until opened.
+- The website's demo note covers the first run on Windows as well as the Mac.

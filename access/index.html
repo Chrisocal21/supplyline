@@ -14,7 +14,19 @@
       * { box-sizing: border-box; }
       body { margin: 0; min-height: 100vh; background: var(--bg) radial-gradient(ellipse at 50% 0%, #1a2a32, var(--bg) 65%); color: var(--text); font-family: 'Segoe UI', system-ui, -apple-system, Roboto, sans-serif; line-height: 1.55; display: grid; place-items: center; padding: 32px 16px; }
       main { width: min(560px, 100%); text-align: center; }
-      .logo { width: min(260px, 60vw); height: auto; display: block; margin: 0 auto 6px; }
+      .intro p { margin-bottom: 0; }
+      /* Wide screens: the logo and heading on the left, the downloads on the right, all on one screen. */
+      @media (min-width: 900px) {
+        body { padding: 24px 32px; }
+        main { width: min(1180px, 100%); display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); gap: 48px; align-items: center; }
+        .intro { text-align: left; }
+        .intro .logo { margin: 0 0 6px; width: min(320px, 34vh); }
+        .intro h1 { font-size: clamp(2.6rem, 4.4vw, 4rem); }
+        .intro p { font-size: 1.08rem; }
+        .card { margin-top: 0; }
+        main > .foot { grid-column: 1 / -1; text-align: center; margin-top: 0; }
+      }
+      .logo { width: min(200px, 45vw, 26vh); height: auto; display: block; margin: 0 auto 6px; }
       .kicker { font-family: var(--head); font-weight: 700; letter-spacing: 0.22em; text-transform: uppercase; color: var(--accent); font-size: 0.95rem; }
       h1 { font-family: var(--head); font-weight: 800; text-transform: uppercase; font-size: clamp(2rem, 7vw, 2.8rem); line-height: 1.02; margin: 6px 0 12px; }
       p { color: var(--muted); margin: 0 0 14px; }
@@ -35,7 +47,8 @@
       @media (max-width: 460px) { .mac { grid-template-columns: 1fr; } }
       .label { font-size: 0.72rem; letter-spacing: 0.14em; text-transform: uppercase; font-weight: 700; color: var(--muted); margin: 18px 0 8px; }
       .label:first-child { margin-top: 0; }
-      details { margin-top: 16px; border-top: 1px solid var(--line); padding-top: 12px; }
+      details { margin-top: 14px; border-top: 1px solid var(--line); padding-top: 12px; }
+      details + details { margin-top: 0; }
       summary { cursor: pointer; font-weight: 700; color: var(--text); }
       details ol { color: var(--muted); padding-left: 20px; margin: 10px 0 0; }
       details li { margin-bottom: 6px; }
@@ -48,11 +61,14 @@
   </head>
   <body>
     <main>
-      <img class="logo" src="/site/logo-sm.png" alt="SupplyLine" />
-      <div class="kicker">Tester access</div>
-      <h1>The full game</h1>
-      <p>All three maps and every tier. Please do not share this page, and tell Chris what breaks.</p>
+      <div class="intro">
+        <img class="logo" src="/site/logo-sm.png" alt="SupplyLine" />
+        <div class="kicker">Tester access</div>
+        <h1>The full game</h1>
+        <p>All three maps and every tier, for Windows and Mac. Please do not share this page, and tell Chris what breaks.</p>
+      </div>
 
+      <div>
       <div class="card" id="gate-card">
         <form id="gate">
           <input id="code" inputmode="numeric" autocomplete="off" maxlength="4" placeholder="Code" aria-label="Access code" />
@@ -72,6 +88,15 @@
           <a class="btn" id="dl-x64" href="#" aria-disabled="true">Intel Mac<small>Older Macs</small></a>
         </div>
         <details>
+          <summary>Installing it on Windows</summary>
+          <ol>
+            <li>Open the downloaded <code>Supplyline-Setup</code> file. It installs and starts the game on its own; there is nothing to choose.</li>
+            <li>The game is not signed with a Microsoft certificate yet, so Windows may show <b>Windows protected your PC</b>. Press <b>More info</b>, then <b>Run anyway</b>.</li>
+            <li>If your browser holds the download back, open your downloads list and choose <b>Keep</b>.</li>
+            <li>After that it updates itself: when a new version is ready, the menu offers a restart. Your saves stay where they are.</li>
+          </ol>
+        </details>
+        <details>
           <summary>Opening it on a Mac the first time</summary>
           <ol>
             <li>Open the downloaded file and drag Supplyline into Applications.</li>
@@ -81,6 +106,7 @@
           </ol>
         </details>
         <p class="foot">Current build <b id="build">-</b>. Not sure which Mac you have? Apple menu, then About This Mac: it says Apple M1 (or later) or Intel.</p>
+      </div>
       </div>
       <p class="foot"><a href="/">SupplyLine</a> is a Probably Fine Studios game.</p>
     </main>
