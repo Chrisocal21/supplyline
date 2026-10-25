@@ -58,7 +58,7 @@ export default function Home() {
           <div className="wrap studio">
             <div>
               <div className="kicker">The honest bit</div>
-              <h2>{STUDIO.title}</h2>
+              <h2>Hi. We are <a href={LINKS.studio} rel="noopener">Probably Fine Studios</a>.</h2>
               {STUDIO.body.map((b) => <p key={b}>{b}</p>)}
             </div>
             <aside className="report">

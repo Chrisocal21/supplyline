@@ -42,8 +42,8 @@ export default function Store() {
             <img className="store-logo" src="/site/logo-full.jpg" alt="SupplyLine logo" width={1000} height={1000} />
             <p>Build farms, forests and factories on a 3D globe. Then move the goods by truck, train, ship and plane, and watch the towns grow.</p>
             <dl className="rows">
-              <div><dt>Developer</dt><dd>Probably Fine Studios</dd></div>
-              <div><dt>Publisher</dt><dd>Probably Fine Studios</dd></div>
+              <div><dt>Developer</dt><dd><a href={LINKS.studio} rel="noopener">Probably Fine Studios</a></dd></div>
+              <div><dt>Publisher</dt><dd><a href={LINKS.studio} rel="noopener">Probably Fine Studios</a></dd></div>
               <div><dt>Release</dt><dd>To be announced</dd></div>
               <div><dt>Status</dt><dd>In development, free demo available</dd></div>
             </dl>

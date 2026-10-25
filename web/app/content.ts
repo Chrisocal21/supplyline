@@ -22,7 +22,6 @@ export const PILLARS = [
 
 /** Who makes this, said plainly. */
 export const STUDIO = {
-  title: 'Hi. We are Probably Fine Studios.',
   body: [
     'SupplyLine is made by one developer and a handful of friends with opinions. We are good at the logic: the goods, the routes, the towns, and the thousand small sums that decide whether your truck turns up.',
     'We cannot make 3D art. At all. So every building, truck and tree you see was built in code, with AI doing the heavy lifting. It is all we have got, and we would rather tell you than pretend.',
