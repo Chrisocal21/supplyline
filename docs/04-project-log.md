@@ -1065,3 +1065,7 @@ What changed:
 
 - The world chooser drops the thick gold frame: soft border, a NEW GAME kicker over a left-aligned display title.
 - Mode cards and world rows are rounded cards with faint borders; a hovered world lights gold with an inset line, world names use the display font, and Cancel is an angled button.
+
+## 0.174: saved games window
+
+- The saved games window gets the same frame as the world chooser: soft border, a small gold kicker over a left-aligned display title, and softer slot cards.

@@ -2025,19 +2025,20 @@ export class HudScene extends Phaser.Scene {
     const rowH = 64;
     const h = 98 + Game3D.SLOTS * (rowH + 8) + 52 + pad;
     const y = Math.max(TOP + 6, (H - h) / 2);
-    im.rect(4, x, y, w, h, COLORS.panel, 1, 18, COLORS.accent, 1, 2);
+    im.rect(4, x, y, w, h, 0x0b1117, 0.98, 10, COLORS.line, 0.8);
     let cy = y + pad;
-    im.text('svT', mode === 'new' ? 'Start a new world?' : 'Saved games', x + w / 2, cy, { size: 21, bold: true, align: 'center', layer: 4 });
-    cy += 32;
-    im.text('svS', mode === 'new' ? 'Do you want to save this game first? Pick a slot to save it in, then a new world starts.' : 'Save this game in a slot, or load one. Your game also saves itself every few seconds.', x + w / 2, cy, { size: 12, color: COLORS.muted, align: 'center', wrap: inner, layer: 4 });
+    im.text('svK', mode === 'new' ? 'NEW GAME' : 'GAME', x + pad, cy - 4, { size: 10, bold: true, color: COLORS.accent, layer: 4 });
+    im.text('svT', (mode === 'new' ? 'Start a new world?' : 'Saved games').toUpperCase(), x + pad, cy + 8, { size: 26, bold: true, display: true, layer: 4 });
     cy += 44;
+    im.text('svS', mode === 'new' ? 'Do you want to save this game first? Pick a slot to save it in, then a new world starts.' : 'Save this game in a slot, or load one. Your game also saves itself every few seconds.', x + pad, cy, { size: 12, color: COLORS.muted, wrap: inner, layer: 4 });
+    cy += 32;
     const when = (t: number): string => {
       const mins = Math.floor((Date.now() - t) / 60000);
       return mins < 1 ? 'just now' : mins < 60 ? `${mins} min ago` : mins < 1440 ? `${Math.floor(mins / 60)} h ago` : new Date(t).toLocaleDateString();
     };
     for (let i = 1; i <= Game3D.SLOTS; i++) {
       const info = g.slotInfo(i);
-      im.rect(4, x + pad, cy, inner, rowH, 0x131a24, 1, 12, COLORS.line, 1);
+      im.rect(4, x + pad, cy, inner, rowH, 0x0f161d, 1, 8, COLORS.line, 0.6);
       im.text(`sv${i}n`, info ? `Slot ${i}: ${info.town}` : `Slot ${i}: empty`, x + pad + 14, cy + 12, { size: 14, bold: true, color: info ? COLORS.text : COLORS.muted, layer: 4 });
       if (info) im.text(`sv${i}d`, `Tier ${info.tier}  ·  $${fmt(info.money)}  ·  ${info.minutes} min played  ·  saved ${when(info.savedAt)}`, x + pad + 14, cy + 32, { size: 11, color: COLORS.muted, wrap: inner - (mode === 'manage' ? 350 : 230), layer: 4 });
       // Buttons on the right: save here (and start over, when making a new world), load, delete.
