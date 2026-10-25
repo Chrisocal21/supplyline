@@ -61,6 +61,10 @@ export function questProgress(world: World, goal: QuestGoal): Progress {
       have = world.vehicles.length;
       need = goal.count;
       break;
+    case 'yardfleet':
+      have = world.vehicles.filter((v) => world.sites.find((s) => s.id === v.homeId)?.kind === 'freight').length;
+      need = goal.count;
+      break;
     case 'making':
       have = world.sites.filter((s) => s.making).length;
       need = goal.count;
