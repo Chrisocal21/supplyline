@@ -1132,3 +1132,7 @@ What changed:
 ## 0.187: Wiki
 
 - A Wiki page in Manage (I, or the menu): Buildings (all, by tier, with picture, price, category, where it goes, and what it uses and makes), Vehicles (price, mode, load, garage level) and Goods (price, kind, made by, used by). Locked entries are dimmed and tagged LOCKED with their tier.
+
+## 0.188: markers only where they belong
+
+- Confirmed: farmland, pasture and orchard (the soft nodes that go anywhere) never had a marker; the unused field shape and their colours are removed so the code says so. Markers stay on fixed resources: quarry, mine, coal, clay (rocks), oil (pool), forest (pines) and the island coffee and mango groves (bushes).

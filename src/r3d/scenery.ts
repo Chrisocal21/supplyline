@@ -263,35 +263,31 @@ export class Scenery {
   }
 
   /**
-   * A small marker on every free resource node, shown at any distance until something is built on it, shaped for what the
-   * node holds: rocks for stone, ore, coal and clay, a dark pool for oil, young pines for forest, a tilled patch for fields and
-   * meadows, round bushes for fruit and coffee. One instanced mesh per shape.
+   * A small marker on every free fixed resource node, shown at any distance until something is built on it, shaped for what the
+   * node holds: rocks for stone, ore, coal and clay, a dark pool for oil, young pines for forest, round bushes for the island
+   * coffee and mango groves. Fields, meadows and orchards go anywhere, so they have no marker. One instanced mesh per shape.
    */
   private farMarks: THREE.InstancedMesh[] = [];
   private readonly farIndex = new Map<number, { mesh: THREE.InstancedMesh; i: number; matrix: THREE.Matrix4 }>();
   private static readonly MARK_COLOR: Partial<Record<NodeKind, number>> = {
     forest: 0x2f6f3c,
-    farmland: 0xb08a4a,
-    pasture: 0x7aa04e,
     quarry: 0xa7adb5,
     mine: 0xb06a4a,
     coal: 0x2a2a2e,
     clay: 0xd2784a,
     oil: 0x101014,
-    orchard: 0x3f7a34,
     coffee: 0x3d5e2a,
     mango: 0x4f8a30,
   };
 
-  private static markShape(kind: NodeKind): 'rock' | 'oil' | 'pine' | 'field' | 'bush' {
+  private static markShape(kind: NodeKind): 'rock' | 'oil' | 'pine' | 'bush' {
     if (kind === 'oil') return 'oil';
     if (kind === 'forest') return 'pine';
-    if (kind === 'farmland' || kind === 'pasture') return 'field';
-    if (kind === 'orchard' || kind === 'coffee' || kind === 'mango') return 'bush';
+    if (kind === 'coffee' || kind === 'mango') return 'bush';
     return 'rock';
   }
 
-  private static markGeometry(shape: 'rock' | 'oil' | 'pine' | 'field' | 'bush'): THREE.BufferGeometry {
+  private static markGeometry(shape: 'rock' | 'oil' | 'pine' | 'bush'): THREE.BufferGeometry {
     const parts: THREE.BufferGeometry[] = [];
     if (shape === 'rock') {
       for (const [x, z, yaw, r, sq] of [[0, 0, 0, 1, 0.75], [0.9, 0.3, 0.2, 0.6, 0.6], [-0.8, -0.5, 0.5, 0.55, 0.55]]) {
@@ -307,10 +303,6 @@ export class Scenery {
       parts.push(new THREE.CylinderGeometry(0.7, 0.8, 0.2, 10).translate(0.6, 0.1, -0.4));
     } else if (shape === 'pine') {
       for (const [x, z, h] of [[0, 0, 2.4], [0.9, 0.5, 1.7], [-0.8, 0.4, 1.9]]) parts.push(new THREE.ConeGeometry(h * 0.32, h, 6).translate(x, h / 2, z));
-    } else if (shape === 'field') {
-      // A low tilled patch with three furrows.
-      parts.push(new THREE.BoxGeometry(2.6, 0.1, 2).translate(0, 0.05, 0));
-      for (const z of [-0.6, 0, 0.6]) parts.push(new THREE.BoxGeometry(2.4, 0.18, 0.22).translate(0, 0.14, z));
     } else {
       for (const [x, z, r] of [[0, 0, 0.8], [0.9, 0.3, 0.55], [-0.7, 0.5, 0.6]]) parts.push(new THREE.IcosahedronGeometry(r, 0).translate(x, r * 0.9, z));
     }
@@ -323,7 +315,7 @@ export class Scenery {
     if (marks.length === 0) return;
     const col = new THREE.Color();
     const stone = new THREE.Color(0x8b857c);
-    for (const shape of ['rock', 'oil', 'pine', 'field', 'bush'] as const) {
+    for (const shape of ['rock', 'oil', 'pine', 'bush'] as const) {
       const mine = marks.filter((m) => Scenery.markShape(m.kind) === shape);
       if (mine.length === 0) continue;
       const mat = new THREE.MeshStandardMaterial({ roughness: shape === 'oil' ? 0.25 : 0.95, metalness: shape === 'oil' ? 0.3 : 0, flatShading: true });
