@@ -59,7 +59,7 @@ export default function Store() {
             <p>Be told when it launches. The free demo plays Tiers 0 and 1 on Map 1.</p>
           </div>
           <div className="btn-row">
-            <LinkButton href={LINKS.demo} label="Download the free demo" note="For Windows, free" soon="For Windows, coming soon" />
+            <a className="btn" href="/#demo">Download the free demo<small>Windows and Mac, free</small></a>
             <LinkButton primary href={LINKS.steam} label="Wishlist on Steam" note="Wishlist now" soon="Coming soon" />
           </div>
         </div>

@@ -26,7 +26,7 @@ export default function Home() {
           <h1><span className="sr">SupplyLine: </span>Feed the world, one truck at a time.</h1>
           <p className="tag">{TAGLINE}</p>
           <div className="btn-row">
-            <LinkButton primary href={LINKS.demo} label="Download the free demo" note="Windows" soon="Windows, coming soon" />
+            <a className="btn primary" href="#demo">Get the free demo<small>Windows and Mac</small></a>
             <LinkButton href={LINKS.steam} label="Wishlist on Steam" note="Wishlist now" soon="Coming soon" />
           </div>
         </div>
@@ -133,8 +133,11 @@ export default function Home() {
                 <h2>Play the first two tiers free</h2>
                 <ul className="ticks">{DEMO_POINTS.map((d) => <li key={d}>{d}</li>)}</ul>
                 <div className="btn-row">
-                  <LinkButton primary href={LINKS.demo} label="Download the free demo" note="Windows" soon="Windows, coming soon" />
+                  <LinkButton primary href={LINKS.demo} label="Windows" note="Windows 10 or 11" soon="Coming soon" />
+                  <LinkButton href={LINKS.demoMacArm} label="Mac" note="Apple silicon (M1 and later)" soon="Coming soon" />
+                  <LinkButton href={LINKS.demoMacIntel} label="Intel Mac" note="Older Macs" soon="Coming soon" />
                 </div>
+                <p className="demo-note">On a Mac, the first time: System Settings, Privacy and Security, Open Anyway.</p>
               </div>
               <ol className="tiers">
                 {TIERS.map((t, i) => (

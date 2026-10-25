@@ -996,3 +996,8 @@ What changed:
 - Not signed with an Apple certificate (needs the paid Apple Developer account, $99 a year), only ad hoc (`identity: "-"`), so macOS asks the player to press Open Anyway the first time. A Mac also will not install updates into an unsigned app, so on a Mac the updater only says a new version is out and points to the testers' page. The app gets a Mac menu (Cmd+Q, Cmd+H, full screen).
 - `/access/` replaces `/dockside/`: styled like the website, the same code, a Windows button and Apple silicon and Intel Mac buttons from the latest release, leading with the one for the visitor's computer, and steps for opening it on a Mac. `public/dockside/index.html` forwards old links.
 - The website's questions and the store page's requirements mention the Mac. The demo stays Windows only for now.
+
+## 0.161: a Mac demo
+
+- `tools/build-demo.cjs --mac` builds the demo as `Supplyline-Demo-arm64.dmg` and `-x64.dmg`. The demo workflow ("Demo build") now has a release job, then Windows and Mac jobs, each uploading to the fixed "demo" release, so the addresses never change.
+- Website: every "get the demo" button goes to the demo section, which has Windows, Mac (Apple silicon) and Intel Mac buttons and the Open Anyway note. The Mac question in the FAQ covers the first open and that the Mac version does not update itself yet.

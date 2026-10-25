@@ -3,6 +3,8 @@
 /** Set these when the pages exist. A button with no address stays off. */
 export const LINKS = {
   demo: 'https://github.com/Chrisocal21/supplyline/releases/download/demo/Supplyline-Demo-Setup.exe',
+  demoMacArm: 'https://github.com/Chrisocal21/supplyline/releases/download/demo/Supplyline-Demo-arm64.dmg',
+  demoMacIntel: 'https://github.com/Chrisocal21/supplyline/releases/download/demo/Supplyline-Demo-x64.dmg',
   steam: '',
   studio: 'https://www.probablyfinestudios.com',
 };
@@ -74,7 +76,7 @@ export const NEWS = [
 
 export const FAQ = [
   { q: 'Can I play in my browser or on a phone?', a: 'No. It is a download played with a mouse and keyboard, because the game is too heavy for a browser tab. This website works on a phone.' },
-  { q: 'Is there a Mac version?', a: 'Yes, for testers so far, on Apple silicon and Intel Macs. The free demo is Windows only for now; a Mac demo comes once the Mac build has been through some testing.' },
+  { q: 'Is there a Mac version?', a: 'Yes, for Apple silicon and Intel Macs. It is not signed with an Apple certificate yet, so the first time you open it, macOS asks: open System Settings, then Privacy and Security, and press Open Anyway. If it says the app is damaged, run xattr -cr "/Applications/Supplyline Demo.app" in Terminal. The Mac version does not update itself yet, so download each new version from here.' },
   { q: 'Will it come to Steam?', a: 'That is the plan. The wishlist button switches on once there is a page.' },
   { q: 'Why does it look like that?', a: 'Because one developer can write a supply chain but cannot model a forklift. The models are built in code with AI help, as stand-ins. A real artwork overhaul is planned the moment we find an artist.' },
   { q: 'Is it finished?', a: 'No. It changes most weeks, things break and get fixed, and saves sometimes do not survive. It is probably fine.' },
