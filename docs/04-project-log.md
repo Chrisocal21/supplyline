@@ -1055,3 +1055,8 @@ What changed:
 ## 0.171: Finance, fourth bit of the UI redesign
 
 - Loans, Savings and Market fund cards drop the thick tinted border and top bar: soft border, a tinted dot by a display title, and a short tinted line along the foot. The how-it-works text is a step quieter than the numbers.
+
+## 0.172: How to play, fifth bit of the UI redesign
+
+- Section tabs are quiet pills; the open one is outlined and lettered in its section colour instead of a solid fill.
+- The section heading uses the display font, step numbers are rings with the number in the section colour, and the green done box is softer and rounded.

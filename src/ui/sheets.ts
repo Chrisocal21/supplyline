@@ -1241,13 +1241,14 @@ export class Sheets {
         this.guideTab = s.id;
         this.scroll = 0;
       }, 4);
-      im.rect(3, cx, cy, w, 38, on ? s.color : hov ? 0x2a3646 : COLORS.panelAlt, 1, 3, on ? s.color : COLORS.line, 1);
-      im.text(`gd-tabt-${s.id}`, s.label.toUpperCase(), cx + w / 2, cy + 11, { size: 13, bold: true, color: on ? 0x10161e : COLORS.text, align: 'center', layer: 4 });
+      // Pill tabs: the open one outlined in its section colour, the rest quiet until hovered.
+      im.rect(3, cx, cy, w, 38, on ? 0x16212a : hov ? 0x121a21 : 0x0d141a, 1, 19, on ? s.color : COLORS.line, on ? 1 : 0.5, on ? 1.5 : 1);
+      im.text(`gd-tabt-${s.id}`, s.label.toUpperCase(), cx + w / 2, cy + 11, { size: 13, bold: true, color: on ? s.color : hov ? COLORS.text : 0xc4ccce, align: 'center', layer: 4 });
       cx += w + 10;
     }
     cy += 54;
     const sec = GUIDE.find((s) => s.id === this.guideTab) ?? GUIDE[0];
-    const hd = im.text(`gd-h-${sec.id}`, sec.label.toUpperCase(), v.x0, cy, { size: 24, bold: true, color: sec.color, layer: 3 });
+    const hd = im.text(`gd-h-${sec.id}`, sec.label.toUpperCase(), v.x0, cy, { size: 28, bold: true, display: true, color: sec.color, layer: 3 });
     const hb = im.text(`gd-hb-${sec.id}`, sec.blurb, v.x0, cy + hd.h + 4, { size: 15, color: COLORS.muted, wrap: W, layer: 3 });
     cy += hd.h + hb.h + 18;
 
@@ -1286,11 +1287,12 @@ export class Sheets {
       }
       const h = Math.max(card.step || icon ? 96 : 0, yy - y + 16);
       panel(im, x, y, cw, h, sec.color);
-      if (box) im.rect(3, box.x, box.y, box.w, box.h, 0x12261f, 1, 3, COLORS.good, 1);
+      if (box) im.rect(3, box.x, box.y, box.w, box.h, 0x12261f, 0.8, 6, COLORS.good, 0.6);
       for (const [dx, dy] of dots.splice(0)) im.circle(4, dx, dy, 3, sec.color);
       if (card.step) {
         im.circle(4, x + 20 + 22, y + 16 + 24, 24, sec.color);
-        im.text(`gd-n-${key}`, String(card.step), x + 20 + 22, y + 16 + 10, { size: 26, bold: true, color: 0x10161e, align: 'center', layer: 5 });
+        im.circle(4, x + 20 + 22, y + 16 + 24, 22, 0x0e151b);
+        im.text(`gd-n-${key}`, String(card.step), x + 20 + 22, y + 16 + 8, { size: 28, bold: true, display: true, color: sec.color, align: 'center', layer: 5 });
       } else if (icon) im.image(`gd-i-${key}`, icon, x + 12, y + 14, 60, 60, 1, 4);
       colY[c] += h + gap;
     });
