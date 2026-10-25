@@ -1,4 +1,4 @@
-// The airport: a 3x3-tile field with the runway across the back and the terminal at the front, where the road comes in.
+// The airport: a field five tiles wide and three deep, a long runway across the back and the terminal at the front, where the road comes in.
 // Every level keeps the full runway; the upgrades are the terminals. A municipal airfield with a small terminal and light
 // aircraft, then a regional terminal with gates and turboprops, then an international terminal with jet bridges.
 // Local frame: +z is the front (landside, the road), -z the back (airside, the runway). One unit is ten metres.
@@ -6,8 +6,10 @@ import * as THREE from 'three';
 import { TILE_UNITS } from '../scale';
 import { Parts } from './parts';
 
-const H = 1.5 * TILE_UNITS;
-const EDGE = H - 0.12;
+/** Half the field's width (five tiles, the runway's way) and half its depth (three tiles, front to back). */
+const HX = 2.5 * TILE_UNITS;
+const HZ = 1.5 * TILE_UNITS;
+const EDGE = HX - 0.12;
 
 const K = {
   grass: 0x6b7f48,
@@ -363,28 +365,29 @@ function hangar(p: Parts, x: number, z: number, w: number, d: number, h: number)
 
 /** A fence round the field, gapped at the front for the road. */
 function perimeter(p: Parts): void {
-  const e = H - 0.05;
+  const ex = HX - 0.05;
+  const ez = HZ - 0.05;
   const run = (x0: number, z0: number, x1: number, z1: number): void => {
     const len = Math.hypot(x1 - x0, z1 - z0);
     const alongX = Math.abs(x1 - x0) > Math.abs(z1 - z0);
     p.box(alongX ? len : 0.01, 0.2, alongX ? 0.01 : len, 0x8b949b, { x: (x0 + x1) / 2, y: 0.03, z: (z0 + z1) / 2 });
     for (let d = 0; d <= len + 1e-6; d += 0.6) p.box(0.02, 0.24, 0.02, 0x5a646d, { x: alongX ? Math.min(x0, x1) + d : x0, y: 0.03, z: alongX ? z0 : Math.min(z0, z1) + d });
   };
-  run(-e, -e, e, -e);
-  run(-e, -e, -e, e);
-  run(e, -e, e, e);
-  run(-e, e, -0.55, e);
-  run(0.55, e, e, e);
+  run(-ex, -ez, ex, -ez);
+  run(-ex, -ez, -ex, ez);
+  run(ex, -ez, ex, ez);
+  run(-ex, ez, -0.55, ez);
+  run(0.55, ez, ex, ez);
 }
 
 /** The road in from the gate, the curb road along the terminal front and its lane markings. */
 function landside(p: Parts, curbZ: number, x0: number, x1: number): void {
   p.tex = 6;
-  p.box(0.75, 0.032, H - curbZ, 0x3a3c3f, { y: 0.03, z: (H + curbZ) / 2 });
+  p.box(0.75, 0.032, HZ - curbZ, 0x3a3c3f, { y: 0.03, z: (HZ + curbZ) / 2 });
   p.box(x1 - x0, 0.032, 0.55, 0x3a3c3f, { x: (x0 + x1) / 2, y: 0.03, z: curbZ });
   p.box(x1 - x0, 0.06, 0.18, K.concrete, { x: (x0 + x1) / 2, y: 0.03, z: curbZ - 0.36 });
   p.tex = 0;
-  for (let z = curbZ + 0.4; z < H - 0.1; z += 0.35) p.box(0.02, 0.005, 0.18, K.paint, { y: 0.063, z });
+  for (let z = curbZ + 0.4; z < HZ - 0.1; z += 0.35) p.box(0.02, 0.005, 0.18, K.paint, { y: 0.063, z });
   for (let x = x0 + 0.2; x < x1 - 0.2; x += 0.35) p.box(0.18, 0.005, 0.02, K.paint, { x, y: 0.063, z: curbZ });
 }
 
@@ -440,9 +443,9 @@ function jetBridge(p: Parts, x0: number, z0: number, x1: number, z1: number, y: 
 /** The ground of the whole field: mown grass, a strip of rougher grass round the edge, and the bed it all stands on. */
 function field(p: Parts): void {
   p.tex = 0;
-  p.box(2 * H, 0.03, 2 * H, K.grass, { y: 0 });
-  for (let i = 0; i < 9; i++) p.box(2 * H, 0.002, 0.5, i % 2 ? K.grass : K.grassDry, { y: 0.031, z: -H + 0.55 + i * 1.0 });
-  p.box(2 * H * 0.98, 1.5, 2 * H * 0.98, 0x6d6b66, { y: -1.5, t: 6 });
+  p.box(2 * HX, 0.03, 2 * HZ, K.grass, { y: 0 });
+  for (let i = 0; i < 9; i++) p.box(2 * HX, 0.002, 0.5, i % 2 ? K.grass : K.grassDry, { y: 0.031, z: -HZ + 0.55 + i * 1.0 });
+  p.box(2 * HX * 0.98, 1.5, 2 * HZ * 0.98, 0x6d6b66, { y: -1.5, t: 6 });
 }
 
 function windsock(p: Parts, x: number, z: number): void {

@@ -8,7 +8,9 @@ import { Parts } from './parts';
 import { addCityBlock, addResidence } from './architecture';
 import { addTree } from './vegetation';
 import { sportsCampus } from './sports';
-import { STREET, TILE_UNITS, type LightAnchor } from '../scale';
+import { LOT, STREET, TILE_UNITS, type LightAnchor } from '../scale';
+
+const LOT_HALF = LOT / 2;
 
 const TILE = TILE_UNITS;
 const ASPHALT = 0x4a4b4f;
@@ -181,7 +183,7 @@ export function townGeometry(o: TownModelOptions): THREE.BufferGeometry {
   // ---- the plots beside the streets ----
   o.plots.forEach((t, index) => {
     // The Market and the Supply Yard stand on the first two plots (drawn with the sites): no home goes over them.
-    if (index < 2 && t.ok) placed.push([X(t.x) - 1.3 * sq, Z(t.y) - 1.3, X(t.x) + 1.3 * sq, Z(t.y) + 1.3]);
+    if (index < 2 && t.ok) placed.push([X(t.x) - LOT_HALF * sq, Z(t.y) - LOT_HALF, X(t.x) + LOT_HALF * sq, Z(t.y) + LOT_HALF]);
     if (!t.ok || index < 2 || t.occupied) return;
     const cx = X(t.x);
     const cz = Z(t.y);
@@ -189,34 +191,34 @@ export function townGeometry(o: TownModelOptions): THREE.BufferGeometry {
     const fz = Math.sign(t.ey - t.y);
     // A lot held for the player: a level, serviced pad with a painted edge and survey stakes at the corners. A lot the
     // town has not opened yet is only staked out: nothing stands on it, so nothing is ever torn down when it opens.
-    const hw = 1.3 * sq;
+    const hw = LOT_HALF * sq;
     p.anchor = [cx, cz];
     p.tex = 6;
     if (t.home) {
       p.tex = 0;
       for (const sx of [-1, 1]) {
         for (const sz of [-1, 1]) {
-          p.box(0.04, 0.34, 0.04, 0x6a5a48, { x: cx + sx * (hw - 0.1), y: 0.0, z: cz + sz * 1.2 });
-          p.box(0.07, 0.07, 0.07, 0xb8b2a4, { x: cx + sx * (hw - 0.1), y: 0.34, z: cz + sz * 1.2 });
+          p.box(0.04, 0.34, 0.04, 0x6a5a48, { x: cx + sx * (hw - 0.1), y: 0.0, z: cz + sz * (LOT_HALF - 0.1) });
+          p.box(0.07, 0.07, 0.07, 0xb8b2a4, { x: cx + sx * (hw - 0.1), y: 0.34, z: cz + sz * (LOT_HALF - 0.1) });
         }
       }
       p.anchor = null;
       return;
     }
-    placed.push([cx - hw, cz - 1.3, cx + hw, cz + 1.3]);
-    p.box(hw * 2, 0.03, 2.6, 0xb7b1a3, { x: cx, y: 0.0, z: cz });
-    p.box(hw * 2 - 0.1, 2.5, 2.5, 0x6d6b66, { x: cx, y: -2.5, z: cz });
-    p.box(hw * 2 - 0.34, 0.012, 2.26, 0xc9c4b6, { x: cx, y: 0.03, z: cz });
+    placed.push([cx - hw, cz - LOT_HALF, cx + hw, cz + LOT_HALF]);
+    p.box(hw * 2, 0.03, LOT, 0xb7b1a3, { x: cx, y: 0.0, z: cz });
+    p.box(hw * 2 - 0.1, 2.5, LOT - 0.1, 0x6d6b66, { x: cx, y: -2.5, z: cz });
+    p.box(hw * 2 - 0.34, 0.012, LOT - 0.34, 0xc9c4b6, { x: cx, y: 0.03, z: cz });
     for (const sx of [-1, 1]) {
       for (const sz of [-1, 1]) {
         p.tex = 0;
-        p.box(0.04, 0.34, 0.04, 0x6a5a48, { x: cx + sx * (hw - 0.1), y: 0.03, z: cz + sz * 1.2 });
-        p.box(0.07, 0.07, 0.07, 0xe0792b, { x: cx + sx * (hw - 0.1), y: 0.37, z: cz + sz * 1.2 });
+        p.box(0.04, 0.34, 0.04, 0x6a5a48, { x: cx + sx * (hw - 0.1), y: 0.03, z: cz + sz * (LOT_HALF - 0.1) });
+        p.box(0.07, 0.07, 0.07, 0xe0792b, { x: cx + sx * (hw - 0.1), y: 0.37, z: cz + sz * (LOT_HALF - 0.1) });
       }
     }
     // The drive meets the street where the plot is entered.
     p.tex = 6;
-    p.box(fx === 0 ? 0.6 : 0.5, 0.012, fz === 0 ? 0.6 : 0.5, 0xa39e92, { x: cx + fx * hw * 0.92, y: 0.03, z: cz + fz * 1.2 });
+    p.box(fx === 0 ? 0.6 : 0.5, 0.012, fz === 0 ? 0.6 : 0.5, 0xa39e92, { x: cx + fx * hw * 0.92, y: 0.03, z: cz + fz * (LOT_HALF - 0.1) });
     p.tex = 0;
     p.anchor = null;
   });

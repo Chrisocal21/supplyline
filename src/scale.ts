@@ -2,6 +2,8 @@
 export const METERS_PER_UNIT = 10;
 export const meters = (value: number): number => value / METERS_PER_UNIT;
 export const TILE_UNITS = Math.PI * 200 / 192;
+/** The width of a one-tile lot: the pad, its fence and the building on it. A little under a tile, so lots never touch. */
+export const LOT = 3.1;
 
 export const STREET = {
   lane: meters(3.5),

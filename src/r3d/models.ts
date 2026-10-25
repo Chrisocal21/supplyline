@@ -12,6 +12,7 @@ import { framedWindow, loadingBay, roofVent } from './architecture';
 import { truckGeometry } from './trucks';
 import { resourceDetails } from './resourceDetails';
 import { airportGeometry } from './airport';
+import { LOT } from '../scale';
 
 const C = {
   concrete: 0xb4b2ab,
@@ -600,10 +601,10 @@ const LEVEL_GROW: Record<number, { raw: [number, number]; other: [number, number
 
 /** A fence round the lot, open at the front where the road comes in. */
 function fence(p: Parts, color: number): void {
-  const e = 1.55;
-  p.box(3.1, 0.14, 0.04, color, { y: 0, z: -e });
-  p.box(0.04, 0.14, 3.1, color, { x: -e, y: 0 });
-  p.box(0.04, 0.14, 3.1, color, { x: e, y: 0 });
+  const e = LOT / 2;
+  p.box(LOT, 0.14, 0.04, color, { y: 0, z: -e });
+  p.box(0.04, 0.14, LOT, color, { x: -e, y: 0 });
+  p.box(0.04, 0.14, LOT, color, { x: e, y: 0 });
   p.box(1.1, 0.14, 0.04, color, { x: -1.0, y: 0, z: e });
   p.box(1.1, 0.14, 0.04, color, { x: 1.0, y: 0, z: e });
   for (const [x, z] of [[-e, -e], [e, -e], [-e, e], [e, e], [-0.45, e], [0.45, e]]) p.box(0.07, 0.24, 0.07, color, { x, y: 0, z });
@@ -1089,4 +1090,27 @@ export function vehicleGeometry(kind: VehicleKind): THREE.BufferGeometry {
       break;
   }
   return p.build();
+}
+
+const fitCache = new Map<string, number>();
+
+/**
+ * How much a building's plan is shrunk to stand inside its lot: 1 when it already fits, less when a bigger level spills over.
+ * A model never needs to know the lot it stands on, so the same rule fits whatever model a building is given later. Height is
+ * never squeezed: an upgrade that cannot grow wider grows taller. Ports, stations and airports are laid out on their own ground.
+ */
+export function siteFit(kind: SiteKind, level: number): number {
+  const def = SITE_DEFS[kind];
+  if (def.airport || def.port || def.station) return 1;
+  const key = `${kind}@${Math.max(0, level)}`;
+  let f = fitCache.get(key);
+  if (f === undefined) {
+    const geo = siteGeometryAt(kind, level);
+    geo.computeBoundingBox();
+    const b = geo.boundingBox!;
+    const ext = Math.max(-b.min.x, b.max.x, -b.min.z, b.max.z);
+    f = ext > LOT / 2 ? LOT / 2 / ext : 1;
+    fitCache.set(key, f);
+  }
+  return f;
 }

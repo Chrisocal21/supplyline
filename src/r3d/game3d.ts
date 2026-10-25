@@ -95,7 +95,7 @@ import {
   siteAt,
   siteById,
   siteCenter,
-  siteReach,
+  siteIsBig,
   siteTiles,
   airportRot,
   airportPad,
@@ -118,7 +118,7 @@ import {
 import { GlobeCamera, pickGround, maxDist } from './camera';
 import { HeightField, LAT_SPAN, R, basisMatrix, lonLatToTile, lonLatToVec, setGlobeSize, vecToLonLat } from './geo';
 import { buildGlobe, type Globe } from './globeMesh';
-import { siteGeometry, siteGeometryAt, trainUnits, vehicleGeometry } from './models';
+import { siteFit, siteGeometry, siteGeometryAt, trainUnits, vehicleGeometry } from './models';
 import { BUILD_MS, Construction } from './construction';
 import { packSave, saveFileName, unpackSave } from '../sim/saveio';
 import { compactWorld, expandWorld } from '../sim/compact';
@@ -1186,6 +1186,21 @@ export class Game3D {
     return basisMatrix(pos, up, south);
   }
 
+  /**
+   * Stands a building on its ground: the tile frame, narrowed east-west the way the town's lots are (a tile is narrower the
+   * nearer the poles), then turned to face its driveway side, then fitted inside its lot.
+   */
+  private siteMatrix(tile: Tile, yaw: number, kind: SiteKind, level: number, lift = 0): THREE.Matrix4 {
+    const w = this.world;
+    const { lat } = tileLonLat(w.width, w.height, tile.x, tile.y);
+    const sq = THREE.MathUtils.clamp(Math.cos(lat), w.realisticLots ? 0.15 : 0.55, 1);
+    const f = siteFit(kind, level);
+    return this.tileMatrix(tile, lift)
+      .multiply(new THREE.Matrix4().makeScale(sq, 1, 1))
+      .multiply(new THREE.Matrix4().makeRotationY(yaw))
+      .multiply(new THREE.Matrix4().makeScale(f, 1, f));
+  }
+
   /** What the sound needs to know about the view: how close the camera is, what is moving nearby, and the time and season. */
   audioScene(): AudioScene {
     const w = this.world;
@@ -1393,8 +1408,8 @@ export class Game3D {
       let yaw = 0;
       const plot = plotAt(this.world, s.x, s.y);
       const def = SITE_DEFS[s.kind];
-      if (s.rot !== undefined && !def.port && !def.station) {
-        // The player turned it while placing it.
+      if (s.rot !== undefined && !plot && !def.port && !def.station) {
+        // The player turned it while placing it: its driveway is on that side (see entryTile).
         yaw = (s.rot * Math.PI) / 2;
       } else if (plot) {
         const face = plotFacing(this.world, plot.place, plot.index);
@@ -1423,7 +1438,7 @@ export class Game3D {
           if (side) yaw = side[2];
         }
       }
-      m.matrix.copy(this.tileMatrix(siteCenter(this.world, s))).multiply(new THREE.Matrix4().makeRotationY(yaw));
+      m.matrix.copy(this.siteMatrix(siteCenter(this.world, s), yaw, s.kind, lvl));
       m.userData.base = m.matrix.clone();
       m.matrixWorldNeedsUpdate = true;
     }
@@ -2277,7 +2292,7 @@ export class Game3D {
   rotatePlacement(): void {
     if (!this.isBuildTool()) return;
     const kind = this.tool as SiteKind;
-    const from = this.placeRot ?? (siteReach(kind) && this.hover ? (airportRot(this.world, this.hover.tile.x, this.hover.tile.y) ?? 0) : 0);
+    const from = this.placeRot ?? (siteIsBig(kind) && this.hover ? (airportRot(this.world, this.hover.tile.x, this.hover.tile.y) ?? 0) : 0);
     // South, west, north, east: clockwise seen from above.
     this.placeRot = ((from + 3) % 4) as Rot;
     if (this.hover) this.setHover(this.hover.tile);
@@ -2286,7 +2301,7 @@ export class Game3D {
   /** The facing the ghost shows and placing will use, for a building on this tile. */
   private ghostRot(kind: SiteKind, tile: Tile): Rot {
     if (this.placeRot !== null) return this.placeRot;
-    return siteReach(kind) ? (airportRot(this.world, tile.x, tile.y) ?? 0) : 0;
+    return siteIsBig(kind) ? (airportRot(this.world, tile.x, tile.y) ?? 0) : 0;
   }
 
   select(sel: Selection): void {
@@ -2503,7 +2518,7 @@ export class Game3D {
       this.districtGhostKey = '';
     }
     (this.ghost.material as THREE.MeshStandardMaterial).color.set(ok ? 0xb8ffc8 : forSale ? 0xffd98a : 0xff9a90);
-    this.ghost.matrix.copy(this.tileMatrix(tile, 0.02)).multiply(new THREE.Matrix4().makeRotationY((this.ghostRot(kind, tile) * Math.PI) / 2));
+    this.ghost.matrix.copy(this.siteMatrix(tile, (this.ghostRot(kind, tile) * Math.PI) / 2, kind, 1, 0.02));
     this.ghost.matrixWorldNeedsUpdate = true;
     this.ghost.visible = true;
   }
@@ -2873,7 +2888,7 @@ export class Game3D {
    */
   private railTarget(t: Tile): Tile {
     const here = siteAt(this.world, t.x, t.y);
-    if (here && siteReach(here.kind) && this.isRouteTool()) return { x: here.x, y: here.y };
+    if (here && siteIsBig(here.kind) && this.isRouteTool()) return { x: here.x, y: here.y };
     if (this.tool !== 'rail') return t;
     if (!here || !SITE_DEFS[here.kind].dock) return t;
     const st = this.world.sites.find((s) => s.placeId === here.placeId && SITE_DEFS[s.kind].station);

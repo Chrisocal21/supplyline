@@ -45,6 +45,7 @@ import {
   TRADE_IN,
   type RouteMode,
   SITE_DEFS,
+  SITE_FOOTPRINT,
   SPAN_LIMIT,
   START_MONEY,
   TOWN_LEVELS,
@@ -209,28 +210,43 @@ export type Rot = 0 | 1 | 2 | 3;
 /** One tile step toward the front, for each `Rot`. */
 export const FRONT: readonly Tile[] = [{ x: 0, y: 1 }, { x: 1, y: 0 }, { x: 0, y: -1 }, { x: -1, y: 0 }];
 
-/** How many tiles a building reaches out from its middle: an airport covers 3x3 tiles, everything else one. */
-export function siteReach(kind: SiteKind): number {
-  return SITE_DEFS[kind].airport ? 1 : 0;
+/**
+ * The ground a building covers, in whole tiles: `w` across its front and `d` deep behind it, both odd so the gate is in the
+ * middle of the front edge. Most buildings are one tile; a long one, like an airport, is a rectangle. A bigger building only
+ * ever stands on open ground outside a town: a town lot is one tile.
+ */
+export function siteSize(kind: SiteKind): { w: number; d: number } {
+  return SITE_FOOTPRINT[kind] ?? { w: 1, d: 1 };
 }
+
+/** Whether a building covers more than the one tile its gate stands on. */
+export function siteIsBig(kind: SiteKind): boolean {
+  const z = siteSize(kind);
+  return z.w * z.d > 1;
+}
+
+/** The step across a building's front (either way: the footprint is the same both ways), for each `Rot`. */
+const ACROSS: readonly Tile[] = [{ x: 1, y: 0 }, { x: 0, y: 1 }, { x: 1, y: 0 }, { x: 0, y: 1 }];
 
 /**
  * The middle of the ground a building covers. A big building's site tile is its gate, in the middle of its front edge, where
  * roads join it; the rest of it lies behind.
  */
 export function siteCenter(world: World, s: Pick<Site, 'kind' | 'x' | 'y' | 'rot'>): Tile {
-  const reach = siteReach(s.kind);
-  if (!reach) return { x: s.x, y: s.y };
+  const back = (siteSize(s.kind).d - 1) / 2;
+  if (!back) return { x: s.x, y: s.y };
   const f = FRONT[s.rot ?? 0];
-  return { x: wrapX(world, s.x - f.x * reach), y: s.y - f.y * reach };
+  return { x: wrapX(world, s.x - f.x * back), y: s.y - f.y * back };
 }
 
 /** Every tile a building covers. */
 export function siteTiles(world: World, s: Pick<Site, 'kind' | 'x' | 'y' | 'rot'>): Tile[] {
-  const reach = siteReach(s.kind);
-  const c = siteCenter(world, s);
+  const { w, d } = siteSize(s.kind);
+  if (w * d === 1) return [{ x: s.x, y: s.y }];
+  const f = FRONT[s.rot ?? 0];
+  const a = ACROSS[s.rot ?? 0];
   const out: Tile[] = [];
-  for (let dy = -reach; dy <= reach; dy++) for (let dx = -reach; dx <= reach; dx++) out.push({ x: wrapX(world, c.x + dx), y: c.y + dy });
+  for (let v = 0; v < d; v++) for (let u = -(w - 1) / 2; u <= (w - 1) / 2; u++) out.push({ x: wrapX(world, s.x + a.x * u - f.x * v), y: s.y + a.y * u - f.y * v });
   return out;
 }
 
@@ -988,10 +1004,15 @@ export function siteAt(world: World, x: number, y: number): Site | undefined {
   const exact = world.sites.find((s) => s.x === wx && s.y === y);
   if (exact) return exact;
   for (const s of world.sites) {
-    const reach = siteReach(s.kind);
-    if (!reach) continue;
-    const c = siteCenter(world, s);
-    if (Math.abs(wrapDx(world, c.x, wx)) <= reach && Math.abs(c.y - y) <= reach) return s;
+    if (!siteIsBig(s.kind)) continue;
+    const { w, d } = siteSize(s.kind);
+    const f = FRONT[s.rot ?? 0];
+    const a = ACROSS[s.rot ?? 0];
+    const dx = wrapDx(world, s.x, wx);
+    const dy = y - s.y;
+    const along = dx * f.x + dy * f.y;
+    const across = dx * a.x + dy * a.y;
+    if (along <= 0 && along > -d && Math.abs(across) <= (w - 1) / 2) return s;
   }
   if (!world.realisticLots) return undefined;
   for (const site of world.sites) {
@@ -1348,7 +1369,7 @@ export function townBlocks(world: World, x: number, y: number, mode: RouteMode):
   return true;
 }
 
-/** The street tile a building on a plot must be reached from, or null when the tile is not a plot. */
+/** The tile a building's road must come in from: a lot's street, or the front of a building turned by hand. Null when any side will do. */
 export function entryTile(world: World, x: number, y: number): Tile | null {
   const pl = plotAt(world, x, y);
   if (pl) {
@@ -1356,9 +1377,18 @@ export function entryTile(world: World, x: number, y: number): Tile | null {
     return { x: wrapX(world, pl.place.x + e.x), y: pl.place.y + e.y };
   }
   const lot = civicAt(world, x, y);
-  if (!lot) return null;
-  const e = layoutOf(world, lot.place).civic[lot.index].entry;
-  return { x: wrapX(world, lot.place.x + e.x), y: lot.place.y + e.y };
+  if (lot) {
+    const e = layoutOf(world, lot.place).civic[lot.index].entry;
+    return { x: wrapX(world, lot.place.x + e.x), y: lot.place.y + e.y };
+  }
+  // A building turned by hand is entered from its front, its driveway side, wherever it stands.
+  const wx = wrapX(world, x);
+  const site = world.sites.find((s) => s.x === wx && s.y === y);
+  if (!site || site.rot === undefined) return null;
+  const def = SITE_DEFS[site.kind];
+  if (def.dock || def.station || def.port) return null;
+  const f = FRONT[site.rot];
+  return { x: wrapX(world, wx + f.x), y: y + f.y };
 }
 
 /** First route whose path passes through the tile. */
@@ -2865,8 +2895,8 @@ export function placeError(world: World, kind: SiteKind, x: number, y: number, r
       return 'Too steep to build on';
     }
     if (world.landRules) {
-      // Outside a town the ground has to be bought: an airport needs all nine of its tiles, anything else the one it stands on.
-      const tiles = def.airport ? Array.from({ length: 9 }, (_, i) => ({ x: x + (i % 3) - 1, y: y + Math.floor(i / 3) - 1 })) : [{ x, y }];
+      // Outside a town the ground has to be bought: an airport needs every tile of its field, anything else the one it stands on.
+      const tiles = def.airport ? airfieldTiles(world, x, y, airportRot(world, x, y, rot) ?? rot ?? 0) : [{ x, y }];
       const e = landError(world, tiles);
       if (e) return e;
     }
@@ -2886,55 +2916,83 @@ export function placeError(world: World, kind: SiteKind, x: number, y: number, r
   // A building never goes on a road or a track.
   const crossing = routeAt(world, x, y);
   if (crossing && !crossing.free) return 'A road or track runs across this tile';
-  const cost = buildCost(world, kind, x, y);
+  const cost = buildCost(world, kind, x, y, rot);
   if (world.money < cost) return `Need $${cost}`;
   return null;
 }
 
 /** Clearing a forest tile for an airport's field costs this much on top of the airport. */
 export const FOREST_CLEAR_COST = 150;
-/** An airport's ground is levelled when it is built, so its nine tiles may rise and fall by up to this much. */
+/** An airport's ground is levelled when it is built, so every tile of its field may rise and fall by up to this much. */
 export const AIRFIELD_SPREAD = BUILD_SLOPE * 2.5;
 
 /** What a building costs to put down here: an airport pays extra for each forest tile it clears. */
-export function buildCost(world: World, kind: SiteKind, x: number, y: number): number {
+export function buildCost(world: World, kind: SiteKind, x: number, y: number, rot?: Rot): number {
   const def = SITE_DEFS[kind];
   if (!def.airport) return def.cost;
   let trees = 0;
-  for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) if (terrainAt(world, wrapX(world, x + dx), y + dy) === 'forest') trees += 1;
+  for (const t of airfieldTiles(world, x, y, airportRot(world, x, y, rot) ?? rot ?? 0)) if (terrainAt(world, t.x, t.y) === 'forest') trees += 1;
   return def.cost + trees * FOREST_CLEAR_COST;
 }
 
 /**
- * An airport covers 3x3 tiles round (x, y): every one dry, unbuilt and clear of any town (as it will be fully grown, with a
- * tile to spare), with the runway at the back and the terminal at the front, where a road can come in. Forest is cleared
- * and the ground levelled, so it only has to be fairly even. With `rot` the front must be that side; without it, any side.
+ * The tiles of an airport's field, a rectangle round its middle (x, y): `w` across the front and `d` deep, so the runway
+ * runs across the back and the long side turns with the front.
  */
-function airfieldError(world: World, x: number, y: number, rot?: Rot): string | null {
+export function airfieldTiles(world: World, x: number, y: number, rot: Rot): Tile[] {
+  const { w, d } = siteSize('airport' as SiteKind);
+  const a = ACROSS[rot];
+  const f = FRONT[rot];
+  const out: Tile[] = [];
+  for (let v = -(d - 1) / 2; v <= (d - 1) / 2; v++) for (let u = -(w - 1) / 2; u <= (w - 1) / 2; u++) out.push({ x: wrapX(world, x + a.x * u + f.x * v), y: y + a.y * u + f.y * v });
+  return out;
+}
+
+/** Why the field cannot lie at (x, y) with its front turned `rot`, or null: ground only; the road side is `airportRot`'s. */
+function fieldError(world: World, x: number, y: number, rot: Rot): string | null {
+  const { w, d } = siteSize('airport' as SiteKind);
+  const field = airfieldTiles(world, x, y, rot);
   // The fully grown town covers every lot and street it will ever have, so this also keeps airports out of towns.
-  for (let dy = -2; dy <= 2; dy++) {
-    for (let dx = -2; dx <= 2; dx++) {
-      const p = plannedTownAt(world, x + dx, y + dy);
-      if (p) return Math.abs(dx) <= 1 && Math.abs(dy) <= 1 && placeAt(world, x + dx, y + dy) ? 'Airports need open ground outside a town' : `Too close to ${p.name} for an airport: its streets grow out to here`;
+  for (const t of field) {
+    for (const [dx, dy] of [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const p = plannedTownAt(world, t.x + dx, t.y + dy);
+      if (p) return dx === 0 && dy === 0 && placeAt(world, t.x, t.y) ? 'Airports need open ground outside a town' : `Too close to ${p.name} for an airport: its streets grow out to here`;
     }
   }
   let lo = Infinity;
   let hi = -Infinity;
-  for (let dy = -1; dy <= 1; dy++) {
-    for (let dx = -1; dx <= 1; dx++) {
-      const tx = wrapX(world, x + dx);
-      const ty = y + dy;
-      const t = terrainAt(world, tx, ty);
-      if (t !== 'grass' && t !== 'forest') return 'An airport needs 3x3 tiles of open, dry land';
-      if (siteAt(world, tx, ty) || nodeAt(world, tx, ty)) return 'An airport needs 3x3 tiles clear of other buildings and resources';
-      if (routeAt(world, tx, ty)) return 'A road or track crosses where the runway would go';
-      const e = elevAt(world, tx, ty);
-      lo = Math.min(lo, e);
-      hi = Math.max(hi, e);
-    }
+  for (const t of field) {
+    const ter = terrainAt(world, t.x, t.y);
+    if (ter !== 'grass' && ter !== 'forest') return `An airport needs ${w}x${d} tiles of open, dry land`;
+    if (siteAt(world, t.x, t.y) || nodeAt(world, t.x, t.y)) return `An airport needs ${w}x${d} tiles clear of other buildings and resources`;
+    if (routeAt(world, t.x, t.y)) return 'A road or track crosses where the runway would go';
+    const e = elevAt(world, t.x, t.y);
+    lo = Math.min(lo, e);
+    hi = Math.max(hi, e);
   }
-  if (hi - lo > AIRFIELD_SPREAD) return 'Too steep for a runway: an airport needs 3x3 tiles of fairly even ground';
-  return airportRot(world, x, y, rot) === null ? (rot === undefined ? 'An airport needs a side open for its road' : 'No room for a road at the front: turn it (R) to face open ground') : null;
+  if (hi - lo > AIRFIELD_SPREAD) return `Too steep for a runway: an airport needs ${w}x${d} tiles of fairly even ground`;
+  return null;
+}
+
+/**
+ * An airport's field lies round (x, y), with the runway at the back and the terminal at the front, where a road can come in.
+ * Forest is cleared and the ground levelled, so it only has to be fairly even. With `rot` the front must be that side;
+ * without it, any side will do.
+ */
+function airfieldError(world: World, x: number, y: number, rot?: Rot): string | null {
+  let first: string | null = null;
+  let landFits = false;
+  for (const r of rot === undefined ? ([0, 1, 2, 3] as Rot[]) : [rot]) {
+    const e = fieldError(world, x, y, r);
+    if (e) {
+      first ??= e;
+      continue;
+    }
+    landFits = true;
+    if (airportRot(world, x, y, r) !== null) return null;
+  }
+  if (!landFits) return first;
+  return rot === undefined ? 'An airport needs a side open for its road' : 'No room for a road at the front: turn it (R) to face open ground';
 }
 
 const padCache = new WeakMap<Place, string>();
@@ -2965,7 +3023,7 @@ export function airportPad(world: World, place: Place): { x: number; y: number; 
 function findPad(world: World, place: Place, own: boolean): { x: number; y: number; rot: Rot } | null {
   // Clear of the ground already kept for other towns' airports.
   const taken = (x: number, y: number): boolean =>
-    world.places.some((p) => p !== place && p.airportPad && Math.abs(wrapDx(world, p.airportPad.x, x)) <= 3 && Math.abs(p.airportPad.y - y) <= 3);
+    world.places.some((p) => p !== place && p.airportPad && Math.abs(wrapDx(world, p.airportPad.x, x)) <= 5 && Math.abs(p.airportPad.y - y) <= 5);
   const from = streetReach(radiusOf(place), 5) + 3;
   for (let r = from; r <= from + 14; r++) {
     const ring: { x: number; y: number; d: number }[] = [];
@@ -2990,7 +3048,7 @@ function findPad(world: World, place: Place, own: boolean): { x: number; y: numb
 
 const padTiles = new WeakMap<World, { key: string; at: Map<number, Place> }>();
 
-/** The town whose kept airport ground (its 3x3 field and the tile its road comes in on) covers this tile. */
+/** The town whose kept airport ground (its field and the tile its road comes in on) covers this tile. */
 export function padAt(world: World, x: number, y: number): Place | undefined {
   let levels = 0;
   world.places.forEach((p, i) => (levels += p.level * (i + 1)));
@@ -3004,7 +3062,7 @@ export function padAt(world: World, x: number, y: number): Place | undefined {
       const mark = (tx: number, ty: number): void => {
         if (ty >= 0 && ty < world.height) at.set(ty * world.width + wrapX(world, tx), p);
       };
-      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) mark(pad.x + dx, pad.y + dy);
+      for (const t of airfieldTiles(world, pad.x, pad.y, pad.rot)) mark(t.x, t.y);
       mark(pad.x + FRONT[pad.rot].x * 2, pad.y + FRONT[pad.rot].y * 2);
     }
     hit = { key, at };
@@ -3019,8 +3077,10 @@ export function padAt(world: World, x: number, y: number): Place | undefined {
  */
 export function airportRot(world: World, x: number, y: number, want?: Rot): Rot | null {
   const ok = (r: Rot): boolean => {
-    const ax = wrapX(world, x + FRONT[r].x * 2);
-    const ay = y + FRONT[r].y * 2;
+    // The road comes in on the tile just past the gate, which is half the field's depth and one more from its middle.
+    const out = (siteSize('airport' as SiteKind).d - 1) / 2 + 1;
+    const ax = wrapX(world, x + FRONT[r].x * out);
+    const ay = y + FRONT[r].y * out;
     const t = terrainAt(world, ax, ay);
     if (t === null || t === 'water' || t === 'ice') return false;
     if (routeAt(world, ax, ay, 'road') || streetAt(world, ax, ay)) return true;
@@ -3033,7 +3093,8 @@ export function airportRot(world: World, x: number, y: number, want?: Rot): Rot 
     const score = (r: Rot): number => -(FRONT[r].x * wrapDx(world, x, town.x) + FRONT[r].y * (town.y - y));
     return score(a) - score(b);
   });
-  return order.find(ok) ?? null;
+  // With the choice left open, the field has to fit too: the long side turns with the front.
+  return order.find((r) => ok(r) && fieldError(world, x, y, r) === null) ?? null;
 }
 
 /** Nearly all the ground around a tile is flat, dry and unbuilt (at least `minFlat` of its 8 neighbours), with a free side for a road. */
@@ -3359,12 +3420,14 @@ export function placeSite(world: World, kind: SiteKind, x: number, y: number, ro
   const err = placeError(world, kind, x, y, rot);
   if (err) return err;
   const def = SITE_DEFS[kind];
-  const cost = buildCost(world, kind, x, y);
+  const cost = buildCost(world, kind, x, y, rot);
   // An airport is placed by its middle, and stored by its gate at the middle of its front edge.
   const turn = def.airport ? airportRot(world, wrapX(world, x), y, rot)! : rot;
   if (def.airport) {
-    x += FRONT[turn!].x;
-    y += FRONT[turn!].y;
+    // The gate is half the field's depth in front of its middle.
+    const back = (siteSize(kind).d - 1) / 2;
+    x += FRONT[turn!].x * back;
+    y += FRONT[turn!].y * back;
   }
   const wx = wrapX(world, x);
   const node = def.node ? nodeAt(world, wx, y) : undefined;

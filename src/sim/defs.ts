@@ -1048,6 +1048,15 @@ export const SITE_UNLOCK_QUEST: Partial<Record<SiteKind, string>> = {
   orchard: 't1-bakery',
 };
 
+/**
+ * The ground a building covers, in whole tiles, when it is more than one: `w` across its front, `d` deep behind it, both odd
+ * so its gate is in the middle of the front edge. Everything else is one tile. A long building is a rectangle, not a square:
+ * an airport is a long runway with the terminal at the front, where its road comes in.
+ */
+export const SITE_FOOTPRINT: Partial<Record<SiteKind, { w: number; d: number }>> = {
+  airport: { w: 5, d: 3 },
+};
+
 /** The label of a quest, by id, for a "locked until..." message. Looks through every tier's list. */
 export function questLabelOf(id: string): string | undefined {
   for (const t of TIERS) {

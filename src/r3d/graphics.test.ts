@@ -12,7 +12,7 @@ import { sportsCampus } from './sports';
 import { STREET, meters } from '../scale';
 import { addCow } from './livestock';
 import { airportGeometry } from './airport';
-import { TILE_UNITS } from '../scale';
+import { LOT, TILE_UNITS } from '../scale';
 
 function checkGeometry(g: BufferGeometry, budget: number): void {
   const position = g.getAttribute('position');
@@ -273,8 +273,8 @@ describe('building integration', () => {
         for (const city of [false, true]) {
           const g = townGeometry({ level, seed: 5, squeeze: 0.9, city, style, streets, homes, plots });
           const rects = g.userData.footprints as [number, number, number, number][];
-          // Every lot held for the player is on the list (a lot is 2.6 deep and 2.6 wide narrowed by the squeeze), and nothing overlaps it.
-          const lots = rects.filter((r) => Math.abs(r[2] - r[0] - 2.6 * 0.9) < 1e-6 && Math.abs(r[3] - r[1] - 2.6) < 1e-6);
+          // Every lot held for the player is on the list (a lot is one LOT deep and one LOT wide narrowed by the squeeze), and nothing overlaps it.
+          const lots = rects.filter((r) => Math.abs(r[2] - r[0] - LOT * 0.9) < 1e-6 && Math.abs(r[3] - r[1] - LOT) < 1e-6);
           expect(lots.length).toBe(plots.filter((t, i) => i < 2 || !t.home).length);
           for (let i = 0; i < rects.length; i++) {
             for (let j = i + 1; j < rects.length; j++) {
@@ -316,19 +316,21 @@ describe('building integration', () => {
 });
 
 describe('airport', () => {
-  it('fills its 3x3 field at every level, keeps the full runway, and stays a reasonable size', () => {
-    const half = 1.5 * TILE_UNITS;
+  it('fills its 5x3 field at every level, keeps the full runway, and stays a reasonable size', () => {
+    const halfX = 2.5 * TILE_UNITS;
+    const halfZ = 1.5 * TILE_UNITS;
     let prev = 0;
     for (const level of [1, 2, 3]) {
       const g = airportGeometry(level);
       g.computeBoundingBox();
       const b = g.boundingBox!;
-      expect(b.min.x).toBeGreaterThanOrEqual(-half - 0.01);
-      expect(b.max.x).toBeLessThanOrEqual(half + 0.01);
-      expect(b.min.z).toBeGreaterThanOrEqual(-half - 0.01);
-      expect(b.max.z).toBeLessThanOrEqual(half + 0.01);
-      // The runway runs nearly the whole width of the field.
-      expect(b.max.x - b.min.x).toBeGreaterThan(2 * half - 0.2);
+      expect(b.min.x).toBeGreaterThanOrEqual(-halfX - 0.01);
+      expect(b.max.x).toBeLessThanOrEqual(halfX + 0.01);
+      expect(b.min.z).toBeGreaterThanOrEqual(-halfZ - 0.01);
+      expect(b.max.z).toBeLessThanOrEqual(halfZ + 0.01);
+      // The runway runs nearly the whole width of the field, and the field is longer than it is deep.
+      expect(b.max.x - b.min.x).toBeGreaterThan(2 * halfX - 0.2);
+      expect(b.max.x - b.min.x).toBeGreaterThan(b.max.z - b.min.z);
       const verts = g.getAttribute('position').count;
       expect(verts).toBeLessThan(400_000);
       // Each upgrade adds terminal, not just paint.

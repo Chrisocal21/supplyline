@@ -4,7 +4,7 @@ import { findPath } from './path';
 import { runChores } from './bot';
 import { put } from './testutil';
 import { HIGHWAY_TIER, SITE_DEFS } from './defs';
-import { airportPad, buildCost, FOREST_CLEAR_COST, buyVehicle, createBlankWorld, createRoute, createSeaRoute, portSpot, portWater, seaPath, setSendTo, createWorldFromMap, layoutOf, placeError, placeSite, plotTiles, siteAt, siteCenter, siteTiles, yardSpot, siteById, step, streetAt, terrainAt, type MapData, type World } from './world';
+import { entryTile, planRoute, airportPad, buildCost, FOREST_CLEAR_COST, buyVehicle, createBlankWorld, createRoute, createSeaRoute, portSpot, portWater, seaPath, setSendTo, createWorldFromMap, layoutOf, placeError, placeSite, plotTiles, siteAt, siteCenter, siteTiles, yardSpot, siteById, step, streetAt, terrainAt, type MapData, type World } from './world';
 
 /** A farm on the nearest farmland to the first town, and a free spot on that town's main street to join. */
 function setup(): { w: World; farm: NonNullable<ReturnType<typeof siteAt>>; mill: NonNullable<ReturnType<typeof siteAt>>; street: { x: number; y: number } } {
@@ -127,6 +127,28 @@ describe('automatic roads', () => {
   });
 });
 
+describe('a building turned by hand takes its road at its driveway side', () => {
+  it('only lets a road in over the tile it faces, and finds its way round to it', () => {
+    const w = createBlankWorld(60, 30, new Array(60 * 30).fill('grass'));
+    w.money = 1e6;
+    w.tier = 3;
+    expect(placeSite(w, 'hub', 30, 15, 1)).toBeNull();
+    const hub = siteAt(w, 30, 15)!;
+    expect(hub.rot).toBe(1);
+    // Turned east: the driveway is the tile to its east.
+    expect(entryTile(w, 30, 15)).toEqual({ x: 31, y: 15 });
+    // A road laid straight at its west side is turned away.
+    expect(planRoute(w, [{ x: 28, y: 15 }, { x: 29, y: 15 }, { x: 30, y: 15 }]).error).toMatch(/Enter that lot/);
+    expect(planRoute(w, [{ x: 32, y: 15 }, { x: 31, y: 15 }, { x: 30, y: 15 }]).error).toBeNull();
+    // A road found from the west goes round and arrives over the driveway tile.
+    const path = findPath(w, { x: 20, y: 15 }, { x: 30, y: 15 })!;
+    expect(path[path.length - 2]).toEqual({ x: 31, y: 15 });
+    // A building never turned by hand still takes a road from any side.
+    expect(placeSite(w, 'hub', 40, 15)).toBeNull();
+    expect(entryTile(w, 40, 15)).toBeNull();
+  });
+});
+
 describe('places for airports and rail yards', () => {
   it('an airport needs flat open ground with room for a road, clear of towns and water', () => {
     const w = createBlankWorld(60, 30, new Array(60 * 30).fill('grass'));
@@ -136,15 +158,15 @@ describe('places for airports and rail yards', () => {
     // A spit of land with sea on three sides is no place for a runway.
     for (let y = 10; y <= 20; y++) for (let x = 28; x <= 40; x++) w.terrain[y * 60 + x] = 'water';
     w.terrain[15 * 60 + 27] = 'grass';
-    expect(placeError(w, 'airport', 27, 15)).toMatch(/3x3 tiles of open/);
+    expect(placeError(w, 'airport', 27, 15)).toMatch(/5x3 tiles of open/);
     // Hard against a mountain is no better.
     for (let dx = -1; dx <= 1; dx++) w.terrain[10 * 60 + 8 + dx] = 'mountain';
-    expect(placeError(w, 'airport', 8, 11)).toMatch(/3x3 tiles of open/);
+    expect(placeError(w, 'airport', 8, 11)).toMatch(/5x3 tiles of open/);
     w.places.push({ id: 1, name: 'Midton', x: 45, y: 25, level: 1, growth: 0, delivered: {}, marketTile: { x: 46, y: 25 }, freightTile: { x: 44, y: 25 }, style: 'temperate', taste: {}, radius: 3, homePlots: [] });
     expect(placeError(w, 'airport', 45, 21)).toMatch(/Too close|town/);
   });
 
-  it('an airport covers 3x3 tiles, faces the way it was turned, and takes its road at the middle of its front', () => {
+  it('an airport covers a 5x3 rectangle, faces the way it was turned, and takes its road at the middle of its front', () => {
     const w = createBlankWorld(60, 30, new Array(60 * 30).fill('grass'));
     w.money = 1e6;
     w.tier = 3;
@@ -154,12 +176,15 @@ describe('places for airports and rail yards', () => {
     expect(a.rot).toBe(1);
     expect({ x: a.x, y: a.y }).toEqual({ x: 21, y: 15 });
     expect(siteCenter(w, a)).toEqual({ x: 20, y: 15 });
-    expect(siteTiles(w, a)).toHaveLength(9);
-    for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) expect(siteAt(w, 20 + dx, 15 + dy)?.id).toBe(a.id);
+    // Turned east, its long side runs north to south: three deep from the gate, five across.
+    expect(siteTiles(w, a)).toHaveLength(15);
+    for (let dy = -2; dy <= 2; dy++) for (let dx = -1; dx <= 1; dx++) expect(siteAt(w, 20 + dx, 15 + dy)?.id).toBe(a.id);
+    expect(siteAt(w, 20, 18)).toBeUndefined();
+    expect(siteAt(w, 20, 12)).toBeUndefined();
     expect(siteAt(w, 22, 15)).toBeUndefined();
     // Nothing else can be built on its field, and another airport needs ground of its own.
     expect(placeError(w, 'sawmill', 19, 14)).toBeTruthy();
-    expect(placeError(w, 'airport', 22, 15)).toMatch(/3x3/);
+    expect(placeError(w, 'airport', 22, 15)).toMatch(/5x3/);
     expect(placeError(w, 'airport', 23, 15)).toBeNull();
     // A road to the gate joins it to the network.
     expect(createRoute(w, [{ x: 21, y: 15 }, { x: 22, y: 15 }, { x: 23, y: 15 }, { x: 24, y: 15 }])).toBeNull();
