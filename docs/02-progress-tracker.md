@@ -471,6 +471,18 @@ Notes from playing a Large world (41 fps, 24 ms a frame, draw 10 ms): roads look
 - [x] **Full-screen sheets.** Towns, Production, Quests and the guide take the whole screen under the top bar, and the Towns list uses up to three columns.
 - [x] **Selection panel no longer runs under the dock.** It scrolls (wheel, or drag on touch) inside the space above it. Hover hints no longer show under open sheets.
 
+## Checked against 0.205 (the list below was written around 0.71 to 0.118)
+
+What the paused list looks like now, so nothing is rebuilt or undone by mistake:
+
+- Pacing: current bot run (seed 11, 3 game hours): Tier 1 at 6.5 min, Tier 2 at 72.5 min, town levels 2/3/4 at 16/29/72 min, Tier 3 not reached. Already slower than at 0.71 (Tier 2 was about 45 min). The 10-hour target needs a longer run and a human playthrough.
+- Dormant towns: not built. Hard mode: only a flag on the world (`world.difficulty`), nothing reads it. Train stations: built (one per town from Tier 2); wagons are not.
+- Built since 0.71 and no longer open: green and orange build zones (0.122, again for every tool in 0.204), staged district growth and neighbour blending (new worlds), a fuller Tier 0 to 1 quest line (0.123 to 0.126, 0.191 to 0.198), in-game Wiki (0.187), tutorial (0.124), Map 3 (beta, 0.127), demo and website (0.136 to 0.166), held ground and footprints (0.197 to 0.205).
+- Fog of war was tried (0.97, 0.115) and removed (0.118). Do not bring it back without asking.
+- Steam: keep on the list, do not raise until the demo is 100% complete.
+
+**Locked in: new work must not undo any of these.** Eight to ten building levels (0.20, 0.94); vehicle classes are bought directly with no upgrade buttons (0.89); truck reach and fuel limits (0.75, 0.76, 0.190); Supply Yard and Distribution Warehouse split, closed towns built from lumber (0.72 to 0.82); drivers, mechanics and driver shortcuts (0.73, 0.107, 0.199); about 45 goods and 38 sites with the by-product rules in `flows.test.ts` (0.90 to 0.93); buildings never on roads (0.94); land plots (0.122, 0.205); one early building unlocking at a time through the quest line (0.194 to 0.196); held ground, the 5x3 airport and the driveway rule (0.197 to 0.205). Before changing any of them, check the tests that cover them and ask.
+
 ## What to Tackle Next
 
 Shelved (not finished, for after the current round):
@@ -493,7 +505,7 @@ Done earlier:
 - [x] Rail stations: every town gets one at Tier 2, trains sell through it
 - [x] Stations that also load goods made in the town onto trains
 - [ ] Tune the quest numbers and rewards after a real playthrough
-- [ ] Deploy to Vercel once Chris approves
+- [x] Deployed to Vercel: every push to main is a live deployment (retention set to a week or two)
 
 ---
 
