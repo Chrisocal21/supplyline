@@ -130,6 +130,51 @@ const PANEL_W = 322;
 /** Set once the guide has been shown, so it only opens by itself on the very first visit. */
 const GUIDE_KEY = 'supplyline.guide.v2';
 
+/**
+ * The welcome slides: a short, forced "next, next" walkthrough the very first time a new world finishes generating,
+ * before the quest line asks for anything. Kept short on purpose, three or four lines a slide: the quest line and the
+ * How to play guide (press H) carry the detail from here.
+ */
+const INTRO_SLIDES: { title: string; lines: string[] }[] = [
+  {
+    title: 'Welcome to SupplyLine',
+    lines: [
+      'You are running a supply chain: raw goods become finished goods, finished goods get sold to towns, and a town fed well grows bigger and wants even more.',
+      'This takes under a minute to read. The quest line at the top of the screen then walks you through doing it.',
+    ],
+  },
+  {
+    title: 'Where to build',
+    lines: [
+      'Forests, fields, pastures and hills show a glowing ring where a raw producer belongs: open Production and click the ring.',
+      'Factories like a Sawmill or Bakery go on a for-sale lot inside a town instead: open Processing and click a lot beside a street.',
+      'Towns already stand on the map. You grow them; you never place a new one.',
+    ],
+  },
+  {
+    title: 'The loop',
+    lines: [
+      'Every chain is the same four steps: build it, road it to the next link, buy it a truck, then open the truck or the Selling tab and choose who it delivers to.',
+      'Nothing moves until all four are done, and nothing is made until a factory’s recipe is switched on.',
+    ],
+  },
+  {
+    title: 'What a town wants',
+    lines: [
+      'A town’s Supply Yard needs building materials, starting with lumber, to grow a level.',
+      'A town’s Market pays you for finished goods, starting with food, later metal and more.',
+      'Feed both and the town grows itself: you are never building the town directly.',
+    ],
+  },
+  {
+    title: 'Before you start',
+    lines: [
+      'Money is tight at first: a truck and a road both cost cash, so finish one chain before starting the next rather than building everywhere at once.',
+      'The quest line at the top of the screen walks you through the very first chain, one step at a time. Follow it, and ask for the How to play guide (press H) any time you want the detail again.',
+    ],
+  },
+];
+
 interface Tab {
   id: string;
   label: string;
@@ -454,8 +499,10 @@ export class HudScene extends Phaser.Scene {
     this.sheet = null;
     this.incomeSamples = [];
     this.toasts = [];
+    // A brand-new game gets the welcome slides once its world finishes generating (see beginWorld). A loaded save that
+    // somehow never saw either still gets the old reference guide, so nobody is left with neither.
     try {
-      if (!localStorage.getItem(GUIDE_KEY)) {
+      if (loaded && !localStorage.getItem(GUIDE_KEY)) {
         this.sheet = 'guide';
         localStorage.setItem(GUIDE_KEY, '1');
       }
@@ -866,7 +913,16 @@ export class HudScene extends Phaser.Scene {
     // A new tier: the game stops and shows what it opens, until the player confirms. Older saves start as already seen.
     w.tierShown ??= w.tier;
     const tierUp = w.tierShown < w.tier && !this.title && !g.demo && !g.showcase;
-    if (tierUp) {
+    if (this.introStep !== null && !this.title && !g.showcase) {
+      g.setKeys(0, 0, 0);
+      if (g.speed !== 0) {
+        this.speedBeforeTier = g.speed;
+        g.speed = 0;
+      }
+      this.panelRect = null;
+      this.sheetCam.setVisible(false);
+      this.introModal(W, H);
+    } else if (tierUp) {
       g.setKeys(0, 0, 0);
       if (g.speed !== 0) {
         this.speedBeforeTier = g.speed;
@@ -1631,6 +1687,8 @@ export class HudScene extends Phaser.Scene {
 
   /** The world size window: which kind of world a new game starts on. 'start' follows the title screen and cannot be cancelled. */
   private sizePick: 'start' | 'menu' | null = null;
+  /** The welcome slides: which one is showing, or null when not open. Set once a brand-new world finishes generating. */
+  private introStep: number | null = null;
   /** How hard the new game is: chosen with the world. Relaxed has no punishment; Hard is the opt-in pressure mode. */
   private difficulty: 'relaxed' | 'hard' = 'relaxed';
   /** The world being built, step by step, with what it is doing now. The screen repaints between steps so the bar moves. */
@@ -1787,6 +1845,14 @@ export class HudScene extends Phaser.Scene {
       g.speed = 1;
       g.world.difficulty = this.difficulty;
       this.toasts.push({ text: `New ${def.label} world started (${this.difficulty === 'hard' ? 'Hard' : 'Relaxed'})`, until: this.time.now + 2500 });
+      try {
+        if (!localStorage.getItem(GUIDE_KEY)) {
+          this.introStep = 0;
+          localStorage.setItem(GUIDE_KEY, '1');
+        }
+      } catch {
+        // No storage (private window): just skip the one-time welcome slides.
+      }
     };
     if (def.made) {
       this.building = { name: def.label, step: 0, total: 1, label: 'Building the terrain, roads and trees' };
@@ -2085,6 +2151,61 @@ export class HudScene extends Phaser.Scene {
     }, 5);
     im.slab(4, bx, by, bw, 44, hov ? 0xe6c98e : COLORS.accent, 1);
     im.text('ntOkT', 'GOT IT', bx + bw / 2, by + 11, { size: 20, bold: true, display: true, color: 0x1b1204, align: 'center', layer: 5 });
+  }
+
+  /** The welcome slides: a short "next, next" walkthrough shown once, the moment a brand-new world finishes generating. */
+  private introModal(W: number, H: number): void {
+    const im = this.im;
+    const g = this.game3d;
+    const step = this.introStep ?? 0;
+    const slide = INTRO_SLIDES[Math.min(step, INTRO_SLIDES.length - 1)];
+    const last = step >= INTRO_SLIDES.length - 1;
+    im.rect(3, 0, 0, W, H, 0x05080c, 0.82);
+    im.block({ x: 0, y: 0, w: W, h: H });
+    const pw = Math.min(580, W - 24);
+    const pad = 28;
+    const narrow = W < 640;
+    const lineH = (l: string): number => 20 + Math.ceil(l.length / (narrow ? 38 : 50)) * 17;
+    const linesH = slide.lines.reduce((n, l) => n + lineH(l), 0);
+    const ph = 92 + linesH + 20 + 56;
+    const x = (W - pw) / 2;
+    const y = Math.max(TOP + 6, (H - ph) / 2);
+    im.rect(4, x, y, pw, ph, 0x0b1117, 0.98, 10, COLORS.accent, 0.7);
+    let cy = y + pad;
+    im.text('inK', `WELCOME  ${step + 1} / ${INTRO_SLIDES.length}`, x + pad, cy, { size: 11, bold: true, color: COLORS.accent, layer: 4 });
+    im.text('inT', slide.title.toUpperCase(), x + pad, cy + 14, { size: 28, bold: true, display: true, wrap: pw - pad * 2, layer: 4 });
+    cy += 60;
+    slide.lines.forEach((l, i) => {
+      im.text(`in${i}`, l, x + pad, cy, { size: 13, color: COLORS.muted, wrap: pw - pad * 2, layer: 4 });
+      cy += lineH(l);
+    });
+    cy += 10;
+    // Dots: one per slide, the current one filled.
+    const dotX = x + pad;
+    INTRO_SLIDES.forEach((_, i) => im.circle(4, dotX + i * 16, cy, i === step ? 4 : 3, i === step ? COLORS.accent : COLORS.line));
+    const close = (): void => {
+      this.introStep = null;
+      g.speed = this.speedBeforeTier || 1;
+    };
+    const advance = (): void => {
+      if (last) close();
+      else this.introStep = step + 1;
+    };
+    const bw = 170;
+    const bx = x + pw - pad - bw;
+    const by = y + ph - pad - 44;
+    if (step > 0) {
+      const bhov = im.hit('inBack', x + pad, by, 90, 44, () => (this.introStep = step - 1), 5);
+      im.rect(4, x + pad, by, 90, 44, bhov ? 0x1c2730 : 0x14202a, 1, 6, COLORS.line, 1);
+      im.text('inBackT', 'BACK', x + pad + 45, by + 15, { size: 13, bold: true, align: 'center', layer: 5 });
+    }
+    if (!last) {
+      const shov = im.hit('inSkip', bx - 90, by, 80, 44, close, 5);
+      im.text('inSkipT', 'Skip', bx - 50, by + 15, { size: 12, color: shov ? COLORS.text : COLORS.muted, align: 'center', layer: 5 });
+    }
+    const hov = im.hit('inNext', bx, by, bw, 44, advance, 5);
+    im.slab(4, bx, by, bw, 44, hov ? 0xe6c98e : COLORS.accent, 1);
+    im.text('inNextT', last ? "LET'S GO" : 'NEXT', bx + bw / 2, by + 11, { size: 20, bold: true, display: true, color: 0x1b1204, align: 'center', layer: 5 });
   }
 
   private sizeModal(W: number, H: number): void {
