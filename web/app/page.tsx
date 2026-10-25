@@ -1,4 +1,5 @@
 import { BUILD, DEMO_POINTS, DEMO_TIERS, FAQ, LINKS, MAPS, NEWS, PILLARS, ROADMAP, SHOTS, STUDIO, TAGLINE, TIERS } from './content';
+import { ContactForm } from './ContactForm';
 import { Footer, LinkButton, Nav } from './parts';
 import { GOODS, SITES, VEHICLES, siteByKind, siteImage, vehicleImage } from './wiki/wiki';
 
@@ -199,8 +200,19 @@ export default function Home() {
                 <h2>Can you make a barn look like a barn?</h2>
                 <p>We have the logic, the spreadsheets and plenty of opinions. We need someone who can make buildings, vehicles and town pieces, low to mid poly, in one style. It is paid work, and you would be replacing the AI.</p>
               </div>
-              <a className="btn primary" href={LINKS.studio} rel="noopener">Get in touch</a>
+              <a className="btn primary" href="#contact">Get in touch</a>
             </div>
+          </div>
+        </section>
+
+        <section className="section" id="contact">
+          <div className="wrap contact">
+            <div>
+              <div className="kicker">Get in touch</div>
+              <h2 className="h2">Say hello</h2>
+              <p>Found a bug, want to pitch in as an artist, or just want to say the globe is cool? This goes straight to Chris, not a mailing list.</p>
+            </div>
+            <ContactForm />
           </div>
         </section>
       </main>

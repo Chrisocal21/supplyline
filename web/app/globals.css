@@ -182,6 +182,20 @@ details > p { color: var(--muted); margin-top: 10px; }
 .artists h2 { font-size: clamp(1.6rem, 4vw, 2.2rem); line-height: 1.05; font-weight: 800; text-transform: uppercase; margin: 8px 0 6px; }
 .artists p { color: var(--muted); max-width: 560px; }
 
+/* contact */
+.contact { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 50px; align-items: start; }
+.contact > div:first-child p { color: var(--muted); margin-top: 14px; max-width: 480px; }
+.contact-form { display: grid; gap: 14px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--r-lg); padding: 24px; }
+.contact-form .field { display: grid; gap: 6px; }
+.contact-form label { font-size: 0.8rem; font-weight: 700; letter-spacing: 0.04em; color: var(--muted); }
+.contact-form input, .contact-form textarea { font: inherit; font-size: 0.97rem; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--line-hi); background: var(--bg); color: var(--text); resize: vertical; }
+.contact-form input:focus, .contact-form textarea:focus { outline: none; border-color: var(--accent); }
+.contact-form .btn { align-self: start; }
+.contact-form .hp { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.contact-error { color: #e68b7c; font-size: 0.9rem; }
+.contact-sent { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r-lg); padding: 24px; color: var(--text); font-size: 1.05rem; }
+@media (max-width: 860px) { .contact { grid-template-columns: 1fr; } }
+
 /* footer */
 .footer { margin-top: 110px; border-top: 1px solid var(--line); padding: 40px 0 56px; color: var(--muted); font-size: 0.9rem; background: var(--bar); }
 .footer-in { display: flex; justify-content: space-between; gap: 30px; flex-wrap: wrap; }

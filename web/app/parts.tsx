@@ -32,6 +32,7 @@ export function Nav({ home }: { home: boolean }) {
           <a className="hide-s" href={`${h}#maps`}>Maps</a>
           <a className="hide-s" href={`${h}#news`}>Updates</a>
           <a className="hide-s" href={`${h}#studio`}>The studio</a>
+          <a className="hide-s" href={`${h}#contact`}>Contact</a>
           <a href="/wiki/">Wiki</a>
           <a className="btn primary sm" href={`${h}#demo`}>Get the demo</a>
         </nav>
