@@ -1077,3 +1077,9 @@ What changed:
 ## 0.176: page tabs
 
 - The page tabs on Production (Buildings, Goods) and on a town (Market, Specialisation, Districts) use the same quiet tabs as How to play: capitals, faint border, the open one outlined in gold.
+
+## 0.177: HUD pieces
+
+- The money box, quest bar and speed pill use the menus soft frame (8 px corners, faint border) instead of full round pills.
+- Money is in the display font, and the tier is a gold ring with a gold number, like the How to play steps.
+- The minimap drops its gold border and top bar for the same soft frame; the gold corner brackets stay.

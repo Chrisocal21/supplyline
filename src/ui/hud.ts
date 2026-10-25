@@ -1021,7 +1021,7 @@ export class HudScene extends Phaser.Scene {
   // ---- top bar ----
 
   private pill(x: number, y: number, w: number, h: number): void {
-    this.im.rect(1, x, y, w, h, COLORS.panel, 0.94, h / 2, COLORS.line, 1);
+    this.im.rect(1, x, y, w, h, 0x0b1117, 0.92, 8, COLORS.line, 0.7);
     this.im.block({ x, y, w, h });
   }
 
@@ -1064,12 +1064,12 @@ export class HudScene extends Phaser.Scene {
     this.pill(12, y, mw, h);
     const bankOn = this.sheet === 'bank';
     const bankHov = im.hit('btnBank', 12, y, mw, h, () => this.toggleSheet('bank'), 1);
-    if (bankOn || bankHov) im.rect(1, 12, y, mw, h, bankOn ? COLORS.accent : 0x243142, bankOn ? 0.18 : 0.6, h / 2, bankOn ? COLORS.accent : COLORS.line, 1, bankOn ? 2 : 1);
+    if (bankOn || bankHov) im.rect(1, 12, y, mw, h, bankOn ? COLORS.accent : 0x243142, bankOn ? 0.18 : 0.6, 8, bankOn ? COLORS.accent : COLORS.line, 1, bankOn ? 2 : 1);
     this.bankIcon(12 + mw - 26, mid, bankOn || bankHov ? COLORS.accent : COLORS.muted);
     im.circle(1, 36, mid, 15, 0xe8b23a);
     im.circle(1, 36, mid, 11, 0xc9951f);
     im.text('coin', '$', 36, mid - 8, { size: 14, bold: true, color: 0xf7e3a8, align: 'center', layer: 2 });
-    im.text('money', fmt(w.money), 60, y + 3, { size: 21, bold: true, layer: 2 });
+    im.text('money', fmt(w.money), 60, y + 1, { size: 24, bold: true, display: true, layer: 2 });
     const inc = this.income;
     im.text('income', `${inc >= 0 ? '+' : '-'}$${fmt(Math.abs(inc))} per min`, 60, y + 27, { size: 12, color: inc > 0 ? COLORS.good : COLORS.muted, layer: 2 });
 
@@ -1155,10 +1155,12 @@ export class HudScene extends Phaser.Scene {
       const qmid = qy + qh / 2;
       const on = this.sheet === 'quests';
       const hov = im.hit('questPill', cx0, qy, cw, qh, () => this.toggleSheet('quests'), 1);
-      im.rect(1, cx0, qy, cw, qh, hov ? 0x18212d : COLORS.panel, 0.94, qh / 2, on || hov ? COLORS.accent : COLORS.line, on || hov ? 0.9 : 1);
-      const tr = narrow ? 14 : 20;
+      im.rect(1, cx0, qy, cw, qh, hov ? 0x121a21 : 0x0b1117, 0.92, 8, on || hov ? COLORS.accent : COLORS.line, on || hov ? 0.8 : 0.7);
+      // The tier as a gold ring with the number inside, like the step numbers in How to play.
+      const tr = narrow ? 14 : 19;
       im.circle(1, cx0 + (narrow ? 20 : 28), qmid, tr, COLORS.accent);
-      im.text('tierN', String(w.tier), cx0 + (narrow ? 20 : 28), qmid - (narrow ? 10 : 13), { size: narrow ? 18 : 24, bold: true, color: 0x1b1204, align: 'center', layer: 2 });
+      im.circle(1, cx0 + (narrow ? 20 : 28), qmid, tr - 2, 0x0b1117);
+      im.text('tierN', String(w.tier), cx0 + (narrow ? 20 : 28), qmid - (narrow ? 10 : 14), { size: narrow ? 18 : 26, bold: true, display: true, color: COLORS.accent, align: 'center', layer: 2 });
       const bx = cx0 + (narrow ? 42 : 62);
       const next = nextQuest(w);
       if (next) {
@@ -2455,8 +2457,7 @@ export class HudScene extends Phaser.Scene {
       im.hit('bigMapBack', 0, 0, this.scale.width, this.scale.height, () => (this.bigMap = false), 1);
     }
     const key = this.minimap.draw(world, { x: at.x, y: at.y, span: viewSpan(world, g.cam.dist, aspect), heading: g.cam.heading }, b.mw, this.time.now);
-    im.rect(1, b.x, b.y, b.w, b.h, 0x0a0f14, 0.97, 12, COLORS.accent, 0.55, 1.5);
-    im.rect(1, b.x, b.y, b.w, 3, COLORS.accent, 0.85, 1);
+    im.rect(1, b.x, b.y, b.w, b.h, 0x0b1117, 0.94, 10, COLORS.line, 0.8);
     im.text('miniT', 'WORLD MAP', b.x + 10, b.y + 9, { size: 11, bold: true, color: COLORS.accent, layer: 2 });
     const mx = b.x + 8;
     const my = b.y + 28;
