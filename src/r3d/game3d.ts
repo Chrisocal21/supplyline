@@ -2455,7 +2455,7 @@ export class Game3D {
       this.ring.visible = false;
       if (this.ghost) this.ghost.visible = false;
       this.showHoldRings(null, true);
-    if (this.ghostArrow) this.ghostArrow.visible = false;
+      if (this.ghostArrow) this.ghostArrow.visible = false;
       return;
     }
     this.hover = this.describe(tile);
@@ -2474,7 +2474,7 @@ export class Game3D {
     else if (this.ghost) {
       this.ghost.visible = false;
       this.showHoldRings(null, true);
-    if (this.ghostArrow) this.ghostArrow.visible = false;
+      if (this.ghostArrow) this.ghostArrow.visible = false;
     }
   }
 
@@ -2543,7 +2543,6 @@ export class Game3D {
       const held = blockFor(this.world, tile.x, tile.y, this.placeRot ?? undefined);
       this.showHoldRings(blockTiles(this.world, tile.x, tile.y, 'res' in held ? held.res : (this.placeRot ?? 0)), ok && 'res' in held);
     } else this.showHoldRings(null, true);
-    if (this.ghostArrow) this.ghostArrow.visible = false;
     // A building turned by hand takes its road at its front: an arrow on the driveway tile shows where to meet it.
     if (this.placeRot !== null || siteIsBig(kind)) {
       const rot = this.ghostRot(kind, tile);
