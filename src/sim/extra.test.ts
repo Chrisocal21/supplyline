@@ -490,7 +490,7 @@ describe('tier quests', () => {
     setSendTo(w, siteAt(w, 9, 9)!.id, siteAt(w, 22, 6)!.id, true);
     w.places[0].stage = 2;
     // The farm-goods quests at the end of the tier are covered by their own tests: count them done here.
-    (w.questsDone ??= []).push(...['t0-camps', 't0-yardtruck', 't0-ranch', 't0-milk', 't0-dairy', 't0-cheesemake', 't0-cheese', 't0-earn']);
+    (w.questsDone ??= []).push(...['t0-camps', 't0-yardtruck', 't0-ranch', 't0-milk', 't0-dairy', 't0-cheesemake', 't0-cheese', 't0-woodyard', 't0-firewood', 't0-earn']);
     checkQuests(w, (t) => log.push(t));
     expect(w.tier).toBe(1);
     expect(log.some((l) => /Tier 1 unlocked/.test(l))).toBe(true);

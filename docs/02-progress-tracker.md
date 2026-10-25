@@ -471,6 +471,15 @@ Notes from playing a Large world (41 fps, 24 ms a frame, draw 10 ms): roads look
 - [x] **Full-screen sheets.** Towns, Production, Quests and the guide take the whole screen under the top bar, and the Towns list uses up to three columns.
 - [x] **Selection panel no longer runs under the dock.** It scrolls (wheel, or drag on touch) inside the space above it. Hover hints no longer show under open sheets.
 
+## Level 0 menu, unlock cards and wood sales (0.206)
+
+- [x] **Quarry is Tier 1**, and stays locked until a town reaches level 2 (`SITE_UNLOCK_QUEST.quarry = t1-town2`): stone is first needed for a town's next step.
+- [x] **Wood Yard stays in Tier 0** but opens after the cheese quest, with two new quests ("Build a Wood Yard", "Sell 40 firewood to the Market"): it turns the spare logs into firewood.
+- [x] **Logs and lumber keep a buyer.** The Supply Yard (`FREIGHT_DEMAND`) and the Market (`MARKET_WOOD`) both buy them once the town is built. The Market still refuses lumber the town needs for building, so it goes to the yard first. Tests: wood.test.ts.
+- [x] **Unlock cards.** Finishing a quest that opens a building shows "New building unlocked": what it is, which tab, the cost, and the quest that opened it. One card per quest, shown in turn; a loaded game shows none.
+- [x] **Padlock cards are ordered and labelled.** Empty tabs stay. Quest locks (gold, "After quest" and the quest name) come first, then each tier, then town-level locks, then full game.
+- [x] **Growth plays before popups.** The tier, unlock and next-town cards wait until the growing town's show is over (`growthShowing`), so nothing covers the animation. Checked by growing a town in the live game: the old model sinks, the new one rises behind scaffolds, rollers lay the new streets.
+
 ## Checked against 0.205 (the list below was written around 0.71 to 0.118)
 
 What the paused list looks like now, so nothing is rebuilt or undone by mistake:

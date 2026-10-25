@@ -415,8 +415,8 @@ const DEFS = {
  * and kitchen chains, then the specialist plants. A building opens no earlier than the buildings that make its ingredients.
  */
 const OPENS: Record<number, string[]> = {
-  0: ['forestry', 'farm', 'ranch', 'orchard', 'quarry', 'mill', 'bakery', 'dairy', 'woodyard'],
-  1: ['sawmill', 'claypit', 'waterpump', 'chickenfarm', 'vegfarm', 'potatofarm', 'sandpit', 'coalmine', 'harbor', 'sugarfarm',
+  0: ['forestry', 'farm', 'ranch', 'orchard', 'mill', 'bakery', 'dairy', 'woodyard'],
+  1: ['quarry', 'sawmill', 'claypit', 'waterpump', 'chickenfarm', 'vegfarm', 'potatofarm', 'sandpit', 'coalmine', 'harbor', 'sugarfarm',
     'jamfactory', 'feedmill', 'creamery', 'juicepress', 'sugarrefinery', 'gardensupply', 'scrapyard',
     'brickworks', 'stonecutter', 'granitecutter', 'hub', 'garage', 'pelletmill'],
   2: ['cottonfarm', 'papermill', 'spinmill', 'oremine', 'barleyfarm', 'oilseedfarm', 'pigfarm', 'sheepfarm', 'apiary', 'vineyard', 'saltpan', 'coffeefarm', 'mangogrove', 'oilwell',
@@ -632,8 +632,13 @@ for (const [from, goods] of [[0, ['jam', 'butter', 'juice', 'water', 'feed', 'mu
 /** The goods a town gets a taste for (a price swing) among the raw and building goods. Only world generation reads it; keep it as is so towns look the same. */
 export const YARD_TASTE_GOODS: Good[] = ['logs', 'grain', 'cotton', 'stone', 'ore', 'coal', 'clay', 'sand', 'milk', 'fruit', 'sawdust', 'bran', 'whey', 'gravel', 'slag', 'feed', 'oil', 'lumber', 'flour', 'ingots', 'cement', 'yarn', 'pellets', 'glass', 'tools', 'steel', 'bricks', 'concrete', 'blocks', 'cloth'];
 
-/** Goods the Supply Yard buys by town level: none of its own. It is a store for building materials, so it only takes what the town still needs to build (see dockDemand). */
-export const FREIGHT_DEMAND: Good[][] = [[], [], [], [], []];
+/**
+ * Goods the Supply Yard buys by town level. It is mainly a store for building materials (see dockDemand), but logs and lumber
+ * always have a buyer here, so the camps and the sawmill keep earning once the town has all the wood it needs for building.
+ */
+export const FREIGHT_DEMAND: Good[][] = [['logs', 'lumber'], ['logs', 'lumber'], ['logs', 'lumber'], ['logs', 'lumber'], ['logs', 'lumber']];
+/** Goods the Market takes on top of its list for any town that has built: raw wood, once the town needs no more of it for building. */
+export const MARKET_WOOD: Good[] = ['logs', 'lumber'];
 
 /** Lumber a closed town needs delivered to build its Supply Yard, then its Market. */
 export const BUILD_LUMBER = [80, 120];
@@ -958,6 +963,8 @@ export const TIERS: TierDef[] = [
       { id: 't0-dairy', label: 'Build a Dairy', hint: 'Processing tab. A Dairy takes milk in and puts cheese out: your first processing building, which turns one good into a better one. Click a for-sale lot beside a town street to build it.', goal: { kind: 'build', site: 'dairy', count: 1 }, reward: 250 },
       { id: 't0-cheesemake', label: 'Make 20 cheese from your milk', hint: 'Three steps. 1) Open Logistics, pick Road and drag from the Dairy Ranch to the Dairy. 2) Click the Dairy Ranch, open its Selling tab and switch the Dairy on under Sell to: the ranch trucks now carry milk to the Dairy, not the Market. 3) Click the Dairy and switch Cheese on under Production: a processing building makes nothing until you do. Milk goes in, cheese comes out.', goal: { kind: 'make', good: 'cheese', amount: 20 }, reward: 250 },
       { id: 't0-cheese', label: 'Sell 40 cheese to the Market', hint: 'Now sell what the Dairy makes. Road the Dairy to the town, click the Dairy, open its Selling tab and switch the Market on under Sell to. Cheese pays more than raw milk, and the whey left over sells at the Market too, so nothing from the chain is wasted.', goal: { kind: 'deliver', good: 'cheese', amount: 40 }, reward: 300 },
+      { id: 't0-woodyard', label: 'Build a Wood Yard', hint: 'Processing tab. By now the camps make more logs than the town needs. A Wood Yard takes the spare logs in and puts firewood out (wood chips are the leftover), and the Market pays for firewood, so no log goes to waste. Road a camp to it, switch Firewood on under Production, and road it to the town.', goal: { kind: 'build', site: 'woodyard', count: 1 }, reward: 200 },
+      { id: 't0-firewood', label: 'Sell 40 firewood to the Market', hint: 'Click the Wood Yard, open its Selling tab and switch the Market on under Sell to. Logs and lumber also keep selling at the Market and the Supply Yard once the town has all it needs for building.', goal: { kind: 'deliver', good: 'firewood', amount: 40 }, reward: 250 },
       { id: 't0-earn', label: 'Earn $400 from sales', hint: 'Full trucks on short roads earn the most: a half-empty truck or a long haul eats into what a sale is worth. The Company sheet shows what you earn and what your buildings and trucks cost to run each minute.', goal: { kind: 'earn', amount: 400 }, reward: 400 },
     ],
   },
@@ -1047,6 +1054,8 @@ export const SITE_UNLOCK_QUEST: Partial<Record<SiteKind, string>> = {
   mill: 't1-farm',
   bakery: 't1-mill',
   orchard: 't1-bakery',
+  woodyard: 't0-cheese',
+  quarry: 't1-town2',
 };
 
 /**

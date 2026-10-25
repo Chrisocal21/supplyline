@@ -150,7 +150,7 @@
    "blurb": "Cuts stone from a pit at the foot of a mountain. Makes stone and gravel.",
    "real": "",
    "category": "production",
-   "tier": 0,
+   "tier": 1,
    "cost": 160,
    "cap": 240,
    "node": "quarry",

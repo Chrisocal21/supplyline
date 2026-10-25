@@ -4,6 +4,7 @@ import {
   DISTRICT_ORDER,
   type DistrictId,
   FREIGHT_DEMAND,
+  MARKET_WOOD,
   WAREHOUSE_GOODS,
   BUILD_LUMBER,
   LOGS_PER_LUMBER,
@@ -1567,7 +1568,7 @@ export function dockDemand(world: World, site: Site): Good[] {
     // materials for the town's next level, which only those trucks bring.
     if (stage < 2) return stage === 1 ? [buildWood(world)] : [];
     // Every by-product has a buyer at the Market too, at a salvage price (see deliver), so no line can jam for want of a buyer.
-    return withExtra(withExtra(withExtra(MARKET_DEMAND[place.level - 1], districtDemand(place, 'market')), matsNeeded(place).map(([g]) => g)), BYPRODUCTS);
+    return withExtra(withExtra(withExtra(withExtra(MARKET_DEMAND[place.level - 1], districtDemand(place, 'market')), matsNeeded(place).map(([g]) => g)), MARKET_WOOD), BYPRODUCTS);
   }
   if (stage < 1) return [buildWood(world)];
   // While the Market is being built the yard stores its wood; afterwards only the materials for the next level.

@@ -237,6 +237,19 @@ const REGION_COLOR: Record<string, number> = {
 
 const fmt = (n: number): string => Math.floor(n).toLocaleString('en-US');
 
+/** A card's lock text split for a padlock card: what kind of lock it is, what it says, and how soon it opens (lower is sooner). */
+function lockParts(locked: string): { tag: string; detail: string; quest: boolean; rank: number } {
+  const quest = /^Needs: (.*)$/.exec(locked);
+  if (quest) return { tag: 'AFTER QUEST', detail: quest[1], quest: true, rank: 0 };
+  const tier = /^Tier (\d+)$/.exec(locked);
+  if (tier) return { tag: `TIER ${tier[1]}`, detail: '', quest: false, rank: Number(tier[1]) };
+  const level = /^Town level (\d+)$/.exec(locked);
+  if (level) return { tag: `TOWN LEVEL ${level[1]}`, detail: '', quest: false, rank: 20 + Number(level[1]) };
+  if (locked === 'Full game') return { tag: 'FULL GAME', detail: '', quest: false, rank: 98 };
+  if (locked === 'Coming soon') return { tag: 'COMING SOON', detail: '', quest: false, rank: 99 };
+  return { tag: locked.toUpperCase(), detail: '', quest: false, rank: 50 };
+}
+
 interface Card {
   name: string;
   cost: string;
@@ -910,11 +923,13 @@ export class HudScene extends Phaser.Scene {
     this.miniRect = null;
     TOP = this.topBarHeight(W);
     this.topBar(W);
-    const growing = !this.sheet && !g.draft && !this.saves ? this.pendingGrowth() : undefined;
+    const growing = !this.sheet && !g.draft && !this.saves && !g.growthShowing ? this.pendingGrowth() : undefined;
+    this.watchUnlocks(w);
     if (g.canGoBack && !this.sheet && !this.saves && !this.graphicsOpen && !this.menuOpen && this.dash === null) this.backButton(W, H);
     // A new tier: the game stops and shows what it opens, until the player confirms. Older saves start as already seen.
     w.tierShown ??= w.tier;
-    const tierUp = w.tierShown < w.tier && !this.title && !g.demo && !g.showcase;
+    // A town that has just grown plays its growth first: the tier and unlock cards it brings wait until the show is over.
+    const tierUp = w.tierShown < w.tier && !this.title && !g.demo && !g.showcase && !g.growthShowing;
     if (this.introStep !== null && !this.title && !g.showcase) {
       g.setKeys(0, 0, 0);
       if (g.speed !== 0) {
@@ -933,6 +948,15 @@ export class HudScene extends Phaser.Scene {
       this.panelRect = null;
       this.sheetCam.setVisible(false);
       this.tierModal(W, H);
+    } else if (this.unlockCards.length > 0 && !this.title && !g.showcase && !g.growthShowing) {
+      g.setKeys(0, 0, 0);
+      if (g.speed !== 0) {
+        this.speedBeforeTier = g.speed;
+        g.speed = 0;
+      }
+      this.panelRect = null;
+      this.sheetCam.setVisible(false);
+      this.unlockModal(W, H);
     } else if (w.pendingTownIntro !== undefined && !this.title && !g.showcase) {
       g.setKeys(0, 0, 0);
       if (g.speed !== 0) {
@@ -2114,6 +2138,71 @@ export class HudScene extends Phaser.Scene {
     im.text('tuOkT', 'CONFIRM', bx + bw / 2, by + 11, { size: 20, bold: true, display: true, color: 0x1b1204, align: 'center', layer: 5 });
   }
 
+  /** Buildings a finished quest has just opened, one card per quest, shown in turn. A loaded game starts with none. */
+  private unlockCards: { quest: string; kinds: SiteKind[] }[] = [];
+  private unlockSeen = 0;
+  private unlockWorld: object | null = null;
+
+  private watchUnlocks(w: { questsDone: string[] }): void {
+    if (this.unlockWorld !== w || w.questsDone.length < this.unlockSeen) {
+      this.unlockWorld = w;
+      this.unlockSeen = w.questsDone.length;
+      this.unlockCards = [];
+      return;
+    }
+    if (w.questsDone.length === this.unlockSeen) return;
+    for (const id of w.questsDone.slice(this.unlockSeen)) {
+      const kinds = (Object.keys(SITE_UNLOCK_QUEST) as SiteKind[]).filter((k) => SITE_UNLOCK_QUEST[k] === id);
+      if (kinds.length > 0) this.unlockCards.push({ quest: id, kinds });
+    }
+    this.unlockSeen = w.questsDone.length;
+  }
+
+  /** "You just unlocked": what a finished quest opened, where it is in the build bar, and why. Continue shows the next one, or carries on. */
+  private unlockModal(W: number, H: number): void {
+    const im = this.im;
+    const g = this.game3d;
+    const card = this.unlockCards[0];
+    im.rect(3, 0, 0, W, H, 0x05080c, 0.78);
+    im.block({ x: 0, y: 0, w: W, h: H });
+    const pw = Math.min(520, W - 24);
+    const pad = 24;
+    const inner = pw - pad * 2;
+    const img = 64;
+    const rowH = 96;
+    const ph = 132 + card.kinds.length * rowH + 76;
+    const x = (W - pw) / 2;
+    const y = Math.max(TOP + 6, (H - ph) / 2);
+    im.rect(4, x, y, pw, ph, 0x0b1117, 0.98, 10, COLORS.accent, 0.7);
+    let cy = y + pad;
+    im.text('ulK', card.kinds.length > 1 ? 'NEW BUILDINGS UNLOCKED' : 'NEW BUILDING UNLOCKED', x + pad, cy, { size: 11, bold: true, color: COLORS.accent, layer: 4 });
+    cy += 18;
+    const why = `You finished: ${questLabelOf(card.quest) ?? 'a quest'}`;
+    cy += im.text('ulW', why, x + pad, cy, { size: 15, bold: true, wrap: inner, layer: 4 }).h + 6;
+    im.text('ulS', 'It is in the build bar now, and in the Wiki.', x + pad, cy, { size: 12, color: COLORS.muted, wrap: inner, layer: 4 });
+    cy += 34;
+    for (const k of card.kinds) {
+      const d = SITE_DEFS[k];
+      im.rect(4, x + pad, cy, inner, rowH - 8, 0x0f161d, 1, 8, COLORS.line, 0.6);
+      if (this.textures.exists(`thumb-${k}`)) im.image(`ulI${k}`, `thumb-${k}`, x + pad + 8, cy + (rowH - 8 - img) / 2, img, img, 1, 5);
+      const tab = TABS.find((t) => t.tools.includes(k));
+      const tx = x + pad + img + 20;
+      im.text(`ulN${k}`, d.label, tx, cy + 8, { size: 16, bold: true, layer: 5 });
+      im.text(`ulC${k}`, `${tab ? tab.label + ' tab' : 'Build bar'}  ·  $${fmt(d.cost)}`, tx, cy + 28, { size: 11, bold: true, color: COLORS.accent, layer: 5 });
+      im.text(`ulB${k}`, d.blurb, tx, cy + 46, { size: 11, color: COLORS.muted, wrap: inner - img - 32, layer: 5 });
+      cy += rowH;
+    }
+    const bw = 200;
+    const bx = x + pw - pad - bw;
+    const by = y + ph - pad - 44;
+    const hov = im.hit('ulOk', bx, by, bw, 44, () => {
+      this.unlockCards.shift();
+      if (this.unlockCards.length === 0) g.speed = this.speedBeforeTier || 1;
+    }, 5);
+    im.slab(4, bx, by, bw, 44, hov ? 0xe6c98e : COLORS.accent, 1);
+    im.text('ulOkT', 'CONTINUE', bx + bw / 2, by + 11, { size: 20, bold: true, display: true, color: 0x1b1204, align: 'center', layer: 5 });
+  }
+
   /** The "new town" card: shown once, the first time a road reaches a second (or later) town's Supply Yard or Market. */
   private newTownModal(W: number, H: number): void {
     const im = this.im;
@@ -2618,7 +2707,8 @@ export class HudScene extends Phaser.Scene {
     const IMG = narrow ? 50 : 68;
     const tools = this.shownTools(tab.tools);
     // What is still locked follows as mystery cards: a padlock and how to open it, never the name.
-    const lockedTools = tab.tools.filter((t) => !tools.includes(t));
+    // They are in the order they will open: what a quest opens next, then each tier, then the rest.
+    const lockedTools = tab.tools.filter((t) => !tools.includes(t)).map((t) => ({ t, why: lockParts(this.cardInfo(t).locked ?? '') })).sort((a, b) => a.why.rank - b.why.rank).map((o) => o.t);
     const allTools = [...tools, ...lockedTools];
     const n = allTools.length;
     // The tray spreads across the whole window, and rises above the minimap if it would cover it. When there are more rows than
@@ -2645,6 +2735,7 @@ export class HudScene extends Phaser.Scene {
     im.block({ x: tx, y: ty, w: trayW, h: trayH });
     const head = tab.label.toUpperCase();
     im.text('trayHead', head, tx + TRAY_PAD + 4, ty + 10, { size: 11, bold: true, color: COLORS.accent, layer: 2 });
+    if (lockedTools.length > 0 && this.trayRowMax === 0 && !narrow) im.text('trayLocks', `${lockedTools.length} locked, shown last: quests first, then tiers`, tx + trayW - TRAY_PAD - 4, ty + 10, { size: 11, color: COLORS.muted, align: 'right', layer: 2 });
     im.text('trayTitle', tab.blurb, tx + TRAY_PAD + 4 + head.length * 7.4 + 14, ty + 10, { size: 11, color: COLORS.muted, layer: 2, wrap: narrow ? trayW - 2 * TRAY_PAD - 8 : undefined });
     if (this.trayRowMax > 0) {
       const trackH = trayH - 24 - TRAY_PAD * 2;
@@ -2661,14 +2752,17 @@ export class HudScene extends Phaser.Scene {
       const cy = ty + TRAY_PAD + 24 + Math.floor((i - first) / perRow) * (CH + 10);
       const info = this.cardInfo(tool);
       if (i >= tools.length) {
-        const how = info.locked === 'Coming soon' ? 'Coming soon' : info.locked === 'Full game' ? 'In the full game' : info.locked!;
+        const why = lockParts(info.locked ?? '');
         const lid = `lockcard${tool}`;
-        const lhov = im.hit(lid, cx, cy, CW, CH, () => this.toasts.push({ text: `Locked: ${how}`, until: this.time.now + 2400 }));
+        const lhov = im.hit(lid, cx, cy, CW, CH, () => this.toasts.push({ text: `Locked: ${why.detail ? `${why.tag.toLowerCase()}, ${why.detail}` : why.tag.toLowerCase()}`, until: this.time.now + 2800 }));
         im.rect(1, cx, cy, CW, CH, lhov ? 0x151e28 : 0x0e151b, 1, 3, COLORS.line, 1, 1);
-        im.rect(1, cx, cy, 3, CH, 0x2a3440, 0.7, 0);
-        drawIcon(im, 'lock', cx + CW / 2, cy + 6 + IMG / 2, COLORS.muted, 0x0e151b, 2);
-        im.rect(1, cx + 3, cy + IMG + 24, CW - 3, CH - IMG - 24, 0x0a0f14, 0.9, 0);
-        im.text(`lockHow${tool}`, how, cx + CW / 2, cy + IMG + 28, { size: 11, bold: true, color: COLORS.muted, align: 'center', layer: 2, wrap: CW - 12 });
+        // A quest opens its building next, so it carries the accent colour; the tiers stay grey.
+        im.rect(1, cx, cy, 3, CH, why.quest ? COLORS.accent : 0x2a3440, why.quest ? 0.9 : 0.7, 0);
+        drawIcon(im, 'lock', cx + CW / 2, cy + 6 + (narrow ? 18 : 22), why.quest ? COLORS.accent : COLORS.muted, 0x0e151b, narrow ? 1.5 : 2);
+        const ly = cy + (narrow ? 44 : 54);
+        im.rect(1, cx + 3, ly - 4, CW - 3, CH - (ly - cy) + 4, 0x0a0f14, 0.9, 0);
+        im.text(`lockTag${tool}`, why.tag, cx + CW / 2, ly, { size: 11, bold: true, color: why.quest ? COLORS.accent : COLORS.muted, align: 'center', layer: 2, wrap: CW - 12 });
+        if (why.detail) im.text(`lockHow${tool}`, why.detail, cx + CW / 2, ly + 15, { size: 10, color: COLORS.muted, align: 'center', layer: 2, wrap: CW - 14 });
         return;
       }
       const on = g.tool === tool;

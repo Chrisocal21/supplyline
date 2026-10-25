@@ -934,6 +934,15 @@ export class Game3D {
     return this.backView !== null && this.growing.size === 0 && this.districtWork.size === 0 && this.nowMs >= this.orbitUntil;
   }
 
+  /** A town is growing, or has just levelled up and its growth show is about to start: popups wait so the player sees it. */
+  get growthShowing(): boolean {
+    if (this.growing.size > 0 || this.districtWork.size > 0) return true;
+    return this.townsShown && this.world.places.some((p) => {
+      const shown = this.townMeshes.get(p.id);
+      return !!shown && p.level > shown.level;
+    });
+  }
+
   /** Back to the view from before the town grew, in the same camera angle. */
   goBack(): void {
     const v = this.backView;
