@@ -2112,6 +2112,14 @@
   "file": "site-station-L1.png"
  },
  {
+  "key": "vehicle-fishboat",
+  "group": "vehicle",
+  "kind": "fishboat",
+  "label": "Fishing Boat",
+  "level": 1,
+  "file": "vehicle-fishboat.png"
+ },
+ {
   "key": "vehicle-boxtruck",
   "group": "vehicle",
   "kind": "boxtruck",
@@ -2168,14 +2176,6 @@
   "file": "vehicle-plane.png"
  },
  {
-  "key": "vehicle-jet",
-  "group": "vehicle",
-  "kind": "jet",
-  "label": "Cargo Jet",
-  "level": 1,
-  "file": "vehicle-jet.png"
- },
- {
   "key": "vehicle-barge",
   "group": "vehicle",
   "kind": "barge",
@@ -2206,6 +2206,14 @@
   "label": "Container Ship",
   "level": 1,
   "file": "vehicle-containership.png"
+ },
+ {
+  "key": "vehicle-jet",
+  "group": "vehicle",
+  "kind": "jet",
+  "label": "Cargo Jet",
+  "level": 1,
+  "file": "vehicle-jet.png"
  },
  {
   "key": "district-farmersmarket-L1",

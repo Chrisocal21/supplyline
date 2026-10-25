@@ -1,5 +1,18 @@
-import { BUILD, COMPARE, FAQ, FEATURES, LINKS, MAPS, NEWS, ROADMAP, SHOTS, STATS, STEPS, TIERS } from './content';
-import { Footer, Head, LinkButton, Nav } from './parts';
+import { BUILD, DEMO_POINTS, DEMO_TIERS, FAQ, LINKS, MAPS, NEWS, PILLARS, ROADMAP, SHOTS, STUDIO, TAGLINE, TIERS } from './content';
+import { Footer, LinkButton, Nav } from './parts';
+import { GOODS, SITES, VEHICLES, siteByKind, siteImage, vehicleImage } from './wiki/wiki';
+
+/** Models shown on the home page, each linking to its wiki page. */
+const SHOWCASE: [string, string, string][] = [
+  ...(['forestry', 'sawmill', 'steelworks', 'port'] as const).flatMap((k): [string, string, string][] => {
+    const s = siteByKind(k);
+    return s ? [[siteImage(s, 3), s.label, `/wiki/buildings/${k}/`]] : [];
+  }),
+  ...(['rig', 'heavytrain', 'freighter', 'jet'] as const).flatMap((k): [string, string, string][] => {
+    const v = VEHICLES.find((x) => x.kind === k);
+    return v ? [[vehicleImage(v), v.label, `/wiki/vehicles/${k}/`]] : [];
+  }),
+];
 
 export default function Home() {
   return (
@@ -7,36 +20,72 @@ export default function Home() {
       <Nav home />
       <header className="hero">
         <div className="hero-bg" />
-        <div className="wrap">
-          <span className="chip">In development</span>
-          <h1>SUPPLY<span>LINE</span></h1>
-          <p className="tag">Build farms, forests and factories on a 3D globe. Then move the goods by truck, train, ship and plane.</p>
+        <div className="wrap hero-in">
+          <span className="chip">In development{BUILD ? ` · Build ${BUILD}` : ''}</span>
+          <img className="hero-logo" src="/logo-full.jpg" alt="SupplyLine: a globe with a road, a railway and a factory" width={1000} height={1000} />
+          <h1><span className="sr">SupplyLine: </span>Feed the world, one truck at a time.</h1>
+          <p className="tag">{TAGLINE}</p>
           <div className="btn-row">
-            <LinkButton primary href={LINKS.demo} label="Download the free demo" note="For Windows, free" soon="For Windows, coming soon" />
+            <LinkButton primary href={LINKS.demo} label="Download the free demo" note="Windows" soon="Windows, coming soon" />
             <LinkButton href={LINKS.steam} label="Wishlist on Steam" note="Wishlist now" soon="Coming soon" />
           </div>
-          <p className="build-line">Current build <b>{BUILD}</b>. The free demo covers Tiers 0 and 1 on Map 1. It changes often, and saves may not carry over.</p>
+        </div>
+        <div className="stats wrap">
+          <div><b>{SITES.length}</b><span>Buildings</span></div>
+          <div><b>{GOODS.length}</b><span>Goods</span></div>
+          <div><b>{VEHICLES.length}</b><span>Vehicles</span></div>
+          <div><b>{MAPS.length}</b><span>Maps</span></div>
         </div>
       </header>
 
       <main>
         <section className="section" id="game">
-          <div className="wrap">
-            <Head kicker="The game" title="Feed the world">
-              Towns need goods. You grow the food, cut the wood and dig the stone, then deliver it. Fill the towns&apos; shelves and they grow.
-            </Head>
-            <div className="grid c3">
-              {FEATURES.map((f) => (
-                <div className="panel bar" key={f.tag}>
-                  <div className="label accent">{f.tag}</div>
-                  <h3>{f.title}</h3>
-                  <p>{f.body}</p>
+          <div className="wrap pillars">
+            {PILLARS.map((p, i) => (
+              <article className={`pillar${i % 2 ? ' flip' : ''}`} key={p.tag}>
+                <div className="pillar-img"><img src={p.img} alt={p.alt} loading="lazy" /></div>
+                <div className="pillar-text">
+                  <div className="kicker"><span>{p.n}</span>{p.tag}</div>
+                  <h2>{p.title}</h2>
+                  <p>{p.body}</p>
                 </div>
-              ))}
+              </article>
+            ))}
+          </div>
+        </section>
+
+        <section className="section" id="studio">
+          <div className="wrap studio">
+            <div>
+              <div className="kicker">The honest bit</div>
+              <h2>{STUDIO.title}</h2>
+              {STUDIO.body.map((b) => <p key={b}>{b}</p>)}
             </div>
-            <div className="stats">
-              {STATS.map((s) => (
-                <div className="stat" key={s.label}><b>{s.n}</b><span>{s.label}</span></div>
+            <aside className="report">
+              <div className="report-head"><span>Studio status report</span><span>Form PF-1</span></div>
+              <dl>
+                {STUDIO.report.map(([k, v]) => <div key={k}><dt>{k}</dt><dd>{v}</dd></div>)}
+              </dl>
+              <div className="stamp">Probably fine</div>
+            </aside>
+          </div>
+        </section>
+
+        <section className="section showcase" id="models">
+          <div className="wrap">
+            <div className="head-row">
+              <div>
+                <div className="kicker">The wiki</div>
+                <h2>Every building and vehicle, up close</h2>
+              </div>
+              <a className="btn" href="/wiki/">Open the wiki</a>
+            </div>
+            <div className="models">
+              {SHOWCASE.map(([src, label, href]) => (
+                <a key={href} href={href} className="model-card">
+                  <img src={src} alt={label} loading="lazy" />
+                  <span>{label}</span>
+                </a>
               ))}
             </div>
           </div>
@@ -44,75 +93,31 @@ export default function Home() {
 
         <section className="section" id="shots">
           <div className="wrap">
-            <Head kicker="Screenshots" title="A whole world to build on" />
+            <div className="kicker">Screenshots</div>
+            <h2 className="h2">A whole world to build on</h2>
             <div className="shots">
               {SHOTS.map((s) => (
-                <figure className="shot" key={s.src}>
+                <a className="shot" key={s.src} href={s.src} target="_blank" rel="noopener">
                   <img src={s.src} alt={s.alt} loading="lazy" />
-                  <figcaption>{s.caption}</figcaption>
-                </figure>
+                </a>
               ))}
-            </div>
-          </div>
-        </section>
-
-        <section className="section" id="play">
-          <div className="wrap split">
-            <div>
-              <Head kicker="How it plays" title="Your first ten minutes">A little guide shows you around. These are the steps.</Head>
-              <ol className="steps">
-                {STEPS.map((s) => (
-                  <li key={s.title}><div><b>{s.title}</b><span>{s.body}</span></div></li>
-                ))}
-              </ol>
-            </div>
-            <div>
-              <Head kicker="Progress" title="Five tiers">Each tier opens new buildings and bigger goals. The free demo covers Tiers 0 and 1.</Head>
-              <div className="grid" style={{ gap: 10 }}>
-                {TIERS.map((t) => (
-                  <div className={`rung${t.demo ? '' : ' off'}${t.edge ? ' edge' : ''}`} key={t.tier}>
-                    <small>{t.tier}</small>
-                    <b>{t.name}</b>
-                    <span>{t.body}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <section className="section" id="demo">
-          <div className="wrap">
-            <Head kicker="Free demo" title="Try it, then take it further">The demo is a real slice of the game. When you reach Tier 2 it ends, and your save carries over.</Head>
-            <table className="compare">
-              <thead>
-                <tr><th></th><th className="demo">Free demo</th><th>Full game</th></tr>
-              </thead>
-              <tbody>
-                {COMPARE.map((c) => (
-                  <tr key={c.what}><th>{c.what}</th><td className="demo">{c.demo}</td><td className="full">{c.full}</td></tr>
-                ))}
-              </tbody>
-            </table>
-            <div className="btn-row" style={{ marginTop: 20 }}>
-              <LinkButton primary href={LINKS.demo} label="Download the free demo" note="For Windows, free" soon="For Windows, coming soon" />
-              <a className="btn" href="/steam/">See the store page<small>A preview</small></a>
             </div>
           </div>
         </section>
 
         <section className="section" id="maps">
           <div className="wrap">
-            <Head kicker="Maps" title="Three worlds to play">Each map is shown flat here. In the game it wraps round a globe.</Head>
+            <div className="kicker">Maps</div>
+            <h2 className="h2">Three worlds, wrapped round a globe</h2>
             <div className="maps">
               {MAPS.map((m) => (
                 <article className="map" key={m.n}>
                   <img src={m.img} alt={`Map ${m.n}, ${m.name}, seen flat`} loading="lazy" />
                   <div className="map-body">
-                    <span className={`pill ${m.tone}`}>{m.status}</span>
-                    <h3>Map {m.n}: {m.name}</h3>
-                    <p><b>{m.lead}</b> {m.body}</p>
-                    <ul className="pills">{m.facts.map((f) => <li key={f}>{f}</li>)}</ul>
+                    <span className={`pill${m.n === 1 ? ' accent' : ''}`}>{m.status}</span>
+                    <h3><small>Map {m.n}</small>{m.name}</h3>
+                    <p>{m.body}</p>
+                    <span className="map-fact">{m.facts.join(' · ')}</span>
                   </div>
                 </article>
               ))}
@@ -120,59 +125,79 @@ export default function Home() {
           </div>
         </section>
 
-        <section className="section" id="artists">
+        <section className="section" id="demo">
           <div className="wrap">
-            <div className="panel gold hire">
-              <div className="label accent">Artwork overhaul</div>
-              <h2>We are looking for 3D artists</h2>
-              <p>The game you see today uses stand-in models while the rules and the world are built. A full overhaul of the artwork is coming, and we want artists to help make it look right.</p>
-              <ul>
-                <li>Buildings, vehicles, town pieces and props, low to mid poly, built for a world seen from far out and from the street.</li>
-                <li>A consistent look across hundreds of pieces.</li>
-                <li>Paid work, scoped by piece. Show us what you have made.</li>
-              </ul>
-              <div className="btn-row" style={{ marginTop: 18 }}>
-                <a className="btn primary" href={LINKS.studio} rel="noopener">Get in touch<small>Through Probably Fine Studios</small></a>
+            <div className="demo-band">
+              <div>
+                <div className="kicker">Free demo</div>
+                <h2>Play the first two tiers free</h2>
+                <ul className="ticks">{DEMO_POINTS.map((d) => <li key={d}>{d}</li>)}</ul>
+                <div className="btn-row">
+                  <LinkButton primary href={LINKS.demo} label="Download the free demo" note="Windows" soon="Windows, coming soon" />
+                </div>
+              </div>
+              <ol className="tiers">
+                {TIERS.map((t, i) => (
+                  <li key={t} className={i < DEMO_TIERS ? 'on' : ''}>
+                    <small>Tier {i}</small>
+                    <b>{t}</b>
+                    <span>{i < DEMO_TIERS ? 'Demo' : 'Full game'}</span>
+                  </li>
+                ))}
+              </ol>
+            </div>
+          </div>
+        </section>
+
+        <section className="section" id="news">
+          <div className="wrap devlog">
+            <div>
+              <div className="kicker">Updates</div>
+              <h2 className="h2">What is new</h2>
+              {NEWS.map((n, i) => (
+                <details className="update" key={n.v} open={i === 0}>
+                  <summary><span className="ver">{n.v}</span>{n.title}</summary>
+                  <ul>{n.items.map((x) => <li key={x}>{x}</li>)}</ul>
+                </details>
+              ))}
+            </div>
+            <div>
+              <div className="kicker">Roadmap</div>
+              <h2 className="h2">Where it is going</h2>
+              <div className="road">
+                <h3><span className="dot now" />Now</h3>
+                <ul>{ROADMAP.now.map((r) => <li key={r}>{r}</li>)}</ul>
+                <h3><span className="dot" />Next</h3>
+                <ul>{ROADMAP.next.map((r) => <li key={r}>{r}</li>)}</ul>
               </div>
             </div>
           </div>
         </section>
 
-        <section className="section" id="roadmap">
-          <div className="wrap">
-            <Head kicker="Roadmap" title="The road ahead">Where we have been, where we are, and where we are going.</Head>
-            <ol className="trail">
-              {ROADMAP.map((r) => (
-                <li className={r.state} key={r.title}>
-                  <h3>{r.title} <span className={`pill ${r.state === 'done' ? 'good' : r.state === 'now' ? 'accent' : ''}`}>{r.state === 'done' ? 'Done' : r.state === 'now' ? 'Now' : 'Next'}</span></h3>
-                  <p>{r.body}</p>
-                </li>
-              ))}
-            </ol>
-          </div>
-        </section>
-
-        <section className="section" id="news">
-          <div className="wrap">
-            <Head kicker="Updates" title="What is new" />
-            <div className="log">
-              {NEWS.map((n) => (
-                <div className="panel bar" key={n.v}>
-                  <div className="label">{n.v}</div>
-                  <h3>{n.title}</h3>
-                  <ul>{n.items.map((i) => <li key={i}>{i}</li>)}</ul>
-                </div>
+        <section className="section" id="faq">
+          <div className="wrap faq">
+            <div>
+              <div className="kicker">Questions</div>
+              <h2 className="h2">Quick answers</h2>
+            </div>
+            <div>
+              {FAQ.map((f) => (
+                <details key={f.q}><summary>{f.q}</summary><p>{f.a}</p></details>
               ))}
             </div>
           </div>
         </section>
 
-        <section className="section" id="faq">
+        <section className="section">
           <div className="wrap">
-            <Head kicker="Questions" title="Quick answers" />
-            {FAQ.map((f) => (
-              <details key={f.q}><summary>{f.q}</summary><p>{f.a}</p></details>
-            ))}
+            <div className="artists">
+              <div>
+                <div className="kicker">Artists wanted. Badly.</div>
+                <h2>Can you make a barn look like a barn?</h2>
+                <p>We have the logic, the spreadsheets and plenty of opinions. We need someone who can make buildings, vehicles and town pieces, low to mid poly, in one style. It is paid work, and you would be replacing the AI.</p>
+              </div>
+              <a className="btn primary" href={LINKS.studio} rel="noopener">Get in touch</a>
+            </div>
           </div>
         </section>
       </main>

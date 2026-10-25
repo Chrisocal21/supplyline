@@ -11,24 +11,30 @@ export function LinkButton({ href, primary, label, note, soon }: { href: string;
   );
 }
 
+/** The mark (a globe with a route running through it) and the name. */
+export function Logo({ size = 34, mark = true }: { size?: number; mark?: boolean }) {
+  return (
+    <a className="brand" href="/" aria-label="SupplyLine home">
+      {mark ? <img src="/logo.svg" alt="" width={size} height={size} /> : null}
+      <span className="brand-name">SUPPLY<span>LINE</span></span>
+    </a>
+  );
+}
+
 export function Nav({ home }: { home: boolean }) {
   const h = home ? '' : '/';
   return (
     <header className="nav">
-      <div className="wrap">
-        <div className="nav-in">
-          <a className="brand" href="/">SUPPLY<span>LINE</span></a>
-          <nav className="nav-links">
-            <a className="hide-s" href={`${h}#play`}>How it plays</a>
-            <a className="hide-s" href={`${h}#maps`}>Maps</a>
-            <a className="hide-s" href={`${h}#roadmap`}>Roadmap</a>
-            <a className="hide-s" href={`${h}#faq`}>Questions</a>
-            <a href="/wiki/">Wiki</a>
-            <a href="/goods/">Goods</a>
-            <a href="/steam/">Store page</a>
-            <a className="btn primary sm" href={LINKS.demo || '#'} rel="noopener">Get the demo</a>
-          </nav>
-        </div>
+      <div className="wrap nav-in">
+        <Logo mark={false} />
+        <nav className="nav-links">
+          <a className="hide-s" href={`${h}#game`}>The game</a>
+          <a className="hide-s" href={`${h}#maps`}>Maps</a>
+          <a className="hide-s" href={`${h}#news`}>Updates</a>
+          <a className="hide-s" href={`${h}#studio`}>The studio</a>
+          <a href="/wiki/">Wiki</a>
+          <a className="btn primary sm" href={LINKS.demo || '#'} rel="noopener">Get the demo</a>
+        </nav>
       </div>
     </header>
   );
@@ -37,20 +43,18 @@ export function Nav({ home }: { home: boolean }) {
 export function Footer() {
   return (
     <footer className="footer">
-      <div className="wrap">
-        <p>SupplyLine is part of the <a href={LINKS.studio} rel="noopener">Probably Fine Studios</a> family.</p>
-        <p>Made by Chris, with help from Jawraw, the old man in the chair, who is always picking fights with the office dog.</p>
+      <div className="wrap footer-in">
+        <div>
+          <Logo size={40} />
+          <p>A <a href={LINKS.studio} rel="noopener">Probably Fine Studios</a> game. Made by Chris and a handful of friends with opinions, some of whom need to patch their build. The models are made with AI, because none of us can do 3D.</p>
+        </div>
+        <nav className="footer-links">
+          <a href="/wiki/">Wiki</a>
+          <a href="/wiki/gallery/">Gallery</a>
+          <a href="/steam/">Store page preview</a>
+          <a href={LINKS.studio} rel="noopener">Studio</a>
+        </nav>
       </div>
     </footer>
-  );
-}
-
-export function Head({ kicker, title, children }: { kicker: string; title: string; children?: React.ReactNode }) {
-  return (
-    <div className="section-head">
-      <div className="label accent">{kicker}</div>
-      <h2>{title}</h2>
-      {children ? <p>{children}</p> : null}
-    </div>
   );
 }

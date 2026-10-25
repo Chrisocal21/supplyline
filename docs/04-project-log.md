@@ -963,3 +963,11 @@ What changed:
 - `tools/model-gallery.cjs` (`npm run gallery`, needs the dev server up): renders every building at levels 1, 3 and 10 (ports and airports 1 to 3), every vehicle, district landmark at levels 1 to 3 and tree to a transparent PNG in `docs/model-previews/` with a manifest. `GALLERY_ONLY=vehicle-` redraws a part. The renderer is `galleryList` / `galleryImage` on Game3D.
 - `tools/export-wiki.cjs` (`npm run wiki`) writes `web/app/wiki/data.json` from the game's own definitions and goods catalogue. Rerun both tools after changing models or defs, and commit the results.
 - Website: `/wiki/` with Buildings (91, searchable, each with level pictures, what it makes and uses), Vehicles (13), Districts (25), Goods (89, each with what makes and uses it) and a Gallery of every picture. About 230 static pages. `web/scripts/assets.cjs` copies the pictures into the site.
+
+## 0.156: website overhaul and the new logo
+
+- The home page is rebuilt to look like a game site: a full-screen globe opening with the logo and one line, three big Build / Move / Grow rows, a model showcase linking to the wiki, a screenshot grid, the three maps, one demo panel with the tier ladder, updates beside the roadmap, four questions and a short artists banner. Repeated lines (the demo scope, the artist pitch) are said once. Counts come from the wiki data.
+- New "The honest bit" section: one developer and a handful of friends, AI-made stand-in models, an ode to ATS, Farming Simulator, Satisfactory, Cities: Skylines and SimCity, and open to modding. A studio status report card with a PROBABLY FINE stamp.
+- Logo: the supplied emblem is `docs/supplyline-logo-original.png` and shows on the home page and the store page preview. Small uses (favicon, app icon, footer) use a simplified globe mark drawn in code (`public/favicon.svg`). The top bar is the title only. `build/icon.png` and `electron/icon.png` are re-rendered from the mark.
+- Fishing Boat picture fixed: the gallery list now reads every vehicle in `VEHICLE_DEFS`, not `VEHICLE_ORDER`, which leaves the fishing boat out. 357 pictures.
+- Game code is untouched apart from that gallery list.

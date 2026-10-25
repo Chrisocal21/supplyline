@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { LINKS } from '../content';
+import { GOODS, SITES } from '../wiki/wiki';
 import { Footer, LinkButton, Nav } from '../parts';
 
 export const metadata: Metadata = {
@@ -38,7 +39,7 @@ export default function Store() {
             </div>
           </div>
           <aside className="panel">
-            <div className="capsule">SUPPLY<span>LINE</span></div>
+            <img className="store-logo" src="/logo-full.jpg" alt="SupplyLine logo" width={1000} height={1000} />
             <p>Build farms, forests and factories on a 3D globe. Then move the goods by truck, train, ship and plane, and watch the towns grow.</p>
             <dl className="rows">
               <div><dt>Developer</dt><dd>Probably Fine Studios</dd></div>
@@ -70,30 +71,18 @@ export default function Store() {
               <p>Towns need goods. You grow the food, cut the wood and dig the stone, then deliver it. Fill the towns&apos; shelves and a village becomes a town, a city, a metropolis.</p>
               <ul className="plain-list">
                 <li>A 3D globe with three hand-made maps, from a small teaching world to a huge one with about 190 towns.</li>
-                <li>89 goods and 87 buildings, from raw logs to steel and machinery.</li>
+                <li>{GOODS.length} goods and {SITES.length} buildings, from raw logs to steel and machinery.</li>
                 <li>Move goods by truck, train, ship and plane, with roads, rails, bridges and canals.</li>
                 <li>Named drivers who rank up, and mechanics who keep the fleet running.</li>
                 <li>Five tiers of goals, with a guide for your first town and a relaxed mode with no punishment.</li>
+                <li>Made by one developer and a handful of friends. The models are stand-ins made with AI, because none of us can do 3D art.</li>
               </ul>
             </section>
             <section className="panel">
               <h3>Screenshots</h3>
-              <div className="shots" style={{ marginTop: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))' }}>
-                {SHOTS.map(([src, alt]) => (
-                  <figure className="shot" key={src}><img src={src} alt={alt} loading="lazy" /></figure>
-                ))}
+              <div className="shot-grid">
+                {SHOTS.map(([src, alt]) => <img key={src} src={src} alt={alt} loading="lazy" />)}
               </div>
-            </section>
-            <section className="panel gold hire">
-              <div className="label accent">Artwork overhaul</div>
-              <h2>We are looking for 3D artists</h2>
-              <p>The game you see today uses stand-in models while the rules and the world are built. A full overhaul of the artwork is coming, and we want artists to help make it look right.</p>
-              <ul>
-                <li>Buildings, vehicles, town pieces and props, low to mid poly, built for a world seen from far out and from the street.</li>
-                <li>A consistent look across hundreds of pieces.</li>
-                <li>Paid work, scoped by piece. Show us what you have made.</li>
-              </ul>
-              <p style={{ marginTop: 12 }}>Get in touch through <a href={LINKS.studio} rel="noopener" style={{ color: 'var(--accent)' }}>Probably Fine Studios</a>.</p>
             </section>
           </div>
           <div className="stack">

@@ -38,7 +38,7 @@ export default function WikiHome() {
           );
         })}
       </div>
-      <p className="wiki-note">Looking for the full table of goods? <a href="/goods/">The goods catalogue</a> lists every one from raw to finished. All the pictures are in <a href="/wiki/gallery/">the gallery</a>.</p>
+      <p className="wiki-note">All the pictures are in <a href="/wiki/gallery/">the gallery</a>.</p>
     </WikiShell>
   );
 }

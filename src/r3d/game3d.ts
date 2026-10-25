@@ -3186,7 +3186,7 @@ export class Game3D {
       const levels = def.dock || def.station ? [1] : def.port || def.airport ? [1, 2, 3] : [1, 3, 10];
       for (const level of levels) out.push({ key: `site-${kind}-L${level}`, group: 'building', kind, label: def.label, level });
     }
-    for (const kind of VEHICLE_ORDER) out.push({ key: `vehicle-${kind}`, group: 'vehicle', kind, label: VEHICLE_DEFS[kind].label, level: 1 });
+    for (const kind of Object.keys(VEHICLE_DEFS) as VehicleKind[]) out.push({ key: `vehicle-${kind}`, group: 'vehicle', kind, label: VEHICLE_DEFS[kind].label, level: 1 });
     for (const id of DISTRICT_ORDER) for (const level of [1, 2, 3]) out.push({ key: `district-${id}-L${level}`, group: 'district', kind: id, label: DISTRICTS[id].label, level });
     for (const t of ['pine', 'oak', 'birch', 'orchard', 'palm'] as const) out.push({ key: `tree-${t}`, group: 'tree', kind: t, label: t[0].toUpperCase() + t.slice(1), level: 1 });
     return out;
