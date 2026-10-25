@@ -36,7 +36,7 @@ export const TUTORIAL: TutStep[] = [
   { id: 'switchon', tier: 1, title: 'Switch it on', text: 'Click the Sawmill and turn on Lumber under Production. A factory makes nothing until you do.', test: (w) => w.sites.some((s) => s.making) },
   { id: 'farm', tier: 1, title: 'Make food', text: 'The Market buys bread, cheese, milk, eggs and fruit. Build a Farm on open ground, a Flour Mill, and a Bakery, and road them in a line.', test: (w) => count(w, 'bakery') >= 1 && count(w, 'mill') >= 1 && count(w, 'farm') >= 1 },
   { id: 'sell', tier: 1, title: 'Where it goes', text: 'Click a building and open its Selling tab. A truck takes goods to whichever buyer you have joined it to.', flag: 'selected' },
-  { id: 'fleet', tier: 1, title: 'The Fleet sheet', text: 'Press V to see every truck: how busy it is, how worn, who drives it. Idle trucks cost less but can be sold.', flag: 'sheet:fleet' },
+  { id: 'fleet', tier: 1, title: 'The Fleet sheet', text: 'Press F to see every truck: how busy it is, how worn, who drives it. Idle trucks cost less but can be sold.', flag: 'sheet:fleet' },
   { id: 'production', tier: 1, title: 'The Production sheet', text: 'Press P to see every factory and what holds it up. Fix the red ones first.', flag: 'sheet:production' },
   { id: 'by', tier: 1, title: 'By-products', text: 'Many buildings also make sawdust, whey or bran. A Recycling Yard takes any of them so a line never jams.', test: (w) => count(w, 'scrapyard') >= 1 },
   { id: 'mechanic', tier: 1, title: 'Keep trucks running', text: 'Worn trucks go slower and carry less. Build a Mechanic Shop and hire a mechanic to repair them.', test: (w) => (w.mechanics ?? []).length >= 1 },

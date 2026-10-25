@@ -313,7 +313,7 @@ export class HudScene extends Phaser.Scene {
     kb.on('keydown-TAB', () => this.cycleTab());
     kb.on('keydown-P', () => this.toggleSheet('production'));
     kb.on('keydown-Y', () => !this.title && this.toggleSheet('company'));
-    kb.on('keydown-V', () => !this.title && this.toggleSheet('fleet'));
+    kb.on('keydown-F', () => !this.title && this.toggleSheet('fleet'));
     kb.on('keydown-BACKSPACE', () => this.game3d.undoDraft());
     kb.on('keydown-ENTER', () => {
       if (this.title) {
@@ -1206,7 +1206,7 @@ export class HudScene extends Phaser.Scene {
     const business: Item[] = [
       { id: 'company', label: 'Company', key: 'Y', on: this.sheet === 'company', icon: ico('company'), act: () => this.toggleSheet('company') },
       { id: 'prod', label: 'Production', key: 'P', on: this.sheet === 'production', icon: ico('production'), act: () => this.toggleSheet('production') },
-      { id: 'fleet', label: 'Fleet', key: 'V', on: this.sheet === 'fleet', icon: ico('fleet'), act: () => this.toggleSheet('fleet') },
+      { id: 'fleet', label: 'Fleet', key: 'F', on: this.sheet === 'fleet', icon: ico('fleet'), act: () => this.toggleSheet('fleet') },
       { id: 'towns', label: 'Towns', key: 'T', on: this.sheet === 'towns', icon: ico('towns'), act: () => this.toggleSheet('towns') },
       { id: 'bank', label: 'Bank', key: 'B', on: this.sheet === 'bank', icon: ico('bank'), act: () => this.toggleSheet('bank') },
       { id: 'quests', label: 'Quests', key: 'G', on: this.sheet === 'quests', icon: ico('quests'), act: () => this.toggleSheet('quests') },
@@ -1245,6 +1245,7 @@ export class HudScene extends Phaser.Scene {
       ['Camera', [['W A S D', 'Move'], ['Q / E', 'Turn'], ['Wheel', 'Zoom'], ['Right-drag', 'Tilt and turn'], ['Compass', 'Face north']]],
       ['Build', [['Tab', 'Next category'], ['1 - 9', 'Pick a card'], ['R', 'Rotate building'], ['C / X', 'Road / Demolish'], ['Enter / Bksp', 'Finish / undo bend']]],
       ['Game', [['Space', 'Pause'], ['- / +', 'Slower / faster'], ['U', 'Upgrade selected'], ['N', 'Next problem'], ['Esc', 'Close / menu']]],
+      ['Menus', [['Y / P / F', 'Company / Production / Fleet'], ['T / B', 'Towns / Finance'], ['G / H', 'Objectives / How to play'], ['L / O', 'Saves / Graphics'], ['M / F3', 'Map / Performance']]],
     ];
     const tilesH = (n: number): number => Math.ceil(n / cols) * (tileH + gap) - gap;
     let bodyH: number;

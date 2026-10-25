@@ -1092,3 +1092,8 @@ What changed:
 ## 0.179: vehicle cards
 
 - Vehicle cards, tiles, the route picture, buyer tiles and the circuit map use 8 px corners; the thick left edge bars become the thin inset line used on the Manage cards, and the buyer chips are rounder.
+
+## 0.180: placement overlay and keys
+
+- Build tools no longer wash every for-sale plot orange: plot edges are faint outlines only. Open-ground buildings show the green / orange site zones like the road tool, and for-sale land counts as open (placing there buys the plot first). Node buildings show only their node markers.
+- F opens the Fleet (was V). The keybinds page gains a Menus group listing every menu key.

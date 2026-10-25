@@ -6,6 +6,7 @@ import { isSoftNode, type NodeKind } from '../sim/defs';
 import { tileLonLat } from '../sim/mapgen';
 import { parcelState, parcelsOf } from '../sim/land';
 import { seasonLook } from './season';
+import { LAND_PREFIX } from '../sim/land';
 import { placeError, plotTiles, reservedGround, siteAt, terrainAt, townBlocks, townGates, townGround, type Rot, type World } from '../sim/world';
 import type { SiteKind } from '../sim/defs';
 import { HeightField, LAT_SPAN, R, basisMatrix, lonLatToVec } from './geo';
@@ -617,8 +618,7 @@ export class Scenery {
   private parcelSig = '';
 
   /**
-   * The land plots, shown while a building tool is active: green outlines and wash round ground the player may build on (owned,
-   * or free to anyone), orange round ground that is locked until bought. Remade when a plot is bought.
+   * The land plots, shown while a building tool is active as faint outlines. Remade when a plot is bought.
    */
   setParcels(active: boolean, sig: string): void {
     const w = this.world;
@@ -652,13 +652,8 @@ export class Scenery {
       lonLatToVec(lon, lat, R + this.hf.surface(lon, lat) + lift, v);
       out.push(v.x, v.y, v.z);
     };
-    // Green is ground the player may build on (owned, or free to anyone); orange is ground that is locked until it is bought.
     const open: number[] = [];
     const locked: number[] = [];
-    const openWash: number[] = [];
-    const openIdx: number[] = [];
-    const lockedWash: number[] = [];
-    const lockedIdx: number[] = [];
     for (const p of parcelsOf(w).parcels) {
       const state = parcelState(w, p);
       if (state !== 'sale' && state !== 'owned' && state !== 'free') continue;
@@ -676,18 +671,6 @@ export class Scenery {
         at(p.x + p.w, p.y + j, 0.11, out);
         at(p.x + p.w, p.y + j + 1, 0.11, out);
       }
-      const wash = isOpen ? openWash : lockedWash;
-      const idx = isOpen ? openIdx : lockedIdx;
-      for (let j = 0; j < p.h; j++) {
-        for (let i = 0; i < p.w; i++) {
-          const base = wash.length / 3;
-          at(p.x + i, p.y + j, 0.09, wash);
-          at(p.x + i + 1, p.y + j, 0.09, wash);
-          at(p.x + i + 1, p.y + j + 1, 0.09, wash);
-          at(p.x + i, p.y + j + 1, 0.09, wash);
-          idx.push(base, base + 1, base + 2, base, base + 2, base + 3);
-        }
-      }
     }
     const lines = (pos: number[], color: number, opacity: number): THREE.LineSegments => {
       const geo = new THREE.BufferGeometry();
@@ -696,20 +679,9 @@ export class Scenery {
       l.frustumCulled = false;
       return l;
     };
-    const washMesh = (pos: number[], idx: number[], color: number, opacity: number): void => {
-      if (idx.length === 0) return;
-      const geo = new THREE.BufferGeometry();
-      geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-      geo.setIndex(idx);
-      const m = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color, transparent: true, opacity, depthWrite: false, side: THREE.DoubleSide, fog: false }));
-      m.frustumCulled = false;
-      m.renderOrder = 3;
-      group.add(m);
-    };
-    group.add(lines(locked, 0xffb347, 0.8));
-    group.add(lines(open, 0x7fe3a8, 0.95));
-    washMesh(lockedWash, lockedIdx, 0xff8a45, 0.3);
-    washMesh(openWash, openIdx, 0x6fe3a0, 0.3);
+    // Faint outlines only: the green and orange wash of where a building can stand comes from the site zones, as with roads.
+    group.add(lines(locked, 0xf2e6c8, 0.22));
+    group.add(lines(open, 0xf2e6c8, 0.22));
     this.group.add(group);
     return group;
   }
@@ -885,7 +857,8 @@ export class Scenery {
       const t = terrainAt(w, x, y);
       if (t === null || t === 'water' || t === 'ice') continue;
       const err = placeError(w, kind, x, y, rot ?? undefined);
-      this.siteOk.set(i, err === null || err.startsWith('Need $'));
+      // Land that is only for sale counts as open: placing there buys the plot first.
+      this.siteOk.set(i, err === null || err.startsWith('Need $') || err.startsWith(LAND_PREFIX));
       this.siteDirty = true;
     }
     if (this.siteDirty && (this.siteTodo.length === 0 || now - this.siteBuiltAt > 250)) {
