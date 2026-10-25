@@ -1957,8 +1957,8 @@ export class Game3D {
       if (!on) asleep++;
     }
     this.perf.asleep = asleep;
-    // From far out the ground is drawn with a quarter of the triangles.
-    this.globe?.setDetail(this.cam.dist > 350);
+    // Ground chunks past the horizon are skipped, and far ones drawn with a quarter of the triangles.
+    this.globe?.setDetail(this.camera.position);
   }
 
   /** True when a point on the globe is inside the awake area. `slack` widens it for things with some size. */

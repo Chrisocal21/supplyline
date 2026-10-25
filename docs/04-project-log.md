@@ -1031,3 +1031,9 @@ What changed:
 ## 0.166: /access shows the latest build up front
 
 - The latest release is fetched as the page opens and shown under the intro (version and date), so the code is only needed for the downloads.
+
+## 0.167: Map 3 performance, the ground
+
+- Ground detail is now picked per chunk each frame (`setDetail(eye)` in globeMesh.ts): chunks past the horizon are hidden, and chunks farther than two camera heights (at least 12 tiles) use the coarse index, one quad a tile. From far out (over 350) all are coarse, as before.
+- Map 3 ground triangles in view (measured with triSplit at the same view, normal play mode): 754k to 74k at distance 60, 1.6M to 205k at 150, 1.9M to 483k at 300. No visible cracks or flattening in a close-up check.
+- Measuring note: `#...shot` URLs switch off the awake-area trimming, so trees count in the tens of millions there; measure performance with a plain `#seed=` URL.

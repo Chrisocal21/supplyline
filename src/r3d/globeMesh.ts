@@ -65,8 +65,9 @@ function detailTexture(): THREE.Texture {
 export interface Globe {
   terrain: THREE.Group;
   update(seconds: number): void;
-  /** Draw the ground with a quarter of the triangles (one quad a tile) when the camera is far out, where the bumps cannot be seen. */
-  setDetail(far: boolean): void;
+  /** Pick each ground chunk's detail from where the camera is: chunks past the horizon are not drawn, and chunks far from the
+   *  camera (or all of them, from far out) use a quarter of the triangles, one quad a tile, where the bumps cannot be seen. */
+  setDetail(eye: THREE.Vector3): void;
   /** Re-sample the height of these tiles (and refresh normals), after roads regrade the ground. */
   regrade(tiles: Iterable<number>): void;
   atmosphere: THREE.Mesh;
@@ -140,11 +141,12 @@ export function buildGlobe(world: World, hf: HeightField, color: Pixels, rough: 
     geo: THREE.BufferGeometry;
     fine: THREE.BufferAttribute;
     coarse: THREE.BufferAttribute;
+    mesh?: THREE.Mesh;
+    isCoarse?: boolean;
   }
   const chunks: Chunk[] = [];
   const chunkGroup = new THREE.Group();
   chunkGroup.name = 'terrain';
-  let farDetail = false;
   const chunkBounds = (c: THREE.BufferGeometry, i0: number, i1: number, j0: number, j1: number): void => {
     const box = new THREE.Box3();
     const v = new THREE.Vector3();
@@ -261,6 +263,7 @@ varying vec3 vSurfacePosition;`)
   const terrain = chunkGroup;
   for (const c of chunks) {
     const m = new THREE.Mesh(c.geo, material);
+    c.mesh = m;
     m.receiveShadow = true;
     m.name = 'terrain';
     chunkGroup.add(m);
@@ -416,10 +419,26 @@ varying vec3 vSurfacePosition;`)
       time.value = seconds;
     },
     regrade,
-    setDetail(far) {
-      if (far === farDetail || SUB < 2) return;
-      farDetail = far;
-      for (const c of chunks) c.geo.setIndex(far ? c.coarse : c.fine);
+    setDetail(eye) {
+      const eyeLen = eye.length();
+      const height = eyeLen - R;
+      // Full detail within a couple of camera heights (and never less than a dozen tiles); everything is light from far out.
+      const tile = (2 * Math.PI * R) / world.width;
+      const near = height > 350 ? -1 : Math.max(height * 2, tile * 12);
+      const horizon = Math.acos(Math.min(1, R / Math.max(eyeLen, R)));
+      for (const c of chunks) {
+        const s = c.geo.boundingSphere!;
+        const cl = s.center.length() || 1;
+        const angle = Math.acos(Math.max(-1, Math.min(1, s.center.dot(eye) / (cl * eyeLen))));
+        const shown = angle < horizon + s.radius / R + 0.03;
+        if (c.mesh!.visible !== shown) c.mesh!.visible = shown;
+        if (!shown || SUB < 2) continue;
+        const coarse = near < 0 || eye.distanceTo(s.center) - s.radius > near;
+        if (coarse !== !!c.isCoarse) {
+          c.isCoarse = coarse;
+          c.geo.setIndex(coarse ? c.coarse : c.fine);
+        }
+      }
     },
     atmosphere,
     stars,
