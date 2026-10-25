@@ -16,6 +16,9 @@ import {
   TICKS_PER_SECOND,
   TIERS,
   TOWN_LEVELS,
+  BUILD_ORDER,
+  VEHICLE_DEFS,
+  VEHICLE_ORDER,
   type Good,
   type VehicleKind,
 } from '../sim/defs';
@@ -27,7 +30,7 @@ import { button, companyPage, emptyState, fleetPage, panel, sectionHead, stat } 
 import { COLORS, Im } from './imui';
 import { isTouch } from './inputmode';
 
-export type SheetId = 'company' | 'production' | 'fleet' | 'towns' | 'bank' | 'quests' | 'guide';
+export type SheetId = 'company' | 'production' | 'fleet' | 'towns' | 'bank' | 'quests' | 'guide' | 'wiki';
 
 interface View {
   x0: number;
@@ -311,6 +314,7 @@ export class Sheets {
       { id: 'bank', label: 'Finance', title: 'Finance', sub: 'Loans, savings and the market fund', key: 'B' },
       { id: 'quests', label: 'Objectives', title: 'Objectives', sub: 'Tiers, goals and rewards', key: 'O' },
       { id: 'guide', label: 'How to play', title: 'How to play', sub: 'The guide to every building', key: 'H' },
+      { id: 'wiki', label: 'Wiki', title: 'Wiki', sub: 'Every building, vehicle and good, locked or not', key: 'I' },
     ];
     const page = pages.find((p) => p.id === id)!;
     const select = (tid: SheetId): void => {
@@ -406,6 +410,7 @@ export class Sheets {
       : id === 'towns' ? (this.manage !== null && world.places.some((p) => p.id === this.manage) ? this.townDetail(world, world.places.find((p) => p.id === this.manage)!, view) : this.towns(world, view))
       : id === 'bank' ? this.bank(world, view)
       : id === 'quests' ? this.quests(world, view)
+      : id === 'wiki' ? this.wiki(world, view)
       : this.guide(view);
     this.maxScroll = Math.max(0, contentH - (bottom - top));
     this.scroll = Math.max(0, Math.min(this.maxScroll, this.scroll));
@@ -449,6 +454,10 @@ export class Sheets {
       case 'quests':
         im.rect(4, cx - 8, cy - 11, 3, 22, c, 1, 1);
         im.rect(4, cx - 5, cy - 11, 15, 10, c, 1, 1);
+        break;
+      case 'wiki':
+        im.rect(4, cx - 10, cy - 11, 20, 22, c, 1, 2);
+        for (const dy of [-6, -1, 4]) im.rect(4, cx - 6, cy + dy, 12, 2, 0x070b0f, 1, 0);
         break;
       default:
         im.text('shRailQ', '?', cx, cy - 10, { size: 20, bold: true, color: c, align: 'center', layer: 4 });
@@ -1219,6 +1228,72 @@ export class Sheets {
     im.text('bk-r3', 'Coming later', p.x + cw / 2, p.y + ch - 42, { size: 13, bold: true, color: COLORS.muted, align: 'center', layer: 5 });
 
     return 90 + Math.ceil(4 / cols) * (ch + gap) + 4;
+  }
+
+  /** Which list the wiki shows. */
+  wikiPage: 'buildings' | 'vehicles' | 'goods' = 'buildings';
+
+  /**
+   * The wiki: every building, vehicle and good in the game, whether or not it is open yet, each with its tier, price and what
+   * it takes and gives. Locked entries say so; nothing here can be built from the wiki.
+   */
+  private wiki(world: World, v: View): number {
+    const im = this.cim;
+    const W = v.x1 - v.x0;
+    let y = v.y0 - this.scroll;
+    y += this.pageTabs('wk', [['buildings', `Buildings  ·  ${BUILD_ORDER.length}`], ['vehicles', 'Vehicles'], ['goods', 'Goods']] as ['buildings' | 'vehicles' | 'goods', string][], this.wikiPage, v.x0, y, W, (id) => (this.wikiPage = id));
+    const top = y;
+    const gap = 10;
+    const cols = W > 900 ? 3 : W > 560 ? 2 : 1;
+    const cw = (W - gap * (cols - 1)) / cols;
+    const lower = (gs: Partial<Record<Good, number>>): string => Object.entries(gs).map(([g, n]) => `${n} ${GOODS[g as Good].label.toLowerCase()}`).join(' + ');
+    type Entry = { key: string; name: string; tier: number; thumb: string | null; color: number; lines: string[] };
+    let entries: Entry[];
+    if (this.wikiPage === 'buildings') {
+      entries = [...BUILD_ORDER].sort((a, b) => SITE_DEFS[a].tier - SITE_DEFS[b].tier).map((k) => {
+        const d = SITE_DEFS[k];
+        const where = d.node ? `On a ${d.node} node` : d.inTown ? 'On a town district plot' : 'On open ground';
+        const lines = [`$${d.cost.toLocaleString('en-US')}  ·  ${d.category}  ·  ${where}`, d.blurb];
+        if (d.recipe) lines.push(`Uses ${lower(d.recipe.inputs)}`, `Makes ${lower(d.recipe.outputs)}`);
+        return { key: k, name: d.label, tier: d.tier, thumb: `thumb-${k}`, color: d.color, lines };
+      });
+    } else if (this.wikiPage === 'vehicles') {
+      entries = VEHICLE_ORDER.filter((k) => VEHICLE_DEFS[k].implemented).map((k) => {
+        const d = VEHICLE_DEFS[k];
+        return { key: k, name: d.label, tier: d.tier, thumb: null, color: COLORS.info, lines: [`$${d.cost.toLocaleString('en-US')}  ·  ${d.mode}  ·  carries ${d.capacity}`, d.blurb, `Needs a level ${d.needLevel} building to buy`] };
+      });
+    } else {
+      entries = GOOD_LIST.map((g) => {
+        const d = GOODS[g];
+        const makers = BUILD_ORDER.filter((k) => SITE_DEFS[k].produce?.good === g || (SITE_DEFS[k].recipe?.outputs[g] ?? 0) > 0 || (SITE_DEFS[k].produce?.also ?? []).some((a) => a.good === g)).map((k) => SITE_DEFS[k].label);
+        const users = BUILD_ORDER.filter((k) => (SITE_DEFS[k].recipe?.inputs[g] ?? 0) > 0).map((k) => SITE_DEFS[k].label);
+        return { key: g, name: d.label, tier: -1, thumb: null, color: d.color, lines: [`$${d.price} a unit  ·  ${d.kind}`, `Made by: ${makers.join(', ') || 'towns and imports'}`, `Used by: ${users.join(', ') || 'towns buy it'}`] };
+      });
+    }
+    const colY = new Array<number>(cols).fill(top);
+    entries.forEach((e, i) => {
+      const c = i % cols;
+      if (c === 0) colY.fill(Math.max(...colY));
+      const x = v.x0 + c * (cw + gap);
+      const ey = colY[c];
+      const locked = e.tier > world.tier;
+      const pic = e.thumb && this.hooks.hasTexture(e.thumb) ? e.thumb : null;
+      const tx = x + 16 + (pic ? 66 : 0);
+      const tw = x + cw - 14 - tx;
+      let yy = ey + 12;
+      im.text(`wk-n-${e.key}`, e.name, tx, yy, { size: 15, bold: true, color: locked ? COLORS.muted : COLORS.text, wrap: tw - 70, layer: 4 });
+      if (e.tier >= 0) im.text(`wk-t-${e.key}`, locked ? `LOCKED  ·  TIER ${e.tier}` : `TIER ${e.tier}`, x + cw - 14, yy + 2, { size: 9, bold: true, color: locked ? COLORS.warn : COLORS.accent, align: 'right', layer: 4 });
+      yy += 22;
+      e.lines.forEach((ln, k) => {
+        const t = im.text(`wk-l-${e.key}-${k}`, ln, tx, yy, { size: k === 0 ? 11 : 12, color: k === 0 ? COLORS.muted : 0xc4ccce, wrap: tw, layer: 4 });
+        yy += t.h + 4;
+      });
+      const h = Math.max(pic ? 84 : 0, yy - ey + 8);
+      panel(im, x, ey, cw, h, locked ? COLORS.line : e.color);
+      if (pic) im.image(`wk-i-${e.key}`, pic, x + 12, ey + 12, 58, 58, locked ? 0.45 : 1, 4);
+      colY[c] += h + gap;
+    });
+    return Math.max(...colY) - (v.y0 - this.scroll) + 4;
   }
 
   /** The guide section on show. */

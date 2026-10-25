@@ -1128,3 +1128,7 @@ What changed:
 
 - The build tray shows only what can be built now (shownTools); number keys pick from that list. Locked cards are gone on every screen size, not just phones.
 - Reaching a tier stops the game and shows a card: the tier name, every building it opens with its picture, price and category, and the rest (vehicles, highways, rail, building level, bridge length). Confirm carries on at the old speed. `world.tierShown` remembers what was seen; older saves start as seen. The tutorial card hides while it shows.
+
+## 0.187: Wiki
+
+- A Wiki page in Manage (I, or the menu): Buildings (all, by tier, with picture, price, category, where it goes, and what it uses and makes), Vehicles (price, mode, load, garage level) and Goods (price, kind, made by, used by). Locked entries are dimmed and tagged LOCKED with their tier.

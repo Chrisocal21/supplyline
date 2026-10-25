@@ -325,6 +325,7 @@ export class HudScene extends Phaser.Scene {
     kb.on('keydown-B', () => this.toggleSheet('bank'));
     kb.on('keydown-O', () => this.toggleSheet('quests'));
     kb.on('keydown-H', () => this.toggleSheet('guide'));
+    kb.on('keydown-I', () => !this.title && this.toggleSheet('wiki'));
     kb.on('keydown-N', () => this.nextProblem());
     kb.on('keydown-R', () => this.game3d.rotatePlacement());
     kb.on('keydown-M', () => !this.title && this.toggleMinimap());
@@ -1229,6 +1230,7 @@ export class HudScene extends Phaser.Scene {
     ];
     const gameItems: Item[] = [
       { id: 'guide', label: 'How to play', key: 'H', on: this.sheet === 'guide', icon: ico('guide'), act: () => this.toggleSheet('guide') },
+      { id: 'wiki', label: 'Wiki', key: 'I', on: this.sheet === 'wiki', icon: ico('guide'), act: () => this.toggleSheet('wiki') },
       { id: 'saves', label: 'Save / Load', key: 'L', on: this.saves === 'manage', icon: ico('save'), act: () => this.openSavesFromKey() },
       { id: 'new', label: 'New world', key: '', on: false, icon: ico('world'), act: () => this.openSaves('new') },
       { id: 'tut', label: 'Tutorial', key: '', on: this.tutorialOn, toggle: true, icon: ico('tutorial'), act: () => this.toggleTutorial() },
@@ -1261,7 +1263,7 @@ export class HudScene extends Phaser.Scene {
       ['Camera', [['W A S D', 'Move'], ['Q / E', 'Turn'], ['Wheel', 'Zoom'], ['Right-drag', 'Tilt and turn'], ['Compass', 'Face north']]],
       ['Build', [['Tab', 'Next category'], ['1 - 9', 'Pick a card'], ['R', 'Rotate building'], ['V / X', 'Road / Demolish'], ['Enter / Bksp', 'Finish / undo bend']]],
       ['Game', [['Space', 'Pause'], ['- / +', 'Slower / faster'], ['U', 'Upgrade selected'], ['N', 'Next problem'], ['Esc', 'Close / menu']]],
-      ['Menus', [['C / P / F', 'Company / Production / Fleet'], ['T / B', 'Towns / Finance'], ['O / H', 'Objectives / How to play'], ['L / G', 'Saves / Graphics'], ['M / F3', 'Map / Performance']]],
+      ['Menus', [['C / P / F', 'Company / Production / Fleet'], ['T / B', 'Towns / Finance'], ['O / H', 'Objectives / How to play'], ['L / G', 'Saves / Graphics'], ['M / F3', 'Map / Performance'], ['I', 'Wiki']]],
     ];
     const tilesH = (n: number): number => Math.ceil(n / cols) * (tileH + gap) - gap;
     let bodyH: number;
