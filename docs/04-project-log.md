@@ -1007,3 +1007,8 @@ What changed:
 - On screens 900 px and wider, /access puts the logo and heading on the left and the downloads on the right, so it fits without scrolling (checked at 1915 by 965 and 1366 by 680). Phones stack and scroll.
 - New "Installing it on Windows" steps (SmartScreen: More info, Run anyway; Keep in the browser; it updates itself), next to the Mac steps, both folded until opened.
 - The website's demo note covers the first run on Windows as well as the Mac.
+
+## 0.163: UI pass, bit 1: the title screen
+
+- The title logo is cut out of its dark square (brightness-based alpha outside the globe, the globe kept solid) with a soft shadow baked in, so it sits on bright pictures without a dark halo.
+- The title buttons are angled like the website's, and "Press Enter to start" is in the display face, brighter, with a shadow.

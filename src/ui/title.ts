@@ -188,17 +188,18 @@ export class Title {
         const hov = im.hit(`tl-b${it.id}`, bx, by, bw, bh, () => k > 0.9 && !this.gate() && this.pick(it.id), 3);
         if (it.primary) {
           const pulse = 0.5 + 0.5 * Math.sin(t * 2.6);
-          im.rect(2, bx - 6, by - 6, bw + 12, bh + 12, COLORS.accent, (0.1 + 0.1 * pulse + (hov ? 0.12 : 0)) * k, 12);
-          im.rect(3, bx, by, bw, bh, hov ? 0xf4b24c : COLORS.accent, k, 6);
+          im.slab(2, bx - 7, by - 5, bw + 14, bh + 10, COLORS.accent, (0.1 + 0.1 * pulse + (hov ? 0.12 : 0)) * k);
+          im.slab(3, bx, by, bw, bh, hov ? 0xe6c98e : COLORS.accent, k);
           im.text(`tl-bt${it.id}`, it.label.toUpperCase(), bx + bw / 2, by + 12, { size: 24, bold: true, display: true, color: 0x1b1204, align: 'center', alpha: k, layer: 3 });
         } else {
-          im.rect(2, bx, by, bw, bh, hov ? 0x1c2735 : 0x0d131b, 0.72 * k, 6, hov ? COLORS.accent : 0xffffff, hov ? 1 : 0.28);
+          im.slab(2, bx, by, bw, bh, hov ? 0x1c2735 : 0x0d131b, 0.8 * k, hov ? COLORS.accent : 0xffffff, hov ? 1 : 0.35);
           im.text(`tl-bt${it.id}`, it.label.toUpperCase(), bx + bw / 2, by + 12, { size: 24, bold: true, display: true, color: hov ? COLORS.accent : WHITE, align: 'center', alpha: k, layer: 3 });
         }
       });
-      const hintA = ease((t - 1.6) / 0.8) * (0.55 + 0.35 * Math.sin(t * 2.2));
+      const hintA = ease((t - 1.6) / 0.8) * (0.7 + 0.3 * Math.sin(t * 2.2));
       const hintY = by0 + items.length * (bh + gap) + 6;
-      im.text('tl-hint', wait ?? 'Press Enter to start', W / 2, hintY, { size: wait ? 15 : 13, bold: !!wait, color: wait ? COLORS.accent : 0xdbe3ec, align: 'center', alpha: wait ? 1 : hintA, layer: 3 });
+      im.text('tl-hintS', wait ?? 'PRESS ENTER TO START', W / 2 + 1, hintY + 2, { size: 16, bold: true, display: true, color: 0x000000, align: 'center', alpha: (wait ? 1 : hintA) * 0.6, layer: 3 });
+      im.text('tl-hint', wait ?? 'PRESS ENTER TO START', W / 2, hintY, { size: 16, bold: true, display: true, color: wait ? COLORS.accent : 0xf0f4f8, align: 'center', alpha: wait ? 1 : hintA, layer: 3 });
     } else {
       // Loading: a bar that keeps moving while the world is made, and a tip.
       const bw = Math.min(420, W - 80);
