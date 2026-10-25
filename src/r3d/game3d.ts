@@ -1328,7 +1328,8 @@ export class Game3D {
     this.scenery.showMarkers(this.activeNodeKind(), usedNodes);
     this.scenery.showGates(this.isRouteTool());
     this.syncEntryArrows();
-    this.scenery.setRoadZones(this.isRouteTool() ? this.routeMode : null, `${w.sites.length}.${w.places.map((p) => `${p.level}${Object.values(p.districtLots ?? {}).join('_')}`).join(',')}`);
+    // The same green and orange wash as the road tool, while a building is being placed: it shows where its road and driveway can go.
+    this.scenery.setRoadZones(this.isRouteTool() ? this.routeMode : this.isBuildTool() ? 'road' : null, `${w.sites.length}.${w.places.map((p) => `${p.level}${Object.values(p.districtLots ?? {}).join('_')}`).join(',')}`);
     this.scenery.setParcels(this.isBuildTool() && !!w.landRules, String((w.owned ?? []).length));
     // A building that goes on open ground: show where it can stand and where it cannot, round the view.
     const vt = townTool ? viewTileOf(w, this.cam.lon, this.cam.lat) : { x: 0, y: 0 };
