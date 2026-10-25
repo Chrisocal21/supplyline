@@ -1139,9 +1139,11 @@ export class Sheets {
     };
     const card = (i: number, id: string, title: string, tint: number): { x: number; y: number } => {
       const p = pos(i);
-      im.rect(3, p.x, p.y, cw, ch, COLORS.panelAlt, 1, 14, tint, 0.8);
-      im.rect(3, p.x + 14, p.y, cw - 28, 4, tint, 1, 2);
-      im.text(`bk-t${id}`, title, p.x + 16, p.y + 14, { size: 18, bold: true, layer: 3 });
+      // Same card as the rest of Manage: soft border, a tinted dot and a display title, a short tinted line under it.
+      im.rect(3, p.x, p.y, cw, ch, COLORS.panelAlt, 0.9, 8, COLORS.line, 0.6);
+      im.circle(3, p.x + 20, p.y + 25, 4, tint);
+      im.text(`bk-t${id}`, title.toUpperCase(), p.x + 32, p.y + 12, { size: 20, bold: true, display: true, layer: 3 });
+      im.rect(3, p.x + 16, p.y + ch - 1, 36, 2, tint, 0.9, 1);
       return p;
     };
 
@@ -1161,7 +1163,7 @@ export class Sheets {
     const limit = creditLimit(world);
     let p = card(0, 'loan', 'Loans', COLORS.bad);
     im.text('bk-l1', `Owed $${fmt(b.loan)}   ·   limit $${fmt(limit)}   ·   interest ${(LOAN_RATE * 100).toFixed(1)}% per minute`, p.x + 16, p.y + 46, { size: 13, color: COLORS.muted, wrap: cw - 32, layer: 3 });
-    im.text('bk-l2', 'How it works: borrow cash now and pay it back later. What you owe grows every minute, so a loan is only worth it if what you build with it earns more than the interest. Pay it back as soon as you can.', p.x + 16, p.y + 72, { size: 12, color: COLORS.text, wrap: cw - 32, layer: 3 });
+    im.text('bk-l2', 'How it works: borrow cash now and pay it back later. What you owe grows every minute, so a loan is only worth it if what you build with it earns more than the interest. Pay it back as soon as you can.', p.x + 16, p.y + 72, { size: 12, color: 0xc4ccce, wrap: cw - 32, layer: 3 });
     perf('bk-ln', p, 138, ['interest added', -rep.loanToday, null], ['interest paid in all', -rep.loanAllTime, null]);
     im.text('bk-l3', b.loan > 0 ? `Right now the interest adds about $${fmt(rep.loanPerMinute)} a minute.` : 'Nothing owed. The limit grows as you earn and reach new tiers.', p.x + 16, p.y + 196, { size: 12, color: b.loan > 0 ? COLORS.warn : COLORS.muted, wrap: cw - 32, layer: 3 });
     row('bk-borrow', p.x, p.y + ch - 98, 'Borrow', (a) => borrow(world, a), 'max');
@@ -1170,7 +1172,7 @@ export class Sheets {
     // Savings
     p = card(1, 'sav', 'Savings account', COLORS.good);
     im.text('bk-s1', `Balance $${fmt(b.savings)}   ·   interest ${(SAVINGS_RATE * 100).toFixed(1)}% per minute`, p.x + 16, p.y + 46, { size: 13, color: COLORS.muted, wrap: cw - 32, layer: 3 });
-    im.text('bk-s2', 'How it works: money in savings earns a little every minute and can never go down. You can take it out any time. Slow, but safe, and better than cash sitting idle.', p.x + 16, p.y + 72, { size: 12, color: COLORS.text, wrap: cw - 32, layer: 3 });
+    im.text('bk-s2', 'How it works: money in savings earns a little every minute and can never go down. You can take it out any time. Slow, but safe, and better than cash sitting idle.', p.x + 16, p.y + 72, { size: 12, color: 0xc4ccce, wrap: cw - 32, layer: 3 });
     perf('bk-sv', p, 138, ['interest earned', rep.savingsToday, b.savings > 0 ? rep.savingsTodayPct : null], ['interest earned in all', rep.savingsAllTime, null]);
     im.text('bk-s3', b.savings > 0 ? `Right now it earns about $${fmt(rep.savingsPerMinute)} a minute.` : 'Nothing saved yet. Put some cash here to start earning.', p.x + 16, p.y + 196, { size: 12, color: b.savings > 0 ? COLORS.good : COLORS.muted, wrap: cw - 32, layer: 3 });
     row('bk-dep', p.x, p.y + ch - 98, 'Deposit', (a) => deposit(world, a), 'all');
@@ -1183,7 +1185,7 @@ export class Sheets {
     const held = fundValue(world);
     const profit = held - b.invested;
     im.text('bk-f1', `Price $${b.price.toFixed(2)} a unit   ·   ${FUND_FEE * 100}% fee when you sell`, p.x + 16, p.y + 40, { size: 13, color: COLORS.muted, wrap: cw - 32, layer: 3 });
-    im.text('bk-f2', 'How it works: a pretend stock market. Buy units when the price is low and sell when it is high. The price moves up and down by itself, so you can lose money as well as make it.', p.x + 16, p.y + 62, { size: 12, color: COLORS.text, wrap: cw - 32, layer: 3 });
+    im.text('bk-f2', 'How it works: a pretend stock market. Buy units when the price is low and sell when it is high. The price moves up and down by itself, so you can lose money as well as make it.', p.x + 16, p.y + 62, { size: 12, color: 0xc4ccce, wrap: cw - 32, layer: 3 });
     perf('bk-fd', p, 108, ['your units today', rep.fundToday, rep.fundTodayPct], ['all time, sold and held', rep.fundAllTime, (b.putIn ?? 0) > 0 ? rep.fundAllTimePct : null]);
     im.text('bk-f3', held > 0 ? `Holding $${fmt(held)}   ·   ${profit >= 0 ? 'up' : 'down'} $${fmt(Math.abs(profit))} on what you paid` : 'Nothing held yet.', p.x + 16, p.y + 166, { size: 12, bold: true, color: held > 0 ? (profit >= 0 ? COLORS.good : COLORS.bad) : COLORS.muted, wrap: cw - 32, layer: 3 });
     const gx = p.x + 16;

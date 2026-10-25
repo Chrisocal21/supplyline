@@ -1051,3 +1051,7 @@ What changed:
 
 - Cards (panel) are rounded with a softer border and a thin inset colour line instead of the square edge bar; hot cards get a gold outline.
 - Section heads drop the gold square: capitals over a faint rule with a short gold underline.
+
+## 0.171: Finance, fourth bit of the UI redesign
+
+- Loans, Savings and Market fund cards drop the thick tinted border and top bar: soft border, a tinted dot by a display title, and a short tinted line along the foot. The how-it-works text is a step quieter than the numbers.
