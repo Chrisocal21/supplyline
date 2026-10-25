@@ -22,6 +22,7 @@ import {
   type World,
 } from '../sim/world';
 import { COLORS, Im } from './imui';
+import { drawIcon, type IconName } from './icons';
 
 export interface PageView {
   x0: number;
@@ -71,6 +72,23 @@ export function stat(im: Im, id: string, x: number, y: number, w: number, h: num
 export function fitSize(text: string, width: number, size: number, floor = 8, perChar = 0.56): number {
   const need = text.length * size * perChar;
   return need <= width ? size : Math.max(floor, Math.floor((size * width) / need));
+}
+
+/** An empty page: an icon, a short title and one line on what to do. Returns its height. */
+export function emptyState(im: Im, id: string, x: number, y: number, w: number, icon: IconName, title: string, body: string): number {
+  const h = 150;
+  im.rect(3, x, y, w, h, 0x0f161d, 0.9, 6, COLORS.line, 1);
+  im.circle(3, x + w / 2, y + 40, 26, 0x18232c);
+  drawIcon(im, icon, x + w / 2, y + 40, COLORS.accent, 0x18232c, 4);
+  im.text(`${id}t`, title, x + w / 2, y + 76, { size: 20, bold: true, align: 'center', layer: 4 });
+  im.text(`${id}b`, body, x + w / 2, y + 108, { size: 13, color: COLORS.muted, align: 'center', wrap: Math.min(w - 40, 560), layer: 4 });
+  return h;
+}
+
+/** A quiet status line: a coloured dot and a short note, for a state with nothing to press. */
+export function statusLine(im: Im, id: string, text: string, x: number, y: number, color: number): void {
+  im.circle(3, x + 6, y + 8, 4.5, color);
+  im.text(`${id}s`, text, x + 18, y, { size: 13, bold: true, color, layer: 3 });
 }
 
 /** A console button: angled like the website's, with a bright face when it can be pressed. The label shrinks (and wraps, if asked) so all of it shows. */
@@ -308,27 +326,29 @@ export function fleetPage(im: Im, world: World, v: PageView, scroll: number, hoo
     if (vis(ty, 58)) stat(im, `fl-s${k}`, tx, ty, tw, 58, label, val, color, color === COLORS.text ? COLORS.info : color);
   });
   y += Math.ceil(tiles.length / tc) * 66 + 2;
-  if (vis(y, 34)) {
-    const bill = worn.reduce((n, q) => n + serviceCost(q), 0);
-    button(im, 'fl-svc', worn.length ? `SERVICE ALL WORN  ${worn.length}  ·  ${money(bill)}` : 'ALL VEHICLES IN GOOD SHAPE', v.x0, y, 300, 30, worn.length > 0 && world.money >= Math.min(...worn.map(serviceCost)), () => {
-      let done = 0;
-      for (const q of worn) if (serviceVehicle(world, q.id) === null) done++;
-      hooks.toast(done ? `Serviced ${done} vehicle${done === 1 ? '' : 's'}` : 'Not enough money');
-    }, 'main');
-  }
-  y += 40;
-  // Idle vehicles earn nothing and still cost upkeep and a wage: one click sells the surplus, keeping a vehicle on every line.
+  // Two fleet actions on one row. With nothing to do, each shows as a quiet status line, not a greyed-out button.
   const surplus = idleSurplus(world);
   if (vis(y, 34)) {
+    const bill = worn.reduce((n, q) => n + serviceCost(q), 0);
+    if (worn.length)
+      button(im, 'fl-svc', `SERVICE ALL WORN  ${worn.length}  ·  ${money(bill)}`, v.x0, y, 300, 30, world.money >= Math.min(...worn.map(serviceCost)), () => {
+        let done = 0;
+        for (const q of worn) if (serviceVehicle(world, q.id) === null) done++;
+        hooks.toast(done ? `Serviced ${done} vehicle${done === 1 ? '' : 's'}` : 'Not enough money');
+      }, 'main');
+    else statusLine(im, 'fl-svc', 'All vehicles in good shape', v.x0, y + 7, COLORS.good);
+    // Idle vehicles earn nothing and still cost upkeep and a wage: one click sells the surplus, keeping a vehicle on every line.
     const back = surplus.reduce((n, q) => n + sellVehicleValue(q), 0);
     const cost = surplus.reduce((n, q) => n + VEHICLE_DEFS[q.kind].cost * VEHICLE_UPKEEP * 0.4, 0);
-    button(im, 'fl-idle', surplus.length ? `SELL ${surplus.length} IDLE  ·  +${money(back)}  ·  saves ${money(cost)} a minute` : 'NO IDLE VEHICLES TO SELL', v.x0, y, 420, 30, surplus.length > 0, () => {
-      let done = 0;
-      for (const q of surplus) if (sellVehicle(world, q.id) === null) done++;
-      hooks.toast(`Sold ${done} idle vehicle${done === 1 ? '' : 's'}`);
-    }, 'danger');
+    if (surplus.length)
+      button(im, 'fl-idle', `SELL ${surplus.length} IDLE  ·  +${money(back)}  ·  saves ${money(cost)} a minute`, v.x0 + 316, y, 420, 30, true, () => {
+        let done = 0;
+        for (const q of surplus) if (sellVehicle(world, q.id) === null) done++;
+        hooks.toast(`Sold ${done} idle vehicle${done === 1 ? '' : 's'}`);
+      }, 'danger');
+    else statusLine(im, 'fl-idle', 'No idle vehicles', v.x0 + 316, y + 7, COLORS.muted);
   }
-  y += 40;
+  y += 44;
 
   // Every building that has a yard, the ones with vehicles first.
   const homes = world.sites

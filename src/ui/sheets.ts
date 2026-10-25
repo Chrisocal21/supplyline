@@ -23,7 +23,7 @@ import { BANK_TIER, DAY_TICKS, bankReport, FUND_FEE, LOAN_RATE, REAL_MONEY_ENABL
 import { pathMastered, pathQuestState, questState, tierUnlocks } from '../sim/quests';
 import { buildDistrict, choosePath, districtBoost, districtCost, districtError, districtLevel, districtRevenue, districtSatisfaction, pathError, townUpkeep } from '../sim/town';
 import { woodName, buildingNow, campusSites, dockDemand, growthKinds, matsNeeded, isHomePlot, metroBonus, partnerOf, plotTiles, radiusOf, produces, siteCap, stockOf, unitPrice, wants, type Place, type Site, type World } from '../sim/world';
-import { button, companyPage, fleetPage, panel, sectionHead, stat } from './company';
+import { button, companyPage, emptyState, fleetPage, panel, sectionHead, stat } from './company';
 import { COLORS, Im } from './imui';
 import { isTouch } from './inputmode';
 
@@ -71,7 +71,7 @@ const GUIDE: GuideSection[] = [
     id: 'steps',
     label: 'Steps',
     blurb: 'Do these in order. Each one takes a minute.',
-    color: 0xf2a33a,
+    color: COLORS.accent,
     cards: [
       {
         step: 1,
@@ -535,8 +535,8 @@ export class Sheets {
     if (this.prodPage === 'buildings') {
     head('pg-b-h', `YOUR BUILDINGS  ${buildings.length}`);
     if (buildings.length === 0) {
-      if (vis(y, 24)) im.text('pg-b-none', 'Nothing built yet. Pick Production from the menu below.', v.x0, y + 2, { size: 13, color: COLORS.muted, wrap: W, layer: 3 });
-      y += 34;
+      if (vis(y, 150)) emptyState(im, 'pg-b-none', v.x0, y, W, 'production', 'Nothing built yet', 'Open Production in the bar at the bottom, pick a camp or farm and click a glowing ring on the map.');
+      y += 164;
     }
     const cols = W > 1500 ? 4 : W > 1000 ? 3 : W > 640 ? 2 : 1;
     const bw = (W - gap * (cols - 1)) / cols;
@@ -665,7 +665,8 @@ export class Sheets {
       im.text(`tw-next-${p.id}`, lines.length ? `To level up: ${lines.join('  ·  ')}` : 'Ready to level up: the next delivery does it', x + 16, ny, { size: 12, color: lines.length ? COLORS.text : COLORS.good, wrap: w - 32, layer: 3 });
     }
     let cy = ny + (next ? 24 : 0);
-    if (n.market) {
+    // While the town is still building its yard or Market, that line says all there is to say.
+    if (n.market && !bn) {
       im.text(`tw-mh-${p.id}`, n.bring.length ? 'BRING NEXT' : 'MARKET', x + 16, cy, { size: 10, bold: true, color: COLORS.muted, layer: 3 });
       cy += 18;
       if (n.bring.length === 0) {
@@ -729,7 +730,7 @@ export class Sheets {
     const n = this.townNeeds(world, p);
     const hasNext = !!TOWN_LEVELS[p.level];
     let h = 100 + (hasNext ? 24 : 0);
-    if (n.market) {
+    if (n.market && !buildingNow(p, world)) {
       h += 18;
       h += n.bring.length === 0 ? 22 : Math.ceil(Math.min(6, n.bring.length) / perRow) * (chipH + 6) + (n.bring.length > 6 ? 16 : 0);
       if (n.stocked.length) h += this.wrapLines(`Stocked: ${n.stocked.map((g) => GOODS[g].label).join(', ')}`, cw - 32) * 14 + 6;
@@ -1202,7 +1203,8 @@ export class Sheets {
     row('bk-buy', p.x, p.y + ch - 98, 'Buy', (a) => invest(world, a), 'all');
     row('bk-sell', p.x, p.y + ch - 54, 'Sell', (a) => divest(world, a), 'all');
 
-    // Real money: closed until a payment service stands behind it.
+    // Real money: hidden until a payment service stands behind it.
+    if (!REAL_MONEY_ENABLED) return 90 + Math.ceil(3 / cols) * (ch + gap) + 4;
     p = card(3, 'real', 'Buy cash', COLORS.muted);
     im.text('bk-r1', REAL_MONEY_ENABLED ? 'Cash packs' : 'Cash packs with real money are not open yet.', p.x + 16, p.y + 46, { size: 14, bold: true, color: COLORS.muted, wrap: cw - 32, layer: 3 });
     im.text('bk-r2', 'They need a payment service that confirms each purchase before cash is added, so this stays closed until that is set up. Everything else here is earned in the game.', p.x + 16, p.y + 72, { size: 13, color: COLORS.muted, wrap: cw - 32, layer: 3 });

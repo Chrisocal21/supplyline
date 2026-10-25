@@ -1012,3 +1012,12 @@ What changed:
 
 - The title logo is cut out of its dark square (brightness-based alpha outside the globe, the globe kept solid) with a soft shadow baked in, so it sits on bright pictures without a dark halo.
 - The title buttons are angled like the website's, and "Press Enter to start" is in the display face, brighter, with a shadow.
+
+## 0.164: UI pass, bits 2 to 7
+
+- Menu icons: `src/ui/icons.ts` draws every menu icon (business, game, sound, display, keys, about, company, production, fleet, towns, bank, quests, guide, save, new world, tutorial, minimap, frame rate) from the UI's shapes, replacing the letter placeholders on the menu folders and tiles.
+- One accent: How to Play's Steps use the gold accent instead of orange; the map preview's buttons are angled, the play one gold instead of green.
+- The GRID badge on big maps sits below the "All running" badge instead of on top of it.
+- Empty states: `emptyState()` (icon, title, one line) for an empty Production page; `statusLine()` replaces the greyed-out "All vehicles in good shape" and "No idle vehicles to sell" buttons on Fleet, which now share one row.
+- Town cards skip the Market lines while the town is still building its yard or Market, so no more "Well stocked" before anything was sold.
+- Finance hides the Buy cash card until real money is switched on.

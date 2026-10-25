@@ -103,6 +103,7 @@ import { districtCost, upkeepPerMinute } from '../sim/town';
 import { COLORS, Im } from './imui';
 import { VERSION, VERSION_NOTE } from '../version';
 import { Rates, Sheets, type SheetId } from './sheets';
+import { drawIcon, type IconName } from './icons';
 
 import { fitSize } from './company';
 import { SEASONAL, calendar, seasonIndex, seasonOf } from '../sim/seasons';
@@ -1169,26 +1170,11 @@ export class HudScene extends Phaser.Scene {
     }
   }
 
-  private factoryIcon(cx: number, cy: number, c: number, layer = 2): void {
-    const im = this.im;
-    im.rect(layer, cx - 12, cy - 1, 24, 12, c, 1, 2);
-    im.rect(layer, cx + 5, cy - 12, 6, 12, c, 1, 1);
-    im.rect(layer, cx - 12, cy - 7, 8, 6, c, 1, 1);
-    im.rect(layer, cx - 3, cy - 7, 8, 6, c, 1, 1);
-  }
-
   private bankIcon(cx: number, cy: number, c: number, layer = 2): void {
     const im = this.im;
     im.rect(layer, cx - 13, cy - 11, 26, 5, c, 1, 1);
     for (const dx of [-10, -3, 4]) im.rect(layer, cx + dx, cy - 5, 6, 12, c, 1, 1);
     im.rect(layer, cx - 14, cy + 8, 28, 4, c, 1, 1);
-  }
-
-  private townIcon(cx: number, cy: number, c: number, layer = 2): void {
-    const im = this.im;
-    im.rect(layer, cx - 13, cy - 1, 9, 12, c, 1, 2);
-    im.rect(layer, cx - 4, cy - 11, 10, 22, c, 1, 2);
-    im.rect(layer, cx + 7, cy + 2, 7, 9, c, 1, 2);
   }
 
   /** Which page of the menu is showing: the home page of folders, or one folder opened. */
@@ -1212,34 +1198,34 @@ export class HudScene extends Phaser.Scene {
     const tileW = (w - pad * 2 - gap * (cols - 1)) / cols;
     const tileH = narrow ? 56 : 64;
     type Item = { id: string; label: string; key: string; on: boolean; toggle?: boolean; icon: (cx: number, cy: number, c: number) => void; act: () => void };
-    const glyph = (s: string) => (cx: number, cy: number, c: number) => im.text(`menuG${s}`, s, cx, cy - 12, { size: 20, bold: true, color: c, align: 'center', layer: 4 });
+    const ico = (n: IconName) => (cx: number, cy: number, c: number) => drawIcon(im, n, cx, cy, c, c === 0x1b1204 ? COLORS.accent : 0x0c1218);
     const business: Item[] = [
-      { id: 'company', label: 'Company', key: 'Y', on: this.sheet === 'company', icon: glyph('#'), act: () => this.toggleSheet('company') },
-      { id: 'prod', label: 'Production', key: 'P', on: this.sheet === 'production', icon: (cx, cy, c) => this.factoryIcon(cx, cy, c, 4), act: () => this.toggleSheet('production') },
-      { id: 'fleet', label: 'Fleet', key: 'V', on: this.sheet === 'fleet', icon: glyph('V'), act: () => this.toggleSheet('fleet') },
-      { id: 'towns', label: 'Towns', key: 'T', on: this.sheet === 'towns', icon: (cx, cy, c) => this.townIcon(cx, cy, c, 4), act: () => this.toggleSheet('towns') },
-      { id: 'bank', label: 'Bank', key: 'B', on: this.sheet === 'bank', icon: (cx, cy, c) => this.bankIcon(cx, cy, c, 4), act: () => this.toggleSheet('bank') },
-      { id: 'quests', label: 'Quests', key: 'G', on: this.sheet === 'quests', icon: glyph('!'), act: () => this.toggleSheet('quests') },
+      { id: 'company', label: 'Company', key: 'Y', on: this.sheet === 'company', icon: ico('company'), act: () => this.toggleSheet('company') },
+      { id: 'prod', label: 'Production', key: 'P', on: this.sheet === 'production', icon: ico('production'), act: () => this.toggleSheet('production') },
+      { id: 'fleet', label: 'Fleet', key: 'V', on: this.sheet === 'fleet', icon: ico('fleet'), act: () => this.toggleSheet('fleet') },
+      { id: 'towns', label: 'Towns', key: 'T', on: this.sheet === 'towns', icon: ico('towns'), act: () => this.toggleSheet('towns') },
+      { id: 'bank', label: 'Bank', key: 'B', on: this.sheet === 'bank', icon: ico('bank'), act: () => this.toggleSheet('bank') },
+      { id: 'quests', label: 'Quests', key: 'G', on: this.sheet === 'quests', icon: ico('quests'), act: () => this.toggleSheet('quests') },
     ];
     const gameItems: Item[] = [
-      { id: 'guide', label: 'How to play', key: 'H', on: this.sheet === 'guide', icon: glyph('?'), act: () => this.toggleSheet('guide') },
-      { id: 'saves', label: 'Save / Load', key: 'L', on: this.saves === 'manage', icon: glyph('S'), act: () => this.openSavesFromKey() },
-      { id: 'new', label: 'New world', key: '', on: false, icon: glyph('+'), act: () => this.openSaves('new') },
-      { id: 'tut', label: 'Tutorial', key: '', on: this.tutorialOn, toggle: true, icon: glyph('i'), act: () => this.toggleTutorial() },
+      { id: 'guide', label: 'How to play', key: 'H', on: this.sheet === 'guide', icon: ico('guide'), act: () => this.toggleSheet('guide') },
+      { id: 'saves', label: 'Save / Load', key: 'L', on: this.saves === 'manage', icon: ico('save'), act: () => this.openSavesFromKey() },
+      { id: 'new', label: 'New world', key: '', on: false, icon: ico('world'), act: () => this.openSaves('new') },
+      { id: 'tut', label: 'Tutorial', key: '', on: this.tutorialOn, toggle: true, icon: ico('tutorial'), act: () => this.toggleTutorial() },
     ];
     const screenItems: Item[] = [
-      { id: 'gfx', label: 'Graphics', key: 'O', on: this.graphicsOpen, icon: glyph('O'), act: () => this.openGraphics() },
-      { id: 'mini', label: 'Minimap', key: 'M', on: this.minimapOn, toggle: true, icon: glyph('M'), act: () => this.toggleMinimap() },
-      { id: 'perf', label: 'Frame rate', key: 'F3', on: this.perfOn, toggle: true, icon: glyph('F'), act: () => this.togglePerf() },
+      { id: 'gfx', label: 'Graphics', key: 'O', on: this.graphicsOpen, icon: ico('display'), act: () => this.openGraphics() },
+      { id: 'mini', label: 'Minimap', key: 'M', on: this.minimapOn, toggle: true, icon: ico('minimap'), act: () => this.toggleMinimap() },
+      { id: 'perf', label: 'Frame rate', key: 'F3', on: this.perfOn, toggle: true, icon: ico('perf'), act: () => this.togglePerf() },
     ];
-    const folders: { id: 'business' | 'game' | 'sound' | 'screen' | 'keys' | 'about'; label: string; blurb: string; mark: string }[] = [
-      { id: 'business', label: 'Run your business', blurb: 'Company, production, fleet, towns, bank, quests', mark: '#' },
-      { id: 'game', label: 'Game', blurb: 'How to play, save and load, new world', mark: 'G' },
-      { id: 'sound', label: 'Sound', blurb: 'Radio stations and sound effects', mark: 'S' },
-      { id: 'screen', label: 'Display', blurb: 'Graphics, minimap and frame rate', mark: 'D' },
+    const folders: { id: 'business' | 'game' | 'sound' | 'screen' | 'keys' | 'about'; label: string; blurb: string; mark: IconName }[] = [
+      { id: 'business', label: 'Run your business', blurb: 'Company, production, fleet, towns, bank, quests', mark: 'business' },
+      { id: 'game', label: 'Game', blurb: 'How to play, save and load, new world', mark: 'game' },
+      { id: 'sound', label: 'Sound', blurb: 'Radio stations and sound effects', mark: 'sound' },
+      { id: 'screen', label: 'Display', blurb: 'Graphics, minimap and frame rate', mark: 'display' },
     ];
-    if (!isTouch()) folders.push({ id: 'keys', label: 'Keybinds', blurb: 'Every key in one place', mark: 'K' });
-    folders.push({ id: 'about', label: 'About', blurb: 'Size, what it needs to run, and how it runs now', mark: 'i' });
+    if (!isTouch()) folders.push({ id: 'keys', label: 'Keybinds', blurb: 'Every key in one place', mark: 'keys' });
+    folders.push({ id: 'about', label: 'About', blurb: 'Size, what it needs to run, and how it runs now', mark: 'about' });
     const aboutCols = narrow ? 1 : 2;
     const about = this.menuPage === 'about' ? this.aboutSections() : [];
     const aboutH = (sec: { rows: unknown[] }): number => 26 + sec.rows.length * 18 + 14;
@@ -1311,7 +1297,7 @@ export class HudScene extends Phaser.Scene {
         const hov = im.hit(`menuF${f.id}`, fx, fy, fw, fh, () => (this.menuPage = f.id), 4);
         im.rect(4, fx, fy, fw, fh, hov ? 0x223040 : 0x151e28, 1, 12, hov ? COLORS.accent : COLORS.line, 1);
         im.rect(4, fx + 12, fy + 13, 44, 44, 0x0c1218, 1, 10);
-        im.text(`menuFM${f.id}`, f.mark, fx + 34, fy + 23, { size: 22, bold: true, color: COLORS.accent, align: 'center', layer: 5 });
+        drawIcon(im, f.mark, fx + 34, fy + 35, COLORS.accent, 0x0c1218);
         im.text(`menuFL${f.id}`, f.label, fx + 68, fy + 13, { size: 15, bold: true, layer: 5 });
         im.text(`menuFB${f.id}`, f.blurb, fx + 68, fy + 35, { size: 11, color: COLORS.muted, wrap: fw - 68 - 30, layer: 5 });
         im.text(`menuFA${f.id}`, '>', fx + fw - 18, fy + fh / 2 - 9, { size: 18, bold: true, color: hov ? COLORS.accent : COLORS.muted, align: 'center', layer: 5 });
@@ -1730,12 +1716,12 @@ export class HudScene extends Phaser.Scene {
     cy += 54;
     const half = (inner - 12) / 2;
     const ch = im.hit('mvClose', x + pad, cy, half, 42, () => (this.viewMap = null), 4);
-    im.rect(4, x + pad, cy, half, 42, ch ? 0x2a3646 : 0x1b2430, 1, 21, COLORS.line, 1);
-    im.text('mvCT', 'Back to the worlds', x + pad + half / 2, cy + 12, { size: 14, bold: true, align: 'center', layer: 4 });
+    im.slab(4, x + pad, cy, half, 42, ch ? 0x2a3646 : 0x1b2430, 1, ch ? COLORS.accent : COLORS.line, 1);
+    im.text('mvCT', 'BACK TO THE WORLDS', x + pad + half / 2, cy + 10, { size: 18, bold: true, display: true, align: 'center', layer: 4 });
     const bx = x + pad + half + 12;
     const th = !this.building && im.hit('mvTry', bx, cy, half, 42, () => this.tryMap(v.id), 4);
-    im.rect(4, bx, cy, half, 42, th ? 0x2f6a46 : 0x24543a, 1, 21, COLORS.accent, 1);
-    im.text('mvTT', this.building ? 'Building the map...' : 'Play Map 3 (beta, loads slowly)', bx + half / 2, cy + 12, { size: 14, bold: true, align: 'center', layer: 4 });
+    im.slab(4, bx, cy, half, 42, th ? 0xe6c98e : COLORS.accent, 1);
+    im.text('mvTT', (this.building ? 'Building the map...' : 'Play Map 3 (beta, loads slowly)').toUpperCase(), bx + half / 2, cy + 10, { size: 18, bold: true, display: true, color: 0x1b1204, align: 'center', layer: 4 });
   }
 
   /** Play a beta map: the world is made from its baked data, and saved like any other game. */
@@ -2321,9 +2307,11 @@ export class HudScene extends Phaser.Scene {
       const c = viewTile(w0, this.game3d.cam.lon, this.game3d.cam.lat);
       const cx = Math.max(0, Math.min(w0.width - 1, Math.round(c.x)));
       const cyy = Math.max(0, Math.min(w0.height - 1, Math.round(c.y)));
-      im.rect(2, 12, TOP + 8, 132, 30, 0x0a0f14, 0.88, 8, COLORS.accent, 0.6, 1);
-      im.text('gridBadge', `GRID ${gridId(cx, cyy)}`, 22, TOP + 14, { size: 15, bold: true, color: COLORS.accent, layer: 3 });
-      im.text('gridBadgeT', `${cx}, ${cyy}`, 132, TOP + 18, { size: 10, color: COLORS.muted, align: 'right', layer: 3 });
+      // Below the stuck badge, which sits in the same corner.
+      const gy = TOP + 50;
+      im.rect(2, 12, gy, 132, 28, 0x0a0f14, 0.88, 6, COLORS.line, 1, 1);
+      im.text('gridBadge', `GRID ${gridId(cx, cyy)}`, 22, gy + 5, { size: 15, bold: true, color: COLORS.accent, layer: 3 });
+      im.text('gridBadgeT', `${cx}, ${cyy}`, 132, gy + 9, { size: 10, color: COLORS.muted, align: 'right', layer: 3 });
     }
     if (mini) this.drawMinimap(mini);
     else if (!this.title) {
