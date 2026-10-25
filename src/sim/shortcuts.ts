@@ -2,18 +2,20 @@
 // over the roads that now exist, and an experienced driver knows shortcuts a rookie would not see: the longer someone has driven
 // a route, the smaller the saving they notice and act on.
 import { HIGHWAY_TIME } from './defs';
-import { driverLevel, wrapX, type Route, type Tile, type Vehicle, type World } from './world';
+import { driverLevel, townStreets, wrapX, type Route, type Tile, type Vehicle, type World } from './world';
 
 /** How much quicker a way has to be before a driver of each rank (rookie first) takes it. */
-export const SHORTCUT_NEEDS = [0.3, 0.2, 0.12, 0.06, 0.02];
+export const SHORTCUT_NEEDS = [0.12, 0.08, 0.05, 0.03, 0.01];
 /** How often drivers look at the map again, in ticks. */
 export const SHORTCUT_EVERY = 600;
+/** While a new road has just opened, or a quicker way is waiting for the trucks to clear it, drivers look this often. */
+export const SHORTCUT_SOON = 60;
 
 type Graph = Map<number, Map<number, number>>;
 
 const tileKey = (world: World, t: Tile): number => t.y * world.width + wrapX(world, t.x);
 
-/** Every road tile joined to the next one along any road, with the time a driver needs to cross it: highway tiles are quicker. */
+/** Every road tile joined to the next one along any road or built town street, with the time a driver needs to cross it: highway tiles are quicker. */
 function roadGraph(world: World): { graph: Graph; at: Map<number, Tile> } {
   const graph: Graph = new Map();
   const at = new Map<number, Tile>();
@@ -33,6 +35,22 @@ function roadGraph(world: World): { graph: Graph; at: Map<number, Tile> } {
         const p = tileKey(world, r.path[i - 1]);
         link(p, k, w);
         link(k, p, w);
+      }
+    }
+  }
+  // A town's built streets are road too: a driver can cut through town as well as along the lanes.
+  for (const p of world.places) {
+    const streets = townStreets(world, p);
+    for (const k of streets) {
+      const x = k % world.width;
+      const y = Math.floor(k / world.width);
+      if (!at.has(k)) at.set(k, { x, y });
+      for (const [dx, dy] of [[1, 0], [0, 1]]) {
+        const n = (y + dy) * world.width + wrapX(world, x + dx);
+        if (!streets.has(n)) continue;
+        if (!at.has(n)) at.set(n, { x: wrapX(world, x + dx), y: y + dy });
+        link(k, n, 1);
+        link(n, k, 1);
       }
     }
   }
@@ -114,8 +132,9 @@ function bestRank(world: World, route: Route): number {
 export function optimizeRoutes(world: World): number {
   const { graph, at } = roadGraph(world);
   let changed = 0;
+  let waiting = false;
   for (const r of world.routes) {
-    if (r.mode !== 'road' || r.free || r.seg || r.grade === undefined || r.path.length < 8) continue;
+    if (r.mode !== 'road' || r.free || r.seg || r.grade === undefined || r.path.length < 4) continue;
     const rank = bestRank(world, r);
     if (rank < 0) continue;
     const start = tileKey(world, r.path[0]);
@@ -144,12 +163,17 @@ export function optimizeRoutes(world: World): number {
         moves.set(v, to);
       }
     }
-    if (blocked) continue;
+    if (blocked) {
+      // A truck is on a stretch the new way does not use: look again soon, when it has driven on.
+      waiting = true;
+      continue;
+    }
     for (const [v, i] of moves) v.idx = i;
     const hw = path.reduce((n, t, i) => n + (i > 0 && (graph.get(tileKey(world, path[i - 1]))?.get(tileKey(world, t)) ?? 1) < 1 ? 1 : 0), 0);
     r.grade = hw * 2 > path.length - 1 ? 'highway' : 'street';
     r.path = path;
     changed += 1;
   }
+  world.shortcutsDirty = waiting;
   return changed;
 }

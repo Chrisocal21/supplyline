@@ -4772,6 +4772,7 @@ export class HudScene extends Phaser.Scene {
         buyNext: (kind) => (this.driverPick = { mode: 'buy', siteId: v.homeId, vehicle: kind, line: v.line ?? 'main' }),
         upgradeHome: () => g.upgrade(v.homeId),
         copy: () => g.duplicateVeh(v.id),
+        buyFor: (siteId) => g.buyTruckFor(v.id, siteId),
         setDest: (id) => g.vehicleDest(v.id, id),
         setPick: (m) => g.vehiclePick(v.id, m),
         sell: () => {

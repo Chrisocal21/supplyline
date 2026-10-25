@@ -43,6 +43,7 @@ import {
   prepareRealisticWorld,
   homesNow,
   duplicateVehicle,
+  duplicateVehicleTo,
   setAutoBuy,
   acceptOffer,
   declineOffer,
@@ -3050,6 +3051,12 @@ export class Game3D {
   duplicateVeh(id: number): void {
     const err = duplicateVehicle(this.world, id);
     this.onToast(err ?? 'Bought another just like it');
+  }
+
+  /** Buy another truck like this one, sent only to one buyer. */
+  buyTruckFor(id: number, destId: number): void {
+    const err = duplicateVehicleTo(this.world, id, destId);
+    this.onToast(err ?? 'Bought another truck for that buyer');
   }
 
   sellVeh(id: number): void {

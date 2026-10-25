@@ -53,6 +53,8 @@ export interface CardActions {
   copy: () => void;
   /** Send this vehicle only to one buyer, or to any of them (0). */
   setDest: (siteId: number) => void;
+  /** Buy another vehicle like this one for one buyer, and leave this one as it is. */
+  buyFor: (siteId: number) => void;
   setPick: (pick: PickMode) => void;
   sell: () => void;
   service: () => void;
@@ -235,6 +237,12 @@ export function routePicture(im: Im, world: World, v: Vehicle, id: string, x: nu
     im.text(`${id}bg${r.site.id}`, what, tx + 12, ty + 34, { size: 9, color: live ? (on ? COLORS.good : COLORS.muted) : COLORS.warn, layer: 4 });
     // Right side: what it pays, and how much room it has.
     const rx = tx + tw - 12;
+    // Instead of turning this truck round, buy a second one for this buyer: both keep running.
+    if (tw >= 300 && live) {
+      const bw2 = 78;
+      const bx = rx - 70 - 14 - bw2;
+      button(im, `${id}bt${r.site.id}`, `+ TRUCK $${fmt(info.copyCost)}`, bx, ty + 22, bw2, 20, info.copyOk, () => act.buyFor(r.site.id), 'quiet');
+    }
     if (live) {
       im.text(`${id}bp${r.site.id}`, r.price > 0 ? `$${r.price.toFixed(1)}/t` : 'passes on', rx, ty + 6, { size: 11, bold: true, color: on ? COLORS.accent : COLORS.muted, align: 'right', layer: 4 });
       const bw = 70;

@@ -71,7 +71,7 @@ import { blendPartner, civicFootprint, footprint, plotCount, streetReach, townLa
 import { generateLand } from './mapgen';
 import { checkQuests } from './quests';
 import { stepBank, type BankState } from './bank';
-import { SHORTCUT_EVERY, optimizeRoutes } from './shortcuts';
+import { SHORTCUT_EVERY, SHORTCUT_SOON, optimizeRoutes } from './shortcuts';
 import { WEAR_SLOWDOWN, WEAR_TILES, stepBreakdown, applicants, assignDriver, driverById, hireDriver, hireFee, type Driver, type Mechanic } from './drivers';
 import { registerBase } from './compact';
 import { saleMult, wearMult } from './perks';
@@ -435,6 +435,8 @@ export interface World {
   perks?: Record<string, number>;
   /** Path quests finished, by id (see PATH_QUESTS). */
   pathDone?: string[];
+  /** A road was just laid, or a quicker way is waiting for trucks to clear it: drivers look at the map again soon (see shortcuts.ts). */
+  shortcutsDirty?: boolean;
   tick: number;
   /** Units made and used up by buildings since the start, by good. The production sheet turns these into rates. */
   produced: Stock;
@@ -2766,7 +2768,8 @@ function stepEvents(world: World): void {
 export function step(world: World): void {
   world.tick += 1;
   // Drivers look at the roads again now and then and take any quicker way they find.
-  if (world.tick % SHORTCUT_EVERY === SHORTCUT_EVERY / 2) optimizeRoutes(world);
+  // A road that has just opened, or a quicker way still waiting for the trucks to clear it, is looked at again soon.
+  if (world.tick % SHORTCUT_EVERY === SHORTCUT_EVERY / 2 || (world.shortcutsDirty && world.tick % SHORTCUT_SOON === 0)) optimizeRoutes(world);
   stepEvents(world);
   for (const s of world.sites) stepSite(world, s);
   for (const v of world.vehicles) stepVehicle(world, v);
@@ -3750,6 +3753,7 @@ export function createRoute(world: World, rawPath: Tile[], mode: RouteMode = 'ro
   if (plan.error) return plan.error;
   if (world.money < plan.cost) return `Need $${Math.ceil(plan.cost)}`;
   world.money -= plan.cost;
+  if (mode === 'road') world.shortcutsDirty = true;
   const g = mode === 'road' ? grade : undefined;
   // Only ground that is not already laid becomes new stretches, with one tile of the old to join them to.
   const key = (t: Tile): number => t.y * world.width + wrapX(world, t.x);
@@ -4011,6 +4015,24 @@ export function duplicateVehicle(world: World, vehicleId: number): string | null
   const v = world.vehicles[world.vehicles.length - 1];
   v.destId = src.destId;
   if (src.pick) v.pick = src.pick;
+  v.routeId = 0;
+  assignVehicle(world, v);
+  return null;
+}
+
+/**
+ * Buy another vehicle just like this one and pin it to one buyer, leaving this one on its own run: two trucks from one
+ * building, one carrying milk to the Market and the other milk to the Dairy, instead of turning the first one round.
+ */
+export function duplicateVehicleTo(world: World, vehicleId: number, destId: number): string | null {
+  const src = world.vehicles.find((x) => x.id === vehicleId);
+  if (!src) return 'No such vehicle';
+  const dest = siteById(world, destId);
+  if (!dest || !destinationsOf(world, src).includes(dest)) return 'That buyer is not joined to this building';
+  const err = buyVehicle(world, src.homeId, src.kind, src.line ?? 'main');
+  if (err) return err;
+  const v = world.vehicles[world.vehicles.length - 1];
+  v.destId = destId;
   v.routeId = 0;
   assignVehicle(world, v);
   return null;

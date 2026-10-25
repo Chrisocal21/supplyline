@@ -56,6 +56,21 @@ describe('drivers and shortcuts', () => {
     expect(route.path[route.path.length - 1]).toEqual({ x: 19, y: 5 });
   });
 
+  it('look again soon when a truck is in the way, and take the quicker road as soon as it has cleared', () => {
+    const w = world();
+    const { route, v } = lane(w, 0);
+    v.idx = 5;
+    v.state = 'moving';
+    directRoad(w);
+    expect(optimizeRoutes(w)).toBe(0);
+    expect(w.shortcutsDirty).toBe(true);
+    // The truck drives on to the end of the old line, where it can join the new way.
+    v.idx = route.path.length - 1;
+    expect(optimizeRoutes(w)).toBe(1);
+    expect(w.shortcutsDirty).toBe(false);
+    expect(route.path).toHaveLength(17);
+  });
+
   it('leave a small saving to the experienced', () => {
     // A detour of one tile either side costs about 2 of 18: roughly 11 percent.
     const rookie = world();
