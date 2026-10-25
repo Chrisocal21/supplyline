@@ -4,7 +4,7 @@ import type { Im } from './imui';
 
 export type IconName =
   | 'business' | 'game' | 'sound' | 'display' | 'keys' | 'about' | 'company' | 'production' | 'fleet' | 'towns' | 'bank'
-  | 'quests' | 'guide' | 'save' | 'world' | 'tutorial' | 'minimap' | 'perf';
+  | 'quests' | 'guide' | 'save' | 'world' | 'tutorial' | 'minimap' | 'perf' | 'lock';
 
 export function drawIcon(im: Im, name: IconName, cx: number, cy: number, c: number, bg: number, layer = 5): void {
   const r = (x: number, y: number, w: number, h: number, col = c, rad = 1): void => im.rect(layer, cx + x, cy + y, w, h, col, 1, rad);
@@ -72,6 +72,13 @@ export function drawIcon(im: Im, name: IconName, cx: number, cy: number, c: numb
       r(-13, -11, 26, 5);
       for (const dx of [-10, -3, 4]) r(dx, -5, 6, 12);
       r(-14, 8, 28, 4);
+      break;
+    case 'lock':
+      // Padlock: shackle on top, body below with a key-shaped hole.
+      box(-7, -13, 14, 14, 3);
+      r(-12, -3, 24, 16, c, 3);
+      r(-2, 1, 4, 4, bg, 2);
+      r(-1, 4, 2, 5, bg, 0);
       break;
     case 'quests':
       r(-8, -12, 3, 24);

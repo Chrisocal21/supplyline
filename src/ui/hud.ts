@@ -2617,7 +2617,10 @@ export class HudScene extends Phaser.Scene {
     const CH = narrow ? 96 : CARD_H;
     const IMG = narrow ? 50 : 68;
     const tools = this.shownTools(tab.tools);
-    const n = tools.length;
+    // What is still locked follows as mystery cards: a padlock and how to open it, never the name.
+    const lockedTools = tab.tools.filter((t) => !tools.includes(t));
+    const allTools = [...tools, ...lockedTools];
+    const n = allTools.length;
     // The tray spreads across the whole window, and rises above the minimap if it would cover it. When there are more rows than
     // fit between the top bar and the dock, the rest scroll: the wheel over the tray, or the bar at its right edge.
     const avail = W - (narrow ? 24 : 48);
@@ -2652,11 +2655,22 @@ export class HudScene extends Phaser.Scene {
       im.text('trayMore', `Scroll for more  ·  ${this.trayRow + 1}-${this.trayRow + shown} of ${rows} rows`, tx + trayW - TRAY_PAD - 14, ty + 10, { size: 11, color: COLORS.muted, align: 'right', layer: 2 });
     }
     const first = this.trayRow * perRow;
-    tools.forEach((tool, i) => {
+    allTools.forEach((tool, i) => {
       if (i < first || i >= first + shown * perRow) return;
       const cx = tx + TRAY_PAD + ((i - first) % perRow) * (CW + 10);
       const cy = ty + TRAY_PAD + 24 + Math.floor((i - first) / perRow) * (CH + 10);
       const info = this.cardInfo(tool);
+      if (i >= tools.length) {
+        const how = info.locked === 'Coming soon' ? 'Coming soon' : info.locked === 'Full game' ? 'In the full game' : info.locked!;
+        const lid = `lockcard${tool}`;
+        const lhov = im.hit(lid, cx, cy, CW, CH, () => this.toasts.push({ text: `Locked: ${how}`, until: this.time.now + 2400 }));
+        im.rect(1, cx, cy, CW, CH, lhov ? 0x151e28 : 0x0e151b, 1, 3, COLORS.line, 1, 1);
+        im.rect(1, cx, cy, 3, CH, 0x2a3440, 0.7, 0);
+        drawIcon(im, 'lock', cx + CW / 2, cy + 6 + IMG / 2, COLORS.muted, 0x0e151b, 2);
+        im.rect(1, cx + 3, cy + IMG + 24, CW - 3, CH - IMG - 24, 0x0a0f14, 0.9, 0);
+        im.text(`lockHow${tool}`, how, cx + CW / 2, cy + IMG + 28, { size: 11, bold: true, color: COLORS.muted, align: 'center', layer: 2, wrap: CW - 12 });
+        return;
+      }
       const on = g.tool === tool;
       const id = `card${tool}`;
       if (coach && tool === coach.tool && tab.id === coach.tab && g.tool !== tool) {
