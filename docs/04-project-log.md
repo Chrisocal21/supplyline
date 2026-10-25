@@ -1097,3 +1097,7 @@ What changed:
 
 - Build tools no longer wash every for-sale plot orange: plot edges are faint outlines only. Open-ground buildings show the green / orange site zones like the road tool, and for-sale land counts as open (placing there buys the plot first). Node buildings show only their node markers.
 - F opens the Fleet (was V). The keybinds page gains a Menus group listing every menu key.
+
+## 0.181: node pins as rocks
+
+- The stand-in drawn for a node seen from far out (one instanced mesh) is a low cluster of three faceted rocks instead of a coloured cone, tinted by the resource and mixed with stone grey, so it reads as an outcrop the building takes over.

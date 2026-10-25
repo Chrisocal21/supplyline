@@ -2,6 +2,7 @@
 import { isDesert } from '../sim/desert';
 import { corridorTiles } from '../sim/corridors';
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { isSoftNode, type NodeKind } from '../sim/defs';
 import { tileLonLat } from '../sim/mapgen';
 import { parcelState, parcelsOf } from '../sim/land';
@@ -279,13 +280,22 @@ export class Scenery {
 
   private buildFarMarks(marks: { id: number; kind: NodeKind; matrix: THREE.Matrix4 }[]): void {
     if (marks.length === 0) return;
-    const geo = new THREE.ConeGeometry(1.5, 4, 6);
-    geo.translate(0, 2, 0);
-    const mesh = new THREE.InstancedMesh(geo, new THREE.MeshStandardMaterial({ roughness: 0.8 }), marks.length);
+    // A low cluster of faceted rocks, tinted by what the node holds: it reads as a resource outcrop the building takes over.
+    const rocks = ([[0, 0, 0, 1.6, 0.75], [1.5, 0.4, 0.2, 1.0, 0.6], [-1.2, -0.9, 0.5, 0.9, 0.55]] as const).map(([x, z, yaw, r, sq]) => {
+      const g = new THREE.DodecahedronGeometry(r, 0);
+      g.scale(1.1, sq, 1);
+      g.rotateY(yaw);
+      g.translate(x, r * sq * 0.6, z);
+      return g;
+    });
+    const geo = mergeGeometries(rocks)!.scale(1.6, 1.6, 1.6);
+    geo.computeVertexNormals();
+    const mesh = new THREE.InstancedMesh(geo, new THREE.MeshStandardMaterial({ roughness: 0.95, flatShading: true }), marks.length);
     const col = new THREE.Color();
+    const stone = new THREE.Color(0x8b857c);
     marks.forEach((m, i) => {
       mesh.setMatrixAt(i, ZERO);
-      mesh.setColorAt(i, col.setHex(Scenery.MARK_COLOR[m.kind] ?? 0xffffff));
+      mesh.setColorAt(i, col.setHex(Scenery.MARK_COLOR[m.kind] ?? 0xffffff).lerp(stone, 0.45));
       this.farIndex.set(m.id, { i, matrix: m.matrix });
     });
     mesh.instanceMatrix.needsUpdate = true;
