@@ -6,7 +6,7 @@ import { buyVehicle, createRoute, createWorld, placeSite, step } from './world';
 it('the first tier plays through on a generated world, following the quests', () => {
   const w = createWorld(11);
   // The camps, ranch and orchard quests at the end of Tier 0 need things these chores do not build: count them done.
-  (w.questsDone ??= []).push(...['t0-camps', 't0-ranch', 't0-milk', 't0-dairy', 't0-cheese', 't0-earn']);
+  (w.questsDone ??= []).push(...['t0-camps', 't0-ranch', 't0-milk', 't0-dairy', 't0-cheesemake', 't0-cheese', 't0-earn']);
   const town = w.places[0];
   const W = w.width;
   const d2 = (a: { x: number; y: number }, b: { x: number; y: number }): number => {
