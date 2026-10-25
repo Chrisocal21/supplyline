@@ -1772,7 +1772,7 @@ export function buyersFor(world: World, site: Site, extra = 3, line: Line = 'mai
     .map((x) => ({ ...x, perMinute: runValue(world, site, x.o, x.goods, Math.sqrt(d2(x.o))) }));
   // The nearby ones, best first. A town's Supply Yard and Market are always offered however far off, since a town cannot be built
   // without the goods they ask for and a camp may stand a long way out: the nearest such one that is not already joined is kept.
-  const far = all.filter((x) => d2(x.o) < 40 * 40).sort((a, b) => b.perMinute - a.perMinute).slice(0, extra);
+  const far = all.filter((x) => d2(x.o) < 300 * 300).sort((a, b) => b.perMinute - a.perMinute).slice(0, extra);
   const townDock = all.filter((x) => SITE_DEFS[x.o.kind].dock === 'freight' || SITE_DEFS[x.o.kind].dock === 'market').sort((a, b) => d2(a.o) - d2(b.o))[0];
   if (townDock && !far.includes(townDock)) far.push(townDock);
   for (const x of far) out.push({ site: x.o, goods: x.goods, connected: false, on: false, perMinute: x.perMinute });

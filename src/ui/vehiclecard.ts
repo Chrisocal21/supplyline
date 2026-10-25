@@ -67,9 +67,10 @@ const TILE_H = 46;
 const TILE_GAP = 6;
 const MAX_TILES = 60;
 
-/** The buyers shown on a card: at most six, and the pinned one is always among them. */
+/** The buyers shown on a card: buyers who want something first, then the rest; pinned always included. */
 function shownRuns(runs: TruckRun[], pinned: number): TruckRun[] {
-  const list = runs.slice(0, MAX_TILES);
+  const wanting = runs.filter((r) => r.goods.length > 0);
+  const list = wanting.slice(0, MAX_TILES);
   const pin = runs.find((r) => r.site.id === pinned);
   if (pin && !list.includes(pin)) list[MAX_TILES - 1] = pin;
   return list;
