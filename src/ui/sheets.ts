@@ -322,43 +322,47 @@ export class Sheets {
     let bottom: number;
     if (wide) {
       // A console menu: a rail of pages down the left, the page's title across the top, the page itself in the middle.
-      const rail = 208;
-      im.rect(2, x, y, w, h, 0x0b1117, 0.985, 4, COLORS.line, 1);
-      im.rect(2, x, y, rail, h, 0x080c11, 1, 4);
-      im.rect(2, x + rail, y, 1, h, COLORS.line, 1, 0);
-      im.rect(2, x, y, w, 3, COLORS.accent, 0.9, 0);
+      // A floating rail of pages on the left, grouped, with the open page as a lit pill; a big display title on the right.
+      const rail = 220;
+      im.rect(2, x, y, w, h, 0x0b1117, 0.97, 10, COLORS.line, 0.7);
+      im.rect(2, x + 8, y + 8, rail - 8, h - 16, 0x070b0f, 0.9, 8, COLORS.line, 0.45);
       im.block({ x, y, w, h });
-      const mark = im.text('shMark', 'SUPPLY', x + 20, y + 16, { size: 22, bold: true, display: true, color: COLORS.text, layer: 3 });
-      im.text('shMark1', 'LINE', x + 20 + mark.w, y + 16, { size: 22, bold: true, display: true, color: COLORS.accent, layer: 3 });
-      im.text('shMark2', 'MANAGE', x + 20, y + 44, { size: 10, color: COLORS.muted, layer: 3 });
+      const mark = im.text('shMark', 'SUPPLY', x + 24, y + 22, { size: 22, bold: true, display: true, color: COLORS.text, layer: 3 });
+      im.text('shMark1', 'LINE', x + 24 + mark.w, y + 22, { size: 22, bold: true, display: true, color: COLORS.accent, layer: 3 });
+      const groups: [string, number][] = [['BUSINESS', 0], ['PROGRESS', 5]];
+      let ry = y + 66;
       pages.forEach((p, i) => {
-        const ry = y + 70 + i * 52;
-        const on = p.id === id;
-        const hov = im.hit(`shRail${p.id}`, x, ry, rail, 48, () => select(p.id), 3);
-        im.rect(3, x, ry, rail, 48, on ? 0x17212b : hov ? 0x10181f : 0x080c11, 1, 0);
-        if (on) im.rect(3, x, ry, 4, 48, COLORS.accent, 1, 0);
-        this.railIcon(p.id, x + 32, ry + 24, on ? COLORS.accent : hov ? COLORS.text : COLORS.muted);
-        im.text(`shRailT${p.id}`, p.label.toUpperCase(), x + 56, ry + 16, { size: 13, bold: true, color: on ? COLORS.accent : COLORS.text, layer: 4 });
-        if (!isTouch()) {
-          im.rect(3, x + rail - 34, ry + 14, 20, 20, 0x0b1117, 1, 3, COLORS.line, 1);
-          im.text(`shRailK${p.id}`, p.key, x + rail - 24, ry + 18, { size: 10, bold: true, color: on ? COLORS.accent : COLORS.muted, align: 'center', layer: 4 });
+        const g = groups.find((gr) => gr[1] === i);
+        if (g) {
+          if (i > 0) ry += 10;
+          im.text(`shGrp${g[0]}`, g[0], x + 24, ry, { size: 9, bold: true, color: COLORS.muted, layer: 3 });
+          ry += 20;
         }
+        const on = p.id === id;
+        const bx = x + 16;
+        const bw = rail - 24;
+        const hov = im.hit(`shRail${p.id}`, bx, ry, bw, 40, () => select(p.id), 3);
+        if (on || hov) im.rect(3, bx, ry, bw, 40, on ? 0x2a2411 : 0x121a21, on ? 0.9 : 1, 6, on ? COLORS.accent : undefined, 0.55);
+        this.railIcon(p.id, bx + 22, ry + 20, on ? COLORS.accent : hov ? COLORS.text : COLORS.muted);
+        im.text(`shRailT${p.id}`, p.label, bx + 46, ry + 12, { size: 13, bold: on, color: on ? COLORS.text : hov ? COLORS.text : 0xc4ccce, layer: 4 });
+        if (!isTouch()) im.text(`shRailK${p.id}`, p.key, bx + bw - 14, ry + 13, { size: 10, bold: true, color: on ? COLORS.accent : 0x5d6b70, align: 'center', layer: 4 });
+        ry += 44;
       });
       if (!isTouch()) {
-        im.line(3, x + 16, y + h - 70, x + rail - 16, y + h - 70, COLORS.line, 0.8, 1);
-        im.text('shHint1', 'Esc   Close', x + 20, y + h - 56, { size: 11, color: COLORS.muted, layer: 3 });
-        im.text('shHint2', 'Wheel   Scroll', x + 20, y + h - 38, { size: 11, color: COLORS.muted, layer: 3 });
+        im.text('shHint1', 'ESC  close     WHEEL  scroll', x + 24, y + h - 36, { size: 10, color: 0x6d7b80, layer: 3 });
       }
-      const cx0 = x + rail + 26;
-      im.text('shTitle', page.title.toUpperCase(), cx0, y + 18, { size: 26, bold: true, layer: 3 });
-      im.text('shSub', page.sub, cx0, y + 50, { size: 12, color: COLORS.muted, layer: 3 });
-      const cx = x + w - 56;
-      const chov = im.hit('sheetClose', cx, y + 16, 38, 38, close, 3);
-      im.rect(3, cx, y + 16, 38, 38, chov ? 0x2a3646 : 0x131b25, 1, 3, chov ? COLORS.accent : COLORS.line, 1);
-      im.line(3, cx + 12, y + 27, cx + 26, y + 43, COLORS.text, 1, 2.5);
-      im.line(3, cx + 26, y + 27, cx + 12, y + 43, COLORS.text, 1, 2.5);
-      im.line(3, cx0, y + 74, x + w - 24, y + 74, COLORS.line, 1, 1);
-      top = y + 86;
+      const cx0 = x + rail + 32;
+      im.text('shKick', `MANAGE  /  ${page.label.toUpperCase()}`, cx0, y + 22, { size: 10, bold: true, color: COLORS.accent, layer: 3 });
+      im.text('shTitle', page.title.toUpperCase(), cx0, y + 36, { size: 32, bold: true, display: true, layer: 3 });
+      im.text('shSub', page.sub, cx0, y + 74, { size: 12, color: COLORS.muted, layer: 3 });
+      const cx = x + w - 60;
+      const chov = im.hit('sheetClose', cx, y + 22, 40, 36, close, 3);
+      im.slab(3, cx, y + 22, 40, 36, chov ? COLORS.accent : 0x16212a, 1, chov ? COLORS.accent : COLORS.line, 1);
+      const xc = chov ? 0x1b1204 : COLORS.text;
+      im.line(4, cx + 14, y + 33, cx + 26, y + 47, xc, 1, 2.5);
+      im.line(4, cx + 26, y + 33, cx + 14, y + 47, xc, 1, 2.5);
+      im.line(3, cx0, y + 100, x + w - 28, y + 100, COLORS.line, 0.6, 1);
+      top = y + 112;
       bottom = y + h - 12;
       view = { x0: cx0, x1: x + w - 26, y0: top, y1: bottom };
     } else {

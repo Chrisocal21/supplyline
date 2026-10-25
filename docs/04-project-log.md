@@ -1037,3 +1037,8 @@ What changed:
 - Ground detail is now picked per chunk each frame (`setDetail(eye)` in globeMesh.ts): chunks past the horizon are hidden, and chunks farther than two camera heights (at least 12 tiles) use the coarse index, one quad a tile. From far out (over 350) all are coarse, as before.
 - Map 3 ground triangles in view (measured with triSplit at the same view, normal play mode): 754k to 74k at distance 60, 1.6M to 205k at 150, 1.9M to 483k at 300. No visible cracks or flattening in a close-up check.
 - Measuring note: `#...shot` URLs switch off the awake-area trimming, so trees count in the tens of millions there; measure performance with a plain `#seed=` URL.
+
+## 0.168: Manage sheet frame, first bit of the UI redesign
+
+- The wide Manage sheet has a floating rail of pages grouped into Business and Progress; the open page is a lit gold pill, the rest are plain until hovered, and the key hints are quiet letters.
+- The header has a small MANAGE / PAGE breadcrumb over a bigger display title, and an angled close button that lights gold on hover.
