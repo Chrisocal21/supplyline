@@ -875,6 +875,15 @@ export class HudScene extends Phaser.Scene {
       this.panelRect = null;
       this.sheetCam.setVisible(false);
       this.tierModal(W, H);
+    } else if (w.pendingTownIntro !== undefined && !this.title && !g.showcase) {
+      g.setKeys(0, 0, 0);
+      if (g.speed !== 0) {
+        this.speedBeforeTier = g.speed;
+        g.speed = 0;
+      }
+      this.panelRect = null;
+      this.sheetCam.setVisible(false);
+      this.newTownModal(W, H);
     } else if (this.demoOver()) {
       g.setKeys(0, 0, 0);
       g.speed = 0;
@@ -2035,6 +2044,47 @@ export class HudScene extends Phaser.Scene {
     }, 5);
     im.slab(4, bx, by, bw, 44, hov ? 0xe6c98e : COLORS.accent, 1);
     im.text('tuOkT', 'CONFIRM', bx + bw / 2, by + 11, { size: 20, bold: true, display: true, color: 0x1b1204, align: 'center', layer: 5 });
+  }
+
+  /** The "new town" card: shown once, the first time a road reaches a second (or later) town's Supply Yard or Market. */
+  private newTownModal(W: number, H: number): void {
+    const im = this.im;
+    const g = this.game3d;
+    const w = g.world;
+    const placeId = w.pendingTownIntro;
+    const place = placeId === undefined ? undefined : w.places.find((p) => p.id === placeId);
+    im.rect(3, 0, 0, W, H, 0x05080c, 0.78);
+    im.block({ x: 0, y: 0, w: W, h: H });
+    const pw = Math.min(520, W - 24);
+    const pad = 24;
+    const ph = 260;
+    const x = (W - pw) / 2;
+    const y = Math.max(TOP + 6, (H - ph) / 2);
+    im.rect(4, x, y, pw, ph, 0x0b1117, 0.98, 10, COLORS.accent, 0.7);
+    let cy = y + pad;
+    im.text('ntK', 'NEW TOWN CONNECTED', x + pad, cy, { size: 11, bold: true, color: COLORS.accent, layer: 4 });
+    im.text('ntT', (place?.name ?? 'A new town').toUpperCase(), x + pad, cy + 14, { size: 28, bold: true, display: true, wrap: pw - pad * 2, layer: 4 });
+    cy += 60;
+    const lines = [
+      'This town has its own Supply Yard and Market, separate from any other town’s.',
+      'Feed it the same way you fed your first town: road building goods to its Supply Yard until it is built, then bring it a Market and sell goods there.',
+      'Its own quests will ask for this once you select it, but you can start right away.',
+    ];
+    for (const l of lines) {
+      im.text(`nt${lines.indexOf(l)}`, l, x + pad, cy, { size: 13, color: COLORS.muted, wrap: pw - pad * 2, layer: 4 });
+      cy += 20 + Math.ceil(l.length / 46) * 16;
+    }
+    const bw = 200;
+    const bx = x + pw - pad - bw;
+    const by = y + ph - pad - 44;
+    const hov = im.hit('ntOk', bx, by, bw, 44, () => {
+      w.townsIntroduced ??= [];
+      if (placeId !== undefined && !w.townsIntroduced.includes(placeId)) w.townsIntroduced.push(placeId);
+      w.pendingTownIntro = undefined;
+      g.speed = this.speedBeforeTier || 1;
+    }, 5);
+    im.slab(4, bx, by, bw, 44, hov ? 0xe6c98e : COLORS.accent, 1);
+    im.text('ntOkT', 'GOT IT', bx + bw / 2, by + 11, { size: 20, bold: true, display: true, color: 0x1b1204, align: 'center', layer: 5 });
   }
 
   private sizeModal(W: number, H: number): void {

@@ -384,6 +384,10 @@ export interface World {
   difficulty?: 'relaxed' | 'hard';
   /** The highest tier whose unlocks the player has seen and confirmed. Missing on older saves: treated as the current tier. */
   tierShown?: number;
+  /** Towns (place ids) the player has already been introduced to, so the second-town card shows only once each. Missing on older saves: treated as every town already seen. */
+  townsIntroduced?: number[];
+  /** A town (place id) just joined by road for the first time, waiting for the player to confirm the "new town" card. */
+  pendingTownIntro?: number;
   /** New games: a building outside a town needs its land plot bought first (see land.ts). Missing means build anywhere. */
   landRules?: boolean;
   /** Land plots the player owns, by plot id. */
@@ -3707,7 +3711,33 @@ export function createRoute(world: World, rawPath: Tile[], mode: RouteMode = 'ro
   const to = siteAt(world, path[path.length - 1].x, path[path.length - 1].y)!;
   world.routes.push({ id: world.nextId++, mode, grade: g, fromSiteId: from.id, toSiteId: to.id, over: true, path });
   linkNetwork(world, mode);
+  if (mode === 'road') {
+    noteTownReached(world, from);
+    noteTownReached(world, to);
+  }
   return null;
+}
+
+/**
+ * A road that reaches a town's Supply Yard or Market for the first time: the second, third and later towns get a card of
+ * their own (see newTownCard in hud.ts) reminding the player to feed this one the way they fed the first. The very first
+ * town the player ever touches needs no card: the tier-0 quests already walk them through it.
+ */
+function noteTownReached(world: World, site: Site): void {
+  const placeId = site.placeId;
+  if (placeId === null || !SITE_DEFS[site.kind].dock) return;
+  if (world.townsIntroduced === undefined) {
+    // Back-fill for a save from before this existed: every town already reached by road counts as already seen.
+    world.townsIntroduced = world.places
+      .filter((p) => world.sites.some((s) => s.placeId === p.id && SITE_DEFS[s.kind].dock && world.routes.some((r) => r.mode === 'road' && (r.fromSiteId === s.id || r.toSiteId === s.id))))
+      .map((p) => p.id);
+  }
+  if (world.townsIntroduced.includes(placeId)) return;
+  if (world.townsIntroduced.length === 0) {
+    world.townsIntroduced.push(placeId);
+    return;
+  }
+  if (world.pendingTownIntro === undefined) world.pendingTownIntro = placeId;
 }
 
 /**
