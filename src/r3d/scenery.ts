@@ -262,56 +262,93 @@ export class Scenery {
     this.buildFarMarks(marks);
   }
 
-  /** A cheap stand-in for every node scene, drawn from far out where the full scene is not: a coloured pin, one draw call in all. */
-  private farMarks: THREE.InstancedMesh | null = null;
-  private readonly farIndex = new Map<number, { i: number; matrix: THREE.Matrix4 }>();
+  /**
+   * A small marker on every free resource node, shown at any distance until something is built on it, shaped for what the
+   * node holds: rocks for stone, ore, coal and clay, a dark pool for oil, young pines for forest, a tilled patch for fields and
+   * meadows, round bushes for fruit and coffee. One instanced mesh per shape.
+   */
+  private farMarks: THREE.InstancedMesh[] = [];
+  private readonly farIndex = new Map<number, { mesh: THREE.InstancedMesh; i: number; matrix: THREE.Matrix4 }>();
   private static readonly MARK_COLOR: Partial<Record<NodeKind, number>> = {
     forest: 0x2f6f3c,
-    farmland: 0xe0c04a,
-    pasture: 0x9ad06a,
+    farmland: 0xb08a4a,
+    pasture: 0x7aa04e,
     quarry: 0xa7adb5,
     mine: 0xb06a4a,
     coal: 0x2a2a2e,
     clay: 0xd2784a,
-    oil: 0x16161a,
-    coffee: 0x7a4a2a,
-    mango: 0xf0a030,
+    oil: 0x101014,
+    orchard: 0x3f7a34,
+    coffee: 0x3d5e2a,
+    mango: 0x4f8a30,
   };
+
+  private static markShape(kind: NodeKind): 'rock' | 'oil' | 'pine' | 'field' | 'bush' {
+    if (kind === 'oil') return 'oil';
+    if (kind === 'forest') return 'pine';
+    if (kind === 'farmland' || kind === 'pasture') return 'field';
+    if (kind === 'orchard' || kind === 'coffee' || kind === 'mango') return 'bush';
+    return 'rock';
+  }
+
+  private static markGeometry(shape: 'rock' | 'oil' | 'pine' | 'field' | 'bush'): THREE.BufferGeometry {
+    const parts: THREE.BufferGeometry[] = [];
+    if (shape === 'rock') {
+      for (const [x, z, yaw, r, sq] of [[0, 0, 0, 1, 0.75], [0.9, 0.3, 0.2, 0.6, 0.6], [-0.8, -0.5, 0.5, 0.55, 0.55]]) {
+        const g = new THREE.DodecahedronGeometry(r, 0);
+        g.scale(1.1, sq, 1);
+        g.rotateY(yaw);
+        g.translate(x, r * sq * 0.6, z);
+        parts.push(g);
+      }
+    } else if (shape === 'oil') {
+      // A dark pool with a lip of stained ground.
+      parts.push(new THREE.CylinderGeometry(1.4, 1.5, 0.12, 12).translate(0, 0.06, 0));
+      parts.push(new THREE.CylinderGeometry(0.7, 0.8, 0.2, 10).translate(0.6, 0.1, -0.4));
+    } else if (shape === 'pine') {
+      for (const [x, z, h] of [[0, 0, 2.4], [0.9, 0.5, 1.7], [-0.8, 0.4, 1.9]]) parts.push(new THREE.ConeGeometry(h * 0.32, h, 6).translate(x, h / 2, z));
+    } else if (shape === 'field') {
+      // A low tilled patch with three furrows.
+      parts.push(new THREE.BoxGeometry(2.6, 0.1, 2).translate(0, 0.05, 0));
+      for (const z of [-0.6, 0, 0.6]) parts.push(new THREE.BoxGeometry(2.4, 0.18, 0.22).translate(0, 0.14, z));
+    } else {
+      for (const [x, z, r] of [[0, 0, 0.8], [0.9, 0.3, 0.55], [-0.7, 0.5, 0.6]]) parts.push(new THREE.IcosahedronGeometry(r, 0).translate(x, r * 0.9, z));
+    }
+    const geo = mergeGeometries(parts.map((g) => g.toNonIndexed()))!;
+    geo.computeVertexNormals();
+    return geo;
+  }
 
   private buildFarMarks(marks: { id: number; kind: NodeKind; matrix: THREE.Matrix4 }[]): void {
     if (marks.length === 0) return;
-    // A low cluster of faceted rocks, tinted by what the node holds: it reads as a resource outcrop the building takes over.
-    const rocks = ([[0, 0, 0, 1.6, 0.75], [1.5, 0.4, 0.2, 1.0, 0.6], [-1.2, -0.9, 0.5, 0.9, 0.55]] as const).map(([x, z, yaw, r, sq]) => {
-      const g = new THREE.DodecahedronGeometry(r, 0);
-      g.scale(1.1, sq, 1);
-      g.rotateY(yaw);
-      g.translate(x, r * sq * 0.6, z);
-      return g;
-    });
-    const geo = mergeGeometries(rocks)!.scale(1.6, 1.6, 1.6);
-    geo.computeVertexNormals();
-    const mesh = new THREE.InstancedMesh(geo, new THREE.MeshStandardMaterial({ roughness: 0.95, flatShading: true }), marks.length);
     const col = new THREE.Color();
     const stone = new THREE.Color(0x8b857c);
-    marks.forEach((m, i) => {
-      mesh.setMatrixAt(i, ZERO);
-      mesh.setColorAt(i, col.setHex(Scenery.MARK_COLOR[m.kind] ?? 0xffffff).lerp(stone, 0.45));
-      this.farIndex.set(m.id, { i, matrix: m.matrix });
-    });
-    mesh.instanceMatrix.needsUpdate = true;
-    if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
-    mesh.frustumCulled = false;
-    mesh.visible = false;
-    this.group.add(mesh);
-    this.farMarks = mesh;
+    for (const shape of ['rock', 'oil', 'pine', 'field', 'bush'] as const) {
+      const mine = marks.filter((m) => Scenery.markShape(m.kind) === shape);
+      if (mine.length === 0) continue;
+      const mat = new THREE.MeshStandardMaterial({ roughness: shape === 'oil' ? 0.25 : 0.95, metalness: shape === 'oil' ? 0.3 : 0, flatShading: true });
+      const mesh = new THREE.InstancedMesh(Scenery.markGeometry(shape), mat, mine.length);
+      mine.forEach((m, i) => {
+        mesh.setMatrixAt(i, ZERO);
+        col.setHex(Scenery.MARK_COLOR[m.kind] ?? 0xffffff);
+        if (shape === 'rock') col.lerp(stone, 0.45);
+        mesh.setColorAt(i, col);
+        this.farIndex.set(m.id, { mesh, i, matrix: m.matrix });
+      });
+      mesh.instanceMatrix.needsUpdate = true;
+      if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+      mesh.frustumCulled = false;
+      this.group.add(mesh);
+      this.farMarks.push(mesh);
+    }
   }
 
-  /** Show or hide one node's pin: shown when its scene is too far to draw and nothing has been built on it. */
+  /** Show or hide one node's marker: shown while nothing has been built on it. */
   private setFarMark(id: number, on: boolean): void {
     const f = this.farIndex.get(id);
-    if (!f || !this.farMarks) return;
-    this.farMarks.setMatrixAt(f.i, on ? f.matrix : ZERO);
-    this.farMarks.instanceMatrix.needsUpdate = true;
+    if (!f) return;
+    f.mesh.setMatrixAt(f.i, on ? f.matrix : ZERO);
+    f.mesh.instanceMatrix.needsUpdate = true;
   }
 
   /** Hide the scene on nodes that have a building on them. */
@@ -319,7 +356,7 @@ export class Scenery {
     this.propUsed = new Set(used);
     for (const [id, m] of this.props) {
       m.visible = !used.has(id) && m.userData.far !== true;
-      this.setFarMark(id, !used.has(id) && m.userData.far === true);
+      this.setFarMark(id, !used.has(id));
     }
   }
   private propUsed = new Set<number>();
@@ -1032,11 +1069,10 @@ export class Scenery {
       if (far !== (m.userData.far === true)) {
         m.userData.far = far;
         m.visible = !far && !this.propUsed.has(id);
-        this.setFarMark(id, far && !this.propUsed.has(id));
       }
     }
     // The pins show out to the same distance as the town models.
-    if (this.farMarks) this.farMarks.visible = eye.length() - R < 450;
+    for (const m of this.farMarks) m.visible = eye.length() - R < 450;
     for (const r of this.regions) {
       toEye.subVectors(eye, r.center);
       up.copy(r.center).normalize();

@@ -210,7 +210,7 @@ const DEFS = {
   farm: raw('Farm', 'Grows grain on farmland. Makes grain and bran.', 90, 0, 'farmland', 'grain', 15, 0xc8a850, ['bran']),
   claypit: raw('Clay Pit', 'Digs clay on a clay node by the water. Makes clay and sand.', 110, 0, 'clay', 'clay', 18, 0xb86f4a, ['sand']),
   ranch: raw('Dairy Ranch', 'Grazes cattle on pasture. Makes milk and whey.', 130, 0, 'pasture', 'milk', 20, 0x8bb46a, ['whey']),
-  orchard: raw('Orchard', 'Grows fruit on an orchard node. Makes fruit and sawdust.', 120, 0, 'orchard', 'fruit', 22, 0xb0583f, ['sawdust']),
+  orchard: raw('Orchard', 'Grows fruit on an orchard node.', 120, 0, 'orchard', 'fruit', 22, 0xb0583f),
   quarry: raw('Quarry', 'Cuts stone from a pit at the foot of a mountain. Makes stone and gravel.', 160, 0, 'quarry', 'stone', 28, 0x8d9298, ['gravel']),
   cottonfarm: raw('Cotton Farm', 'Grows cotton on farmland. Makes cotton and bran.', 150, 1, 'farmland', 'cotton', 22, 0xe6e2d2, ['bran']),
   coalmine: raw('Coal Mine', 'Mines coal on a coal seam in the hills. Makes coal and stone.', 200, 1, 'coal', 'coal', 24, 0x2b2d31, ['stone']),

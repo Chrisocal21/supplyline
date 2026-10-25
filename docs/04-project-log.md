@@ -1117,3 +1117,9 @@ What changed:
 - A vehicle the player buys (Buy, buy with a driver, or yes to a truck offer) now waits at its yard with no orders (`awaitOrders`) until the player pins a buyer, presses Any buyer or picks a choosing mode. Its card says NO ORDERS YET, its status says Waiting for orders, and the building next step says so. Bots, tests and the demo still buy through buyVehicle and are not held.
 - The one-click Road $ buttons on a building (next step and the selling list) are gone: they are Lay a road buttons that close the window and pick the road tool, so the player draws it. The road price cache they used is removed.
 - Tutorial and How to play text say to pick a buyer for the truck.
+
+## 0.185: node markers that make sense
+
+- Every free node keeps a small marker at any distance until a building goes on it (it used to show only from far out). The marker fits the resource: a rock cluster for quarry, mine, coal and clay; a dark glossy pool for oil; young pines for forest; a tilled patch for farmland and pasture; round bushes for orchard, coffee and mango. One instanced mesh per shape.
+- Rocks are smaller than the 0.181 ones.
+- The Orchard no longer makes sawdust.
