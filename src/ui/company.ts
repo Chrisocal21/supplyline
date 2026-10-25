@@ -296,6 +296,7 @@ function garage(world: World, s: Site): { top: VehicleKind | null; next: { kind:
 
 function vehicleState(world: World, v: Vehicle): { text: string; color: number } {
   if (v.back) return { text: 'Returning home', color: COLORS.warn };
+  if (v.awaitOrders) return { text: 'Waiting for orders: pick a buyer', color: COLORS.warn };
   if (v.routeId === 0) return { text: 'Waiting: no route', color: COLORS.warn };
   if (v.state === 'loading') return { text: 'Loading', color: COLORS.info };
   if (v.state === 'unloading') return { text: 'Unloading', color: COLORS.info };

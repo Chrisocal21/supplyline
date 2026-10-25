@@ -182,11 +182,13 @@ export function routePicture(im: Im, world: World, v: Vehicle, id: string, x: nu
   const all = runsOf(world, v);
   const runs = shownRuns(all, v.destId);
   const pinned = all.find((r) => r.site.id === v.destId);
+  // A vehicle just bought has no orders: nothing is lit until the player picks a buyer, or any buyer.
+  const held = !!v.awaitOrders;
   im.line(3, x, y + 2, x + w, y + 2, COLORS.line, 1);
   im.text(`${id}rh`, 'DELIVERS TO', x, y + 12, { size: 10, bold: true, color: COLORS.muted, layer: 4 });
-  im.text(`${id}rs`, pinned ? `ONLY TO ${pinned.site.name.toUpperCase()}` : all.length > 1 ? 'ANY BUYER  ·  CHOOSES BY' : '', x + 92, y + 12, { size: 10, bold: true, color: pinned ? COLORS.accent : COLORS.muted, layer: 4 });
+  im.text(`${id}rs`, held ? 'NO ORDERS YET  ·  PICK A BUYER BELOW' : pinned ? `ONLY TO ${pinned.site.name.toUpperCase()}` : all.length > 1 ? 'ANY BUYER  ·  CHOOSES BY' : '', x + 92, y + 12, { size: 10, bold: true, color: held ? COLORS.warn : pinned ? COLORS.accent : COLORS.muted, layer: 4 });
   const anyW = 112;
-  if (all.length > 0) button(im, `${id}ra`, pinned ? 'ANY BUYER' : 'ANY BUYER  (ON)', x + w - anyW, y + 7, anyW, 20, !!pinned, () => act.setDest(0), 'quiet');
+  if (all.length > 0) button(im, `${id}ra`, pinned || held ? 'ANY BUYER' : 'ANY BUYER  (ON)', x + w - anyW, y + 7, anyW, 20, !!pinned || held, () => act.setDest(0), 'quiet');
   else im.text(`${id}rn`, 'No buyer is joined to this building yet', x + w - 6, y + 12, { size: 10, color: COLORS.warn, align: 'right', layer: 4 });
   const top = y + 34;
   const fw = Math.max(96, Math.min(132, w * 0.3));
@@ -208,7 +210,7 @@ export function routePicture(im: Im, world: World, v: Vehicle, id: string, x: nu
   runs.forEach((r, i) => {
     const ty = top + i * (TILE_H + TILE_GAP);
     const pin = pinned?.site.id === r.site.id;
-    const on = !pinned || pin;
+    const on = !held && (!pinned || pin);
     const col = SITE_DEFS[r.site.kind].color;
     const live = r.goods.length > 0;
     // The line from the loading building to this buyer, with an arrow head.
@@ -249,7 +251,7 @@ export function routePicture(im: Im, world: World, v: Vehicle, id: string, x: nu
     const gap = 4;
     const cw = (w - gap * (n - 1)) / n;
     PICK_MODES.forEach((m, i) => {
-      const on = !pinned && info.pick === m;
+      const on = !held && !pinned && info.pick === m;
       const label = PICK_LABEL[m].toUpperCase();
       const cx = x + i * (cw + gap);
       const hov = im.hit(`${id}pk${m}`, cx, cy, cw, 24, () => !pinned && act.setPick(m), 3);

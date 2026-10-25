@@ -38,6 +38,7 @@ import { findPath } from '../sim/path';
 import {
   buyVehicle,
   buildRoadTo,
+  holdNewest,
   relayoutNodes, ensureYards,
   prepareRealisticWorld,
   homesNow,
@@ -2988,8 +2989,9 @@ export class Game3D {
 
   buy(siteId: number, kind: VehicleKind, line: Line = 'main'): void {
     const err = buyVehicle(this.world, siteId, kind, line);
+    if (!err) holdNewest(this.world);
     const site = siteById(this.world, siteId);
-    this.onToast(err ?? `${vehicleLabel(kind, site ? bodyForLine(site, line) : 'box')} bought`);
+    this.onToast(err ?? `${vehicleLabel(kind, site ? bodyForLine(site, line) : 'box')} bought: pick where it goes`);
   }
 
   autoBuy(siteId: number, on: boolean): void {
@@ -3001,14 +3003,16 @@ export class Game3D {
     if (!yes) return declineOffer(this.world, offer);
     const site = siteById(this.world, offer.siteId);
     const err = acceptOffer(this.world, offer);
-    this.onToast(err ?? `${vehicleLabel(offer.kind, site ? bodyForLine(site, offer.line) : 'box')} bought`);
+    if (!err) holdNewest(this.world);
+    this.onToast(err ?? `${vehicleLabel(offer.kind, site ? bodyForLine(site, offer.line) : 'box')} bought: pick where it goes`);
   }
 
   /** Buy a vehicle with the driver the player picked: someone waiting, or an applicant to hire. */
   buyWith(siteId: number, kind: VehicleKind, line: Line, who?: { use?: number; hire?: number }): boolean {
     const err = buyVehicle(this.world, siteId, kind, line, who);
+    if (!err) holdNewest(this.world);
     const site = siteById(this.world, siteId);
-    this.onToast(err ?? `${vehicleLabel(kind, site ? bodyForLine(site, line) : 'box')} bought`);
+    this.onToast(err ?? `${vehicleLabel(kind, site ? bodyForLine(site, line) : 'box')} bought: pick where it goes`);
     return err === null;
   }
 

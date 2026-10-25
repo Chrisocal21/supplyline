@@ -65,7 +65,6 @@ import {
   HISTORY_JOBS,
   buyersFor,
   reachShortfalls,
-  roadPlan,
   routeRefund,
   siteById,
   siteTown,
@@ -86,7 +85,6 @@ import {
   wants,
   type Place,
   type Site,
-  type Tile,
   type Vehicle,
   vehicleRoute,
   vehicleTicks,
@@ -2956,7 +2954,6 @@ export class HudScene extends Phaser.Scene {
 
   private sidePanel(W: number, H: number): void {
     const g = this.game3d;
-    this.planBudget = 1;
     const sel = g.selection;
     if (!sel) return;
     // On a phone the build tray takes the width: the panel waits until it is closed.
@@ -3289,7 +3286,6 @@ export class HudScene extends Phaser.Scene {
       this.dash = null;
       return;
     }
-    this.planBudget = 2;
     const im = this.im;
     const def = SITE_DEFS[s.kind];
     const w = Math.min(W - 24, WINDOW_MAX);
@@ -3877,26 +3873,6 @@ export class HudScene extends Phaser.Scene {
     return { label: 'Wants more', color: COLORS.good, want: 1 - fill };
   }
 
-  /** Price of a "Build road" button to a buyer, worked out once and remembered while the roads stay the same. */
-  private planCache = new Map<string, { cost: number; path: Tile[] } | null>();
-  private roadCost(fromId: number, toId: number): number | null | undefined {
-    const p = this.roadPlanCached(fromId, toId);
-    return p === undefined ? undefined : p === null ? null : p.cost;
-  }
-  private roadPlanCached(fromId: number, toId: number): { cost: number; path: Tile[] } | null | undefined {
-    const world = this.game3d.world;
-    const key = `${fromId}-${toId}-${world.routes.length}-${world.sites.length}-${world.tier}`;
-    if (this.planCache.has(key)) return this.planCache.get(key);
-    // Path finding is costly: one new price per frame at most.
-    if (this.planBudget <= 0) return undefined;
-    this.planBudget -= 1;
-    if (this.planCache.size > 200) this.planCache.clear();
-    const plan = roadPlan(world, fromId, toId);
-    const out = plan ? { cost: Math.ceil(plan.cost), path: plan.path } : null;
-    this.planCache.set(key, out);
-    return out;
-  }
-  private planBudget = 1;
 
   private stuckCount = 0;
   private stuckAt = 0;
@@ -3994,6 +3970,12 @@ export class HudScene extends Phaser.Scene {
     im.text('gbBackXT', 'X', x + w - 20, y + 14, { size: 15, bold: true, align: 'center', layer: 7 });
   }
 
+  /** Close the building window and pick the road tool, so the player draws the road themselves. */
+  private layRoad(): void {
+    this.dash = null;
+    if (this.game3d.tool !== 'route') this.pickToolKey('route');
+  }
+
   /** The single most useful thing to do next at this building: what is wrong, in plain words, and the button that fixes it. */
   private nextStep(s: Site): { text: string; color: number; label?: string; ok?: boolean; act?: () => void } {
     const g = this.game3d;
@@ -4006,8 +3988,8 @@ export class HudScene extends Phaser.Scene {
     if (f.kind === 'buy') return { text: d.text, color, label: `Buy  $${fmt(VEHICLE_DEFS[f.vehicle].cost)}`, ok: buyError(world, s.id, f.vehicle) === null, act: () => g.buy(s.id, f.vehicle, f.line) };
     if (f.kind === 'sell') return { text: d.text, color, label: 'Sell there', ok: true, act: () => g.sendTo(s.id, f.to, true, f.line) };
     if (f.kind === 'upgrade') return { text: d.text, color, label: 'Upgrade', ok: true, act: () => g.upgrade(s.id) };
-    const cost = this.roadCost(s.id, f.to);
-    return { text: d.text, color, label: cost === null ? 'No way' : `Road  $${cost === undefined ? '...' : fmt(cost)}`, ok: !!cost && world.money >= cost, act: () => g.roadTo(s.id, f.to) };
+    // Roads are laid by hand: the button only picks the road tool.
+    return { text: d.text, color, label: 'Lay a road', ok: true, act: () => this.layRoad() };
   }
 
   private nextStepCard(s: Site, x: number, y: number, w: number): number {
@@ -4414,8 +4396,7 @@ export class HudScene extends Phaser.Scene {
         const best = allBuyers.find((o) => !o.connected) === b && (b.perMinute ?? 0) > 0;
         im.text(`${id}s`, best ? 'Best pick: not joined yet' : 'Not joined by road yet', x + 10, cy + 30, { size: 11, bold: best, color: best ? COLORS.good : COLORS.muted, layer: 3 });
         if (b.perMinute) im.text(`${id}e`, `about $${fmt(b.perMinute)}/min for each truck`, x + 10, cy + 46, { size: 10, color: COLORS.muted, layer: 3 });
-        const cost = this.roadCost(s.id, b.site.id);
-        this.button(`${id}b`, cost === null ? 'No way' : `Road  $${cost === undefined ? '...' : fmt(cost)}`, bx, by, 100, 32, !!cost && world.money >= cost, () => g.roadTo(s.id, b.site.id));
+        this.button(`${id}b`, 'Lay a road', bx, by, 100, 32, true, () => this.layRoad());
       } else {
         const wanted = wants(world, b.site).includes(gd);
         const sf = short.get(b.site.id);

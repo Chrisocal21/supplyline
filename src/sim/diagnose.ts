@@ -39,6 +39,9 @@ export function diagnose(world: World, s: Site, line: Line = 'main'): Diagnosis 
 
   // A warehouse or terminal with nothing to carry yet has no use for a truck.
   const fleet = fleetOf(world, s.id, line);
+  // Nothing drives off by itself: a vehicle the player bought waits until it is told where to go.
+  const waiting = fleet.filter((v) => v.awaitOrders).length;
+  if (waiting > 0) return { level: 'warn', text: `${waiting === 1 ? 'A new vehicle is' : `${waiting} new vehicles are`} waiting for orders. Open the Trucks page, pick a vehicle and choose a buyer, or Any buyer.` };
   const kind = buyOptions(world, s.id)[0];
   if (fleet.length === 0 && kind && (!def.hub || held > 0)) {
     return { level: 'warn', text: `No ${vehicleLabel(kind, bodyForLine(s, line)).toLowerCase()} yet. Buy one to carry your ${def.hub ? 'goods' : word}.`, fix: { kind: 'buy', vehicle: kind, line } };

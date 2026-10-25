@@ -313,6 +313,8 @@ export interface Vehicle {
   destId: number;
   /** How it chooses between buyers when not pinned. Unset means spread out: the least busy route. */
   pick?: PickMode;
+  /** Set on a vehicle the player has just bought: it waits at home until it is told where to go (a buyer, or any buyer). */
+  awaitOrders?: boolean;
   /** How much of the last minute or so this vehicle spent moving, 0 to 1 (unset: a new vehicle, counted as busy). */
   busy?: number;
   /** The mechanic repairing it, while it waits at a Mechanic Shop. */
@@ -2508,6 +2510,7 @@ function routeScore(world: World, v: Vehicle, r: Route): number {
 
 /** The run a vehicle should be on: its preferred one, and among equals the least busy. */
 function bestRoute(world: World, v: Vehicle): Route | undefined {
+  if (v.awaitOrders) return undefined;
   let best: Route | undefined;
   let bestScore = -Infinity;
   let bestLoad = Infinity;
@@ -2540,7 +2543,9 @@ export function assignVehicle(world: World, v: Vehicle): boolean {
 
 export function setVehiclePick(world: World, vehicleId: number, pick: PickMode): void {
   const v = world.vehicles.find((x) => x.id === vehicleId);
-  if (v) v.pick = pick;
+  if (!v) return;
+  v.pick = pick;
+  v.awaitOrders = undefined;
 }
 
 function stepVehicle(world: World, v: Vehicle): void {
@@ -3891,6 +3896,15 @@ export function buyVehicle(world: World, siteId: number, kind: VehicleKind, line
   return null;
 }
 
+/** Hold the vehicle bought last at its yard until the player gives it a destination: nothing drives off by itself. */
+export function holdNewest(world: World): void {
+  const v = world.vehicles[world.vehicles.length - 1];
+  if (!v || v.kind === 'fishboat') return;
+  v.awaitOrders = true;
+  v.routeId = 0;
+  v.state = 'loading';
+}
+
 /** Buy another vehicle just like this one: same class, same line, same pinned destination and buyer choice. */
 export function duplicateVehicle(world: World, vehicleId: number): string | null {
   const src = world.vehicles.find((x) => x.id === vehicleId);
@@ -3982,7 +3996,10 @@ export function sellVehicle(world: World, vehicleId: number): string | null {
 /** Pin a vehicle to one destination, or let it take any run its building may send along (destId 0). */
 export function setVehicleDest(world: World, vehicleId: number, destId: number): void {
   const v = world.vehicles.find((x) => x.id === vehicleId);
-  if (v) v.destId = destId;
+  if (v) {
+    v.destId = destId;
+    v.awaitOrders = undefined;
+  }
 }
 
 /** Where a vehicle could be sent: the buildings its home has a route of its kind to. */

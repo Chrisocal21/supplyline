@@ -1111,3 +1111,9 @@ What changed:
 - Open-ground buildings may stand in woodland outside forestry nodes (paying to clear it, as before), and on steeper ground (PLACE_SLOPE 40, placement only; BUILD_SLOPE still shapes world generation). On seed 11 the tiles a Sawmill can use went from 580 to 1,968; a road can use 3,695.
 - Hovering a building on a resource node shows the node quality (Impure, Normal or Pure) and its output change.
 - With a building tool picked and nothing pointed at, the hint explains the colours: green open ground, orange kept for a town or too steep; node buildings say to point at a marker and that Pure makes the most.
+
+## 0.184: nothing drives itself
+
+- A vehicle the player buys (Buy, buy with a driver, or yes to a truck offer) now waits at its yard with no orders (`awaitOrders`) until the player pins a buyer, presses Any buyer or picks a choosing mode. Its card says NO ORDERS YET, its status says Waiting for orders, and the building next step says so. Bots, tests and the demo still buy through buyVehicle and are not held.
+- The one-click Road $ buttons on a building (next step and the selling list) are gone: they are Lay a road buttons that close the window and pick the road tool, so the player draws it. The road price cache they used is removed.
+- Tutorial and How to play text say to pick a buyer for the truck.

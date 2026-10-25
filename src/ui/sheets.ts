@@ -104,7 +104,7 @@ const GUIDE: GuideSection[] = [
         step: 4,
         title: 'Buy a truck',
         sum: 'Trucks carry your goods along the road.',
-        body: 'Click your camp or farm.\nPress Buy.\nThe truck waits at the gate.\nIt leaves when a road leads to a buyer.',
+        body: 'Click your camp or farm.\nPress Buy.\nThe truck waits at the gate.\nOpen it and pick a buyer: it only leaves when told.',
         todo: 'No truck, no sales.',
         icon: 'thumb-boxtruck',
       },
