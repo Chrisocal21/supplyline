@@ -133,6 +133,15 @@ export class Im {
     }
   }
 
+  /** An angled button face, like the website's: a parallelogram leaning right, with an optional outline. */
+  slab(layer: number, x: number, y: number, w: number, h: number, fill: number, alpha = 1, line?: number, lineAlpha = 1): void {
+    const s = Math.min(9, h * 0.28);
+    const pts = [new Phaser.Math.Vector2(x + s, y), new Phaser.Math.Vector2(x + w, y), new Phaser.Math.Vector2(x + w - s, y + h), new Phaser.Math.Vector2(x, y + h)];
+    const g = this.gfx[this.L(layer)];
+    g.fillStyle(fill, alpha).fillPoints(pts, true);
+    if (line !== undefined) g.lineStyle(1, line, lineAlpha).strokePoints(pts, true);
+  }
+
   circle(layer: number, x: number, y: number, r: number, fill: number, alpha = 1): void {
     this.gfx[this.L(layer)].fillStyle(fill, alpha).fillCircle(x, y, r);
   }
@@ -160,10 +169,12 @@ export class Im {
 
   /** Draw text. Returns its pixel size, so callers can lay things out around it. */
   text(id: string, str: string, x: number, y: number, o: TextOpts = {}): { w: number; h: number } {
-    const size = o.size ?? 13;
+    // Big bold text (titles, headings, big numbers) is set in the display face, a touch larger since it is condensed, like the website.
+    const display = o.display ?? (o.bold === true && (o.size ?? 13) >= 16);
+    const size = display && o.display === undefined ? Math.round((o.size ?? 13) * 1.12) : (o.size ?? 13);
     const color = o.color ?? COLORS.text;
-    const sig = `${size}|${color}|${o.bold ? 1 : 0}|${o.stroke ?? -1}|${o.wrap ?? 0}|${o.align ?? 'left'}|${o.display ? 1 : 0}`;
-    const family = o.display ? DISPLAY : FONT;
+    const sig = `${size}|${color}|${o.bold ? 1 : 0}|${o.stroke ?? -1}|${o.wrap ?? 0}|${o.align ?? 'left'}|${display ? 1 : 0}`;
+    const family = display ? DISPLAY : FONT;
     let t = this.texts.get(id);
     if (!t) {
       t = this.scene.add.text(0, 0, '', { fontFamily: family, resolution: TEXT_RES }) as Pooled;

@@ -982,3 +982,10 @@ What changed:
 - The title screen draws the new logo (`public/title/logo.png`, the supplied emblem with a soft round edge baked into its alpha) in place of the letters, with the website's headline under it, "Feed the world, one truck at a time." The letters stay as the fallback until the picture loads.
 - The website's display face, Barlow Condensed (600, 700 and 800 in `public/fonts`, `@font-face` in `play/index.html`), is available to any text through `display: true` in `TextOpts` (`DISPLAY` in imui.ts). The title screen's headline, button labels, picture captions and loading label use it. Text redraws in it once the font has loaded.
 - Menus and HUD still use the body face. Next steps for the same look: menu headings, angled buttons, the logo in the menu.
+
+## 0.159: menus and panels match the website
+
+- Any bold text 16 px or larger (window titles, headings, big numbers like cash, place names on the globe) is drawn in the display face, 12% larger since it is condensed. Pass `display: false` to opt out. Body text and small labels stay in the body face.
+- `Im.slab()` draws the website's angled button. The shared buttons (`button` in company.ts and `HudScene.button`), the menu's update button, the Finance buttons and the towns back button use it, with uppercase labels in the display face.
+- The Manage sidebar shows SUPPLY in white and LINE in gold, like the website's title.
+- Left square on purpose: the speed buttons, segmented tabs and the phone touch bar (toggle groups read better square).

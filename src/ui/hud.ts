@@ -1301,8 +1301,8 @@ export class HudScene extends Phaser.Scene {
         if (!checking) this.menuOpen = false;
         this.syncUpdate();
       }, 5);
-      im.rect(5, btnX, btnY, btnW, btnH, ready ? (sh ? 0xf4b84f : COLORS.accent) : sh ? 0x2a3646 : 0x1b2430, 1, 10, ready ? COLORS.accent : COLORS.line, 1);
-      im.text('menuSyncT', ready ? (this.desktopReady ? 'Restart to update' : 'Sync update now') : this.desktopWired ? 'Check for update' : 'Sync update', btnX + btnW / 2, btnY + 11, { size: 14, bold: true, color: ready ? 0x1b1204 : COLORS.text, align: 'center', layer: 6 });
+      im.slab(5, btnX, btnY, btnW, btnH, ready ? (sh ? 0xf4b84f : COLORS.accent) : sh ? 0x2a3646 : 0x1b2430, 1, ready || sh ? COLORS.accent : COLORS.line, 1);
+      im.text('menuSyncT', (ready ? (this.desktopReady ? 'Restart to update' : 'Sync update now') : this.desktopWired ? 'Check for update' : 'Sync update').toUpperCase(), btnX + btnW / 2, btnY + 9, { size: 18, bold: true, display: true, color: ready ? 0x1b1204 : COLORS.text, align: 'center', layer: 6 });
       cy += updH + 16;
 
       folders.forEach((f, i) => {
@@ -3844,9 +3844,9 @@ export class HudScene extends Phaser.Scene {
     const hov = im.hit(id, x, y, w, h, () => ok && onClick(), 3);
     const fill = !ok ? 0x151c26 : style === 'main' ? (hov ? 0xf2b04c : COLORS.accent) : style === 'on' ? (hov ? 0x3ba877 : 0x2f9a69) : hov ? 0x2a3b50 : 0x1b2735;
     const text = !ok ? COLORS.muted : style === 'main' ? 0x1b1204 : style === 'on' ? 0xffffff : COLORS.accent;
-    im.rect(3, x, y, w, h, fill, 1, 8, !ok || style !== 'plain' ? fill : COLORS.accent, 1);
-    const size = Math.max(8, Math.min(12, Math.floor((12 * (w - 14)) / Math.max(1, label.length * 6.7))));
-    im.text(`${id}t`, label, x + w / 2, y + h / 2 - size / 2 - 1, { size, bold: true, color: text, align: 'center', layer: 4 });
+    im.slab(3, x, y, w, h, fill, 1, !ok || style !== 'plain' ? fill : COLORS.accent, 1);
+    const size = Math.max(10, Math.min(15, Math.floor((15 * (w - 18)) / Math.max(1, label.length * 6.6))));
+    im.text(`${id}t`, label.toUpperCase(), x + w / 2, y + h / 2 - size * 0.62, { size, bold: true, display: true, color: text, align: 'center', layer: 4 });
   }
 
   /** The good a building is mainly about: what a camp digs up or a factory makes. */

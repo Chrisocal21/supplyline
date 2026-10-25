@@ -328,8 +328,9 @@ export class Sheets {
       im.rect(2, x + rail, y, 1, h, COLORS.line, 1, 0);
       im.rect(2, x, y, w, 3, COLORS.accent, 0.9, 0);
       im.block({ x, y, w, h });
-      im.text('shMark', 'SUPPLYLINE', x + 20, y + 20, { size: 13, bold: true, color: COLORS.accent, layer: 3 });
-      im.text('shMark2', 'MANAGE', x + 20, y + 38, { size: 10, color: COLORS.muted, layer: 3 });
+      const mark = im.text('shMark', 'SUPPLY', x + 20, y + 16, { size: 22, bold: true, display: true, color: COLORS.text, layer: 3 });
+      im.text('shMark1', 'LINE', x + 20 + mark.w, y + 16, { size: 22, bold: true, display: true, color: COLORS.accent, layer: 3 });
+      im.text('shMark2', 'MANAGE', x + 20, y + 44, { size: 10, color: COLORS.muted, layer: 3 });
       pages.forEach((p, i) => {
         const ry = y + 70 + i * 52;
         const on = p.id === id;
@@ -756,8 +757,8 @@ export class Sheets {
         this.scroll = 0;
         this.townPage = 'overview';
       }, 3);
-      im.rect(3, x, y, 132, 36, bhov ? 0x243142 : 0x172130, 1, 18, COLORS.line, 1);
-      im.text('td-back-t', '‹  All towns', x + 66, y + 9, { size: 14, bold: true, align: 'center', layer: 4 });
+      im.slab(3, x, y, 132, 36, bhov ? 0x243142 : 0x172130, 1, bhov ? COLORS.accent : COLORS.line, 1);
+      im.text('td-back-t', '‹  ALL TOWNS', x + 66, y + 8, { size: 17, bold: true, display: true, align: 'center', layer: 4 });
       im.text('td-name', p.name, x + 150, y + 4, { size: 24, bold: true, layer: 3 });
       const mate = partnerOf(world, p);
       const joined = mate ? `  ·  joined with ${mate.name}${metroBonus(world, p) > 1 ? ' (metro area)' : ''}` : '';
@@ -1127,8 +1128,8 @@ export class Sheets {
       [1000, 5000, Infinity].forEach((amt, k) => {
         const bx = x + 16 + k * (bw + 8);
         const hov = im.hit(`${id}${k}`, bx, y, bw, 36, () => toast(fn(amt)), 4);
-        im.rect(3, bx, y, bw, 36, hov ? 0x243142 : 0x172130, 1, 18, COLORS.line, 1);
-        im.text(`${id}t${k}`, amt === Infinity ? `${label} ${last}` : `${label} $${amt / 1000}k`, bx + bw / 2, y + 10, { size: 13, bold: true, align: 'center', layer: 5 });
+        im.slab(3, bx, y, bw, 36, hov ? 0x243142 : 0x172130, 1, hov ? COLORS.accent : COLORS.line, 1);
+        im.text(`${id}t${k}`, (amt === Infinity ? `${label} ${last}` : `${label} $${amt / 1000}k`).toUpperCase(), bx + bw / 2, y + 8, { size: 16, bold: true, display: true, align: 'center', layer: 5 });
       });
     };
     const card = (i: number, id: string, title: string, tint: number): { x: number; y: number } => {
