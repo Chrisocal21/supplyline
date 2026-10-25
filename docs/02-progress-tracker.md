@@ -478,7 +478,11 @@ Notes from playing a Large world (41 fps, 24 ms a frame, draw 10 ms): roads look
 - [x] **Skylines** (`src/sim/skyline.ts`): each town is low (stays at terraces and fills out), mid-rise, or tall (towers at level 5), fixed by where it stands and its style. A major city is never low. Heights fall off smoothly from the centre, so neighbours are always close in height.
 - [x] **Districts are shopfronts:** the district stands at the front of its lot and the housing rises behind it, as tall as the skyline allows there. Sports campuses are untouched.
 - [x] **Factories go on open ground near a town.** They count as that town's within 14 tiles (`TOWN_CATCHMENT`), so a town's path still speeds them. A fourth free starter plot of plain open ground is handed out with the three node plots. Quest hints and tab text now say "open ground near the town".
-- [ ] Not done: night windows, a see-through option for towers hiding roads, picking through towers, a different look for unbuilt district lots, towers in the wiki and demo base, and the pacing re-check with factories outside town.
+- [x] **Window grids and shopfronts (0.208):** every downtown wall has a window row to each floor (3.2 m), and each block stands on a run of glazed shopfronts with awnings and a sign band, coloured by town style. At night only the glass cells light, each lit or dark by itself.
+- [x] **Styles:** towers take their colour from the town's style (nordic steel, temperate blue glass, mediterranean sandstone, tropical teal, arid ochre); shopfront awnings differ by style too.
+- [x] **Reserved district lots** look like paved, hoarded sites with a gold sign facing the street, not fenced plots for sale.
+- [x] **See-through towers:** while a road, building or demolish tool is active the towers shrink to low-rise (`townSquash` in game3d.ts) and rise again on select. In select mode a click on a tower picks the tile it stands on, not the ground behind it (`tower()` in pickTile).
+- [ ] Not done: the test bot cannot play new downtown worlds (it builds factories in town lots), so pacing is not re-measured; towers in the demo base and the wiki; tower shadows do not shrink with the squash.
 
 ## Website wiki parked (0.206)
 

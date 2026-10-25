@@ -41,6 +41,22 @@ const STYLE_LOOKS: Record<TownStyle, StyleLook> = {
   tropical: { walls: [0xe6c36a, 0x8fc4a8, 0xe08f7a, 0xf0e8d0, 0x7fb4d4], roofs: [0x3f7a55, 0x9a5a3a, 0x2f6a8a], roof: 'mid', wallTex: 3 },
   arid: { walls: [0xd9bf8c, 0xcaa874, 0xe4cfa3, 0xb89a68, 0xdcc49a], roofs: [0xb89a68, 0xa88a5a, 0xc7ab78], roof: 'flat', wallTex: 3 },
 };
+/** Tower glass and stone by town style: the look of a city that grew up in that place. */
+const STYLE_TOWERS: Record<TownStyle, number[]> = {
+  nordic: [0x8a9aa8, 0x9aa8b2, 0x7d8d99, 0xaab4ba],
+  temperate: [0x9fb4c8, 0xb4c4d2, 0x8ea6ba, 0xc2cbd2, 0x7f9ab0],
+  mediterranean: [0xe6d8bc, 0xd9c9a4, 0xf0e6d0, 0xcfbf9c],
+  tropical: [0x7fc4c0, 0x8fd0b8, 0x6fb0c8, 0xa8d8c8],
+  arid: [0xcfae7c, 0xdcc08e, 0xc29a68, 0xe0cba0],
+};
+/** Shopfront awnings by style. */
+const STYLE_AWNINGS: Record<TownStyle, number[]> = {
+  nordic: [0x8a2f25, 0x2f4a6a],
+  temperate: [0xb5473a, 0x3a6a52],
+  mediterranean: [0xb8573a, 0x3a6a8a],
+  tropical: [0xe0873a, 0x2f8a6a],
+  arid: [0xa8452f, 0x3a6a8a],
+};
 const BLOCKS = [0xc9c3b6, 0xd8cfc0, 0xb9b2a4, 0xcfd2d4, 0xe0d6c4, 0xb8a894];
 const TOWERS = [0x9fb4c8, 0xb4c4d2, 0x8ea6ba, 0xc2cbd2, 0x7f9ab0, 0xa8b8a8];
 const TREE_GREEN = [0x526747, 0x63764e, 0x405a41];
@@ -82,7 +98,7 @@ export interface TownModelOptions {
   /** The town's streets as built so far, as offsets from the centre. */
   streets: { x: number; y: number; main: boolean }[];
   /** The district plots, in order: offset, the street tile the drive meets, dry land, built on, still homes. */
-  plots: { x: number; y: number; ex: number; ey: number; ok: boolean; occupied: boolean; home: boolean }[];
+  plots: { x: number; y: number; ex: number; ey: number; ok: boolean; occupied: boolean; home: boolean; reserved?: boolean }[];
   /** The tiles beside the streets where homes stand (as far as the town has grown), and whether each can be built on. */
   homes: { x: number; y: number; ok: boolean; face?: { x: number; y: number } }[];
   /** Districts the town has built, each a building on its own lot beside a street: the lot, and the street tile its door meets. */
@@ -134,6 +150,8 @@ export function townGeometry(o: TownModelOptions): THREE.BufferGeometry {
       x: cx, z: cz, yaw, w, d, h, tower: kind === 'tower',
       wall: wallColour ?? (kind === 'tower' ? pick(TOWERS) : pick(BLOCKS)),
       variant: Math.abs(Math.round(cx * 31 + cz * 73 + o.seed)) % 3,
+      windows: !!o.downtown,
+      awning: o.downtown ? pick(STYLE_AWNINGS[o.style]) : undefined,
     });
     p.tex = 0;
     p.anchor = null;
@@ -189,6 +207,39 @@ export function townGeometry(o: TownModelOptions): THREE.BufferGeometry {
     // The Market and the Supply Yard stand on the first two plots (drawn with the sites): no home goes over them.
     if (index < 2 && t.ok) placed.push([X(t.x) - LOT_HALF * sq, Z(t.y) - LOT_HALF, X(t.x) + LOT_HALF * sq, Z(t.y) + LOT_HALF]);
     if (!t.ok || index < 2 || t.occupied) return;
+    if (t.reserved) {
+      // A downtown site held for a district: a paved, hoarded plot with a gold sign facing the street. It is the town's own,
+      // never for sale, and a district takes it without anything being torn down.
+      const cxr = X(t.x);
+      const czr = Z(t.y);
+      const fxr = Math.sign(t.ex - t.x);
+      const fzr = Math.sign(t.ey - t.y);
+      const yawr = fxr > 0 ? YAW.E : fxr < 0 ? YAW.W : fzr > 0 ? YAW.S : YAW.N;
+      const lx = fxr !== 0 ? LOT_HALF : LOT_HALF * sq;
+      const lz = fxr !== 0 ? LOT_HALF * sq : LOT_HALF;
+      placed.push([cxr - LOT_HALF * sq, czr - LOT_HALF, cxr + LOT_HALF * sq, czr + LOT_HALF]);
+      p.anchor = [cxr, czr];
+      p.tex = 6;
+      p.box(LOT_HALF * sq * 2, 0.03, LOT, 0x98a2a8, { x: cxr, y: 0.0, z: czr });
+      p.box(LOT_HALF * sq * 2 - 0.1, 2.5, LOT - 0.1, 0x6d6b66, { x: cxr, y: -2.5, z: czr });
+      p.tex = 0;
+      const panel = 0x4f86a6;
+      const [bx, bz] = at(cxr, czr, yawr, 0, -(lz - 0.08));
+      p.box((lx - 0.08) * 2, 0.3, 0.05, panel, { x: bx, y: 0.03, z: bz, ry: yawr });
+      for (const side of [-1, 1]) {
+        const [sx2, sz2] = at(cxr, czr, yawr, side * (lx - 0.08), -0.05);
+        p.box(0.05, 0.3, (lz - 0.08) * 2 - 0.2, panel, { x: sx2, y: 0.03, z: sz2, ry: yawr });
+      }
+      for (const side of [-1, 1]) {
+        const [px, pz] = at(cxr, czr, yawr, side * 0.34, lz * 0.5);
+        p.box(0.04, 0.55, 0.04, 0x5a5048, { x: px, y: 0.03, z: pz, ry: yawr });
+      }
+      const [gx, gz] = at(cxr, czr, yawr, 0, lz * 0.5);
+      p.box(0.78, 0.3, 0.035, 0xd9a441, { x: gx, y: 0.45, z: gz, ry: yawr });
+      p.box(0.5, 0.05, 0.04, 0x3a2f28, { x: gx, y: 0.56, z: gz + 0.005, ry: yawr });
+      p.anchor = null;
+      return;
+    }
     const cx = X(t.x);
     const cz = Z(t.y);
     const fx = Math.sign(t.ex - t.x);
@@ -315,7 +366,7 @@ export function townGeometry(o: TownModelOptions): THREE.BufferGeometry {
         const yaw = yawToward(fx, fz);
         const [bx, bz] = at(cx, cz, yaw, 0, -0.95);
         stream = cellRng(d.x, d.y);
-        tall(bx, bz, yaw, TILE * 0.72, 1.3, up / 10, up >= 60 ? 'tower' : 'block', up > 30 ? undefined : pick(look.walls));
+        tall(bx, bz, yaw, TILE * 0.72, 1.3, up / 10, up >= 60 ? 'tower' : 'block', up >= 60 ? pick(STYLE_TOWERS[o.style]) : pick(look.walls));
       }
     }
     p.tex = 6;
@@ -348,7 +399,7 @@ export function townGeometry(o: TownModelOptions): THREE.BufferGeometry {
     if (!offRoad(x, z, hx, hz) || !free(x - hx - 0.04, z - hz - 0.04, x + hx + 0.04, z + hz + 0.04)) return true;
     placed.push([x - hx, z - hz, x + hx, z + hz]);
     const tower = metres >= 60;
-    tall(x, z, yawToward(-a, -b), bw, bd, metres / 10, tower ? 'tower' : 'block', metres > 30 ? undefined : pick(look.walls));
+    tall(x, z, yawToward(-a, -b), bw, bd, metres / 10, tower ? 'tower' : 'block', tower ? pick(STYLE_TOWERS[o.style]) : pick(look.walls));
     return true;
   };
   around.forEach((h, idx) => {

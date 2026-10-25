@@ -236,6 +236,8 @@ float vn(vec2 p) {
     .replace(
       '#include <color_fragment>',
       `#include <color_fragment>
+float winMask = 0.0;
+float winLit = 0.0;
 {
   vec3 n = normalize(vON);
   bool top = abs(n.y) > 0.6;
@@ -273,9 +275,11 @@ float vn(vec2 p) {
     vec2 cell = floor(p);
     float win = step(0.14, f.x) * step(f.x, 0.86) * step(0.2, f.y) * step(f.y, 0.8);
     float blinds = step(0.88, h21(cell));
-    vec3 glass = mix(vec3(0.12, 0.2, 0.25), vec3(0.28, 0.3, 0.28), blinds);
+    vec3 glass = mix(mix(vec3(0.12, 0.2, 0.25), diffuseColor.rgb * 0.5, 0.6), vec3(0.28, 0.3, 0.28), blinds);
     glass *= 0.92 + 0.12 * h21(vec2(cell.x, 7.0));
     diffuseColor.rgb = mix(diffuseColor.rgb * 0.68, glass, win);
+    winMask = win;
+    winLit = step(0.5, h21(cell + 3.7));
     shade = 1.0;
   } else if (m == 10.0) {
     shade *= 0.8 + 0.3 * vn(uvw * 150.0);
@@ -307,13 +311,36 @@ float vn(vec2 p) {
       `#include <emissivemap_fragment>
       float fixture = floor(vMid + 0.5);
       if (fixture == 9.0) totalEmissiveRadiance += diffuseColor.rgb * (0.15 + nightLight * 3.0);
-      if (fixture == 8.0 || fixture == 7.0) {
+      if (fixture == 8.0) {
         float occupied = step(0.55, h21(floor(vOP.xz * 2.0) + floor(vOP.y * 3.0)));
         totalEmissiveRadiance += vec3(1.0, 0.72, 0.4) * nightLight * occupied * 0.35;
-      }`,
+      }
+      // A tower's lit windows: only the glass cells, each lit or dark by itself, so a city sparkles at night.
+      if (fixture == 7.0) totalEmissiveRadiance += vec3(1.0, 0.74, 0.42) * nightLight * winMask * winLit * 0.85;`,
     );
   buildingSurfaces(sh);
 };
+
+/**
+ * The town model's own material: the same look as every building, plus a height squash. While the player lays roads or places
+ * buildings the towers shrink to low-rise (uSquash) so nothing is hidden behind them, and rise again when they are done.
+ */
+export const townSquash = { value: 1 };
+export const townBend = { value: 2 * 100.3 };
+export const townMaterial = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.82, metalness: 0.05 });
+townMaterial.onBeforeCompile = (sh, renderer) => {
+  siteMaterial.onBeforeCompile(sh, renderer);
+  sh.uniforms.uSquash = townSquash;
+  sh.uniforms.uBend = townBend;
+  sh.vertexShader = sh.vertexShader
+    .replace('#include <common>', '#include <common>\nuniform float uSquash;\nuniform float uBend;')
+    .replace('#include <project_vertex>', `{
+  float g0 = -(transformed.x * transformed.x + transformed.z * transformed.z) / uBend;
+  transformed.y = g0 + (transformed.y - g0) * uSquash;
+}
+#include <project_vertex>`);
+};
+townMaterial.customProgramCacheKey = () => 'town-squash';
 
 /** What the caption says for a stretch of the opening, and whether a camera flash marks its start. */
 interface Cue {
@@ -864,6 +891,7 @@ export class Game3D {
     this.updateReach();
     this.syncWorld();
     this.updateGrowth();
+    this.updateSquash(dt);
     const dust = this.updateConstruction();
     this.updateVehicles();
     this.updateSiteAnims(now / 1000);
@@ -1489,13 +1517,14 @@ export class Game3D {
         ok: landOk(p.x + t.x, p.y + t.y),
         occupied: !!siteAt(w, p.x + t.x, p.y + t.y),
         home: homePlots.includes(i),
+        reserved: false,
       }));
       // A district lot no district has taken yet stands empty and fenced, like a plot for sale: nothing is ever torn down for a
       // district, and the homes around it (the town has spare ones behind its lots) keep their places.
       const taken = new Set(Object.values(p.districtLots ?? {}));
       layout.civic.forEach((c, i) => {
         if (c.campus || taken.has(i) || c.level > p.level) return;
-        plots.push({ x: c.x, y: c.y, ex: c.entry.x, ey: c.entry.y, ok: landOk(p.x + c.x, p.y + c.y), occupied: !!siteAt(w, p.x + c.x, p.y + c.y), home: false });
+        plots.push({ x: c.x, y: c.y, ex: c.entry.x, ey: c.entry.y, ok: landOk(p.x + c.x, p.y + c.y), occupied: !!siteAt(w, p.x + c.x, p.y + c.y), home: false, reserved: !!w.downtown });
       });
       const wanted = layout.homes.filter((h) => h.level <= p.level);
       const clear = (x: number, y: number): boolean => landOk(p.x + x, p.y + y) && !routeAt(w, p.x + x, p.y + y) && !siteAt(w, p.x + x, p.y + y);
@@ -1579,7 +1608,7 @@ export class Game3D {
       const squeeze = THREE.MathUtils.clamp(Math.cos(lat), w.realisticLots ? 0.15 : 0.55, 1);
       const mesh = new THREE.Mesh(
         townGeometry({ level: p.level, seed: p.id + w.seed, squeeze, city: radiusOf(p) > 3, downtown: w.downtown, skyline: w.downtown ? skylineOf(p) : undefined, style: p.style, streets, plots, homes, districts, roads }),
-        siteMaterial,
+        townMaterial,
       );
       mesh.castShadow = true;
       mesh.receiveShadow = true;
@@ -1634,7 +1663,7 @@ export class Game3D {
       a.dispose();
       b.dispose();
     }
-    g.mesh.material = siteMaterial;
+    g.mesh.material = townMaterial;
     g.mesh.castShadow = true;
   }
 
@@ -1688,6 +1717,15 @@ export class Game3D {
     this.watch(p.x, p.y, radiusOf(p) > 3 ? 46 : 34, GROW_MS, withRoads);
   }
 
+  /** Towers shrink to low-rise while the player lays a road or places a building, so the ground under them can be seen. */
+  private updateSquash(dt: number): void {
+    townBend.value = 2 * (R + 0.3);
+    const want = this.tool !== 'select' ? 0.2 : 1;
+    const k = Math.min(1, dt * 7);
+    townSquash.value += (want - townSquash.value) * k;
+    if (Math.abs(want - townSquash.value) < 0.004) townSquash.value = want;
+  }
+
   /** Move town growth on, with dust along the wave. */
   private updateGrowth(): void {
     for (const [id, g] of this.districtWork) {
@@ -1732,7 +1770,7 @@ export class Game3D {
     g.old.geometry.dispose();
     (g.old.material as THREE.Material).dispose();
     (g.mesh.material as THREE.Material).dispose();
-    g.mesh.material = siteMaterial;
+    g.mesh.material = townMaterial;
     g.mesh.castShadow = true;
   }
 
@@ -2254,8 +2292,34 @@ export class Game3D {
     const dir = new THREE.Vector3(ndc.x, ndc.y, 0.5).unproject(this.camera).sub(origin).normalize();
     const hit = pickGround(origin, dir, this.hf);
     if (!hit) return null;
+    // A tower stands between the camera and the ground behind it: a click on the tower is a click on the tile it stands on.
+    const wall = this.tower(origin, dir, origin.distanceTo(hit.point));
+    if (wall) {
+      const tile = lonLatToTile(this.world, wall.lon, wall.lat);
+      if (tile) return { tile, lon: wall.lon, lat: wall.lat };
+    }
     const tile = lonLatToTile(this.world, hit.lon, hit.lat);
     return tile ? { tile, lon: hit.lon, lat: hit.lat } : null;
+  }
+
+  private readonly towerRay = new THREE.Raycaster();
+
+  /** Where the ray first meets a downtown tower in front of the ground it was aimed at. Only when selecting, when towers stand at full height. */
+  private tower(origin: THREE.Vector3, dir: THREE.Vector3, ground: number): { lon: number; lat: number } | null {
+    if (this.tool !== 'select' || townSquash.value < 0.99 || this.growing.size > 0) return null;
+    this.towerRay.set(origin, dir);
+    this.towerRay.far = ground;
+    let best: THREE.Intersection | null = null;
+    for (const t of this.townMeshes.values()) {
+      const geo = t.mesh.geometry;
+      if (!geo.boundingBox) geo.computeBoundingBox();
+      if (!geo.boundingSphere) geo.computeBoundingSphere();
+      // Only a town with something tall in it is worth testing.
+      if (geo.boundingBox!.max.y < 3) continue;
+      const found = this.towerRay.intersectObject(t.mesh, false)[0];
+      if (found && (!best || found.distance < best.distance)) best = found;
+    }
+    return best ? vecToLonLat(best.point) : null;
   }
 
   private describe(tile: Tile): HoverInfo {

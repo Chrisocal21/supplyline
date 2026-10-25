@@ -100,3 +100,34 @@ describe('skylines', () => {
     expect(SKYLINE_CAP.mid[4]).toBeLessThan(SKYLINE_CAP.tall[4]);
   });
 });
+
+describe('downtown model', () => {
+  const build = async (skyline: 'low' | 'mid' | 'tall', level: number) => {
+    const { townGeometry } = await import('../r3d/townmodel');
+    const w = createWorld(11);
+    const city = w.places.find((p) => (p.radius ?? 3) > 3)!;
+    const lay = townLayout({ ...w, downtown: true }, city);
+    const geo = townGeometry({
+      level, seed: 7, squeeze: 1, city: true, downtown: true, skyline, style: city.style,
+      streets: lay.streets.filter((s) => s.level <= level).map((s) => ({ x: s.x, y: s.y, main: s.main })),
+      plots: [], homes: lay.homes.filter((h) => h.level <= level).map((h) => ({ x: h.x, y: h.y, ok: true, face: h.face })),
+    });
+    geo.computeBoundingBox();
+    return geo.boundingBox!.max.y;
+  };
+
+  it('never builds taller than the skyline allows, and a tall city does climb', async () => {
+    const tall = await build('tall', 5);
+    expect(tall).toBeGreaterThan(9);
+    expect(tall).toBeLessThanOrEqual(BUILDING_HEIGHT.coreCap / 10 + 0.8);
+    expect(await build('mid', 5)).toBeLessThanOrEqual(BUILDING_HEIGHT.midRise / 10 + 0.8);
+    expect(await build('low', 5)).toBeLessThanOrEqual(2.9);
+  }, 60000);
+
+  it('rises with the town level', async () => {
+    const heights = [];
+    for (const level of [1, 2, 3, 4, 5]) heights.push(await build('tall', level));
+    for (let i = 1; i < heights.length; i++) expect(heights[i]).toBeGreaterThanOrEqual(heights[i - 1] - 0.01);
+    expect(heights[4]).toBeGreaterThan(heights[1] * 2);
+  }, 60000);
+});

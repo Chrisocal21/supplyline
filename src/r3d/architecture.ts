@@ -130,6 +130,10 @@ export interface CityBlock extends BuildingFrame {
   wall: number;
   tower: boolean;
   variant: number;
+  /** Downtown: every wall carries a grid of windows (one row to a floor) and the ground floor is a run of shopfronts. */
+  windows?: boolean;
+  /** The awning and sign colour of the shopfronts. */
+  awning?: number;
 }
 
 /** Masonry apartments, setback towers and split-volume office buildings. */
@@ -139,25 +143,26 @@ export function addCityBlock(p: Parts, b: CityBlock): void {
   const box = (x: number, z: number, bw: number, bh: number, bd: number, color: number, y: number, t = 0) =>
     p.box(bw, bh, bd, color, { ...local(b, x, z), y, t });
   const podium = Math.min(0.52, h * 0.32);
+  const wt = b.windows ? 7 : -1;
   box(0, 0, w * 0.98, 1.6, d * 0.98, 0x706e65, -1.6, 6);
   box(0, 0, w, podium, d, 0x8d9089, 0.04, 6);
   if (variant === 1) {
-    box(0, 0, w * 0.86, h * 0.7 - podium, d * 0.9, b.wall, podium + 0.04, b.tower ? 7 : 1);
-    box(-w * 0.09, -d * 0.08, w * 0.66, h * 0.3, d * 0.66, b.wall, h * 0.7 + 0.04, b.tower ? 7 : 1);
+    box(0, 0, w * 0.86, h * 0.7 - podium, d * 0.9, b.wall, podium + 0.04, wt > 0 ? wt : b.tower ? 7 : 1);
+    box(-w * 0.09, -d * 0.08, w * 0.66, h * 0.3, d * 0.66, b.wall, h * 0.7 + 0.04, wt > 0 ? wt : b.tower ? 7 : 1);
     box(-w * 0.09, -d * 0.08, w * 0.7, 0.07, d * 0.7, METAL, h + 0.04, 5);
   } else if (variant === 2) {
-    box(-w * 0.21, 0, w * 0.48, h - podium, d * 0.88, b.wall, podium + 0.04, b.tower ? 7 : 6);
-    box(w * 0.24, d * 0.1, w * 0.4, h * 0.8 - podium, d * 0.7, b.wall, podium + 0.04, b.tower ? 7 : 6);
+    box(-w * 0.21, 0, w * 0.48, h - podium, d * 0.88, b.wall, podium + 0.04, wt > 0 ? wt : b.tower ? 7 : 6);
+    box(w * 0.24, d * 0.1, w * 0.4, h * 0.8 - podium, d * 0.7, b.wall, podium + 0.04, wt > 0 ? wt : b.tower ? 7 : 6);
     box(-w * 0.21, 0, w * 0.5, 0.06, d * 0.92, METAL, h + 0.04, 5);
     box(w * 0.24, d * 0.1, w * 0.44, 0.06, d * 0.74, METAL, h * 0.8 + 0.04, 5);
   } else {
-    box(0, 0, w * 0.94, h - podium, d * 0.94, b.wall, podium + 0.04, b.tower ? 7 : 1);
+    box(0, 0, w * 0.94, h - podium, d * 0.94, b.wall, podium + 0.04, wt > 0 ? wt : b.tower ? 7 : 1);
     box(0, 0, w * 1.02, 0.07, d * 1.02, METAL, h + 0.04, 5);
     const floors = Math.min(10, Math.max(2, Math.floor(h / 0.4)));
     for (let floor = 1; floor < floors; floor++) {
       box(0, 0, w * 0.99, 0.025, d * 0.99, FRAME, 0.04 + floor * h / floors);
     }
-    if (!b.tower && variant !== 0) {
+    if (!b.tower && !b.windows && variant !== 0) {
       const floors = Math.min(7, Math.max(2, Math.floor(h / 0.4)));
       for (let floor = 1; floor < floors; floor++) {
         const y = 0.06 + floor * h / floors;
@@ -171,7 +176,7 @@ export function addCityBlock(p: Parts, b: CityBlock): void {
         }
       }
     }
-    if (!b.tower) {
+    if (!b.tower && !b.windows) {
       for (let floor = 1; floor < Math.min(7, floors); floor++) {
         for (const side of [-1, 1]) {
           const pt = local(b, side * w * 0.27, d * 0.475);
@@ -180,10 +185,25 @@ export function addCityBlock(p: Parts, b: CityBlock): void {
       }
     }
   }
-  for (const side of [-1, 1]) {
-    const pt = local(b, side * w * 0.25, d / 2 + 0.012);
-    framedWindow(p, pt.x, 0.09, pt.z, w * 0.32, podium * 0.68, b.yaw);
+  if (b.windows) {
+    // A run of shopfronts along the street: glazed bays with a coloured awning over each, a door every third bay, and a sign band.
+    const bays = Math.max(2, Math.round(w / 0.62));
+    const bw = (w * 0.92) / bays;
+    const colours = [b.awning ?? 0xb5473a, 0xe8e2d0];
+    for (let i = 0; i < bays; i++) {
+      const x = -w * 0.46 + bw * (i + 0.5);
+      const door = i % 3 === 1;
+      box(x, d / 2 + 0.012, bw * 0.82, podium * (door ? 0.8 : 0.58), 0.02, door ? 0x3a2f28 : 0x1f2f38, 0.07, door ? 0 : 8);
+      box(x, d / 2 + 0.085, bw * 0.96, 0.03, 0.17, colours[i % 2], podium * 0.8 + 0.04, 0);
+      if (i > 0) box(x - bw / 2, d / 2 + 0.014, 0.025, podium * 0.8, 0.025, FRAME, 0.06, 0);
+    }
+    box(0, d / 2 + 0.022, w * 0.97, 0.06, 0.03, b.awning ?? 0xb5473a, podium - 0.06, 0);
+  } else {
+    for (const side of [-1, 1]) {
+      const pt = local(b, side * w * 0.25, d / 2 + 0.012);
+      framedWindow(p, pt.x, 0.09, pt.z, w * 0.32, podium * 0.68, b.yaw);
+    }
+    box(0, d / 2 + 0.025, w * 0.86, 0.05, 0.12, METAL, podium + 0.08, 5);
   }
-  box(0, d / 2 + 0.025, w * 0.86, 0.05, 0.12, METAL, podium + 0.08, 5);
   box(-w * 0.16, -d * 0.14, w * 0.23, Math.min(0.22, h * 0.08), d * 0.22, 0x8f9896, h + 0.12, 5);
 }
