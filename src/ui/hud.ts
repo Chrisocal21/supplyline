@@ -1962,11 +1962,13 @@ export class HudScene extends Phaser.Scene {
     const cancel = this.sizePick === 'menu' && !this.building;
     const h = this.building ? 96 + 130 + pad : 96 + 84 + WORLD_SIZES.length * (rowH + 8) + (cancel ? 56 : 14) + pad;
     const y = Math.max(TOP + 6, (H - h) / 2);
-    im.rect(4, x, y, w, h, COLORS.panel, 1, 18, COLORS.accent, 1, 2);
+    // Same frame as the Manage sheets: soft border, a gold kicker over a display title, left aligned.
+    im.rect(4, x, y, w, h, 0x0b1117, 0.98, 10, COLORS.line, 0.8);
     let cy = y + pad;
-    im.text('szT', this.building ? `Building a ${this.building.name} world` : 'Choose your world', x + w / 2, cy, { size: 21, bold: true, align: 'center', layer: 4 });
-    cy += 32;
-    im.text('szS', this.building ? 'This takes a few seconds. The picture may pause on the last step.' : 'A bigger world has more land, more towns and longer hauls. You can start another any time. Bigger worlds take a few seconds to build.', x + w / 2, cy, { size: 12, color: COLORS.muted, align: 'center', wrap: inner, layer: 4 });
+    im.text('szK', this.building ? 'NEW GAME  /  BUILDING' : 'NEW GAME', x + pad, cy, { size: 10, bold: true, color: COLORS.accent, layer: 4 });
+    im.text('szT', (this.building ? `Building a ${this.building.name} world` : 'Choose your world').toUpperCase(), x + pad, cy + 14, { size: 28, bold: true, display: true, layer: 4 });
+    cy += 52;
+    im.text('szS', this.building ? 'This takes a few seconds. The picture may pause on the last step.' : 'A bigger world has more land, more towns and longer hauls. You can start another any time. Bigger worlds take a few seconds to build.', x + pad, cy, { size: 12, color: COLORS.muted, wrap: inner, layer: 4 });
     cy += 42;
     if (this.building) {
       const b = this.building;
@@ -1987,7 +1989,7 @@ export class HudScene extends Phaser.Scene {
       const dx = x + pad + i * (dw + 8);
       const on = this.difficulty === id;
       const dh = im.hit(`df${id}`, dx, cy, dw, 56, () => (this.difficulty = id), 4);
-      im.rect(4, dx, cy, dw, 56, on ? 0x2a2411 : dh ? 0x1f2b3a : 0x131a24, 1, 12, on || dh ? COLORS.accent : COLORS.line, on ? 2 : 1);
+      im.rect(4, dx, cy, dw, 56, on ? 0x2a2411 : dh ? 0x121a21 : 0x0f161d, 1, 8, on ? COLORS.accent : COLORS.line, on ? 0.7 : 0.6);
       im.text(`df${id}n`, label, dx + 14, cy + 8, { size: 15, bold: true, color: on ? COLORS.accent : COLORS.text, layer: 4 });
       im.text(`df${id}b`, blurb, dx + 14, cy + 28, { size: 10, color: COLORS.muted, wrap: dw - 28, layer: 4 });
     });
@@ -1996,16 +1998,17 @@ export class HudScene extends Phaser.Scene {
       const tiles = Math.round((def.width * (def.width / 2)) / 1000);
       const locked = isDemo() && def.id !== DEMO_MAP;
       const hov = !this.building && !locked && im.hit(`sz${def.id}`, x + pad, cy, inner, rowH, () => (def.inProgress ? this.openMapView(def.id) : this.beginWorld(def.id)), 4);
-      im.rect(4, x + pad, cy, inner, rowH, hov ? 0x1f2b3a : 0x131a24, 1, 12, hov ? COLORS.accent : COLORS.line, 1);
-      im.text(`sz${def.id}n`, def.label, x + pad + 16, cy + 11, { size: 17, bold: true, color: locked ? COLORS.muted : hov ? COLORS.accent : COLORS.text, layer: 4 });
+      im.rect(4, x + pad, cy, inner, rowH, hov ? 0x17212b : 0x0f161d, 1, 8, hov ? COLORS.accent : COLORS.line, hov ? 0.7 : 0.6);
+      if (hov) im.rect(4, x + pad + 1, cy + 12, 2, rowH - 24, COLORS.accent, 1, 1);
+      im.text(`sz${def.id}n`, def.label.toUpperCase(), x + pad + 16, cy + 9, { size: 20, bold: true, display: true, color: locked ? COLORS.muted : hov ? COLORS.accent : COLORS.text, layer: 4 });
       im.text(`sz${def.id}s`, locked ? 'FULL GAME' : def.inProgress ? `BETA  ·  PREVIEW AND PLAY  ·  ${def.width} wide` : `${def.width} wide  ·  about ${tiles}k tiles`, x + pad + inner - 16, cy + 14, { size: 11, bold: !!def.inProgress, color: def.inProgress ? COLORS.accent : COLORS.muted, align: 'right', layer: 4 });
       im.text(`sz${def.id}b`, def.blurb, x + pad + 16, cy + 38, { size: 12, color: COLORS.muted, wrap: inner - 32, layer: 4 });
       cy += rowH + 8;
     }
     if (cancel) {
       const ch = im.hit('szCancel', x + pad, cy + 4, inner, 42, () => (this.sizePick = null), 4);
-      im.rect(4, x + pad, cy + 4, inner, 42, ch ? 0x2a3646 : 0x1b2430, 1, 21, COLORS.line, 1);
-      im.text('szCancelT', 'Cancel', x + w / 2, cy + 16, { size: 14, bold: true, align: 'center', layer: 4 });
+      im.slab(4, x + pad, cy + 4, inner, 42, ch ? 0x2a3646 : 0x16212a, 1, ch ? COLORS.accent : COLORS.line, 1);
+      im.text('szCancelT', 'CANCEL', x + w / 2, cy + 14, { size: 18, bold: true, display: true, align: 'center', layer: 4 });
     }
   }
 

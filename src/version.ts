@@ -1,3 +1,3 @@
 /** The build number, matching the commit it ships in (0.7, 0.8, ...), and a short line on what that update covered. Bump both with every commit. */
-export const VERSION = '0.172';
-export const VERSION_NOTE = 'How to play: pill tabs, ringed step numbers, display headings';
+export const VERSION = '0.173';
+export const VERSION_NOTE = 'The world chooser matches the new Manage look';

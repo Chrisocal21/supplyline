@@ -1060,3 +1060,8 @@ What changed:
 
 - Section tabs are quiet pills; the open one is outlined and lettered in its section colour instead of a solid fill.
 - The section heading uses the display font, step numbers are rings with the number in the section colour, and the green done box is softer and rounded.
+
+## 0.173: choose-world modal, sixth bit of the UI redesign
+
+- The world chooser drops the thick gold frame: soft border, a NEW GAME kicker over a left-aligned display title.
+- Mode cards and world rows are rounded cards with faint borders; a hovered world lights gold with an inset line, world names use the display font, and Cancel is an angled button.
