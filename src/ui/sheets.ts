@@ -304,12 +304,12 @@ export class Sheets {
     const im = this.im;
     const wide = w >= 760;
     const pages: { id: SheetId; label: string; title: string; sub: string; key: string }[] = [
-      { id: 'company', label: 'Company', title: 'Company', sub: 'How the whole business is doing', key: 'Y' },
+      { id: 'company', label: 'Company', title: 'Company', sub: 'How the whole business is doing', key: 'C' },
       { id: 'production', label: 'Production', title: 'Production', sub: 'Every building and every good', key: 'P' },
       { id: 'fleet', label: 'Fleet', title: 'Fleet garage', sub: 'Vehicles and yards', key: 'F' },
       { id: 'towns', label: 'Towns', title: 'Towns', sub: 'What each town wants and how it grows', key: 'T' },
       { id: 'bank', label: 'Finance', title: 'Finance', sub: 'Loans, savings and the market fund', key: 'B' },
-      { id: 'quests', label: 'Objectives', title: 'Objectives', sub: 'Tiers, goals and rewards', key: 'G' },
+      { id: 'quests', label: 'Objectives', title: 'Objectives', sub: 'Tiers, goals and rewards', key: 'O' },
       { id: 'guide', label: 'How to play', title: 'How to play', sub: 'The guide to every building', key: 'H' },
     ];
     const page = pages.find((p) => p.id === id)!;

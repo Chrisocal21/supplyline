@@ -1101,3 +1101,7 @@ What changed:
 ## 0.181: node pins as rocks
 
 - The stand-in drawn for a node seen from far out (one instanced mesh) is a low cluster of three faceted rocks instead of a coloured cone, tinted by the resource and mixed with stone grey, so it reads as an outcrop the building takes over.
+
+## 0.182: keys that make sense
+
+- C opens Company (was Y), V picks the road tool (was C), G opens Graphics (was O), O opens Objectives (was G). Menu labels, the rail letters, the keybinds page, the hint strip and the tutorial match.

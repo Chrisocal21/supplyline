@@ -312,7 +312,7 @@ export class HudScene extends Phaser.Scene {
     kb.on('keydown-SPACE', () => (this.game3d.speed = this.game3d.speed === 0 ? 1 : 0));
     kb.on('keydown-TAB', () => this.cycleTab());
     kb.on('keydown-P', () => this.toggleSheet('production'));
-    kb.on('keydown-Y', () => !this.title && this.toggleSheet('company'));
+    kb.on('keydown-C', () => !this.title && this.toggleSheet('company'));
     kb.on('keydown-F', () => !this.title && this.toggleSheet('fleet'));
     kb.on('keydown-BACKSPACE', () => this.game3d.undoDraft());
     kb.on('keydown-ENTER', () => {
@@ -324,15 +324,15 @@ export class HudScene extends Phaser.Scene {
     });
     kb.on('keydown-T', () => this.toggleSheet('towns'));
     kb.on('keydown-B', () => this.toggleSheet('bank'));
-    kb.on('keydown-G', () => this.toggleSheet('quests'));
+    kb.on('keydown-O', () => this.toggleSheet('quests'));
     kb.on('keydown-H', () => this.toggleSheet('guide'));
     kb.on('keydown-N', () => this.nextProblem());
     kb.on('keydown-R', () => this.game3d.rotatePlacement());
     kb.on('keydown-M', () => !this.title && this.toggleMinimap());
     kb.on('keydown-F3', () => this.togglePerf());
-    kb.on('keydown-O', () => !this.title && this.openGraphics());
+    kb.on('keydown-G', () => !this.title && this.openGraphics());
     kb.on('keydown-L', () => !this.title && this.openSavesFromKey());
-    kb.on('keydown-C', () => !this.title && this.pickToolKey('route'));
+    kb.on('keydown-V', () => !this.title && this.pickToolKey('route'));
     kb.on('keydown-X', () => !this.title && this.pickToolKey('demolish'));
     kb.on('keydown-U', () => !this.title && this.upgradeKey());
     for (let i = 1; i <= 9; i++) kb.on(`keydown-${['ONE', 'TWO', 'THREE', 'FOUR', 'FIVE', 'SIX', 'SEVEN', 'EIGHT', 'NINE'][i - 1]}`, () => this.pickByNumber(i - 1));
@@ -572,7 +572,7 @@ export class HudScene extends Phaser.Scene {
     if (!was) this.openSaves('manage');
   }
 
-  /** A build tool from its own key: C for roads, X for demolish. Pressing it again puts it away. */
+  /** A build tool from its own key: V for roads, X for demolish. Pressing it again puts it away. */
   private pickToolKey(tool: Tool): void {
     const g = this.game3d;
     if (g.tool === tool) {
@@ -1204,12 +1204,12 @@ export class HudScene extends Phaser.Scene {
     type Item = { id: string; label: string; key: string; on: boolean; toggle?: boolean; icon: (cx: number, cy: number, c: number) => void; act: () => void };
     const ico = (n: IconName) => (cx: number, cy: number, c: number) => drawIcon(im, n, cx, cy, c, c === 0x1b1204 ? COLORS.accent : 0x0c1218);
     const business: Item[] = [
-      { id: 'company', label: 'Company', key: 'Y', on: this.sheet === 'company', icon: ico('company'), act: () => this.toggleSheet('company') },
+      { id: 'company', label: 'Company', key: 'C', on: this.sheet === 'company', icon: ico('company'), act: () => this.toggleSheet('company') },
       { id: 'prod', label: 'Production', key: 'P', on: this.sheet === 'production', icon: ico('production'), act: () => this.toggleSheet('production') },
       { id: 'fleet', label: 'Fleet', key: 'F', on: this.sheet === 'fleet', icon: ico('fleet'), act: () => this.toggleSheet('fleet') },
       { id: 'towns', label: 'Towns', key: 'T', on: this.sheet === 'towns', icon: ico('towns'), act: () => this.toggleSheet('towns') },
       { id: 'bank', label: 'Bank', key: 'B', on: this.sheet === 'bank', icon: ico('bank'), act: () => this.toggleSheet('bank') },
-      { id: 'quests', label: 'Quests', key: 'G', on: this.sheet === 'quests', icon: ico('quests'), act: () => this.toggleSheet('quests') },
+      { id: 'quests', label: 'Quests', key: 'O', on: this.sheet === 'quests', icon: ico('quests'), act: () => this.toggleSheet('quests') },
     ];
     const gameItems: Item[] = [
       { id: 'guide', label: 'How to play', key: 'H', on: this.sheet === 'guide', icon: ico('guide'), act: () => this.toggleSheet('guide') },
@@ -1218,7 +1218,7 @@ export class HudScene extends Phaser.Scene {
       { id: 'tut', label: 'Tutorial', key: '', on: this.tutorialOn, toggle: true, icon: ico('tutorial'), act: () => this.toggleTutorial() },
     ];
     const screenItems: Item[] = [
-      { id: 'gfx', label: 'Graphics', key: 'O', on: this.graphicsOpen, icon: ico('display'), act: () => this.openGraphics() },
+      { id: 'gfx', label: 'Graphics', key: 'G', on: this.graphicsOpen, icon: ico('display'), act: () => this.openGraphics() },
       { id: 'mini', label: 'Minimap', key: 'M', on: this.minimapOn, toggle: true, icon: ico('minimap'), act: () => this.toggleMinimap() },
       { id: 'perf', label: 'Frame rate', key: 'F3', on: this.perfOn, toggle: true, icon: ico('perf'), act: () => this.togglePerf() },
     ];
@@ -1243,9 +1243,9 @@ export class HudScene extends Phaser.Scene {
     const sfxH = narrow ? 92 : 66;
     const keyGroups: [string, [string, string][]][] = [
       ['Camera', [['W A S D', 'Move'], ['Q / E', 'Turn'], ['Wheel', 'Zoom'], ['Right-drag', 'Tilt and turn'], ['Compass', 'Face north']]],
-      ['Build', [['Tab', 'Next category'], ['1 - 9', 'Pick a card'], ['R', 'Rotate building'], ['C / X', 'Road / Demolish'], ['Enter / Bksp', 'Finish / undo bend']]],
+      ['Build', [['Tab', 'Next category'], ['1 - 9', 'Pick a card'], ['R', 'Rotate building'], ['V / X', 'Road / Demolish'], ['Enter / Bksp', 'Finish / undo bend']]],
       ['Game', [['Space', 'Pause'], ['- / +', 'Slower / faster'], ['U', 'Upgrade selected'], ['N', 'Next problem'], ['Esc', 'Close / menu']]],
-      ['Menus', [['Y / P / F', 'Company / Production / Fleet'], ['T / B', 'Towns / Finance'], ['G / H', 'Objectives / How to play'], ['L / O', 'Saves / Graphics'], ['M / F3', 'Map / Performance']]],
+      ['Menus', [['C / P / F', 'Company / Production / Fleet'], ['T / B', 'Towns / Finance'], ['O / H', 'Objectives / How to play'], ['L / G', 'Saves / Graphics'], ['M / F3', 'Map / Performance']]],
     ];
     const tilesH = (n: number): number => Math.ceil(n / cols) * (tileH + gap) - gap;
     let bodyH: number;
@@ -2336,7 +2336,7 @@ export class HudScene extends Phaser.Scene {
     if (!isTouch() && room > 120) {
       const lines = [
         ['Esc  menu', 'Space  pause', '- / +  speed', 'Tab  category', '1-9  pick'],
-        ['R  rotate', 'C  road', 'X  demolish', 'U  upgrade', 'M  map', 'N  next problem'],
+        ['R  rotate', 'V  road', 'X  demolish', 'U  upgrade', 'M  map', 'N  next problem'],
       ];
       lines.forEach((parts, li) => {
         let s = '';
