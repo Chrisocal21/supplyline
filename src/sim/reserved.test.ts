@@ -2,7 +2,10 @@
 // lots and districts will take, so nothing needs demolishing, moving or replacing when the town levels up.
 import { describe, expect, it } from 'vitest';
 import { SITE_DEFS, type SiteKind } from './defs';
-import { createWorld, layoutOf, placeError, plotAt, townBlocks, wrapX, type World } from './world';
+import map1 from '../maps/map1.json';
+import map2 from '../maps/map2.json';
+import map3 from '../maps/map3.json';
+import { createWorld, createWorldFromMap, layoutOf, placeError, plannedTownAt, plotAt, townBlocks, wrapX, type MapData, type World } from './world';
 
 const KINDS = (Object.keys(SITE_DEFS) as SiteKind[]).filter((k) => !SITE_DEFS[k].dock && !SITE_DEFS[k].station);
 
@@ -34,5 +37,10 @@ describe('ground held for the town it will become', () => {
       }
       expect(checked).toBeGreaterThan(50);
     }
+  }, 120000);
+
+  it('has no resource node anywhere inside a grown town footprint, on any generated world or hand-made map', () => {
+    const worlds = [3, 5, 8, 11, 21].map((seed) => createWorld(seed)).concat([map1, map2, map3].map((m) => createWorldFromMap(m as MapData)));
+    for (const w of worlds) for (const n of w.nodes) expect(plannedTownAt(w, n.x, n.y), `${n.kind} node at ${n.x},${n.y}`).toBeUndefined();
   }, 120000);
 });
