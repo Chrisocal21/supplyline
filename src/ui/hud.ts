@@ -3852,7 +3852,7 @@ export class HudScene extends Phaser.Scene {
       cy += 34;
     }
     cy += 4;
-    im.text('dtNote', 'The town uses up what it buys, so it keeps wanting more. A fuller stall pays less: sell it something else for a while.', x, cy, { size: 11, color: COLORS.muted, wrap: w, layer: 2 });
+    im.text('dtNote', 'The town uses up what it buys, so it keeps wanting more. A fuller stall pays less: sell it something else for a while.' + (SITE_DEFS[s.kind].dock === 'market' ? ' Any other good sells here too as surplus: 60% of the price, and it does not help the town grow.' : ''), x, cy, { size: 11, color: COLORS.muted, wrap: w, layer: 2 });
     return cy + 40 - y;
   }
 

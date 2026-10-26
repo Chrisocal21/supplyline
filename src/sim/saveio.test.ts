@@ -48,3 +48,20 @@ describe('save files', () => {
     }
   });
 });
+
+describe('a new-game world survives a save', () => {
+  it('keeps the downtown layout and goes on running after it is saved and loaded', async () => {
+    const { createWorld, prepareRealisticWorld, step } = await import('./world');
+    const { enableLandRules } = await import('./land');
+    const w = createWorld(11);
+    prepareRealisticWorld(w);
+    enableLandRules(w);
+    for (let i = 0; i < 200; i++) step(w);
+    const out = unpackSave(packSave(w));
+    if ('error' in out) throw new Error(out.error);
+    expect(out.world.downtown).toBe(true);
+    expect(out.world.landRules).toBeTruthy();
+    for (let i = 0; i < 200; i++) step(out.world);
+    expect(out.world.tick).toBe(w.tick + 200);
+  });
+});

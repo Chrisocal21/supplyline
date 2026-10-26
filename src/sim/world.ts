@@ -1022,7 +1022,7 @@ export function townDocks(world: World, site: Site): Site[] {
 export function stationDock(world: World, station: Site, good: Good): Site | undefined {
   const room = (d: Site): number => siteCap(world, d) - stockOf(d, good);
   return townDocks(world, station)
-    .filter((d) => dockDemand(world, d).includes(good))
+    .filter((d) => wants(world, d).includes(good))
     .sort((a, b) => room(b) - room(a))[0];
 }
 
@@ -1598,8 +1598,7 @@ export function dockDemand(world: World, site: Site): Good[] {
     // materials for the town's next level, which only those trucks bring.
     if (stage < 2) return stage === 1 ? [buildWood(world)] : [];
     // Every by-product has a buyer at the Market too, at a salvage price (see deliver), so no line can jam for want of a buyer.
-    // Everything in the game sells at the Market: what the town asks for at full price, the rest as surplus (see sell).
-    return withExtra(withExtra(marketList(place), BYPRODUCTS), GOOD_LIST);
+    return withExtra(marketList(place), BYPRODUCTS);
   }
   if (stage < 1) return [buildWood(world)];
   // While the Market is being built the yard stores its wood; afterwards only the materials for the next level.
@@ -1686,7 +1685,11 @@ export function wants(world: World, site: Site): Good[] {
   if (def.recycle) return GOOD_LIST.filter((g) => GOODS[g].kind === 'byproduct');
   if (def.store) return Array.from(new Set([...site.pull, ...(site.fed ?? [])])).filter((g) => WAREHOUSE_GOODS.includes(g));
   if (def.hub) return site.pull;
-  if (def.dock) return dockDemand(world, site);
+  if (def.dock) {
+    // Everything in the game sells at a built Market: what the town asks for at full price (dockDemand), the rest as surplus (see sell).
+    const asked = dockDemand(world, site);
+    return def.dock === 'market' && (placeOf(world, site)?.stage ?? 2) >= 2 ? withExtra(asked, GOOD_LIST) : asked;
+  }
   if (def.station) {
     const place = placeOf(world, site);
     const inputs = place ? townSites(world, place).flatMap((m) => Object.keys(SITE_DEFS[m.kind].recipe?.inputs ?? {}) as Good[]) : [];
