@@ -7,7 +7,7 @@
 **Overall progress:** about 74% of the planned scope (phase percentages below; each is checked boxes over total boxes, adjusted where a box was stale)
 **Status:** Active. Tester build is out: Windows and Mac installers on GitHub Releases, coded tester page at /access, public site at /.
 **Tests:** 527 pass, 2 skipped (vitest). Type check and production build clean.
-**Current release:** 0.224 (tag v0.224.0): the whole HUD on one plate look.
+**Current release:** 0.225 (tag v0.225.0): compass and speed stay put when the map is hidden.
 **Pacing (test bot, downtown world, seed 11, 3 game hours):** Tier 1 at 7.9 min, town level 2 at 26.2 min, level 3 not reached (the bot grows one town). A human playthrough is still the real test.
 
 ### Percent by area
@@ -660,3 +660,8 @@ Done earlier:
 - In-world: town names get a name plate with a gold tick; region names use the display face.
 - Phone fixes: the lock icon crashed the tray on narrow screens (a size was passed as the layer); the dock tabs now fit a 390 px screen; the tray blurb no longer overlaps the scroll note.
 - Not done: the building, truck and removal windows are only on the shared frame; the tooltip, the compass and the in-world building labels keep the old look.
+
+## 0.225
+- Hiding the minimap (M or HIDE) no longer moves the compass and speed buttons: they stay in the same bottom right spot on a plate of their own, with a SHOW MAP tag above it. The top bar speed pill stays hidden while they are there.
+- The tooltip is a plate with a gold edge; the compass has a gold ring; building status rings sit on a dark disc.
+- Not done: building, truck and removal windows still only on the shared frame.

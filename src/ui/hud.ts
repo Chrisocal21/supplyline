@@ -744,7 +744,8 @@ export class HudScene extends Phaser.Scene {
     const hov = im.hit(id, cx - r, cy - r, r * 2, r * 2, () => this.faceNorth(), layer);
     const north = Math.abs(Math.atan2(Math.sin(heading), Math.cos(heading))) < 0.02;
     im.circle(layer, cx, cy, r, hov ? 0x223040 : 0x131b25);
-    im.rect(layer, cx - r, cy - r, r * 2, r * 2, 0x000000, 0, r, north ? COLORS.good : hov ? COLORS.accent : COLORS.line, 1, 1.5);
+    im.rect(layer, cx - r, cy - r, r * 2, r * 2, 0x000000, 0, r, north ? COLORS.good : COLORS.accent, north || hov ? 1 : 0.6, 2);
+    im.circle(layer, cx, cy, r - 5, 0x0a0f14, 0.7);
     // The four points, turning with the world: E, S and W as small ticks, N as the red letter.
     for (let i = 0; i < 4; i++) {
       const a = -heading + (i * Math.PI) / 2;
@@ -2779,16 +2780,25 @@ export class HudScene extends Phaser.Scene {
     this.miniShown = !!mini;
     if (mini) this.drawMinimap(mini);
     else if (!this.title) {
-      // No minimap here (switched off, a phone, a small window): the compass stands alone above the footer.
-      const cr = 20;
-      this.compass('looseCompass', W - 12 - cr - 4, footY - cr - 14, cr, 2);
-      if (!this.minimapOn && W >= 900 && !isTouch()) {
-        const bw = 112;
-        const bx = W - 12 - cr * 2 - 14 - bw;
-        const by = footY - 14 - cr * 2 + 6;
-        const hv = im.hit('showMap', bx, by, bw, 28, () => this.toggleMinimap(), 2);
-        im.rect(2, bx, by, bw, 28, hv ? 0x1c2830 : 0x0b1117, 0.94, 14, hv ? COLORS.accent : COLORS.line, 1);
-        im.text('showMapT', 'SHOW MAP  M', bx + bw / 2, by + 7, { size: 11, bold: true, color: hv ? COLORS.accent : COLORS.muted, align: 'center', layer: 3 });
+      // The map is hidden: the compass and the speed buttons stay exactly where they were under it.
+      const kept = !this.minimapOn ? this.minimapBox(W, H, dx + dockW + 12, true) : null;
+      if (kept) {
+        this.miniShown = true;
+        const py = kept.y + kept.h - 58;
+        im.plate(1, kept.x, py, kept.w, 58, { alpha: 0.94, cut: 12, line: COLORS.accent, lineAlpha: 0.5 });
+        this.controlStrip(kept);
+        im.block({ x: kept.x, y: py, w: kept.w, h: 58 });
+        const bw = 124;
+        const bx = kept.x + kept.w - bw;
+        const by = py - 30;
+        const hv = im.hit('showMap', bx, by, bw, 24, () => this.toggleMinimap(), 3);
+        im.slab(3, bx, by, bw, 24, hv ? COLORS.accent : 0x172130, 1, hv ? COLORS.accent : COLORS.line);
+        im.text('showMapT', 'SHOW MAP  M', bx + bw / 2, by + 6, { size: 11, bold: true, color: hv ? 0x1b1204 : COLORS.muted, align: 'center', layer: 4 });
+        this.rightInset = H - py;
+      } else {
+        // No room for either (a phone, a small window): the compass stands alone above the footer.
+        const cr = 20;
+        this.compass('looseCompass', W - 12 - cr - 4, footY - cr - 14, cr, 2);
       }
     }
 
@@ -2890,10 +2900,10 @@ export class HudScene extends Phaser.Scene {
   /** The world map opened large in the middle of the screen. */
   private bigMap = false;
 
-  private minimapBox(W: number, H: number, minX: number): { x: number; y: number; w: number; h: number; mw: number; mh: number } | null {
-    if (!this.minimapOn || W < 900 || isTouch()) return null;
+  private minimapBox(W: number, H: number, minX: number, ignoreOff = false): { x: number; y: number; w: number; h: number; mw: number; mh: number } | null {
+    if ((!this.minimapOn && !ignoreOff) || W < 900 || isTouch()) return null;
     const world = this.game3d.world;
-    if (this.bigMap) {
+    if (this.bigMap && this.minimapOn) {
       const mw = Math.max(300, Math.min(W - 80, 1100, Math.round(((H - TOP - 130) * world.width) / world.height)));
       const mh = Math.round((mw * world.height) / world.width);
       const w = mw + 16;
@@ -2956,8 +2966,18 @@ export class HudScene extends Phaser.Scene {
       g.lookAt(t.x, t.y, g.cam.dist, g.cam.heading, g.cam.pitchManual);
       this.bigMap = false;
     }, 2);
-    // Under the map: the compass, and the game speed beside it.
-    const fy = my + b.mh + 10;
+    this.controlStrip(b);
+    im.block({ x: b.x, y: b.y, w: b.w, h: b.h });
+    this.miniRect = { x: b.x, y: b.y, w: b.w, h: b.h };
+    this.rightInset = this.scale.height - b.y;
+  }
+
+  /** The compass, the game speed and the date: the bottom strip of the minimap's box, kept in place when the map is hidden. */
+  private controlStrip(b: { x: number; y: number; w: number; h: number }): void {
+    const im = this.im;
+    const g = this.game3d;
+    const world = g.world;
+    const fy = b.y + b.h - 46;
     const cr = 20;
     this.compass('miniCompass', b.x + 14 + cr, fy + cr + 2, cr, 2);
     const bx0 = b.x + 14 + cr * 2 + 14;
@@ -2977,9 +2997,6 @@ export class HudScene extends Phaser.Scene {
     const season = seasonOf(world.tick);
     const cal = calendar(world.tick);
     im.text('miniSeason', `${cal.text.toUpperCase()} · YEAR ${cal.year} · ${season.label.toUpperCase()}`, b.x + b.w - 10, fy - 3, { size: 8, bold: true, color: season.mult > 1 ? COLORS.good : season.mult < 1 ? COLORS.warn : COLORS.muted, align: 'right', layer: 3 });
-    im.block({ x: b.x, y: b.y, w: b.w, h: b.h });
-    this.miniRect = { x: b.x, y: b.y, w: b.w, h: b.h };
-    this.rightInset = this.scale.height - b.y;
   }
 
   /** Whether the tutorial card and its button rings are shown. A choice kept for every game. */
@@ -3379,6 +3396,7 @@ export class HudScene extends Phaser.Scene {
     // Status rings first: a gauge of how full each building is.
     for (const it of items.filter((i) => i.kind === 'ring')) {
       const color = it.value > 0.85 ? COLORS.bad : it.value > 0.5 ? COLORS.warn : COLORS.good;
+      im.circle(0, it.x, it.y, 10, 0x0a0f14, 0.78);
       im.ring(0, it.x, it.y, 7, 3, it.value, color);
       placed.push({ x0: it.x - 12, y0: it.y - 12, x1: it.x + 12, y1: it.y + 12 });
     }
@@ -3506,7 +3524,8 @@ export class HudScene extends Phaser.Scene {
     if (x + width > W - 8) x = p.x - width - 14;
     if (y + h > H - 8) y = H - h - 8;
     if (y < TOP + 6) y = TOP + 6;
-    im.rect(3, x, y, width, h, COLORS.panel, 0.97, 10, COLORS.line, 1);
+    im.plate(3, x, y, width, h, { fill: COLORS.panel, alpha: 0.97, cut: 10, line: COLORS.accent, lineAlpha: 0.6 });
+    im.rect(3, x, y + 10, 3, h - 10, COLORS.accent, 0.9, 0);
     let cy = y + pad;
     lines.forEach((l, i) => {
       im.text(`tt${i}`, l.text, x + pad, cy, { size: l.size ?? 12, bold: l.bold, color: l.color, wrap: width - pad * 2, layer: 3 });
