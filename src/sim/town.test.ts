@@ -13,7 +13,7 @@ import {
   townSpeedMult,
   upkeepPerMinute,
 } from './town';
-import { connectSites, createBlankWorld, createRoute, createWorld, linkableSites, startRoute, dockDemand, onNetwork, placeAt, planRoute, removeRoute, removeRouteError, roadEndError, routeAt, routeRefund, step, upgradeVehicle, upgradeVehicleCost, upgradeVehicleError, unitPrice, type World } from './world';
+import { connectSites, createBlankWorld, createRoute, createWorld, linkableSites, startRoute, marketList, onNetwork, placeAt, planRoute, removeRoute, removeRouteError, roadEndError, routeAt, routeRefund, step, upgradeVehicle, upgradeVehicleCost, upgradeVehicleError, unitPrice, type World } from './world';
 
 function world(): World {
   const w = createWorld(11);
@@ -51,11 +51,10 @@ describe('districts', () => {
   it('add goods the Market asks for', () => {
     const w = world();
     const p = w.places[0];
-    const market = w.sites.find((s) => s.placeId === p.id && s.kind === 'market')!;
-    expect(dockDemand(w, market)).not.toContain('honey');
+    expect(marketList(p)).not.toContain('honey');
     buildDistrict(w, p, 'farmersmarket');
     expect(districtDemand(p, 'market')).toEqual(['honey', 'juice', 'pasta']);
-    expect(dockDemand(w, market)).toContain('honey');
+    expect(marketList(p)).toContain('honey');
   });
 
   it('raise what the town pays for the goods they live on', () => {

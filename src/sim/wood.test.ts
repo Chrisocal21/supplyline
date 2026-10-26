@@ -1,6 +1,6 @@
 // Logs and lumber keep a buyer after a town is built, and the early menu opens one step at a time.
 import { describe, expect, it } from 'vitest';
-import { LEVEL_MATERIALS, SITE_DEFS, SITE_UNLOCK_QUEST, TIERS } from './defs';
+import { GOOD_LIST, LEVEL_MATERIALS, SITE_DEFS, SITE_UNLOCK_QUEST, TIERS } from './defs';
 import { createWorld, needs, sell, townDocks, wants } from './world';
 
 describe('what happens to the wood once the town is built', () => {
@@ -55,5 +55,20 @@ describe('the first steps of the menu', () => {
   it('only gates a building behind a quest that exists, and one that comes before the building is wanted', () => {
     const all = TIERS.flatMap((t) => t.quests.map((q) => q.id));
     for (const id of Object.values(SITE_UNLOCK_QUEST)) expect(all, id).toContain(id);
+  });
+});
+
+describe('everything sells at the Market', () => {
+  it('buys every good in the game once it is built, and only pays growth for what the town asks for', () => {
+    const w = createWorld(5);
+    const p = w.places[0];
+    p.stage = 2;
+    const market = townDocks(w, w.sites.find((s) => s.placeId === p.id)!).find((s) => SITE_DEFS[s.kind].dock === 'market')!;
+    for (const g of GOOD_LIST) expect(wants(w, market), g).toContain(g);
+    const before = p.growth;
+    expect(sell(w, market, 'steel', 10)).toBeGreaterThan(0);
+    expect(p.growth).toBe(before);
+    sell(w, market, 'bread', 10);
+    expect(p.growth).toBeGreaterThan(before);
   });
 });

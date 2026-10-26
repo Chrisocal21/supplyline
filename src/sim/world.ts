@@ -1582,6 +1582,11 @@ const withExtra = (base: Good[], extra: Good[]): Good[] => (extra.length === 0 ?
 /** Goods a town dock currently wants. */
 const BYPRODUCTS: Good[] = GOOD_LIST.filter((g) => GOODS[g].kind === 'byproduct');
 
+/** What a town's Market asks for at full price: its level's list, its districts' goods, the level materials and raw wood. */
+export function marketList(place: Place): Good[] {
+  return withExtra(withExtra(withExtra(MARKET_DEMAND[place.level - 1], districtDemand(place, 'market')), matsNeeded(place).map(([g]) => g)), MARKET_WOOD);
+}
+
 export function dockDemand(world: World, site: Site): Good[] {
   const place = placeOf(world, site);
   if (!place) return [];
@@ -1593,7 +1598,8 @@ export function dockDemand(world: World, site: Site): Good[] {
     // materials for the town's next level, which only those trucks bring.
     if (stage < 2) return stage === 1 ? [buildWood(world)] : [];
     // Every by-product has a buyer at the Market too, at a salvage price (see deliver), so no line can jam for want of a buyer.
-    return withExtra(withExtra(withExtra(withExtra(MARKET_DEMAND[place.level - 1], districtDemand(place, 'market')), matsNeeded(place).map(([g]) => g)), MARKET_WOOD), BYPRODUCTS);
+    // Everything in the game sells at the Market: what the town asks for at full price, the rest as surplus (see sell).
+    return withExtra(withExtra(marketList(place), BYPRODUCTS), GOOD_LIST);
   }
   if (stage < 1) return [buildWood(world)];
   // While the Market is being built the yard stores its wood; afterwards only the materials for the next level.
@@ -2323,7 +2329,9 @@ export function sell(world: World, dock: Site, g: Good, amount: number): number 
       building += keep;
     }
   }
-  const salvage = GOODS[g].kind === 'byproduct';
+  // Anything the Market does not ask for sells as surplus, like a by-product: money at a lower price, but no growth for the town.
+  const surplus = SITE_DEFS[dock.kind].dock === 'market' && (place.stage ?? 2) >= 2 && !marketList(place).includes(g);
+  const salvage = GOODS[g].kind === 'byproduct' || surplus;
   // A by-product sells for salvage: money, but it neither grows the town nor counts as a kind of good for it.
   if (!salvage) {
     world.delivered[g] = (world.delivered[g] ?? 0) + amount;
