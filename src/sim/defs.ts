@@ -910,28 +910,28 @@ export interface Quest {
 export const PATH_MASTERY_BONUS = 0.1;
 export const PATH_QUESTS: Record<PathId, Quest[]> = {
   breadbasket: [
-    { id: 'p-bread-town', label: 'Grow a Breadbasket town to level 4', hint: 'Feed it grain, flour, bread and cheese.', goal: { kind: 'pathtown', path: 'breadbasket', level: 4 }, reward: 4000 },
-    { id: 'p-bread-goods', label: 'Sell 600 food to Breadbasket towns', hint: 'Grain, milk, flour, bread, cheese and jam all count.', goal: { kind: 'pathgoods', path: 'breadbasket', amount: 600 }, reward: 5000 },
-    { id: 'p-bread-districts', label: 'Build 3 districts in Breadbasket towns', hint: 'Open Manage town. Food districts are 50% stronger here.', goal: { kind: 'pathdistricts', path: 'breadbasket', count: 3 }, reward: 6000 },
-    { id: 'p-bread-cap', label: 'Build the Grand Food Hall', hint: 'A level 5 Breadbasket town can build it.', goal: { kind: 'pathcapstone', path: 'breadbasket' }, reward: 20000 },
+    { id: 'p-bread-town', label: 'Grow a Breadbasket town to level 4', hint: 'Pick the Breadbasket path in Manage town first. Then keep its Market stocked with grain, flour, bread and cheese from your farms, mills, bakeries and dairies. Level 4 needs several kinds of food, not just one.', goal: { kind: 'pathtown', path: 'breadbasket', level: 4 }, reward: 4000 },
+    { id: 'p-bread-goods', label: 'Sell 600 food to Breadbasket towns', hint: 'Only sales at the Markets of towns on the Breadbasket path count. Road your food chains to those towns, and keep a few different foods flowing so no single shelf sells out.', goal: { kind: 'pathgoods', path: 'breadbasket', amount: 600 }, reward: 5000 },
+    { id: 'p-bread-districts', label: 'Build 3 districts in Breadbasket towns', hint: 'Select the town, open Manage town and build districts there. A food district (bakery row, farmers market) pays half as much again in a Breadbasket town, and lifts its happiness.', goal: { kind: 'pathdistricts', path: 'breadbasket', count: 3 }, reward: 6000 },
+    { id: 'p-bread-cap', label: 'Build the Grand Food Hall', hint: 'Grow a Breadbasket town to level 5, then open Manage town: the capstone appears there. It is the biggest food building in the game.', goal: { kind: 'pathcapstone', path: 'breadbasket' }, reward: 20000 },
   ],
   forge: [
-    { id: 'p-forge-town', label: 'Grow a Forge town to level 4', hint: 'Metal and building goods keep it growing.', goal: { kind: 'pathtown', path: 'forge', level: 4 }, reward: 4000 },
-    { id: 'p-forge-goods', label: 'Sell 400 metal and building goods to Forge towns', hint: 'Ore, coal, ingots, steel, tools, bricks and cement all count.', goal: { kind: 'pathgoods', path: 'forge', amount: 400 }, reward: 5000 },
-    { id: 'p-forge-districts', label: 'Build 3 districts in Forge towns', hint: 'Open Manage town. Construction districts are 50% stronger here.', goal: { kind: 'pathdistricts', path: 'forge', count: 3 }, reward: 6000 },
-    { id: 'p-forge-cap', label: 'Build the Heavy Industry Exchange', hint: 'A level 5 Forge town can build it.', goal: { kind: 'pathcapstone', path: 'forge' }, reward: 20000 },
+    { id: 'p-forge-town', label: 'Grow a Forge town to level 4', hint: 'Pick the Forge path in Manage town. Then sell it ore, coal, ingots, steel, tools, bricks and cement. Variety counts: each new kind of good helps it level.', goal: { kind: 'pathtown', path: 'forge', level: 4 }, reward: 4000 },
+    { id: 'p-forge-goods', label: 'Sell 400 metal and building goods to Forge towns', hint: 'Only sales to Forge towns count. Road mines, smelters and brickworks to their Markets and Supply Yards, and watch the Company sheet for what is selling.', goal: { kind: 'pathgoods', path: 'forge', amount: 400 }, reward: 5000 },
+    { id: 'p-forge-districts', label: 'Build 3 districts in Forge towns', hint: 'Select the town, open Manage town and build districts there. A construction district is half as strong again in a Forge town.', goal: { kind: 'pathdistricts', path: 'forge', count: 3 }, reward: 6000 },
+    { id: 'p-forge-cap', label: 'Build the Heavy Industry Exchange', hint: 'Grow a Forge town to level 5, then open Manage town: the capstone appears there.', goal: { kind: 'pathcapstone', path: 'forge' }, reward: 20000 },
   ],
   tradehub: [
-    { id: 'p-trade-town', label: 'Grow a Trade Hub town to level 4', hint: 'Any goods help; the more kinds the better.', goal: { kind: 'pathtown', path: 'tradehub', level: 4 }, reward: 4000 },
-    { id: 'p-trade-goods', label: 'Sell 800 goods to Trade Hub towns', hint: 'Every kind of good counts here.', goal: { kind: 'pathgoods', path: 'tradehub', amount: 800 }, reward: 5000 },
-    { id: 'p-trade-districts', label: 'Build 3 districts in Trade Hub towns', hint: 'Open Manage town. Storage districts are stronger here.', goal: { kind: 'pathdistricts', path: 'tradehub', count: 3 }, reward: 6000 },
-    { id: 'p-trade-cap', label: 'Build the International Terminal', hint: 'A level 5 Trade Hub town can build it.', goal: { kind: 'pathcapstone', path: 'tradehub' }, reward: 20000 },
+    { id: 'p-trade-town', label: 'Grow a Trade Hub town to level 4', hint: 'Pick the Trade Hub path in Manage town. Any goods help it grow, so send it a wide mix: raw goods, food, building goods and parts.', goal: { kind: 'pathtown', path: 'tradehub', level: 4 }, reward: 4000 },
+    { id: 'p-trade-goods', label: 'Sell 800 goods to Trade Hub towns', hint: 'Sales to Trade Hub towns count, whatever the good. Sell big loads on short roads, and add rail or ports for the bulk goods.', goal: { kind: 'pathgoods', path: 'tradehub', amount: 800 }, reward: 5000 },
+    { id: 'p-trade-districts', label: 'Build 3 districts in Trade Hub towns', hint: 'Select the town, open Manage town and build districts there. Storage districts are stronger in a Trade Hub town, and hold more for your trucks.', goal: { kind: 'pathdistricts', path: 'tradehub', count: 3 }, reward: 6000 },
+    { id: 'p-trade-cap', label: 'Build the International Terminal', hint: 'Grow a Trade Hub town to level 5, then open Manage town: the capstone appears there.', goal: { kind: 'pathcapstone', path: 'tradehub' }, reward: 20000 },
   ],
   boulevard: [
-    { id: 'p-boul-town', label: 'Grow a Boulevard town to level 4', hint: 'Furniture, clothes, books and glass keep it growing.', goal: { kind: 'pathtown', path: 'boulevard', level: 4 }, reward: 4000 },
-    { id: 'p-boul-goods', label: 'Sell 300 fine goods to Boulevard towns', hint: 'Cloth, clothes, furniture, books and glass all count.', goal: { kind: 'pathgoods', path: 'boulevard', amount: 300 }, reward: 5000 },
-    { id: 'p-boul-districts', label: 'Build 3 districts in Boulevard towns', hint: 'Open Manage town. Culture districts are stronger here.', goal: { kind: 'pathdistricts', path: 'boulevard', count: 3 }, reward: 6000 },
-    { id: 'p-boul-cap', label: 'Build the Grand Plaza', hint: 'A level 5 Boulevard town can build it.', goal: { kind: 'pathcapstone', path: 'boulevard' }, reward: 20000 },
+    { id: 'p-boul-town', label: 'Grow a Boulevard town to level 4', hint: 'Pick the Boulevard path in Manage town. Then sell it fine goods: furniture, clothes, books and glass. A Boulevard town wants quality over bulk.', goal: { kind: 'pathtown', path: 'boulevard', level: 4 }, reward: 4000 },
+    { id: 'p-boul-goods', label: 'Sell 300 fine goods to Boulevard towns', hint: 'Only fine goods sold to Boulevard towns count. Build the cloth, furniture, glass and book chains and road them to its Market.', goal: { kind: 'pathgoods', path: 'boulevard', amount: 300 }, reward: 5000 },
+    { id: 'p-boul-districts', label: 'Build 3 districts in Boulevard towns', hint: 'Select the town, open Manage town and build districts there. Culture districts are stronger in a Boulevard town.', goal: { kind: 'pathdistricts', path: 'boulevard', count: 3 }, reward: 6000 },
+    { id: 'p-boul-cap', label: 'Build the Grand Plaza', hint: 'Grow a Boulevard town to level 5, then open Manage town: the capstone appears there.', goal: { kind: 'pathcapstone', path: 'boulevard' }, reward: 20000 },
   ],
 };
 
@@ -960,6 +960,7 @@ export const TIERS: TierDef[] = [
       { id: 't0-market', label: 'Deliver logs to the Market', hint: 'You will need 240 logs to build the Market. Fill the yard store with them. The Supply Yard truck you just bought carries them on to the Market site by itself. A Market is the building that actually pays you for goods; once it stands, Tier 1 opens and the Dairy Ranch unlocks in Production.', goal: { kind: 'townbuilt', stage: 2, count: 1 }, reward: 500 },
       { id: 't0-ranch', label: 'Build a Dairy Ranch', hint: 'Open Production, pick Dairy Ranch and click open ground near the town: a ranch brings its own pasture, no inputs needed, same as the camp. Unlike logs, what it makes (milk, eggs, fruit, vegetables, potatoes) sells for real money at the Market straight away.', goal: { kind: 'build', site: 'ranch', count: 1 }, reward: 150 },
       { id: 't0-milk', label: 'Sell 40 milk to the Market', hint: 'Join the Dairy Ranch to the town with a road and switch the Market on under Sell to, same two steps as the camp. Its trucks carry milk to the Market, which pays for it: your first real income on top of what quests pay. Selling it unlocks the Dairy.', goal: { kind: 'deliver', good: 'milk', amount: 40 }, reward: 300 },
+      { id: 't0-first', label: 'Earn your first $60', hint: 'Your first money from a sale. Open the Company sheet (top bar) to see what came in, what your buildings and trucks cost to run each minute, and what is left. Keep the trucks full and the roads short, and it only goes up from here.', goal: { kind: 'earn', amount: 60 }, reward: 150 },
       { id: 't0-dairy', label: 'Build a Dairy', hint: 'Processing tab. A Dairy takes milk in and puts cheese out: your first processing building, which turns one good into a better one. Click open ground near the town to build it: it brings its own plot.', goal: { kind: 'build', site: 'dairy', count: 1 }, reward: 250 },
       { id: 't0-cheesemake', label: 'Make 20 cheese from your milk', hint: 'Three steps. 1) Open Logistics, pick Road and drag from the Dairy Ranch to the Dairy. 2) Click the Dairy Ranch, open its Selling tab and switch the Dairy on under Sell to: the ranch trucks now carry milk to the Dairy, not the Market. 3) Click the Dairy and switch Cheese on under Production: a processing building makes nothing until you do. Milk goes in, cheese comes out.', goal: { kind: 'make', good: 'cheese', amount: 20 }, reward: 250 },
       { id: 't0-cheese', label: 'Sell 40 cheese to the Market', hint: 'Now sell what the Dairy makes. Road the Dairy to the town, click the Dairy, open its Selling tab and switch the Market on under Sell to. Cheese pays more than raw milk, and the whey left over sells at the Market too, so nothing from the chain is wasted.', goal: { kind: 'deliver', good: 'cheese', amount: 40 }, reward: 300 },
@@ -1017,14 +1018,14 @@ export const TIERS: TierDef[] = [
     name: 'Global Network',
     blurb: 'The top of the chain: steel, machinery and a metropolis.',
     quests: [
-      { id: 't3-steel', label: 'Make 100 steel', hint: 'A Steelworks turns ingots and coal into steel.', goal: { kind: 'make', good: 'steel', amount: 100 }, reward: 5000 },
-      { id: 't3-machinery', label: 'Sell 40 machinery', hint: 'Machine Works: steel and tools in, machinery out. Only the biggest towns buy it.', goal: { kind: 'deliver', good: 'machinery', amount: 40 }, reward: 10000 },
-      { id: 't3-metropolis', label: 'Grow a town to level 5', hint: 'A Metropolis needs four kinds of goods and a lot of them.', goal: { kind: 'town', level: 5, count: 1 }, reward: 10000 },
+      { id: 't3-steel', label: 'Make 100 steel', hint: 'Build a Steelworks, switch Steel on under Production, and road iron ingots and coal to it. Build the smelter first.', goal: { kind: 'make', good: 'steel', amount: 100 }, reward: 5000 },
+      { id: 't3-machinery', label: 'Sell 40 machinery', hint: 'Build a Machine Works, switch Machinery on, and road steel and tools to it. Then sell the machinery to a level 4 or larger town: smaller ones do not buy it.', goal: { kind: 'deliver', good: 'machinery', amount: 40 }, reward: 10000 },
+      { id: 't3-metropolis', label: 'Grow a town to level 5', hint: 'Open the town panel to see exactly what level 5 still needs. Keep four or more kinds of goods flowing, and finish the level materials at its Supply Yard.', goal: { kind: 'town', level: 5, count: 1 }, reward: 10000 },
       { id: 't3-air', label: 'Open an air route', hint: 'Logistics tab: build an Airport at each end, pick Air Route, then click one airport and the other. Buy a cargo plane at an airport.', goal: { kind: 'route', mode: 'air', count: 1 }, reward: 8000 },
       { id: 't3-capstone', label: 'Build a capstone district', hint: 'A Metropolis on a path can build its capstone: Grand Food Hall, Heavy Industry Exchange, International Terminal or Grand Plaza.', goal: { kind: 'capstone', count: 1 }, reward: 15000 },
       { id: 't3-sea', label: 'Open a sea route', hint: 'Build a Port on each coast, pick Sea Route in Logistics, then click one port and the other. Buy a cargo boat at a port. Islands grow coffee, mangoes and oil you cannot get anywhere else.', goal: { kind: 'route', mode: 'sea', count: 1 }, reward: 8000 },
       { id: 't3-fleet', label: 'Run a Truck Fleet', hint: 'Open the Trucks tab of a building and buy a Truck Fleet. Move a driver over from a smaller truck, or hire one.', goal: { kind: 'vehicle', vehicle: 'convoy', count: 1 }, reward: 8000 },
-      { id: 't3-earn', label: 'Earn $250,000 in total', hint: 'High-value goods on fast, full vehicles.', goal: { kind: 'earn', amount: 250000 }, reward: 10000 },
+      { id: 't3-earn', label: 'Earn $250,000 in total', hint: 'Steel, machinery and fine goods pay the most. Run them on full trucks over short roads, or on rail and air for the long hauls.', goal: { kind: 'earn', amount: 250000 }, reward: 10000 },
     ],
   },
   {
@@ -1032,11 +1033,11 @@ export const TIERS: TierDef[] = [
     name: 'Legacy',
     blurb: 'The world is connected. Now make your towns great, each in its own way.',
     quests: [
-      { id: 't4-paths', label: 'Run 3 different specialisations', hint: 'Breadbasket, The Forge, Trade Hub, The Boulevard: give three of your towns different paths.', goal: { kind: 'paths', count: 3 }, reward: 25000 },
+      { id: 't4-paths', label: 'Run 3 different specialisations', hint: 'Select a town, open Manage town and pick its path. Each town picks one: Breadbasket, The Forge, Trade Hub or The Boulevard. Three different ones are needed.', goal: { kind: 'paths', count: 3 }, reward: 25000 },
       { id: 't4-jet', label: 'Fly a Cargo Jet', hint: 'Open an airport and buy a Cargo Jet. Move a driver over from a smaller plane, or hire one.', goal: { kind: 'vehicle', vehicle: 'jet', count: 1 }, reward: 30000 },
-      { id: 't4-metropolises', label: 'Grow 3 towns to level 5', hint: 'Three Metropolises, each a different kind of city.', goal: { kind: 'town', level: 5, count: 3 }, reward: 50000 },
-      { id: 't4-capstones', label: 'Build 3 capstone districts', hint: 'One in each of three towns.', goal: { kind: 'capstone', count: 3 }, reward: 60000 },
-      { id: 't4-earn', label: 'Earn $1,000,000 in total', hint: 'The end game. Nothing stops you playing on.', goal: { kind: 'earn', amount: 1000000 }, reward: 100000 },
+      { id: 't4-metropolises', label: 'Grow 3 towns to level 5', hint: 'Grow three towns to level 5, each on its own path. Finish each town one at a time, with its level materials at the Supply Yard first.', goal: { kind: 'town', level: 5, count: 3 }, reward: 50000 },
+      { id: 't4-capstones', label: 'Build 3 capstone districts', hint: 'A capstone needs a level 5 town. Open Manage town in each and build its capstone: Grand Food Hall, Heavy Industry Exchange, International Terminal or Grand Plaza, depending on the path.', goal: { kind: 'capstone', count: 3 }, reward: 60000 },
+      { id: 't4-earn', label: 'Earn $1,000,000 in total', hint: 'The end game: Metropolises, rail, air and every chain running at once. Nothing stops you playing on after this.', goal: { kind: 'earn', amount: 1000000 }, reward: 100000 },
     ],
   },
 ];
@@ -1080,13 +1081,22 @@ export function bodyTiles(level: number): number {
   return level >= BODY_GROWS_AT ? 2 : 1;
 }
 
-/** The label of a quest, by id, for a "locked until..." message. Looks through every tier's list. */
-export function questLabelOf(id: string): string | undefined {
+/** A quest by id, from any tier's list or any path's ladder. */
+export function questOf(id: string): Quest | undefined {
   for (const t of TIERS) {
     const q = t.quests.find((x) => x.id === id);
-    if (q) return q.label;
+    if (q) return q;
+  }
+  for (const list of Object.values(PATH_QUESTS)) {
+    const q = list.find((x) => x.id === id);
+    if (q) return q;
   }
   return undefined;
+}
+
+/** The label of a quest, by id, for a "locked until..." message. Looks through every tier's list. */
+export function questLabelOf(id: string): string | undefined {
+  return questOf(id)?.label;
 }
 
 /** The worlds a new game can start on: made maps, placed by hand. Random worlds are not offered; they remain for tests and development. */

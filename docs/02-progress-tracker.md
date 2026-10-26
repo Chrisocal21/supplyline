@@ -548,3 +548,9 @@ Done earlier:
 - A building turned by hand is entered from its front tile (`entryTile`); an arrow marks it while placing and while drawing a road.
 - Land plots never include a town's grown footprint; no resource node lies inside one (tested).
 - The wiki data (`web/app/wiki/data.json`) and the model pictures (`docs/model-previews`) are regenerated with `node tools/export-wiki.cjs` and `node tools/model-gallery.cjs`.
+
+## 0.210
+- Every finished quest shows a card: cash paid, what it unlocked (with the building blurbs), and the next quest with its hint. Continue starts the town or city growth show; halfway through it a "Back to previous place" button returns the camera to where the player was.
+- Quest hints written out in full for the four paths and Tiers 3 and 4; new Tier 0 quest "Earn your first $60".
+- Downtown pacing (seed 11): the test bot's factory on open ground was walled in by neighbours' held ground, so no road could reach it and no lumber was made; the bot now checks for a way out. Result: T1 7.9 min, town level 2 at 21.7 min; level 3 not reached in 3 h (bot only grows one town). Players can hit the same walled-in spot: the build check does not warn about it yet.
+- Release workflow takes the installer version from the tag.

@@ -39,6 +39,7 @@ import {
   type SiteKind,
   SITE_UNLOCK_QUEST,
   questLabelOf,
+  questOf,
 } from '../sim/defs';
 import {
   buildCost,
@@ -2153,7 +2154,7 @@ export class HudScene extends Phaser.Scene {
     if (w.questsDone.length === this.unlockSeen) return;
     for (const id of w.questsDone.slice(this.unlockSeen)) {
       const kinds = (Object.keys(SITE_UNLOCK_QUEST) as SiteKind[]).filter((k) => SITE_UNLOCK_QUEST[k] === id);
-      if (kinds.length > 0) this.unlockCards.push({ quest: id, kinds });
+      if (questOf(id)) this.unlockCards.push({ quest: id, kinds });
     }
     this.unlockSeen = w.questsDone.length;
   }
@@ -2170,16 +2171,21 @@ export class HudScene extends Phaser.Scene {
     const inner = pw - pad * 2;
     const img = 64;
     const rowH = 96;
-    const ph = 132 + card.kinds.length * rowH + 76;
+    const quest = questOf(card.quest);
+    const next = nextQuest(g.world);
+    const nextHint = next ? (next.quest.hint.length > 150 ? next.quest.hint.slice(0, 147).replace(/s+S*$/, '') + '...' : next.quest.hint) : '';
+    const nextH = next ? 44 + Math.ceil(nextHint.length / 62) * 16 : 0;
+    const ph = (card.kinds.length > 0 ? 132 : 100) + card.kinds.length * rowH + nextH + 76;
     const x = (W - pw) / 2;
     const y = Math.max(TOP + 6, (H - ph) / 2);
     im.rect(4, x, y, pw, ph, 0x0b1117, 0.98, 10, COLORS.accent, 0.7);
     let cy = y + pad;
-    im.text('ulK', card.kinds.length > 1 ? 'NEW BUILDINGS UNLOCKED' : 'NEW BUILDING UNLOCKED', x + pad, cy, { size: 11, bold: true, color: COLORS.accent, layer: 4 });
+    im.text('ulK', card.kinds.length === 0 ? 'QUEST COMPLETE' : card.kinds.length > 1 ? 'QUEST COMPLETE  ·  NEW BUILDINGS' : 'QUEST COMPLETE  ·  NEW BUILDING', x + pad, cy, { size: 11, bold: true, color: COLORS.accent, layer: 4 });
     cy += 18;
     const why = `You finished: ${questLabelOf(card.quest) ?? 'a quest'}`;
     cy += im.text('ulW', why, x + pad, cy, { size: 15, bold: true, wrap: inner, layer: 4 }).h + 6;
-    im.text('ulS', 'It is in the build bar now, and in the Wiki.', x + pad, cy, { size: 12, color: COLORS.muted, wrap: inner, layer: 4 });
+    const paid = quest && quest.reward > 0 ? `$${fmt(quest.reward)} paid.  ` : '';
+    im.text('ulS', paid + (card.kinds.length > 0 ? 'What it opened is in the build bar now, and in the Wiki.' : 'Well done.'), x + pad, cy, { size: 12, color: COLORS.muted, wrap: inner, layer: 4 });
     cy += 34;
     for (const k of card.kinds) {
       const d = SITE_DEFS[k];
@@ -2191,6 +2197,11 @@ export class HudScene extends Phaser.Scene {
       im.text(`ulC${k}`, `${tab ? tab.label + ' tab' : 'Build bar'}  ·  $${fmt(d.cost)}`, tx, cy + 28, { size: 11, bold: true, color: COLORS.accent, layer: 5 });
       im.text(`ulB${k}`, d.blurb, tx, cy + 46, { size: 11, color: COLORS.muted, wrap: inner - img - 32, layer: 5 });
       cy += rowH;
+    }
+    if (next) {
+      im.text('ulNx', 'NEXT UP', x + pad, cy + 2, { size: 11, bold: true, color: COLORS.accent, layer: 4 });
+      im.text('ulNxL', next.quest.label, x + pad, cy + 18, { size: 14, bold: true, wrap: inner, layer: 4 });
+      im.text('ulNxH', nextHint, x + pad, cy + 38, { size: 12, color: COLORS.muted, wrap: inner, layer: 4 });
     }
     const bw = 200;
     const bx = x + pw - pad - bw;
@@ -4332,7 +4343,7 @@ export class HudScene extends Phaser.Scene {
     const y = H - this.bottomInset - 118;
     const hov = im.hit('gbBack', x, y, w - 46, 48, () => g.goBack(), 6);
     im.rect(6, x, y, w - 46, 48, hov ? 0xf2b04c : COLORS.accent, 1, 24);
-    im.text('gbBackT', 'Back to where you were', x + (w - 46) / 2, y + 14, { size: 16, bold: true, color: 0x1b1204, align: 'center', layer: 7 });
+    im.text('gbBackT', 'Back to previous place', x + (w - 46) / 2, y + 14, { size: 16, bold: true, color: 0x1b1204, align: 'center', layer: 7 });
     const xh = im.hit('gbBackX', x + w - 40, y, 40, 48, () => g.dismissBack(), 6);
     im.rect(6, x + w - 40, y, 40, 48, xh ? 0x2a3646 : 0x1b2430, 1, 24, COLORS.line, 1);
     im.text('gbBackXT', 'X', x + w - 20, y + 14, { size: 15, bold: true, align: 'center', layer: 7 });

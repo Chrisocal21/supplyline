@@ -33,6 +33,8 @@ import {
   createRoute,
   createWorld,
   findPath,
+  plotAt,
+  demolishSite,
   placeError,
   placeSite,
   isRailHub,
@@ -164,6 +166,8 @@ export function playBot(seed: number, ticks: number, onNote?: (n: BotNote) => vo
     for (const n of nodes) if (canPlace(kind, n.x, n.y)) return { x: n.x, y: n.y };
     return null;
   };
+  /** Open ground where a building stood walled in by other buildings' held ground, with no way out for a road. */
+  const walledIn = new Set<string>();
   const openFor = (kind: SiteKind, near: Place): { x: number; y: number } | null => {
     for (let r = 5; r < 14; r++) {
       for (let dy = -r; dy <= r; dy++) {
@@ -171,7 +175,7 @@ export function playBot(seed: number, ticks: number, onNote?: (n: BotNote) => vo
           if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
           const x = wrapX(w, near.x + dx);
           const y = near.y + dy;
-          if (canPlace(kind, x, y)) return { x, y };
+          if (!walledIn.has(x + ',' + y) && canPlace(kind, x, y)) return { x, y };
         }
       }
     }
@@ -235,6 +239,14 @@ export function playBot(seed: number, ticks: number, onNote?: (n: BotNote) => vo
       if (!spot) return 'fail';
       if (w.money < def.cost + 60) return 'wait';
       if (placeSite(w, kind, spot.x, spot.y)) return 'fail';
+      // On open ground the neighbours' held ground can wall a new building in. A player would see it and pick another spot.
+      const made = w.sites.find((s) => s.x === spot!.x && s.y === spot!.y);
+      const yard = w.sites.find((s) => s.kind === 'freight' && s.placeId === town.id);
+      if (made && yard && !plotAt(w, made.x, made.y) && !findPath(w, made, yard, 120000, 'road')) {
+        walledIn.add(spot.x + ',' + spot.y);
+        demolishSite(w, made.id);
+        return 'wait';
+      }
       note(`built ${def.label}`);
       return 'built';
     }

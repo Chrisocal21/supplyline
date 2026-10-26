@@ -958,9 +958,14 @@ export class Game3D {
   /** Where the view was before a town's growth was shown, to glide back to when it ends. */
   private backView: { lon: number; lat: number; dist: number; heading: number; pitch: number } | null = null;
 
-  /** A town just grew and the show is over: the Back button can take the player to where they were looking. */
+  /** A town's growth is half done, or over: the Back button can take the player to where they were looking before the notice. */
   get canGoBack(): boolean {
-    return this.backView !== null && this.growing.size === 0 && this.districtWork.size === 0 && this.nowMs >= this.orbitUntil;
+    if (this.backView === null) return false;
+    if (this.growing.size > 0) {
+      for (const g of this.growing.values()) if (this.nowMs - g.start < GROW_MS * 0.5) return false;
+      return true;
+    }
+    return this.districtWork.size === 0 && this.nowMs >= this.orbitUntil;
   }
 
   /** A town is growing, or has just levelled up and its growth show is about to start: popups wait so the player sees it. */
