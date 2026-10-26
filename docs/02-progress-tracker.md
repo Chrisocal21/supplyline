@@ -7,7 +7,7 @@
 **Overall progress:** about 74% of the planned scope (phase percentages below; each is checked boxes over total boxes, adjusted where a box was stale)
 **Status:** Active. Tester build is out: Windows and Mac installers on GitHub Releases, coded tester page at /access, public site at /.
 **Tests:** 527 pass, 2 skipped (vitest). Type check and production build clean.
-**Current release:** 0.218 (tag v0.218.0): quest tracker with subquests at the top left, status pills in the footer.
+**Current release:** 0.219 (tag v0.219.0): tracker never bleeds through menus, quest text size setting, grid marker on the map only.
 **Pacing (test bot, downtown world, seed 11, 3 game hours):** Tier 1 at 7.9 min, town level 2 at 26.2 min, level 3 not reached (the bot grows one town). A human playthrough is still the real test.
 
 ### Percent by area
@@ -626,3 +626,8 @@ Done earlier:
 - Status pills ("All running", "waiting on supply", cash warning) moved to the lower left of the footer; the key hints left the footer and stay in Menu, Keybinds.
 - The Supply Yard panel lists the buildings waiting on its store and what each still needs.
 - Tests: 527 pass, 2 skipped.
+
+## 0.219
+- The quest tracker hides while the menu, build tray, saves, graphics, a card or a growth show is open, so nothing bleeds through.
+- The top-left grid marker is gone: the grid and coordinates are on the world map header. The map's hide button now says HIDE; when it is hidden a SHOW MAP button sits by the compass.
+- Quest text size (Menu, Display): Normal, Large, Extra large; the tracker, its steps and links scale together and the choice is remembered.

@@ -1336,6 +1336,7 @@ export class HudScene extends Phaser.Scene {
     const screenItems: Item[] = [
       { id: 'gfx', label: 'Graphics', key: 'G', on: this.graphicsOpen, icon: ico('display'), act: () => this.openGraphics() },
       { id: 'mini', label: 'Minimap', key: 'M', on: this.minimapOn, toggle: true, icon: ico('minimap'), act: () => this.toggleMinimap() },
+      { id: 'hudsz', label: `Quest text: ${this.hudScaleName()}`, key: '', on: this.hudScale > 1, toggle: true, icon: ico('display'), act: () => this.cycleHudScale() },
       { id: 'perf', label: 'Frame rate', key: 'F3', on: this.perfOn, toggle: true, icon: ico('perf'), act: () => this.togglePerf() },
     ];
     const folders: { id: 'business' | 'game' | 'sound' | 'screen' | 'keys' | 'about'; label: string; blurb: string; mark: IconName }[] = [
@@ -2678,23 +2679,19 @@ export class HudScene extends Phaser.Scene {
     // The minimap sits in the footer's right corner and rises above it.
     const mini = this.minimapBox(W, H, dx + dockW + 12);
     this.miniShown = !!mini;
-    if (!this.title && this.game3d.world.width >= 600) {
-      // Which grid cell the view is centred on, always on screen, so a screenshot says where it was taken.
-      const w0 = this.game3d.world;
-      const c = viewTile(w0, this.game3d.cam.lon, this.game3d.cam.lat);
-      const cx = Math.max(0, Math.min(w0.width - 1, Math.round(c.x)));
-      const cyy = Math.max(0, Math.min(w0.height - 1, Math.round(c.y)));
-      // Below the stuck badge, which sits in the same corner.
-      const gy = TOP + 50;
-      im.rect(2, 12, gy, 132, 28, 0x0a0f14, 0.88, 6, COLORS.line, 1, 1);
-      im.text('gridBadge', `GRID ${gridId(cx, cyy)}`, 22, gy + 5, { size: 15, bold: true, color: COLORS.accent, layer: 3 });
-      im.text('gridBadgeT', `${cx}, ${cyy}`, 132, gy + 9, { size: 10, color: COLORS.muted, align: 'right', layer: 3 });
-    }
     if (mini) this.drawMinimap(mini);
     else if (!this.title) {
       // No minimap here (switched off, a phone, a small window): the compass stands alone above the footer.
       const cr = 20;
       this.compass('looseCompass', W - 12 - cr - 4, footY - cr - 14, cr, 2);
+      if (!this.minimapOn && W >= 900 && !isTouch()) {
+        const bw = 112;
+        const bx = W - 12 - cr * 2 - 14 - bw;
+        const by = footY - 14 - cr * 2 + 6;
+        const hv = im.hit('showMap', bx, by, bw, 28, () => this.toggleMinimap(), 2);
+        im.rect(2, bx, by, bw, 28, hv ? 0x1c2830 : 0x0b1117, 0.94, 14, hv ? COLORS.accent : COLORS.line, 1);
+        im.text('showMapT', 'SHOW MAP  M', bx + bw / 2, by + 7, { size: 11, bold: true, color: hv ? COLORS.accent : COLORS.muted, align: 'center', layer: 3 });
+      }
     }
 
     // Status pills at the left of the footer. The keys are in Menu, Keybinds.
@@ -2829,7 +2826,7 @@ export class HudScene extends Phaser.Scene {
     }
     const key = this.minimap.draw(world, { x: at.x, y: at.y, span: viewSpan(world, g.cam.dist, aspect), heading: g.cam.heading }, b.mw, this.time.now);
     im.rect(1, b.x, b.y, b.w, b.h, 0x0b1117, 0.94, 10, COLORS.line, 0.8);
-    im.text('miniT', 'WORLD MAP', b.x + 10, b.y + 9, { size: 11, bold: true, color: COLORS.accent, layer: 2 });
+    im.text('miniT', b.w >= 330 ? 'WORLD MAP' : 'MAP', b.x + 10, b.y + 9, { size: 11, bold: true, color: COLORS.accent, layer: 2 });
     const mx = b.x + 8;
     const my = b.y + 28;
     im.image('miniImg', key, mx, my, b.mw, b.mh, 1, 2);
@@ -2840,7 +2837,7 @@ export class HudScene extends Phaser.Scene {
       im.line(3, cx0, cy0, cx0, cy0 + sy * 10, COLORS.accent, 0.9, 2);
     }
     const coord = this.minimap.tileAt(world, 0.5, at.y / world.height);
-    im.text('miniXY', `${gridId(coord.x, Math.round(at.y))}   ${coord.x}, ${Math.round(at.y)}`, b.x + 92, b.y + 9, { size: 10, color: COLORS.muted, layer: 2 });
+    im.text('miniXY', b.w >= 330 ? `${gridId(coord.x, Math.round(at.y))}   ${coord.x}, ${Math.round(at.y)}` : gridId(coord.x, Math.round(at.y)), b.x + (b.w >= 330 ? 92 : 40), b.y + 9, { size: 10, color: COLORS.muted, layer: 2 });
     if (world.width >= 600) {
       // The grid over the map: lines every cell, and the names too when it is opened large.
       const cols = Math.ceil(world.width / GRID_CELL);
@@ -2851,10 +2848,10 @@ export class HudScene extends Phaser.Scene {
       }
       for (let gy = 1; gy * GRID_CELL < world.height; gy++) im.line(3, mx, my + ((gy * GRID_CELL) / world.height) * b.mh, mx + b.mw, my + ((gy * GRID_CELL) / world.height) * b.mh, 0xffffff, 0.22, 1);
     }
-    const bigH = im.hit('miniBig', b.x + b.w - 96, b.y + 6, 62, 18, () => (this.bigMap = !this.bigMap), 2);
-    im.text('miniBigT', this.bigMap ? 'SHRINK' : 'ENLARGE', b.x + b.w - 65, b.y + 9, { size: 10, bold: true, color: bigH ? COLORS.accent : COLORS.muted, align: 'center', layer: 3 });
-    const offH = im.hit('miniOff', b.x + b.w - 30, b.y + 6, 22, 18, () => this.toggleMinimap(), 2);
-    im.text('miniOffT', 'M', b.x + b.w - 19, b.y + 8, { size: 11, bold: true, color: offH ? COLORS.text : COLORS.muted, align: 'center', layer: 3 });
+    const bigH = im.hit('miniBig', b.x + b.w - 118, b.y + 6, 62, 18, () => (this.bigMap = !this.bigMap), 2);
+    im.text('miniBigT', this.bigMap ? 'SHRINK' : 'ENLARGE', b.x + b.w - 87, b.y + 9, { size: 10, bold: true, color: bigH ? COLORS.accent : COLORS.muted, align: 'center', layer: 3 });
+    const offH = im.hit('miniOff', b.x + b.w - 50, b.y + 6, 42, 18, () => this.toggleMinimap(), 2);
+    im.text('miniOffT', 'HIDE', b.x + b.w - 29, b.y + 9, { size: 10, bold: true, color: offH ? COLORS.text : COLORS.muted, align: 'center', layer: 3 });
     im.hit('miniMap', mx, my, b.mw, b.mh, () => {
       const p = this.input.activePointer;
       const t = this.minimap.tileAt(world, (p.x - mx) / b.mw, (p.y - my) / b.mh);
@@ -2957,6 +2954,36 @@ export class HudScene extends Phaser.Scene {
   /** The guide for a building or upgrade waiting on the Supply Yard store: what it needs, why, and the steps to get it there. */
   private trackerH = 0;
 
+  /** HUD text size for the quest tracker: 1, 1.25 or 1.5. A choice kept for every game, for big screens and tired eyes. */
+  private hudScale = (() => {
+    try {
+      const v = Number(localStorage.getItem('sl-hud-scale'));
+      return v === 1.25 || v === 1.5 ? v : 1;
+    } catch {
+      return 1;
+    }
+  })();
+
+  private cycleHudScale(): void {
+    this.hudScale = this.hudScale === 1 ? 1.25 : this.hudScale === 1.25 ? 1.5 : 1;
+    try {
+      localStorage.setItem('sl-hud-scale', String(this.hudScale));
+    } catch {
+      /* ignore */
+    }
+    this.toasts.push({ text: `Quest text size: ${this.hudScaleName()}`, until: this.time.now + 1600 });
+  }
+
+  private hudScaleName(): string {
+    return this.hudScale === 1 ? 'Normal' : this.hudScale === 1.25 ? 'Large' : 'Extra large';
+  }
+
+  /** Whether something drawn over the play screen (menu, build tray, a card) would have the tracker bleed through it. */
+  private trackerCovered(): boolean {
+    const w = this.game3d.world;
+    return this.menuOpen || !!this.saves || this.graphicsOpen || !!this.viewMap || !!this.sizePick || !!this.driverPick || this.trayOpen() || this.unlockCards.length > 0 || (w.tierShown ?? w.tier) < w.tier || this.game3d.growthShowing;
+  }
+
   private questSteps(): ReturnType<typeof questGuide> {
     const next = nextQuest(this.game3d.world);
     return next && !next.progress.done ? questGuide(this.game3d.world, next.quest) : null;
@@ -2968,10 +2995,15 @@ export class HudScene extends Phaser.Scene {
    * Subquests pay nothing: they are the how-to inside the quest, and the quest pays.
    */
   private questTracker(y: number): void {
+    if (this.trackerCovered()) {
+      this.trackerH = 0;
+      return;
+    }
     const im = this.im;
     const w = this.game3d.world;
+    const k = this.hudScale;
     const x = 12;
-    const pw = 340;
+    const pw = Math.min(Math.round(380 * k), Math.round(this.scale.width * 0.42));
     const mat = this.tutorialOn ? materialTasks(w)[0] : undefined;
     const next = nextQuest(w);
     const qg = this.questSteps();
@@ -2980,39 +3012,51 @@ export class HudScene extends Phaser.Scene {
     const title = mat ? mat.title : next ? next.quest.label : 'All quests complete';
     const sub = mat ? 'Needs ' + mat.owed.map(([g, n]) => `${n} ${GOODS[g].label.toLowerCase()}`).join(', ') + ' from the Supply Yard store' : next ? (next.progress.waiting ?? `${fmt(next.progress.have)} / ${fmt(next.progress.need)}${next.progress.detail ? `  (${next.progress.detail})` : ''}`) : '';
     const why = mat ? mat.why : qg ? qg.why : next ? next.quest.hint : '';
-    const tx = x + 56;
-    const th = im.text('trkT', title, tx, y + 9, { size: 14, bold: true, wrap: pw - 70, layer: 2 }).h;
-    let cy = y + 9 + th + 5;
-    if (next || mat) {
-      if (!mat && next) im.bar(1, tx, cy + 3, pw - 70 - 90, 7, next.progress.have / Math.max(1, next.progress.need), COLORS.accent);
-      im.text('trkN', sub, mat ? tx : x + pw - 14, cy - 1, { size: 11, bold: true, color: mat ? COLORS.muted : next?.progress.waiting ? COLORS.good : COLORS.warn, align: mat ? 'left' : 'right', wrap: mat ? pw - 70 : undefined, layer: 2 });
-      cy += mat ? 30 : 18;
+    const ring = Math.round(22 * k);
+    const tx = x + ring * 2 + 14;
+    const inner = pw - (tx - x) - 14;
+    const th = im.text('trkT', title, tx, y + 10, { size: Math.round(16 * k), bold: true, wrap: inner, layer: 2 }).h;
+    let cy = y + 10 + th + 6;
+    if (mat) {
+      const nh = im.text('trkN', sub, tx, cy, { size: Math.round(13 * k), bold: true, color: COLORS.muted, wrap: inner, layer: 2 }).h;
+      cy += nh + 6;
+    } else if (next) {
+      const n = im.text('trkN', sub, x + pw - 14, cy - 2, { size: Math.round(13 * k), bold: true, color: next.progress.waiting ? COLORS.good : COLORS.warn, align: 'right', layer: 2 });
+      im.bar(1, tx, cy + Math.round(4 * k), Math.max(40, inner - n.w - 12), Math.round(8 * k), next.progress.have / Math.max(1, next.progress.need), COLORS.accent);
+      cy += Math.round(22 * k);
     }
     let bottom = cy + 4;
     if (steps.length > 0) {
-      const sy0 = cy + 6;
-      im.rect(1, x + 12, sy0 - 4, pw - 24, 1, COLORS.line, 0.8);
+      let sy = cy + 4;
+      im.rect(1, x + 12, sy, pw - 24, 1, COLORS.line, 0.8);
+      sy += 8;
+      const dot = Math.round(12 * k);
       steps.slice(0, 7).forEach((st, i) => {
-        const sy = sy0 + 4 + i * 20;
         const cur = i === index;
-        im.rect(2, x + 14, sy + 3, 10, 10, st.done ? 0x4caf6a : cur ? COLORS.accent : 0x2a3646, 1, 5);
-        im.text(`trkS${i}`, st.text, x + 32, sy, { size: 11, bold: cur, color: st.done ? COLORS.muted : 0xffffff, layer: 2 });
+        const t = im.text(`trkS${i}`, st.text, x + 18 + dot + 6, sy, { size: Math.round(13 * k), bold: cur, color: st.done ? COLORS.muted : 0xffffff, wrap: pw - 18 - dot - 6 - 14, layer: 2 });
+        im.rect(2, x + 14, sy + Math.round(3 * k), dot, dot, st.done ? 0x4caf6a : cur ? COLORS.accent : 0x2a3646, 1, dot / 2);
+        sy += Math.max(Math.round(22 * k), t.h + 6);
       });
-      const wy = sy0 + 8 + Math.min(steps.length, 7) * 20;
-      const wh = im.text('trkW', why, x + 14, wy, { size: 10, color: COLORS.muted, wrap: pw - 28, layer: 2 }).h;
-      bottom = wy + wh + 6;
+      sy += 2;
+      const wh = im.text('trkW', why, x + 14, sy, { size: Math.round(12 * k), color: COLORS.muted, wrap: pw - 28, layer: 2 }).h;
+      bottom = sy + wh + 8;
     }
-    const hide = im.hit('trkHide', x + pw - 150, bottom, 70, 18, () => this.toggleTutorial(), 2);
-    im.text('trkHideT', this.tutorialOn ? 'Hide steps' : 'Show steps', x + pw - 150, bottom + 1, { size: 10, bold: true, color: hide ? COLORS.accent : COLORS.muted, layer: 3 });
-    const all = im.hit('trkAll', x + pw - 70, bottom, 56, 18, () => this.toggleSheet('quests'), 2);
-    im.text('trkAllT', 'All quests', x + pw - 70, bottom + 1, { size: 10, bold: true, color: all ? COLORS.accent : COLORS.muted, layer: 3 });
-    const ph = bottom + 24 - y;
+    const fs = Math.round(12 * k);
+    const hideLbl = this.tutorialOn ? 'Hide steps' : 'Show steps';
+    const aw = Math.round(fs * 5.6);
+    const hw = Math.round(fs * 5.4);
+    const hide = im.hit('trkHide', x + pw - 14 - aw - 14 - hw, bottom, hw, fs + 6, () => this.toggleTutorial(), 2);
+    im.text('trkHideT', hideLbl, x + pw - 14 - aw - 14 - hw, bottom + 1, { size: fs, bold: true, color: hide ? COLORS.accent : COLORS.muted, layer: 3 });
+    const all = im.hit('trkAll', x + pw - 14 - aw, bottom, aw, fs + 6, () => this.toggleSheet('quests'), 2);
+    im.text('trkAllT', 'All quests', x + pw - 14 - aw, bottom + 1, { size: fs, bold: true, color: all ? COLORS.accent : COLORS.muted, layer: 3 });
+    const ph = bottom + fs + 14 - y;
     this.trackerH = ph;
     const on = this.sheet === 'quests';
     im.rect(1, x, y, pw, ph, 0x0b1117, 0.92, 10, on ? COLORS.accent : COLORS.line, on ? 0.8 : 0.7);
-    im.circle(2, x + 28, y + 28, 19, COLORS.accent);
-    im.circle(2, x + 28, y + 28, 17, 0x0b1117);
-    im.text('trkTier', String(w.tier), x + 28, y + 14, { size: 26, bold: true, display: true, color: COLORS.accent, align: 'center', layer: 3 });
+    const rc = y + 10 + ring;
+    im.circle(2, x + 14 + ring, rc, ring, COLORS.accent);
+    im.circle(2, x + 14 + ring, rc, ring - 2, 0x0b1117);
+    im.text('trkTier', String(w.tier), x + 14 + ring, rc - Math.round(15 * k), { size: Math.round(28 * k), bold: true, display: true, color: COLORS.accent, align: 'center', layer: 3 });
     im.block({ x, y, w: pw, h: ph });
   }
 
