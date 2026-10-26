@@ -1641,7 +1641,7 @@ export class HudScene extends Phaser.Scene {
     const h = Math.min(360, H - y - 12);
     const g = this.game3d;
     im.block({ x: 0, y: TOP, w: W, h: H - TOP });
-    im.rect(3, x, y, w, h, COLORS.panel, 0.99, 12, COLORS.line);
+    im.frame(3, x, y, w, h, COLORS.panel, 0.99);
     im.text('gfxTitle', 'GRAPHICS AND LIGHTING', x + 18, y + 18, { size: 16, bold: true, layer: 4 });
     const close = im.hit('gfxClose', x + w - 50, y + 8, 40, 36, () => this.graphicsOpen = false, 4);
     im.text('gfxCloseT', 'X', x + w - 30, y + 17, { size: 16, color: close ? COLORS.accent : COLORS.muted, align: 'center', layer: 4 });
@@ -3670,7 +3670,7 @@ export class HudScene extends Phaser.Scene {
     const frameH = Math.min(full, maxH);
     const maxScroll = Math.max(0, full - frameH);
     this.panelScroll = Math.max(0, Math.min(maxScroll, this.panelScroll));
-    im.rect(1, x, y, PANEL_W, frameH, COLORS.panel, 0.96, 14, COLORS.line, 1);
+    im.plate(1, x, y, PANEL_W, frameH, { fill: COLORS.panel, alpha: 0.96, cut: 14, line: COLORS.accent, lineAlpha: 0.6, lineWidth: 2 });
     im.block({ x, y, w: PANEL_W, h: frameH });
     this.panelRect = { x, y, w: PANEL_W, h: frameH };
     this.sheetCam.setVisible(true).setViewport(x, y + 2, PANEL_W, frameH - 4).setScroll(x, y + 2);
@@ -3681,7 +3681,7 @@ export class HudScene extends Phaser.Scene {
       im.rect(2, x + PANEL_W - 8, by, 4, barH, 0xffffff, 0.3, 2);
     }
     const hov = im.hit('closePanel', x + PANEL_W - 38, y + 10, 26, 26, () => g.select(null));
-    im.rect(2, x + PANEL_W - 38, y + 10, 26, 26, hov ? 0x2a3646 : 0x1b2430, 1, 13);
+    im.plate(2, x + PANEL_W - 38, y + 10, 26, 26, { fill: hov ? 0x2a3646 : 0x1b2430, alpha: 1, cut: 6, cuts: 'tl br', line: hov ? COLORS.accent : COLORS.line, mark: false });
     im.line(2, x + PANEL_W - 31, y + 17, x + PANEL_W - 19, y + 29, COLORS.text, 1, 2);
     im.line(2, x + PANEL_W - 19, y + 17, x + PANEL_W - 31, y + 29, COLORS.text, 1, 2);
   }
@@ -5430,22 +5430,21 @@ export class HudScene extends Phaser.Scene {
     const h = 190;
     const x = (W - w) / 2;
     const y = (H - h) / 2;
-    im.rect(6, x, y, w, h, COLORS.panel, 1, 18, rm.buy ? COLORS.accent : COLORS.bad, 2);
-    im.text('rmT', rm.title, x + w / 2, y + 22, { size: 20, bold: true, align: 'center', wrap: w - 40, layer: 7 });
-    im.text('rmD', rm.detail, x + w / 2, y + 62, { size: 13, color: COLORS.muted, align: 'center', wrap: w - 48, layer: 7 });
+    const edge = rm.buy ? COLORS.accent : COLORS.bad;
+    im.plate(6, x, y, w, h, { fill: COLORS.panel, alpha: 1, cut: 16, line: edge, lineAlpha: 0.9, lineWidth: 2, mark: false });
+    im.rect(6, x + 18, y, 110, 3, edge, 1, 0);
+    im.text('rmT', rm.title.toUpperCase(), x + w / 2, y + 22, { size: 22, bold: true, display: true, align: 'center', wrap: w - 40, layer: 7 });
+    this.rule(x + 30, x + w - 30, y + 54);
+    im.text('rmD', rm.detail, x + w / 2, y + 66, { size: 13, color: COLORS.muted, align: 'center', wrap: w - 48, layer: 7 });
     const bw = (w - 48 - 12) / 2;
-    const by = y + h - 66;
-    const ch = im.hit('rmNo', x + 24, by, bw, 46, () => (g.removal = null), 8);
-    im.rect(7, x + 24, by, bw, 46, ch ? 0x2a3646 : 0x1b2430, 1, 23, COLORS.line, 1);
-    im.text('rmNoT', rm.keep ?? 'Keep it', x + 24 + bw / 2, by + 14, { size: 15, bold: true, align: 'center', layer: 8 });
-    const oh = im.hit('rmYes', x + 36 + bw, by, bw, 46, () => {
+    const by = y + h - 60;
+    this.gameButton('rmNo', rm.keep ?? 'Keep it', x + 24, by, bw, 42, 'plain', () => (g.removal = null), 8);
+    this.gameButton('rmYes', rm.verb, x + 36 + bw, by, bw, 42, rm.buy ? 'main' : 'bad', () => {
       const run = rm.run;
       g.removal = null;
       this.dash = null;
       run();
     }, 8);
-    im.rect(7, x + 36 + bw, by, bw, 46, rm.buy ? (oh ? 0xf4b84f : COLORS.accent) : oh ? 0xd9534f : 0xb8433f, 1, 23);
-    im.text('rmYesT', rm.verb, x + 36 + bw + bw / 2, by + 14, { size: 15, bold: true, color: rm.buy ? 0x1b1204 : undefined, align: 'center', layer: 8 });
   }
 
   private growModal(W: number, H: number, p: Place): void {

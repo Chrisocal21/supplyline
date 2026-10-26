@@ -375,7 +375,7 @@ export class Sheets {
       bottom = y + h - 12;
       view = { x0: cx0, x1: x + w - 26, y0: top, y1: bottom };
     } else {
-      im.rect(2, x, y, w, h, COLORS.panel, 0.97, 8, COLORS.line, 1);
+      im.frame(2, x, y, w, h, COLORS.panel, 0.97);
       im.block({ x, y, w, h });
       // Phones and small windows keep a row of tabs across the top.
       const tabW = Math.floor((w - 36 - 52 - (pages.length - 1) * 4) / pages.length);

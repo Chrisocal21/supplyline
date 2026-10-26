@@ -142,11 +142,11 @@ export class Im {
     }
   }
 
-  /** A window edge: dark fill, a gold outer line, a faint gold inner line and corner brackets. */
-  frame(layer: number, x: number, y: number, w: number, h: number, fill = 0x0b1117, alpha = 0.98, radius = 8): void {
-    this.rect(layer, x, y, w, h, fill, alpha, radius, COLORS.accent, 0.85, 2);
-    this.rect(layer, x + 6, y + 6, w - 12, h - 12, 0x000000, 0, 4, COLORS.accent, 0.22, 1);
-    this.corners(layer, x, y, w, h, 11, 16, 0.95);
+  /** A window edge: the HUD plate with a gold edge, a gold cap along the top left and a faint inner line. */
+  frame(layer: number, x: number, y: number, w: number, h: number, fill = 0x0b1117, alpha = 0.98, _radius = 8): void {
+    this.plate(layer, x, y, w, h, { fill, alpha, cut: 16, line: COLORS.accent, lineAlpha: 0.85, lineWidth: 2 });
+    this.rect(layer, x + 18, y, Math.min(120, w / 3), 3, COLORS.accent, 1, 0);
+    this.rect(layer, x + 6, y + 6, w - 12, h - 12, 0x000000, 0, 4, COLORS.accent, 0.16, 1);
   }
 
   /**
