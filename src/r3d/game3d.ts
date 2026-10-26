@@ -2976,7 +2976,7 @@ export class Game3D {
     if (err) this.onToast(err);
     else {
       const s = w.sites[w.sites.length - 1];
-      this.onToast(`${s.name} built`);
+      this.onToast(s.pending ? `${s.name} placed: it waits for materials from the Supply Yard (${(Object.keys(s.pending) as Good[]).map((g) => Math.ceil(s.pending![g] ?? 0) + " " + GOODS[g].label.toLowerCase()).join(", ")})` : `${s.name} built`);
       this.onSound('build');
       this.select({ kind: 'site', id: s.id });
       this.setHover(tile);

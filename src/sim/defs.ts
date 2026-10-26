@@ -674,6 +674,28 @@ export const MECHANIC_CHEAPER = 0.05;
 /** A truck that is fully worn waits this long for a mechanic, faster with a better shop and rank, slower with distance. Ticks. */
 export const SHOP_WAIT = 900;
 
+/**
+ * The materials a placed building takes out of its town's Supply Yard store, on top of its price in money. Tier 0 buildings need
+ * none (the first camps come before any yard), and heavier goods come in with the higher tiers.
+ */
+export function buildMaterials(kind: SiteKind): Stock {
+  const all = baseMaterials(kind);
+  // A building that makes a material is never made to wait for it: the first sawmill could not be built from lumber.
+  const own = Object.keys(SITE_DEFS[kind].recipe?.outputs ?? {});
+  return Object.fromEntries(Object.entries(all).filter(([g]) => !own.includes(g) && SITE_DEFS[kind].produce?.good !== g)) as Stock;
+}
+
+function baseMaterials(kind: SiteKind): Stock {
+  const def = SITE_DEFS[kind];
+  if (def.tier < 1 || def.dock || def.station) return {};
+  const units = Math.max(6, Math.min(400, Math.round(def.cost / 40)));
+  const share = (f: number): number => Math.max(1, Math.round(units * f));
+  if (def.tier === 1) return { lumber: share(1) };
+  if (def.tier === 2) return { lumber: share(0.6), bricks: share(0.4) };
+  if (def.tier === 3) return { lumber: share(0.4), bricks: share(0.4), cement: share(0.2) };
+  return { bricks: share(0.4), cement: share(0.3), steel: share(0.3) };
+}
+
 export const BUILD_GOODS: Good[] = ['logs', 'lumber', 'stone', 'granite', 'blocks', 'bricks', 'sand', 'gravel', 'cement', 'concrete', 'glass', 'steel', 'tools'];
 
 /** What a Warehouse (the Distribution Warehouse) may hold: finished goods only. Tools can go in both it and the Supply Yard. */

@@ -294,6 +294,7 @@ describe('towns as districts', () => {
     const w = townWorld();
     placeSite(w, 'sawmill', 19, 5);
     const saw = siteAt(w, 19, 5)!;
+    delete saw.pending; // the Supply Yard store is empty here: the materials are not the point of this test
     saw.stock.logs = 30;
     for (let i = 0; i < 400; i++) step(w);
     expect(w.produced.lumber ?? 0).toBe(0);
@@ -324,6 +325,7 @@ describe('towns as districts', () => {
     const w = townWorld();
     placeSite(w, 'sawmill', 19, 5);
     const saw = siteAt(w, 19, 5)!;
+    delete saw.pending; // the Supply Yard store is empty here: the materials are not the point of this test
     runChores(w);
     for (let i = 0; i < 3000; i++) {
       saw.stock.logs = 30;

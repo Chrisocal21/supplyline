@@ -1,7 +1,7 @@
 // Why a building is stuck, in plain words, and the one thing to do about it. The menus, the Production list and the
 // top box all read this, so they never disagree. Plain rules over the world; the UI draws the buttons.
 import { GOODS, GOOD_LIST, SITE_DEFS, vehicleLabel, type Good, type VehicleKind } from './defs';
-import { bodyForLine, buyError, buyOptions, buyersFor, fleetOf, hasByLine, lineGoods, produces, routeSpan, siteCap, stockOf, upgradeError, vehicleReach, wants, type Line, type Site, type World } from './world';
+import { bodyForLine, buyError, buyOptions, buyersFor, fleetOf, hasByLine, lineGoods, produces, routeSpan, siteCap, stockOf, supplyTown, upgradeError, vehicleReach, wants, type Line, type Site, type World } from './world';
 
 export type Fix =
   | { kind: 'start' }
@@ -23,6 +23,11 @@ const ok = (text: string): Diagnosis => ({ level: 'ok', text });
 export function diagnose(world: World, s: Site, line: Line = 'main'): Diagnosis {
   const def = SITE_DEFS[s.kind];
   if (def.dock || def.station) return ok('');
+  if (s.pending) {
+    const yard = supplyTown(world, s);
+    const left = (Object.keys(s.pending) as Good[]).map((g) => `${Math.ceil(s.pending![g] ?? 0)} ${GOODS[g].label.toLowerCase()}`).join(', ');
+    return { level: 'wait', text: `Waiting for materials from ${yard ? yard.name + "'s Supply Yard" : 'a Supply Yard'}: ${left}. Road them to its Supply Yard and it will finish.` };
+  }
   const terminal = !!(def.railyard || def.port || def.airport);
   const goods = lineGoods(s, line);
   const main = goods[0] ?? null;

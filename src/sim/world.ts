@@ -5,6 +5,7 @@ import {
   type DistrictId,
   FREIGHT_DEMAND,
   MARKET_WOOD,
+  buildMaterials,
   WAREHOUSE_GOODS,
   BUILD_LUMBER,
   LOGS_PER_LUMBER,
@@ -171,6 +172,8 @@ export interface Site {
   mech?: number;
   /** Supply Yards: building goods held in store for the town's Market site, until its own trucks carry them there. */
   depot?: Stock;
+  /** A new building still waiting for materials from its town's Supply Yard store: nothing runs until this is empty. */
+  pending?: Stock;
   /** Overflow mode: how full a supplier's store must be (0 to 1) before this hub takes its goods. */
   trigger?: number;
   /** Storage Depots: the inputs of the businesses in reach, refreshed as they come and go. The depot asks suppliers for these. */
@@ -1602,7 +1605,7 @@ export function dockDemand(world: World, site: Site): Good[] {
   }
   if (stage < 1) return [buildWood(world)];
   // While the Market is being built the yard stores its wood; afterwards only the materials for the next level.
-  const need = stage === 1 ? ([[buildWood(world), 1]] as [Good, number][]) : matsNeeded(place);
+  const need = stage === 1 ? ([[buildWood(world), 1]] as [Good, number][]) : [...matsNeeded(place), ...BUILD_GOODS.filter((g) => pendingNeed(world, place, g) > 0).map((g): [Good, number] => [g, 1])];
   return withExtra(withExtra(FREIGHT_DEMAND[Math.min(FREIGHT_DEMAND.length, place.level) - 1], districtDemand(place, 'freight').filter((g) => BUILD_GOODS.includes(g))), need.map(([g]) => g));
 }
 
@@ -1622,8 +1625,46 @@ export function buildLeft(place: Place, g: Good): number {
 }
 
 /** Units of a building good the yard can still take into store: what the Market site still needs, less what is already held. */
-export function depotLeft(place: Place, yard: Site, g: Good): number {
-  return Math.max(0, buildLeft(place, g) - (yard.depot?.[g] ?? 0));
+export function depotLeft(place: Place, yard: Site, g: Good, world?: World): number {
+  return Math.max(0, buildLeft(place, g) + (world ? pendingNeed(world, place, g) : 0) - (yard.depot?.[g] ?? 0));
+}
+
+/** The town whose Supply Yard supplies a building: its own town, or the nearest one within reach. */
+export function supplyTown(world: World, site: Site): Place | undefined {
+  return siteTown(world, site) ?? townNear(world, site);
+}
+
+/** Units of a good that new buildings of a town are still waiting for. */
+export function pendingNeed(world: World, place: Place, g: Good): number {
+  let n = 0;
+  for (const s of world.sites) if (s.pending?.[g] && supplyTown(world, s)?.id === place.id) n += s.pending[g] ?? 0;
+  return n;
+}
+
+/** What a building put down here would wait for: nothing until its town has both its Supply Yard and its Market. */
+export function materialsHere(world: World, kind: SiteKind, x: number, y: number): Stock {
+  const want = buildMaterials(kind);
+  if (Object.keys(want).length === 0) return {};
+  const probe = { x: wrapX(world, x), y } as Site;
+  const pl = plotAt(world, x, y)?.place ?? townNear(world, probe);
+  return pl && (pl.stage ?? 2) >= 2 ? want : {};
+}
+
+/** A waiting building takes what it needs from the Supply Yard store as it arrives. */
+function drawMaterials(world: World, site: Site): void {
+  const pending = site.pending;
+  if (!pending) return;
+  const pl = supplyTown(world, site);
+  const yard = pl ? world.sites.find((s) => SITE_DEFS[s.kind].dock === 'freight' && s.placeId === pl.id) : undefined;
+  if (!yard?.depot) return;
+  for (const g of Object.keys(pending) as Good[]) {
+    const take = Math.min(pending[g] ?? 0, Math.floor(yard.depot[g] ?? 0));
+    if (take <= 0) continue;
+    yard.depot[g] = (yard.depot[g] ?? 0) - take;
+    pending[g] = (pending[g] ?? 0) - take;
+    if ((pending[g] ?? 0) <= 0) delete pending[g];
+  }
+  if (Object.keys(pending).length === 0) delete site.pending;
 }
 
 /** What the town is building now and how far along: the Supply Yard, then the Market. Null once both stand. */
@@ -1722,7 +1763,7 @@ export function needs(world: World, site: Site, good: Good, from?: Site): number
   // what it has bought (lumber, say) must not stop the last of the Market's lumber being taken in.
   if (sdock === 'freight' && room <= 0) {
     const pl = placeOf(world, site);
-    if (pl && (pl.stage ?? 2) >= 1 && BUILD_GOODS.includes(good)) return Math.ceil(depotLeft(pl, site, good));
+    if (pl && (pl.stage ?? 2) >= 1 && BUILD_GOODS.includes(good)) return Math.ceil(depotLeft(pl, site, good, world));
   }
   if (room <= 0) return 0;
   if (sdock === 'market' && (site.placeId !== null) && BUILD_GOODS.includes(good)) {
@@ -1732,7 +1773,7 @@ export function needs(world: World, site: Site, good: Good, from?: Site): number
   if (sdock === 'freight') {
     // A yard stores only what the town still needs for building, and is a plain buyer for the rest.
     const pl = placeOf(world, site);
-    if (pl && (pl.stage ?? 2) >= 1 && !FREIGHT_DEMAND[Math.min(FREIGHT_DEMAND.length, pl.level) - 1].includes(good) && depotLeft(pl, site, good) <= 0) return 0;
+    if (pl && (pl.stage ?? 2) >= 1 && !FREIGHT_DEMAND[Math.min(FREIGHT_DEMAND.length, pl.level) - 1].includes(good) && depotLeft(pl, site, good, world) <= 0) return 0;
   }
   // Hubs only pass goods to another hub when the sender is fuller, so goods flow downhill instead of ping-ponging.
   // A warehouse always takes what the factories next to it need. Anything else only when a supplier is filling up, and only
@@ -2061,6 +2102,11 @@ function scrapExtras(world: World, site: Site, cap: number): void {
 
 function stepSite(world: World, site: Site): void {
   const def = SITE_DEFS[site.kind];
+  if (site.pending) {
+    // Still waiting for its materials: it does nothing until the Supply Yard has sent them.
+    if (world.tick % 10 === 0) drawMaterials(world, site);
+    return;
+  }
   const cap = siteCap(world, site);
   if ((def.produce || def.recipe) && world.tick % 30 === 0) scrapExtras(world, site, cap);
   if (def.produce) {
@@ -2326,7 +2372,7 @@ export function sell(world: World, dock: Site, g: Good, amount: number): number 
       linkTown(world, place);    }
   }
   if (isYard && stage >= 1 && BUILD_GOODS.includes(g)) {
-    const keep = Math.min(amount - building, depotLeft(place, dock, g));
+    const keep = Math.min(amount - building, depotLeft(place, dock, g, world));
     if (keep > 0) {
       (dock.depot ??= {})[g] = (dock.depot[g] ?? 0) + keep;
       building += keep;
@@ -2594,7 +2640,7 @@ function routeScore(world: World, v: Vehicle, r: Route): number {
   // grow without it, and a district building that pays would otherwise take every brick.
   if (other.kind === 'freight' && other.placeId !== null) {
     const place = world.places.find((p) => p.id === other.placeId);
-    if (place && goods.some((g) => depotLeft(place, other, g) - inbound(world, v, other, g) > 0)) return 1e6;
+    if (place && goods.some((g) => depotLeft(place, other, g, world) - inbound(world, v, other, g) > 0)) return 1e6;
   }
   if (mode === 'any') return 0;
   if (goods.length === 0) return -1;
@@ -3575,8 +3621,10 @@ export function placeSite(world: World, kind: SiteKind, x: number, y: number, ro
   const hold = holdKind(world, kind, wx, y);
   const held = hold ? blockFor(world, wx, y, rot) : null;
   world.money -= cost;
+  const waiting = materialsHere(world, kind, wx, y);
   world.sites.push({
     id: world.nextId++,
+    ...(Object.keys(waiting).length > 0 ? { pending: waiting } : {}),
     kind,
     name: siteName(world, kind, wx, y),
     x: wx,

@@ -554,3 +554,7 @@ Done earlier:
 - Quest hints written out in full for the four paths and Tiers 3 and 4; new Tier 0 quest "Earn your first $60".
 - Downtown pacing (seed 11): the test bot's factory on open ground was walled in by neighbours' held ground, so no road could reach it and no lumber was made; the bot now checks for a way out. Result: T1 7.9 min, town level 2 at 21.7 min; level 3 not reached in 3 h (bot only grows one town). Players can hit the same walled-in spot: the build check does not warn about it yet.
 - Release workflow takes the installer version from the tag.
+
+## 0.215
+- Building materials: from Tier 1, a new building in or beside a built town (Supply Yard and Market standing, within 14 tiles) costs money plus materials out of that town's Supply Yard store: lumber at Tier 1, plus bricks at Tier 2, plus cement at Tier 3, bricks, cement and steel from Tier 4. Tier 0 buildings and anything that makes the material itself (the Sawmill) need none. The building waits (`site.pending`, nothing runs) until the yard has it; the yard stocks these goods on top of the next level's materials (`depotLeft(place, yard, g, world)`). Town growth materials per style and level are unchanged.
+- The test bot sends the yard what waiting buildings need. Downtown pacing (seed 11): T1 7.9 min, town level 2 at 25.3 min.

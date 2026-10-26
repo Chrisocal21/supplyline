@@ -2,6 +2,7 @@
 // it builds the production chains the quests ask for, joins them with roads, upgrades, buys districts and picks paths.
 // It is competent but not clever, and it acts instantly, so a human takes longer. Used by pacing.test.ts and tools.
 import {
+  BUILD_GOODS,
   DISTRICTS,
   DISTRICT_ORDER,
   MARKET_DEMAND,
@@ -27,6 +28,7 @@ import {
   buyVehicle,
   growTown,
   matsNeeded,
+  pendingNeed,
   buildWood,
   readyToGrow,
   createAirRoute,
@@ -291,6 +293,8 @@ export function playBot(seed: number, ticks: number, onNote?: (n: BotNote) => vo
     return r === 'done';
   };
 
+  /** What the town's Supply Yard has to be sent: the level materials, and what new buildings are waiting for. */
+  const yardGoods = (town: Place): Good[] => [...new Set([...matsNeeded(town).map(([g]) => g), ...BUILD_GOODS.filter((g) => pendingNeed(w, town, g) > 0)])];
   /** One step towards getting a building material to a town's Supply Yard: make it, then a road from its maker to the yard. */
   const matFail = new Map<string, number>();
   const supplyYard = (g: Good, town: Place): void => {
@@ -376,7 +380,7 @@ export function playBot(seed: number, ticks: number, onNote?: (n: BotNote) => vo
         }
         if (r === 'ok') working += 1;
       }
-      for (const [g] of matsNeeded(town)) if (idle() && SITE_DEFS[producerKind(g) ?? 'farm'].tier <= w.tier) {
+      for (const g of yardGoods(town)) if (idle() && SITE_DEFS[producerKind(g) ?? 'farm'].tier <= w.tier) {
         supplyYard(g, town);
       }
       // Growth waits for materials; money goes into the town meanwhile.
@@ -599,7 +603,7 @@ export function playBot(seed: number, ticks: number, onNote?: (n: BotNote) => vo
     // Each town's next level asks for building materials at its Supply Yard.
     for (const town of towns) {
       if ((town.stage ?? 2) < 2) continue;
-      for (const [g] of matsNeeded(town)) if (idle() && SITE_DEFS[producerKind(g) ?? 'farm'].tier <= w.tier) supplyYard(g, town);
+      for (const g of yardGoods(town)) if (idle() && SITE_DEFS[producerKind(g) ?? 'farm'].tier <= w.tier) supplyYard(g, town);
     }
     if (idle()) pickPaths();
     if (idle()) districtSomething(400);
