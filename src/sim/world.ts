@@ -3030,6 +3030,17 @@ export function placeError(world: World, kind: SiteKind, x: number, y: number, r
     if (holdsBlock(world, kind, x, y)) {
       const held = blockFor(world, x, y, rot);
       if ('error' in held) return held.error;
+      // Its own block takes up one side; with no more than one other side clear, the neighbours' ground would wall it in.
+      if (!def.airport && !def.port && !def.harbor && !def.railyard) {
+        let open = 0;
+        for (const f of FRONT) {
+          const nx = wrapX(world, x + f.x);
+          const ny = y + f.y;
+          const nt = terrainAt(world, nx, ny);
+          if (nt && nt !== 'water' && nt !== 'mountain' && nt !== 'ice' && !siteAt(world, nx, ny)) open += 1;
+        }
+        if (open < 2) return 'Boxed in by nearby buildings: no road could reach it. Pick a spot with room beside it';
+      }
     }
   }
   // A building never goes on a road or a track.
