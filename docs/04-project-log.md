@@ -1182,13 +1182,13 @@ What changed:
 
 - The /access page asked GitHub's API for the latest release from each browser and showed "Latest build unknown" on a 403 (rate limit). The Vite build now bakes the site's own version into the page (`releaseFallback`, `__SL_VERSION__`) and the page falls back to that version's direct download links.
 
-## After 0.227 (not released yet, 2026-10-26)
+## 0.228 (2026-10-26)
 - Earth-first painterly art pass: ground, mountains, ocean, trees, bushes, loose rocks and node stone heaps (see docs/visual-direction.md). Node heaps are four patterns of six overlapping stones, bedded into the ground, readable from far away.
 - Selling: bulk raw goods (clay, sand, stone, gravel, ore, grain, barley, sugar beet, sunflower, bricks, blocks, slag) now sell at full price at the Market, and cotton, wool, hops, cocoa and yarn from town level 2. The Distribution Warehouse can hold them and pass them on. The Supply Yard is unchanged.
 - Wiki Goods cards have a "Sells to" line, read from src/sim/buyers.ts. buyers.test.ts fails if a good has no full-price buyer.
 - Venues: districts are made of town-chosen venues, each with its own menu (src/sim/venues.ts). Built for Restaurant Row, Hardware Store, the four sports grounds (concession vendors), Coffee House, Farmers Market, Fashion, Furniture, Builders' Yard, Hotels, Amphitheatre, Community Centre, Library, Beach Resort, University, Heating Depot, Grand Food Hall and Grand Plaza. Every venue good is made by some building and is on the Warehouse list (19 goods added, including milk, flour, cloth, lumber, steel), so a source or a Distribution Warehouse can both sell to a venue. The town picks them (seeded by town id and style, one more per district level); an unsupplied venue earns nothing and costs nothing. Town district cards list the venues. A blanket "every district buys everything" change was tried and reverted: not every restaurant wants everything.
 - Wiki has a Venues page (every venue, its district, the town level it opens at, what it buys). Tests: every venue good is made somewhere and on the Warehouse list; a Warehouse truck stocks a venue dock and the district earns; every venue has a good makeable by the tier matching its district; and no building opens before something pays full price for what it makes (by-products sell for salvage at the Market, 60%). Coffee House Dessert Case gained pastry so it is not locked at level 2.
-- Not done: venues for the bulk and industrial districts (kept flat on purpose), a wiki Venues page, a check that every good can be trucked from its source to an open buyer at its tier.
+- Still flat on purpose: the Freight Terminal, Warehouse District, Foundry Row, Heavy Industry Exchange and International Terminal stay bulk buyers.
 - docs/11-chatgpt-model-handoff.md written for the model work.
 
 ## 0.229
@@ -1201,3 +1201,7 @@ What changed:
 
 - **Map 3 would not load.** The loader sat on "Building the terrain, roads and trees" for good. Cause: after the new rock pass, `Scenery.buildTrees` copied the kept tree spots back with `spots.push(...kept)`, and Map 3 keeps hundreds of thousands, which overflows the call stack. It now copies in a loop. Scenery on Map 3 builds in about 14 s in Node.
 - **A failed map build gives the screen back.** `tryMap` caught nothing, so any error left the progress card up for ever. It now clears the card and shows the error as a toast. The map preview is put away as soon as Play is pressed, so it no longer covers the progress card.
+
+## 0.231
+
+- **Flashing on Map 3 (a guess, not reproduced).** Far resource markers showed and hid at one hard camera height, and boulders and bushes were kept to at least one per block at the edge of their range. Markers now have slack either side of the line (on below 450, off above 520) and boulders fade to none. Chris to confirm on Map 3 whether the coloured lumps still flash; if the rock surface itself flashes, look at the rock shading instead.

@@ -43,7 +43,7 @@ The wiki Goods page lists who buys each good on its card ("Sells to: ..."), read
 - Supply Yard: unchanged. Building materials for a town's growth, plus logs and lumber.
 - Districts buy only what suits them. Not every district wants everything: a district is made of named venues, each with its own menu. The town picks its venues (seeded by town id and style, one more per district level) and the player only supplies them with trucks, which drop goods at the district's door. A venue nobody supplies earns nothing and costs nothing.
   - Built so far (src/sim/venues.ts): Restaurant Row (Italian Restaurant, Mexican Kitchen, Steakhouse, Bakery and Cafe, Seafood House, Diner, Smokehouse BBQ, Dessert Parlour) Hardware Store (Timber Yard, Builders' Merchant, Tool Shop, Glazier, Stone and Landscaping, Garden Centre, Ironmonger), the four sports grounds (concession vendors: hot dog stand, burger grill, pizza counter, beer garden, coffee cart, ice cream cart, team shop and more, different for football, baseball, soccer and hockey), Coffee House, Farmers Market stalls, Fashion Quarter, Furniture Gallery, Builders' Yard, Hotels, Amphitheatre, Community Centre, Library and Bookshops, Beach Resort, University, Heating Depot, Grand Food Hall and Grand Plaza.
-  - Not built yet: venues for the Freight Terminal, Warehouse District, Foundry Row, Heavy Industry Exchange and International Terminal (they stay bulk buyers on purpose); a Venues page in the wiki; and a tier check (venue goods are tested to be made somewhere and carried by the Warehouse, but not that the maker is unlocked before the district opens).
+  - Not built on purpose: venues for the Freight Terminal, Warehouse District, Foundry Row, Heavy Industry Exchange and International Terminal (they stay bulk buyers). Every venue has a good makeable by the tier its district opens at (tested), and the level 5 capstones now earn more than they cost to keep (tested).
 - src/sim/buyers.test.ts fails if a good has no full-price buyer, or if a building could be built before something pays full price for what it makes. By-products (sawdust, bran, whey...) sell for salvage at the Market. The wiki has a Venues page.
 
 ## Open items for you
@@ -51,5 +51,7 @@ The wiki Goods page lists who buys each good on its card ("Sells to: ..."), read
 - Venues inside districts (logic built for restaurants and hardware, no models yet): each district is a row of venues, each with its own look and its own menu. Plan the sign, shopfront and a few props per venue type, not one shell per district. Names and menus are in src/sim/venues.ts; more districts will get venues, so keep each shopfront a swappable sign and prop set on a shared shell.
 - Buildings pass (producers, processors, town homes) in the painterly style above.
 - Vehicles to match.
-- Resource node scenery for oil, coffee and mango: not yet seen in the game's test map, so check them in-game before restyling.
+- Resource node scenery for oil, coffee and mango: all draw on Map 1 (screenshots in dist/review/island-*.png). The oil pool is small from far away; the pumpjack carries it up close.
 - Mine: currently just a rust heap with no entrance. A readable entrance that is not clutter would help.
+
+- Not wanted: spoilage, and old-save compatibility. Idea only: a stall-based Market.

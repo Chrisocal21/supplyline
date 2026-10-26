@@ -361,6 +361,7 @@ export class Scenery {
     }
   }
   private propUsed = new Set<number>();
+  private pinsOn = true;
   private readonly pinMatrix = new THREE.Matrix4();
   private readonly pinScale = new THREE.Matrix4();
 
@@ -1196,7 +1197,10 @@ export class Scenery {
       }
     }
     // The pins show out to the same distance as the town models.
-    for (const m of this.farMarks) m.visible = eye.length() - R < 450;
+    // With a little give either side of the line, so a camera resting on it does not make every pin flash on and off.
+    const alt = eye.length() - R;
+    this.pinsOn = this.pinsOn ? alt < 520 : alt < 450;
+    for (const m of this.farMarks) m.visible = this.pinsOn;
     for (const r of this.regions) {
       toEye.subVectors(eye, r.center);
       up.copy(r.center).normalize();
@@ -1215,11 +1219,13 @@ export class Scenery {
           if (near) c.near.count = c.total;
           else if (visible) c.far.count = Math.max(1, Math.ceil(c.total * thin(dist, detail * 2, farLimit)));
         } else {
-          // Bushes and boulders have no cheap model: they thin out and stop at three times the detail distance.
-          const lim = detail * 3;
-          const show = visible && dist < lim;
-          c.near.visible = show;
-          if (show) c.near.count = Math.max(1, Math.ceil(c.total * thin(dist, detail, lim)));
+          // Bushes and boulders have no cheap model: they thin out and stop at twice the detail distance. They fade to none, never to
+          // one, or each block leaves a single big lump that pops in and out as the camera moves.
+          const lim = detail * 2;
+          const keep = dist <= detail ? 1 : Math.max(0, 1 - (dist - detail) / (lim - detail));
+          const count = visible ? Math.floor(c.total * keep) : 0;
+          c.near.visible = count > 0;
+          if (count > 0) c.near.count = count;
         }
       }
     }

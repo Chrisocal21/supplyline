@@ -2,12 +2,12 @@
 
 ---
 
-## Where we are (October 25, 2026, release 0.216)
+## Where we are (October 26, 2026, release 0.231)
 
 **Overall progress:** about 74% of the planned scope (phase percentages below; each is checked boxes over total boxes, adjusted where a box was stale)
 **Status:** Active. Tester build is out: Windows and Mac installers on GitHub Releases, coded tester page at /access, public site at /.
 **Tests:** 527 pass, 2 skipped (vitest). Type check and production build clean.
-**Current release:** 0.227 (tag v0.227.0): grid square for placement; quest order fix.
+**Current release:** 0.231 (tag v0.231.0): resource markers and boulders no longer pop in and out.
 **Pacing (test bot, downtown world, seed 11, 3 game hours):** Tier 1 at 7.9 min, town level 2 at 26.2 min, level 3 not reached (the bot grows one town). A human playthrough is still the real test.
 
 ### Percent by area
@@ -675,7 +675,19 @@ Done earlier:
 - Placing a building: the hover marker is a square on the grid cell, and the ground a building holds (2x2) is one green or red square with a light fill, not four circles. Both follow the east-west narrowing of the lots.
 - Quest "Keep more logs coming" needs a second Forestry Camp (it counted the first one and popped its Quest Complete card right after "Build a Forestry Camp").
 
-## After 0.227 (unreleased)
+## 0.228
 - Painterly earth pass done through node heaps; buildings are next (docs/visual-direction.md).
-- Bulk raw goods sell at the Market and pass through the Warehouse; wiki goods cards show who buys each good.
-- Venues (town-chosen, own menu) built for Restaurant Row and Hardware Store. To do: the other districts, a wiki Venues page, a reachability check for every good.
+- Bulk raw goods sell at the Market and pass through the Warehouse; wiki goods cards show who buys each good ("Sells to").
+- Districts are town-chosen venues with their own menus (src/sim/venues.ts), built for every district except the bulk and industrial ones. Wiki has a Venues page. Tests cover reachability and that no building opens before something pays full price for its output.
+
+## 0.229
+- The four level 5 capstone districts now earn more than they cost to keep; a test guards every earning district.
+- Oil, coffee and mango nodes checked on Map 1: all draw.
+
+## 0.230
+- Map 3 would not load: tree spots were copied with a spread that overflowed the stack. Fixed; a failed map build now clears the progress card and shows the error; the preview closes when Play is pressed.
+- Dropped: old-save compatibility and spoilage (not wanted).
+- Open: a stall-based Market (idea only), FPS on real hardware, Map 3 load time (world build alone is 20 s or more).
+
+## 0.231
+- Far resource markers and boulders no longer pop in and out at the edge of their range (guess at the Map 3 flashing; to be confirmed).
