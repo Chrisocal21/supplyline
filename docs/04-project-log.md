@@ -1205,3 +1205,7 @@ What changed:
 ## 0.231
 
 - **Flashing on Map 3 (a guess, not reproduced).** Far resource markers showed and hid at one hard camera height, and boulders and bushes were kept to at least one per block at the edge of their range. Markers now have slack either side of the line (on below 450, off above 520) and boulders fade to none. Chris to confirm on Map 3 whether the coloured lumps still flash; if the rock surface itself flashes, look at the rock shading instead.
+
+## 0.232
+
+- **The Map 3 flashing was the node markers.** Every scene change (a hover, a tool) re-ran `setNodesUsed`, which reset each far marker to scale 1, so the big heaps shrank to specks for a frame or two and jumped back. Markers now remember their last size (`farScale`) and an on/off call keeps it.

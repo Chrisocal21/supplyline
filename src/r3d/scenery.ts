@@ -345,9 +345,13 @@ export class Scenery {
   }
 
   /** Show or hide one node's marker: shown while nothing has been built on it. */
-  private setFarMark(id: number, on: boolean, scale = 1): void {
+  private setFarMark(id: number, on: boolean, scale?: number): void {
     const f = this.farIndex.get(id);
     if (!f) return;
+    // A caller that only turns a marker on or off keeps the size the camera distance last gave it. Resetting it to 1 made every
+    // marker shrink to a speck for a frame or two whenever the scene changed (a hover, a tool), then jump back: a flash.
+    if (scale === undefined) scale = this.farScale.get(id) ?? 1;
+    else this.farScale.set(id, scale);
     f.mesh.setMatrixAt(f.i, on ? this.pinMatrix.copy(f.matrix).multiply(this.pinScale.makeScale(scale, scale, scale)) : ZERO);
     f.mesh.instanceMatrix.needsUpdate = true;
   }
@@ -362,6 +366,7 @@ export class Scenery {
   }
   private propUsed = new Set<number>();
   private pinsOn = true;
+  private readonly farScale = new Map<number, number>();
   private readonly pinMatrix = new THREE.Matrix4();
   private readonly pinScale = new THREE.Matrix4();
 

@@ -2,12 +2,12 @@
 
 ---
 
-## Where we are (October 26, 2026, release 0.231)
+## Where we are (October 26, 2026, release 0.232)
 
 **Overall progress:** about 74% of the planned scope (phase percentages below; each is checked boxes over total boxes, adjusted where a box was stale)
 **Status:** Active. Tester build is out: Windows and Mac installers on GitHub Releases, coded tester page at /access, public site at /.
 **Tests:** 527 pass, 2 skipped (vitest). Type check and production build clean.
-**Current release:** 0.231 (tag v0.231.0): resource markers and boulders no longer pop in and out.
+**Current release:** 0.232 (tag v0.232.0): node markers no longer flash on hover.
 **Pacing (test bot, downtown world, seed 11, 3 game hours):** Tier 1 at 7.9 min, town level 2 at 26.2 min, level 3 not reached (the bot grows one town). A human playthrough is still the real test.
 
 ### Percent by area
@@ -691,3 +691,6 @@ Done earlier:
 
 ## 0.231
 - Far resource markers and boulders no longer pop in and out at the edge of their range (guess at the Map 3 flashing; to be confirmed).
+
+## 0.232
+- Far node markers keep their size when the scene changes, so they no longer flash to a speck and back on hover or a tool change.
