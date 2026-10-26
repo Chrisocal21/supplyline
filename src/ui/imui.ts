@@ -149,6 +149,29 @@ export class Im {
     this.corners(layer, x, y, w, h, 11, 16, 0.95);
   }
 
+  /**
+   * A HUD plate: the shape every readout and panel shares. Chosen corners are clipped (default top left and bottom right),
+   * with a thin edge and, when marked, a gold line along each cut.
+   */
+  plate(layer: number, x: number, y: number, w: number, h: number, o: { fill?: number; alpha?: number; line?: number; lineAlpha?: number; lineWidth?: number; cut?: number; cuts?: string; mark?: boolean } = {}): void {
+    const c = Math.min(o.cut ?? 8, h / 2, w / 2);
+    const cuts = o.cuts ?? 'tl br';
+    const v = (px: number, py: number) => new Phaser.Math.Vector2(px, py);
+    const pts: Phaser.Math.Vector2[] = [];
+    const marks: number[][] = [];
+    if (cuts.includes('tl')) { pts.push(v(x, y + c), v(x + c, y)); marks.push([x, y + c, x + c, y]); } else pts.push(v(x, y));
+    if (cuts.includes('tr')) { pts.push(v(x + w - c, y), v(x + w, y + c)); marks.push([x + w - c, y, x + w, y + c]); } else pts.push(v(x + w, y));
+    if (cuts.includes('br')) { pts.push(v(x + w, y + h - c), v(x + w - c, y + h)); marks.push([x + w, y + h - c, x + w - c, y + h]); } else pts.push(v(x + w, y + h));
+    if (cuts.includes('bl')) { pts.push(v(x + c, y + h), v(x, y + h - c)); marks.push([x + c, y + h, x, y + h - c]); } else pts.push(v(x, y + h));
+    const g = this.gfx[this.L(layer)];
+    g.fillStyle(o.fill ?? 0x0b1117, o.alpha ?? 0.92).fillPoints(pts, true);
+    g.lineStyle(o.lineWidth ?? 1, o.line ?? COLORS.line, o.lineAlpha ?? 0.8).strokePoints(pts, true);
+    if (o.mark ?? true) {
+      g.lineStyle(2, COLORS.accent, 1);
+      for (const m of marks) g.lineBetween(m[0], m[1], m[2], m[3]);
+    }
+  }
+
   /** An angled button face, like the website's: a parallelogram leaning right, with an optional outline. */
   slab(layer: number, x: number, y: number, w: number, h: number, fill: number, alpha = 1, line?: number, lineAlpha = 1): void {
     const s = Math.min(9, h * 0.28);

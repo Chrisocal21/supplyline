@@ -7,7 +7,7 @@
 **Overall progress:** about 74% of the planned scope (phase percentages below; each is checked boxes over total boxes, adjusted where a box was stale)
 **Status:** Active. Tester build is out: Windows and Mac installers on GitHub Releases, coded tester page at /access, public site at /.
 **Tests:** 527 pass, 2 skipped (vitest). Type check and production build clean.
-**Current release:** 0.223 (tag v0.223.0): one look across every card, menu, window and the website.
+**Current release:** 0.224 (tag v0.224.0): the whole HUD on one plate look.
 **Pacing (test bot, downtown world, seed 11, 3 game hours):** Tier 1 at 7.9 min, town level 2 at 26.2 min, level 3 not reached (the bot grows one town). A human playthrough is still the real test.
 
 ### Percent by area
@@ -652,3 +652,11 @@ Done earlier:
 - The quest tracker and tutorial card hide behind any full-screen card instead of bleeding through.
 - Website: section kickers are the gold angled banner; maps, roadmap, forms and panels have the double gold edge and corner brackets; the footer logo shows in dev.
 - Not done: in-world labels, the build tray and bottom bar are unchanged; the truck detail and removal dialogs only got the frame where they share the panel code.
+
+## 0.224
+- `Im.plate` (imui.ts): the HUD's shared shape, a dark plate with chosen corners clipped and a gold line along each cut.
+- On plates: money pill and speed pill, tier badge, Menu button (mirrored cuts), quest tracker (gold QUEST banner, angled SHOW ME and ALL STEPS), tutorial card, truck offers (angled Buy and Not now), stuck badge (ringed dot), the dock and its tabs, the build tray (gold category banner, gold edge), tray cards and locked cards, the minimap panel (angled speed buttons), the hint line.
+- Top bar and footer strip end in gold caps; the Tap-a-button coach label is an angled gold tag and sits beside tray cards instead of over the tray heading.
+- In-world: town names get a name plate with a gold tick; region names use the display face.
+- Phone fixes: the lock icon crashed the tray on narrow screens (a size was passed as the layer); the dock tabs now fit a 390 px screen; the tray blurb no longer overlaps the scroll note.
+- Not done: the building, truck and removal windows are only on the shared frame; the tooltip, the compass and the in-world building labels keep the old look.

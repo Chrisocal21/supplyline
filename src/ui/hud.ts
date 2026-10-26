@@ -1137,7 +1137,7 @@ export class HudScene extends Phaser.Scene {
   // ---- top bar ----
 
   private pill(x: number, y: number, w: number, h: number): void {
-    this.im.rect(1, x, y, w, h, 0x0b1117, 0.92, 8, COLORS.line, 0.7);
+    this.im.plate(1, x, y, w, h, { alpha: 0.92, line: COLORS.accent, lineAlpha: 0.35 });
     this.im.block({ x, y, w, h });
   }
 
@@ -1172,6 +1172,8 @@ export class HudScene extends Phaser.Scene {
     im.rect(1, 0, 0, W, headH, 0x070c0f, 0.9);
     im.rect(1, 0, headH - 1, W, 1, COLORS.accent, 0.55);
     im.rect(1, 0, 0, W, 1, 0xffffff, 0.05);
+    im.rect(1, 0, headH - 2, Math.min(240, W / 3), 2, COLORS.accent, 0.95);
+    im.rect(1, W - Math.min(240, W / 3), headH - 2, Math.min(240, W / 3), 2, COLORS.accent, 0.95);
     for (let i = 0; i < 6; i++) im.rect(1, 0, headH + i * 3, W, 3, 0x000000, 0.16 * (1 - i / 6));
     im.block({ x: 0, y: 0, w: W, h: headH });
 
@@ -1180,7 +1182,7 @@ export class HudScene extends Phaser.Scene {
     this.pill(12, y, mw, h);
     const bankOn = this.sheet === 'bank';
     const bankHov = im.hit('btnBank', 12, y, mw, h, () => this.toggleSheet('bank'), 1);
-    if (bankOn || bankHov) im.rect(1, 12, y, mw, h, bankOn ? COLORS.accent : 0x243142, bankOn ? 0.18 : 0.6, 8, bankOn ? COLORS.accent : COLORS.line, 1, bankOn ? 2 : 1);
+    if (bankOn || bankHov) im.plate(1, 12, y, mw, h, { fill: bankOn ? COLORS.accent : 0x243142, alpha: bankOn ? 0.18 : 0.6, line: bankOn ? COLORS.accent : COLORS.line, lineAlpha: 1, lineWidth: bankOn ? 2 : 1 });
     this.bankIcon(12 + mw - 26, mid, bankOn || bankHov ? COLORS.accent : COLORS.muted);
     im.circle(1, 36, mid, 15, 0xe8b23a);
     im.circle(1, 36, mid, 11, 0xc9951f);
@@ -1204,7 +1206,7 @@ export class HudScene extends Phaser.Scene {
       if (this.menuOpen && !g.demo && !g.showcase) g.save();
     }, 1);
     const menuOn = this.menuOpen;
-    im.slab(1, menuX, y, menuW, h, menuOn ? COLORS.accent : menuHov ? 0x2a3646 : 0x1a2430, 1, menuOn || menuHov ? COLORS.accent : COLORS.line, 1);
+    im.plate(1, menuX, y, menuW, h, { fill: menuOn ? COLORS.accent : menuHov ? 0x2a3646 : 0x1a2430, alpha: 1, line: COLORS.accent, lineAlpha: menuOn || menuHov ? 1 : 0.55, cuts: 'tr bl' });
     // The autosave: a small "Saved" note that fades after each save, and a red warning when the game cannot save.
     if (!g.demo && !g.showcase && !this.title) {
       const ago = Date.now() - g.savedAt;
@@ -2738,7 +2740,7 @@ export class HudScene extends Phaser.Scene {
     const open = this.trayOpen() && !this.sheet;
 
     // Footer: a strip across the bottom with the category dock in the middle, key hints at the left and the minimap at the right.
-    const tabW = Math.max(60, Math.min(DOCK_TAB_W, Math.floor((W - 24 - DOCK_PAD * 2 - (TABS.length - 1) * 6) / TABS.length)));
+    const tabW = Math.max(W < 640 ? 40 : 60, Math.min(DOCK_TAB_W, Math.floor((W - 24 - DOCK_PAD * 2 - (TABS.length - 1) * 6) / TABS.length)));
     const dockW = TABS.length * tabW + (TABS.length - 1) * 6 + DOCK_PAD * 2;
     const dx = Math.round(W / 2 - dockW / 2);
     const dy = H - DOCK_H - 2;
@@ -2746,8 +2748,10 @@ export class HudScene extends Phaser.Scene {
     for (let i = 0; i < 6; i++) im.rect(1, 0, footY - (i + 1) * 3, W, 3, 0x000000, 0.16 * (1 - i / 6));
     im.rect(1, 0, footY, W, H - footY, 0x070c0f, 0.9);
     im.rect(1, 0, footY, W, 1, COLORS.accent, 0.55);
+    im.rect(1, 0, footY, Math.min(240, W / 3), 2, COLORS.accent, 0.95);
+    im.rect(1, W - Math.min(240, W / 3), footY, Math.min(240, W / 3), 2, COLORS.accent, 0.95);
     im.block({ x: 0, y: footY, w: W, h: H - footY });
-    im.rect(1, dx, dy, dockW, DOCK_H, 0x111a22, 1, 14, COLORS.line, 1);
+    im.plate(1, dx, dy, dockW, DOCK_H, { fill: 0x0f171e, alpha: 1, cut: 12, line: COLORS.accent, lineAlpha: 0.5 });
     // First-time help: a pulsing ring on the exact button the current quest needs.
     const coach = this.coachTarget();
     let coachRect = { x: 0, y: 0, w: 0, h: 0 };
@@ -2761,10 +2765,10 @@ export class HudScene extends Phaser.Scene {
         coachText = `Tap ${t.label}`;
       }
       const hov = im.hit(`tab${t.id}`, x, y, tabW, DOCK_TAB_H, () => (on && t.id !== 'select' && g.tool === 'select' ? this.openTab('select') : this.openTab(t.id)));
-      im.rect(1, x, y, tabW, DOCK_TAB_H, on ? 0x1c2830 : hov ? 0x18222b : 0x111a20, 1, 4, on ? COLORS.accent : hov ? 0x3b4b51 : 0x111a20, on ? 0.7 : 1, 1);
-      if (on) im.rect(1, x + 8, y + DOCK_TAB_H - 3, tabW - 16, 3, COLORS.accent, 1, 0);
+      im.plate(1, x, y, tabW, DOCK_TAB_H, { fill: on ? 0x1f2d36 : hov ? 0x18222b : 0x111a20, alpha: 1, cut: 7, line: on ? COLORS.accent : hov ? COLORS.accent : 0x26333b, lineAlpha: on ? 1 : hov ? 0.6 : 1, mark: on });
+      if (on) im.rect(1, x + 10, y + DOCK_TAB_H - 4, tabW - 20, 3, COLORS.accent, 1, 0);
       im.image(`tabImg${t.id}`, t.icon, x + (tabW - 36) / 2, y + 6, 36, 36, on ? 1 : 0.85, 2);
-      im.text(`tabT${t.id}`, t.label.toUpperCase(), x + tabW / 2, y + 44, { size: tabW < 84 ? 12 : 14, bold: true, display: true, color: on ? COLORS.accent : COLORS.text, align: 'center', layer: 2 });
+      im.text(`tabT${t.id}`, t.label.toUpperCase(), x + tabW / 2, y + 44, { size: tabW < 56 ? 10 : tabW < 84 ? 12 : 14, bold: true, display: true, color: on ? COLORS.accent : COLORS.text, align: 'center', layer: 2 });
       if (!isTouch()) im.text(`tabK${t.id}`, String(i + 1), x + 7, y + 4, { size: 10, color: COLORS.muted, layer: 2 });
     });
     if (!open && coach) this.coachRing(coachRect.x, coachRect.y, coachRect.w, coachRect.h, coachText);
@@ -2824,13 +2828,13 @@ export class HudScene extends Phaser.Scene {
     const trayH = 24 + TRAY_PAD * 2 + shown * CH + (shown - 1) * 10;
     const ty = floorY - trayH;
     this.trayRect = { x: tx, y: ty, w: trayW, h: trayH };
-    im.rect(1, tx, ty, trayW, trayH, 0x0b1117, 0.97, 4, COLORS.line, 1);
-    im.rect(1, tx, ty, trayW, 3, COLORS.accent, 0.9, 0);
+    im.plate(1, tx, ty, trayW, trayH, { alpha: 0.97, cut: 14, line: COLORS.accent, lineAlpha: 0.7, lineWidth: 2 });
     im.block({ x: tx, y: ty, w: trayW, h: trayH });
     const head = tab.label.toUpperCase();
-    im.text('trayHead', head, tx + TRAY_PAD + 4, ty + 10, { size: 11, bold: true, color: COLORS.accent, layer: 2 });
+    const hw = im.text('trayHead', head, tx + TRAY_PAD + 14, ty + 9, { size: 12, bold: true, color: 0x1b1204, layer: 2 }).w;
+    im.slab(1, tx + TRAY_PAD + 4, ty + 6, hw + 26, 22, COLORS.accent);
     if (lockedTools.length > 0 && this.trayRowMax === 0 && !narrow) im.text('trayLocks', `${lockedTools.length} locked, shown last: quests first, then tiers`, tx + trayW - TRAY_PAD - 4, ty + 10, { size: 11, color: COLORS.muted, align: 'right', layer: 2 });
-    im.text('trayTitle', tab.blurb, tx + TRAY_PAD + 4 + head.length * 7.4 + 14, ty + 10, { size: 11, color: COLORS.muted, layer: 2, wrap: narrow ? trayW - 2 * TRAY_PAD - 8 : undefined });
+    if (!narrow) im.text('trayTitle', tab.blurb, tx + TRAY_PAD + hw + 42, ty + 11, { size: 11, color: COLORS.muted, layer: 2, wrap: narrow ? trayW - 2 * TRAY_PAD - 8 : undefined });
     if (this.trayRowMax > 0) {
       const trackH = trayH - 24 - TRAY_PAD * 2;
       const barH = Math.max(30, (trackH * shown) / rows);
@@ -2849,10 +2853,10 @@ export class HudScene extends Phaser.Scene {
         const why = lockParts(info.locked ?? '');
         const lid = `lockcard${tool}`;
         const lhov = im.hit(lid, cx, cy, CW, CH, () => this.toasts.push({ text: `Locked: ${why.detail ? `${why.tag.toLowerCase()}, ${why.detail}` : why.tag.toLowerCase()}`, until: this.time.now + 2800 }));
-        im.rect(1, cx, cy, CW, CH, lhov ? 0x151e28 : 0x0e151b, 1, 3, COLORS.line, 1, 1);
+        im.plate(1, cx, cy, CW, CH, { fill: lhov ? 0x151e28 : 0x0e151b, alpha: 1, cut: 8, cuts: 'tl', line: why.quest ? COLORS.accent : COLORS.line, lineAlpha: why.quest ? 0.7 : 1, mark: !!why.quest });
         // A quest opens its building next, so it carries the accent colour; the tiers stay grey.
-        im.rect(1, cx, cy, 3, CH, why.quest ? COLORS.accent : 0x2a3440, why.quest ? 0.9 : 0.7, 0);
-        drawIcon(im, 'lock', cx + CW / 2, cy + 6 + (narrow ? 18 : 22), why.quest ? COLORS.accent : COLORS.muted, 0x0e151b, narrow ? 1.5 : 2);
+        im.rect(1, cx, cy + 8, 3, CH - 8, why.quest ? COLORS.accent : 0x2a3440, why.quest ? 0.9 : 0.7, 0);
+        drawIcon(im, 'lock', cx + CW / 2, cy + 6 + (narrow ? 18 : 22), why.quest ? COLORS.accent : COLORS.muted, 0x0e151b, 2);
         const ly = cy + (narrow ? 44 : 54);
         im.rect(1, cx + 3, ly - 4, CW - 3, CH - (ly - cy) + 4, 0x0a0f14, 0.9, 0);
         im.text(`lockTag${tool}`, why.tag, cx + CW / 2, ly, { size: 11, bold: true, color: why.quest ? COLORS.accent : COLORS.muted, align: 'center', layer: 2, wrap: CW - 12 });
@@ -2866,8 +2870,8 @@ export class HudScene extends Phaser.Scene {
         coachText = `Pick ${info.name}`;
       }
       const hov = im.hit(id, cx, cy, CW, CH, () => this.setTool(tool));
-      im.rect(1, cx, cy, CW, CH, on ? 0x16302c : hov ? 0x1a2634 : 0x111921, 1, 3, on ? COLORS.good : hov ? COLORS.accent : COLORS.line, 1, on ? 2 : 1);
-      im.rect(1, cx, cy, 3, CH, on ? COLORS.good : info.locked ? 0x2a3440 : COLORS.accent, info.locked ? 0.7 : on || hov ? 1 : 0.55, 0);
+      im.plate(1, cx, cy, CW, CH, { fill: on ? 0x16302c : hov ? 0x1a2634 : 0x111921, alpha: 1, cut: 8, cuts: 'tl', line: on ? COLORS.good : hov ? COLORS.accent : COLORS.line, lineAlpha: 1, lineWidth: on ? 2 : 1, mark: on || hov });
+      im.rect(1, cx, cy + 8, 3, CH - 8, on ? COLORS.good : info.locked ? 0x2a3440 : COLORS.accent, info.locked ? 0.7 : on || hov ? 1 : 0.55, 0);
       im.image(`cardImg${tool}`, info.thumb, cx + (CW - IMG) / 2, cy + 6, IMG, IMG, info.locked ? 0.35 : 1, 2);
       im.text(`cardName${tool}`, info.name, cx + CW / 2, cy + IMG + 10, { size: info.name.length > 14 ? 11 : 12, bold: true, align: 'center', layer: 2, alpha: info.locked ? 0.55 : 1 });
       im.rect(1, cx + 3, cy + IMG + 24, CW - 3, CH - IMG - 24, 0x0a0f14, 0.9, 0);
@@ -2919,8 +2923,7 @@ export class HudScene extends Phaser.Scene {
       im.hit('bigMapBack', 0, 0, this.scale.width, this.scale.height, () => (this.bigMap = false), 1);
     }
     const key = this.minimap.draw(world, { x: at.x, y: at.y, span: viewSpan(world, g.cam.dist, aspect), heading: g.cam.heading }, b.mw, this.time.now);
-    im.rect(1, b.x, b.y, b.w, b.h, 0x0b1117, 0.94, 10, COLORS.line, 0.8);
-    im.corners(2, b.x, b.y, b.w, b.h, 3, 10, 0.9);
+    im.plate(1, b.x, b.y, b.w, b.h, { alpha: 0.94, cut: 14, line: COLORS.accent, lineAlpha: 0.5 });
     im.text('miniT', b.w >= 330 ? 'WORLD MAP' : 'MAP', b.x + 10, b.y + 9, { size: 11, bold: true, color: COLORS.accent, layer: 2 });
     const mx = b.x + 8;
     const my = b.y + 28;
@@ -2963,7 +2966,7 @@ export class HudScene extends Phaser.Scene {
       const bx = bx0 + i * (bw + 6);
       const on = g.speed === v;
       const hov = im.hit(`miniSpeed${v}`, bx, fy + 4, bw, 36, () => (g.speed = v), 2);
-      im.rect(2, bx, fy + 4, bw, 36, on ? COLORS.accent : hov ? 0x243142 : 0x172130, 1, 9, on ? COLORS.accent : COLORS.line, 1);
+      im.slab(2, bx, fy + 4, bw, 36, on ? COLORS.accent : hov ? 0x243142 : 0x172130, 1, on ? COLORS.accent : COLORS.line);
       const col = on ? 0x1b1204 : COLORS.text;
       if (v === 0) {
         im.rect(3, bx + bw / 2 - 6, fy + 14, 4, 16, col, 1, 1);
@@ -3032,17 +3035,16 @@ export class HudScene extends Phaser.Scene {
     const x = 12;
     const y = H - this.bottomInset - h - 12;
     if (y < TOP + 8) return;
-    im.rect(2, x, y, w, h, 0x0d141b, 0.94, 8, COLORS.accent, 0.7, 1.5);
-    im.corners(2, x, y, w, h, 3, 9, 0.9);
+    im.plate(2, x, y, w, h, { fill: 0x0d141b, alpha: 0.94, cut: 14, line: COLORS.accent, lineAlpha: 0.5 });
     im.text('tutK', `TUTORIAL  ${t.index + 1} / ${t.total}`, x + 14, y + 10, { size: 10, bold: true, color: COLORS.accent, layer: 3 });
     im.text('tutT', t.step.title, x + 14, y + 26, { size: 15, bold: true, layer: 3 });
     im.text('tutB', t.step.text, x + 14, y + 47, { size: 11, color: COLORS.muted, wrap: w - 28, layer: 3 });
     const bw = 62;
     const skip = im.hit('tutSkip', x + w - bw * 2 - 22, y + 8, bw, 22, () => tutorialSkip(g.world, t.step.id), 3);
-    im.rect(3, x + w - bw * 2 - 22, y + 8, bw, 22, skip ? 0x2a3646 : 0x17202b, 1, 6, COLORS.line, 1);
+    im.slab(3, x + w - bw * 2 - 22, y + 8, bw, 22, skip ? 0x2a3646 : 0x17202b, 1, skip ? COLORS.accent : COLORS.line);
     im.text('tutSkipT', 'Skip', x + w - bw - 22 - bw / 2, y + 12, { size: 11, bold: true, align: 'center', layer: 4 });
     const off = im.hit('tutOff', x + w - bw - 10, y + 8, bw, 22, () => this.toggleTutorial(), 3);
-    im.rect(3, x + w - bw - 10, y + 8, bw, 22, off ? 0x2a3646 : 0x17202b, 1, 6, COLORS.line, 1);
+    im.slab(3, x + w - bw - 10, y + 8, bw, 22, off ? 0x2a3646 : 0x17202b, 1, off ? COLORS.accent : COLORS.line);
     im.text('tutOffT', 'Turn off', x + w - bw / 2 - 10, y + 12, { size: 11, bold: true, align: 'center', layer: 4 });
     im.block({ x, y, w, h });
   }
@@ -3109,8 +3111,9 @@ export class HudScene extends Phaser.Scene {
     const title = mat ? cs!.title : next ? next.quest.label : 'All quests complete';
     const sub = next ? (next.progress.waiting ?? `${fmt(next.progress.have)} / ${fmt(next.progress.need)}`) : '';
     let cy = y + 12;
-    im.text('trkK', mat ? 'MATERIALS' : `QUEST  ·  TIER ${w.tier}`, px, cy, { size: 12, bold: true, color: COLORS.accent, layer: 2 });
-    cy += 20;
+    const kw = im.text('trkK', mat ? 'MATERIALS' : `QUEST  ·  TIER ${w.tier}`, px + 10, cy, { size: 11, bold: true, color: 0x1b1204, layer: 2 }).w;
+    im.slab(2, px, cy - 3, kw + 28, 20, COLORS.accent);
+    cy += 26;
     const th = im.text('trkT', title, px, cy, { size: 19, bold: true, wrap: inner, layer: 2 }).h;
     cy += th + 8;
     if (next && !mat) {
@@ -3130,25 +3133,24 @@ export class HudScene extends Phaser.Scene {
       if (at) {
         const bw = 130;
         const bh = im.hit('trkShow', px, bottom, bw, 32, () => this.guideTo(at.x, at.y), 2);
-        im.rect(2, px, bottom, bw, 32, bh ? 0xf0b250 : COLORS.accent, 1, 8);
+        im.slab(2, px, bottom, bw, 32, bh ? 0xf0b250 : COLORS.accent);
         im.text('trkShowT', 'SHOW ME', px + bw / 2, bottom + 6, { size: 16, bold: true, display: true, color: 0x1b1204, align: 'center', layer: 3 });
       }
       const ow = 150;
       const oh = im.hit('trkOpen', px + inner - ow, bottom, ow, 32, () => this.openQuests(), 2);
-      im.rect(2, px + inner - ow, bottom, ow, 32, oh ? 0x243142 : 0x17202b, 1, 8, COLORS.line, 1);
+      im.slab(2, px + inner - ow, bottom, ow, 32, oh ? 0x243142 : 0x17202b, 1, oh ? COLORS.accent : COLORS.line);
       im.text('trkOpenT', 'ALL STEPS  >', px + inner - ow / 2, bottom + 8, { size: 14, bold: true, color: oh ? COLORS.accent : COLORS.text, align: 'center', layer: 3 });
       bottom += 32;
     } else {
       const ow = 150;
       const oh = im.hit('trkOpen', px + inner - ow, bottom, ow, 32, () => this.openQuests(), 2);
-      im.rect(2, px + inner - ow, bottom, ow, 32, oh ? 0x243142 : 0x17202b, 1, 8, COLORS.line, 1);
+      im.slab(2, px + inner - ow, bottom, ow, 32, oh ? 0x243142 : 0x17202b, 1, oh ? COLORS.accent : COLORS.line);
       im.text('trkOpenT', 'ALL QUESTS  >', px + inner - ow / 2, bottom + 8, { size: 14, bold: true, color: oh ? COLORS.accent : COLORS.text, align: 'center', layer: 3 });
       bottom += 32;
     }
     const ph = bottom + 14 - y;
     this.trackerH = ph;
-    im.rect(1, x, y, pw, ph, 0x0b1117, 0.93, 10, COLORS.line, 0.7);
-    im.rect(2, x, y + 10, 4, 40, COLORS.accent, 1, 1);
+    im.plate(1, x, y, pw, ph, { alpha: 0.94, cut: 14, line: COLORS.accent, lineAlpha: 0.5 });
     im.block({ x, y, w: pw, h: ph });
   }
 
@@ -3168,7 +3170,7 @@ export class HudScene extends Phaser.Scene {
     const bw = 190;
     const on = this.sheet === 'quests';
     const hov = im.hit('btnTier', x, y, bw, h, () => this.openQuests(), 1);
-    im.rect(1, x, y, bw, h, hov || on ? 0x121a21 : 0x0b1117, 0.92, 8, on || hov ? COLORS.accent : COLORS.line, 0.8);
+    im.plate(1, x, y, bw, h, { fill: hov || on ? 0x121a21 : 0x0b1117, alpha: 0.92, line: COLORS.accent, lineAlpha: on || hov ? 1 : 0.35 });
     const cx = x + 26;
     im.circle(1, cx, y + h / 2, 19, COLORS.accent);
     im.circle(1, cx, y + h / 2, 17, 0x0b1117);
@@ -3255,9 +3257,12 @@ export class HudScene extends Phaser.Scene {
     const pulse = 0.5 + 0.5 * Math.sin(this.time.now / 260);
     im.rect(4, x - 4 - pulse * 3, y - 4 - pulse * 3, w + 8 + pulse * 6, h + 8 + pulse * 6, 0xffffff, 0, 16, COLORS.accent, 0.55 + pulse * 0.45, 3);
     const lw = text.length * 8 + 60;
-    const lx = Math.max(8, Math.min(x + w / 2 - lw / 2, this.scale.width - lw - 8));
-    const ly = y - 46 - pulse * 3;
-    im.rect(5, lx, ly, lw, 30, COLORS.accent, 1, 15);
+    // A card in the tray gets its label beside it, so it does not sit on the tray's heading.
+    const tr = this.trayRect;
+    const inTray = !!tr && this.trayOpen() && y >= tr.y;
+    const lx = inTray ? Math.min(x + w + 10, this.scale.width - lw - 8) : Math.max(8, Math.min(x + w / 2 - lw / 2, this.scale.width - lw - 8));
+    const ly = inTray ? y + h / 2 - 15 : y - 46 - pulse * 3;
+    im.slab(5, lx, ly, lw, 30, COLORS.accent);
     im.text('coachT', text, lx + 14, ly + 7, { size: 13, bold: true, color: 0x1b1204, layer: 6 });
     const xh = im.hit('coachX', lx + lw - 28, ly + 3, 24, 24, () => this.toggleTutorial(), 7);
     im.text('coachXT', 'x', lx + lw - 16, ly + 6, { size: 14, bold: true, color: xh ? 0xffffff : 0x1b1204, align: 'center', layer: 6 });
@@ -3310,7 +3315,7 @@ export class HudScene extends Phaser.Scene {
     if (!text) return;
     const top = H - this.bottomInset - 44;
     const t = this.im.text('hint', text, Math.round(W / 2), top + 7, { size: 13, layer: 2, align: 'center' });
-    this.im.rect(1, Math.round(W / 2 - t.w / 2 - 14), top, t.w + 28, 30, COLORS.panel, 0.92, 15, COLORS.line, 1);
+    this.im.plate(1, Math.round(W / 2 - t.w / 2 - 14), top, t.w + 28, 30, { fill: 0x0b1117, alpha: 0.94, cut: 8, line: COLORS.accent, lineAlpha: 0.5 });
   }
 
   // ---- toasts ----
@@ -3333,17 +3338,16 @@ export class HudScene extends Phaser.Scene {
       const can = buyError(world, o.siteId, o.kind) === null;
       const label = vehicleLabel(o.kind, bodyForLine(s, o.line));
       const goods = lineGoods(s, o.line).map((gd) => GOODS[gd].label.toLowerCase()).join(' + ');
-      im.rect(5, x, y, w, 112, COLORS.panel, 1, 8, COLORS.accent, 1, 1.5);
-      im.corners(5, x, y, w, 112, 3, 9, 0.9);
+      im.plate(5, x, y, w, 112, { fill: 0x0f171e, alpha: 1, cut: 14, line: COLORS.accent, lineAlpha: 0.7 });
       const th = im.text(`of${i}t`, `${s.name} needs another ${label.toLowerCase()}`, x + 14, y + 10, { size: 13, bold: true, wrap: w - 28, layer: 6 }).h;
       im.text(`of${i}s`, `Its ${goods} is piling up and all its trucks are busy.`, x + 14, y + 14 + th, { size: 11, color: COLORS.muted, wrap: w - 28, layer: 6 });
       const bw = (w - 28 - 8) / 2;
       const by = y + 74;
       const yh = im.hit(`of${i}y`, x + 14, by, bw, 30, () => can && g.answerOffer(o, true), 7);
-      im.rect(6, x + 14, by, bw, 30, !can ? 0x151c26 : yh ? 0xf2b04c : COLORS.accent, 1, 15);
+      im.slab(6, x + 14, by, bw, 30, !can ? 0x151c26 : yh ? 0xf2b04c : COLORS.accent);
       im.text(`of${i}yT`, can ? `Buy  $${fmt(cost)}` : `Need $${fmt(cost)}`, x + 14 + bw / 2, by + 8, { size: 13, bold: true, color: can ? 0x1b1204 : COLORS.muted, align: 'center', layer: 7 });
       const nh = im.hit(`of${i}n`, x + 22 + bw, by, bw, 30, () => g.answerOffer(o, false), 7);
-      im.rect(6, x + 22 + bw, by, bw, 30, nh ? 0x2a3646 : 0x1b2430, 1, 15, COLORS.line, 1);
+      im.slab(6, x + 22 + bw, by, bw, 30, nh ? 0x2a3646 : 0x1b2430, 1, nh ? COLORS.accent : COLORS.line);
       im.text(`of${i}nT`, 'Not now', x + 22 + bw + bw / 2, by + 8, { size: 13, bold: true, align: 'center', layer: 7 });
     });
   }
@@ -3394,10 +3398,14 @@ export class HudScene extends Phaser.Scene {
       const show = kept ? 1 : Math.max(0, Math.min(1, (reach - away) / (reach * 0.45)));
       if (show <= 0.02) continue;
       const size = 12 + it.value * 0.8;
-      const t = im.text(`town${it.id}`, it.text, it.x, it.y - 24, { size, bold: true, stroke: 0x0b1118, align: 'center', alpha: show, layer: 0 });
-      const r = { x0: it.x - t.w / 2 - 4, y0: it.y - 26, x1: it.x + t.w / 2 + 4, y1: it.y - 26 + t.h + 2 };
-      if (free(r)) placed.push(r);
-      else im.text(`town${it.id}`, '', -999, -999, { size, layer: 0 });
+      const t = im.text(`town${it.id}`, it.text, it.x, it.y - 25, { size, bold: true, align: 'center', alpha: show, layer: 0 });
+      const r = { x0: it.x - t.w / 2 - 10, y0: it.y - 29, x1: it.x + t.w / 2 + 10, y1: it.y - 26 + t.h + 4 };
+      if (free(r)) {
+        placed.push(r);
+        // A name plate behind the name, with a gold tick pointing down at the town.
+        im.plate(0, r.x0, r.y0, r.x1 - r.x0, r.y1 - r.y0, { alpha: 0.82 * show, line: COLORS.accent, lineAlpha: 0.55 * show, cut: 6, mark: false });
+        im.rect(0, it.x - 1, r.y1 + 1, 2, 6, COLORS.accent, 0.9 * show);
+      } else im.text(`town${it.id}`, '', -999, -999, { size, layer: 0 });
     }
     const fade = Math.min(1, Math.max(0, (dist - 60) / 90));
     const regions = items.filter((i) => i.kind === 'region').sort((a, b) => b.value - a.value);
@@ -3405,7 +3413,7 @@ export class HudScene extends Phaser.Scene {
       if (fade <= 0.02) break;
       const size = Math.max(11, Math.min(20, 10 + Math.sqrt(it.value) * 0.45));
       const label = it.text.toUpperCase().split('').join(' ');
-      const t = im.text(`reg${it.id}`, label, it.x, it.y - size / 2, { size, bold: true, color: REGION_COLOR[it.tag] ?? 0xffffff, stroke: 0x0a1118, align: 'center', alpha: 0.82 * fade, layer: 0 });
+      const t = im.text(`reg${it.id}`, label, it.x, it.y - size / 2, { size: size + 2, bold: true, display: true, color: REGION_COLOR[it.tag] ?? 0xffffff, stroke: 0x0a1118, align: 'center', alpha: 0.82 * fade, layer: 0 });
       const r = { x0: it.x - t.w / 2 - 6, y0: it.y - t.h / 2 - 2, x1: it.x + t.w / 2 + 6, y1: it.y + t.h / 2 + 2 };
       if (free(r)) placed.push(r);
       else im.text(`reg${it.id}`, '', -999, -999, { size, layer: 0 });
@@ -4558,8 +4566,9 @@ export class HudScene extends Phaser.Scene {
     const h = 32;
     const hov = im.hit('btnStuck', x, y, w, h, () => this.nextProblem(), 1);
     const col = n === 0 ? COLORS.good : COLORS.warn;
-    im.rect(1, x, y, w, h, n === 0 ? 0x12261f : hov ? 0x3a2f14 : 0x2a2312, 0.95, h / 2, col, 1);
-    im.circle(2, x + 18, y + h / 2, 6, col);
+    im.plate(1, x, y, w, h, { fill: n === 0 ? 0x12261f : hov ? 0x3a2f14 : 0x2a2312, alpha: 0.95, line: col, lineAlpha: 0.9, mark: false });
+    im.circle(2, x + 18, y + h / 2, 9, col, 0.25);
+    im.circle(2, x + 18, y + h / 2, 5, col);
     im.text('stuckT', n === 0 ? 'All running' : `${n} stuck: tap to fix`, x + 34, y + 8, { size: 13, bold: true, color: n === 0 ? COLORS.good : COLORS.text, layer: 2 });
     // Held up but working: needs more supply, or buyers are full. Not a fault, so a quieter badge of its own.
     if (this.waitCount > 0) {
