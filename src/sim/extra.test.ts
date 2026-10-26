@@ -471,10 +471,10 @@ describe('tier quests', () => {
     const before = w.money;
     checkQuests(w, (t) => log.push(t));
     checkQuests(w, (t) => log.push(t));
-    // t0-camps (now "keep more logs coming") asks for just 1 camp too, so it completes alongside t0-camp.
-    expect(w.questsDone).toEqual(['t0-camp', 't0-camps']);
-    expect(w.money - before).toBe(TIERS[0].quests.find((q) => q.id === 't0-camp')!.reward + TIERS[0].quests.find((q) => q.id === 't0-camps')!.reward);
-    expect(log.filter((l) => /Quest complete/.test(l))).toHaveLength(2);
+    // t0-camps (keep more logs coming) needs a second camp, so the first one finishes only t0-camp.
+    expect(w.questsDone).toEqual(['t0-camp']);
+    expect(w.money - before).toBe(TIERS[0].quests.find((q) => q.id === 't0-camp')!.reward);
+    expect(log.filter((l) => /Quest complete/.test(l))).toHaveLength(1);
 
     // A finished quest stays finished after the building is gone.
     w.sites = w.sites.filter((s) => s.kind !== 'forestry');

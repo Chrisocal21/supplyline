@@ -7,7 +7,7 @@
 **Overall progress:** about 74% of the planned scope (phase percentages below; each is checked boxes over total boxes, adjusted where a box was stale)
 **Status:** Active. Tester build is out: Windows and Mac installers on GitHub Releases, coded tester page at /access, public site at /.
 **Tests:** 527 pass, 2 skipped (vitest). Type check and production build clean.
-**Current release:** 0.226 (tag v0.226.0): every window on the plate look.
+**Current release:** 0.227 (tag v0.227.0): grid square for placement; quest order fix.
 **Pacing (test bot, downtown world, seed 11, 3 game hours):** Tier 1 at 7.9 min, town level 2 at 26.2 min, level 3 not reached (the bot grows one town). A human playthrough is still the real test.
 
 ### Percent by area
@@ -670,3 +670,7 @@ Done earlier:
 - `Im.frame` is now the plate shape (clipped corners, gold edge, gold cap), so the menu, graphics window, growth pop-up and the other framed windows all follow it.
 - The building and town side panel, its close button and the removal pop-up (angled Keep and Demolish buttons, display-face title) use the same look.
 - Desktop only from here: no phone layout work.
+
+## 0.227
+- Placing a building: the hover marker is a square on the grid cell, and the ground a building holds (2x2) is one green or red square with a light fill, not four circles. Both follow the east-west narrowing of the lots.
+- Quest "Keep more logs coming" needs a second Forestry Camp (it counted the first one and popped its Quest Complete card right after "Build a Forestry Camp").

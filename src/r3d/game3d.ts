@@ -371,8 +371,22 @@ const SEASON_LIGHT: Record<string, { sun: THREE.Color; sky: THREE.Color; ground:
   spring: { sun: new THREE.Color(0xfff0d0), sky: new THREE.Color(0xd4e8f2), ground: new THREE.Color(0x667f4a) },
 };
 
+/** A flat unit square edge lying on the ground: the marker that sits on grid cells. Scale it to the cells it should cover. */
+function squareFrameGeometry(thick: number): THREE.ShapeGeometry {
+  const h = 0.5;
+  const shape = new THREE.Shape();
+  shape.moveTo(-h, -h).lineTo(h, -h).lineTo(h, h).lineTo(-h, h).closePath();
+  const hole = new THREE.Path();
+  const i = h - thick;
+  hole.moveTo(-i, -i).lineTo(-i, i).lineTo(i, i).lineTo(i, -i).closePath();
+  shape.holes.push(hole);
+  const geo = new THREE.ShapeGeometry(shape);
+  geo.rotateX(-Math.PI / 2);
+  return geo;
+}
+
 /** The tile the camera is looking at. */
-const viewTileOf = (world: World, lon: number, lat: number): { x: number; y: number } => ({
+const viewTileOf =(world: World, lon: number, lat: number): { x: number; y: number } => ({
   x: ((lon + Math.PI) / (Math.PI * 2)) * world.width - 0.5,
   y: world.height / 2 - (lat * world.width) / (Math.PI * 2) - 0.5,
 });
@@ -541,8 +555,8 @@ export class Game3D {
     this.sun.shadow.camera.near = 1;
     this.sun.shadow.camera.far = 700;
 
-    const ringGeo = new THREE.RingGeometry(1.3, 1.5, 40);
-    ringGeo.rotateX(-Math.PI / 2);
+    // The hover marker is a square that sits on the grid cell, the same shape the held ground uses.
+    const ringGeo = squareFrameGeometry(0.06);
     this.ring = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.85, depthTest: false }));
     this.ring.renderOrder = 10;
     this.ring.matrixAutoUpdate = false;
@@ -2545,7 +2559,7 @@ export class Game3D {
     }
     this.hover = this.describe(tile);
     this.showRemoval(this.tool === 'demolish' && !this.hover.site ? this.hover.route : undefined);
-    this.ring.matrix.copy(this.tileMatrix(tile, 0.18));
+    this.ring.matrix.copy(this.cellMatrix(tile, 1, 1, 0.18));
     this.ring.matrixWorldNeedsUpdate = true;
     this.ring.visible = true;
     const buildTool = this.isBuildTool();
@@ -2704,25 +2718,50 @@ export class Game3D {
     });
   }
 
-  /** Rings round the ground a building being placed will hold (all four tiles), green where it can, red where it cannot. */
-  private holdRings: THREE.Mesh[] = [];
+  /** A square over `nx` by `nz` grid cells centred on `tile` (which may sit between cells), narrowed east-west like the lots. */
+  private cellMatrix(tile: Tile, nx: number, nz: number, lift: number): THREE.Matrix4 {
+    const w = this.world;
+    const { lat } = tileLonLat(w.width, w.height, tile.x, tile.y);
+    const sq = THREE.MathUtils.clamp(Math.cos(lat), w.realisticLots ? 0.15 : 0.55, 1);
+    return this.tileMatrix(tile, lift).multiply(new THREE.Matrix4().makeScale(nx * TILE_UNITS * sq * 0.97, 1, nz * TILE_UNITS * 0.97));
+  }
+
+  /** One square round all the ground a building being placed will hold (the 2x2 block), green where it can, red where it cannot. */
+  private holdFrame: THREE.Mesh | null = null;
+  private holdFill: THREE.Mesh | null = null;
   private showHoldRings(tiles: Tile[] | null, ok: boolean): void {
-    while (this.holdRings.length < 4) {
-      const m = new THREE.Mesh(this.selRing.geometry, new THREE.MeshBasicMaterial({ color: 0x7fe3a0, transparent: true, opacity: 0.8, depthTest: false }));
-      m.renderOrder = 10;
-      m.matrixAutoUpdate = false;
-      m.visible = false;
-      this.scene.add(m);
-      this.holdRings.push(m);
+    if (!this.holdFrame || !this.holdFill) {
+      this.holdFrame = new THREE.Mesh(squareFrameGeometry(0.035), new THREE.MeshBasicMaterial({ color: 0x7fe3a0, transparent: true, opacity: 0.95, depthTest: false }));
+      const fill = new THREE.PlaneGeometry(1, 1);
+      fill.rotateX(-Math.PI / 2);
+      this.holdFill = new THREE.Mesh(fill, new THREE.MeshBasicMaterial({ color: 0x7fe3a0, transparent: true, opacity: 0.16, depthTest: false, depthWrite: false }));
+      for (const m of [this.holdFrame, this.holdFill]) {
+        m.renderOrder = 10;
+        m.matrixAutoUpdate = false;
+        m.visible = false;
+        this.scene.add(m);
+      }
     }
-    this.holdRings.forEach((m, i) => {
-      const t = tiles?.[i];
-      m.visible = !!t;
-      if (!t) return;
-      (m.material as THREE.MeshBasicMaterial).color.set(ok ? 0x7fe3a0 : 0xff7a6a);
-      m.matrix.copy(this.tileMatrix(t, 0.12));
-      m.matrixWorldNeedsUpdate = true;
-    });
+    const t0 = tiles?.[0];
+    this.holdFrame.visible = this.holdFill.visible = !!tiles && !!t0;
+    if (!tiles || !t0) return;
+    const w = this.world;
+    const dxs = tiles.map((t) => wrapDx(w, t0.x, t.x));
+    const dys = tiles.map((t) => t.y - t0.y);
+    const x0 = Math.min(...dxs);
+    const x1 = Math.max(...dxs);
+    const y0 = Math.min(...dys);
+    const y1 = Math.max(...dys);
+    const centre = { x: t0.x + (x0 + x1) / 2, y: t0.y + (y0 + y1) / 2 };
+    const m = this.cellMatrix(centre, x1 - x0 + 1, y1 - y0 + 1, 0.12);
+    const col = ok ? 0x7fe3a0 : 0xff7a6a;
+    for (const mesh of [this.holdFrame, this.holdFill]) {
+      (mesh.material as THREE.MeshBasicMaterial).color.set(col);
+      mesh.matrix.copy(m);
+      mesh.matrixWorldNeedsUpdate = true;
+    }
+    // The block's square stands in for the single hover cell.
+    this.ring.visible = false;
   }
 
   pointerDown(x: number, y: number, button: number): void {
