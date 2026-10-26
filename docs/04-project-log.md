@@ -1209,3 +1209,7 @@ What changed:
 ## 0.232
 
 - **The Map 3 flashing was the node markers.** Every scene change (a hover, a tool) re-ran `setNodesUsed`, which reset each far marker to scale 1, so the big heaps shrank to specks for a frame or two and jumped back. Markers now remember their last size (`farScale`) and an on/off call keeps it.
+
+## 0.233
+
+- **Far node markers scaled down.** They grew up to 6x (2.2x for non-heaps) with distance and dwarfed the mountains. Now up to 2.6x (1.8x), growing at 0.8 per step instead of 2. Chris to confirm they still read from far away.

@@ -251,7 +251,7 @@ export class Scenery {
       m.matrixWorldNeedsUpdate = true;
       // Far until the camera comes near: the pin stands in for the scene at a distance, and only one of the two shows.
       m.userData.far = true;
-      m.userData.grow = HEAP_COLOR[n.kind] !== undefined ? 6 : 2.2;
+      m.userData.grow = HEAP_COLOR[n.kind] !== undefined ? 2.6 : 1.8;
       m.visible = false;
       this.group.add(m);
       this.props.set(n.id, m);
@@ -1195,7 +1195,7 @@ export class Scenery {
       // still a clear shape on the globe, and is its own size where the two swap.
       if (far) {
         m.userData.pin = true;
-        this.setFarMark(id, !this.propUsed.has(id), Math.min(m.userData.grow as number, 1 + 2 * (Math.sqrt(d2 / propLimit) - 1)));
+        this.setFarMark(id, !this.propUsed.has(id), Math.min(m.userData.grow as number, 1 + 0.8 * (Math.sqrt(d2 / propLimit) - 1)));
       } else if (m.userData.pin !== false) {
         m.userData.pin = false;
         this.setFarMark(id, false);
