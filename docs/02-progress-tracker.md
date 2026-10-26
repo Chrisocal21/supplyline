@@ -558,3 +558,8 @@ Done earlier:
 ## 0.215
 - Building materials: from Tier 1, a new building in or beside a built town (Supply Yard and Market standing, within 14 tiles) costs money plus materials out of that town's Supply Yard store: lumber at Tier 1, plus bricks at Tier 2, plus cement at Tier 3, bricks, cement and steel from Tier 4. Tier 0 buildings and anything that makes the material itself (the Sawmill) need none. The building waits (`site.pending`, nothing runs) until the yard has it; the yard stocks these goods on top of the next level's materials (`depotLeft(place, yard, g, world)`). Town growth materials per style and level are unchanged.
 - The test bot sends the yard what waiting buildings need. Downtown pacing (seed 11): T1 7.9 min, town level 2 at 25.3 min.
+
+## 0.216
+- Materials for upgrades: going up a level takes materials from the town's Supply Yard store (`site.upgrade`; the building keeps working at its old level until they arrive). Each level asks for a different mix: lumber, +bricks, +cement, steel, concrete, glass, tools, growing with the level (`upgradeMaterials`). New buildings: Tier 4 now takes bricks, concrete and steel.
+- Waiting buildings stand as a scaffolded site with crane and piles until the materials arrive, then the work plays on. The build card and the upgrade button say what they take. Town growth materials per style and level unchanged (four different lists per style).
+- Downtown pacing (seed 11): T1 7.9 min, town level 2 at 26.2 min; level 3 not reached (bot grows one town).

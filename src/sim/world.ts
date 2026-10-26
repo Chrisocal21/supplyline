@@ -6,6 +6,7 @@ import {
   FREIGHT_DEMAND,
   MARKET_WOOD,
   buildMaterials,
+  upgradeMaterials,
   WAREHOUSE_GOODS,
   BUILD_LUMBER,
   LOGS_PER_LUMBER,
@@ -174,6 +175,8 @@ export interface Site {
   depot?: Stock;
   /** A new building still waiting for materials from its town's Supply Yard store: nothing runs until this is empty. */
   pending?: Stock;
+  /** An upgrade paid for and waiting for its materials: the building keeps working at its old level until they arrive. */
+  upgrade?: { to: number; need: Stock };
   /** Overflow mode: how full a supplier's store must be (0 to 1) before this hub takes its goods. */
   trigger?: number;
   /** Storage Depots: the inputs of the businesses in reach, refreshed as they come and go. The depot asks suppliers for these. */
@@ -1637,7 +1640,10 @@ export function supplyTown(world: World, site: Site): Place | undefined {
 /** Units of a good that new buildings of a town are still waiting for. */
 export function pendingNeed(world: World, place: Place, g: Good): number {
   let n = 0;
-  for (const s of world.sites) if (s.pending?.[g] && supplyTown(world, s)?.id === place.id) n += s.pending[g] ?? 0;
+  for (const s of world.sites) {
+    const owed = (s.pending?.[g] ?? 0) + (s.upgrade?.need[g] ?? 0);
+    if (owed > 0 && supplyTown(world, s)?.id === place.id) n += owed;
+  }
   return n;
 }
 
@@ -1652,19 +1658,29 @@ export function materialsHere(world: World, kind: SiteKind, x: number, y: number
 
 /** A waiting building takes what it needs from the Supply Yard store as it arrives. */
 function drawMaterials(world: World, site: Site): void {
-  const pending = site.pending;
-  if (!pending) return;
   const pl = supplyTown(world, site);
   const yard = pl ? world.sites.find((s) => SITE_DEFS[s.kind].dock === 'freight' && s.placeId === pl.id) : undefined;
   if (!yard?.depot) return;
-  for (const g of Object.keys(pending) as Good[]) {
-    const take = Math.min(pending[g] ?? 0, Math.floor(yard.depot[g] ?? 0));
-    if (take <= 0) continue;
-    yard.depot[g] = (yard.depot[g] ?? 0) - take;
-    pending[g] = (pending[g] ?? 0) - take;
-    if ((pending[g] ?? 0) <= 0) delete pending[g];
+  const draw = (owed: Stock): void => {
+    for (const g of Object.keys(owed) as Good[]) {
+      const take = Math.min(owed[g] ?? 0, Math.floor(yard.depot![g] ?? 0));
+      if (take <= 0) continue;
+      yard.depot![g] = (yard.depot![g] ?? 0) - take;
+      owed[g] = (owed[g] ?? 0) - take;
+      if ((owed[g] ?? 0) <= 0) delete owed[g];
+    }
+  };
+  if (site.pending) {
+    draw(site.pending);
+    if (Object.keys(site.pending).length === 0) delete site.pending;
   }
-  if (Object.keys(pending).length === 0) delete site.pending;
+  if (site.upgrade) {
+    draw(site.upgrade.need);
+    if (Object.keys(site.upgrade.need).length === 0) {
+      site.level = site.upgrade.to;
+      delete site.upgrade;
+    }
+  }
 }
 
 /** What the town is building now and how far along: the Supply Yard, then the Market. Null once both stand. */
@@ -2102,11 +2118,9 @@ function scrapExtras(world: World, site: Site, cap: number): void {
 
 function stepSite(world: World, site: Site): void {
   const def = SITE_DEFS[site.kind];
-  if (site.pending) {
-    // Still waiting for its materials: it does nothing until the Supply Yard has sent them.
-    if (world.tick % 10 === 0) drawMaterials(world, site);
-    return;
-  }
+  if ((site.pending || site.upgrade) && world.tick % 10 === 0) drawMaterials(world, site);
+  // Still waiting for its materials: it does nothing until the Supply Yard has sent them.
+  if (site.pending) return;
   const cap = siteCap(world, site);
   if ((def.produce || def.recipe) && world.tick % 30 === 0) scrapExtras(world, site, cap);
   if (def.produce) {
@@ -3674,6 +3688,7 @@ export function upgradeError(world: World, siteId: number): string | null {
   const def = SITE_DEFS[site.kind];
   if (def.dock) return 'Towns grow through deliveries';
   if (def.station) return 'Stations belong to the town';
+  if (site.upgrade) return 'The upgrade is waiting for materials from the Supply Yard';
   if (site.level >= maxLevelOf(def)) return 'Already at max level';
   const needTier = Math.min(site.level, 4); // level 2 needs tier 1, and so on up to tier 4 for level 5 and beyond
   if (world.tier < needTier) return `Level ${site.level + 1} needs Tier ${needTier}`;
@@ -3695,7 +3710,11 @@ export function upgradeSite(world: World, siteId: number): string | null {
   if (err) return err;
   const site = siteById(world, siteId)!;
   world.money -= upgradeCost(site);
-  site.level += 1;
+  // In a built town the upgrade takes materials from its Supply Yard store first; elsewhere it is done at once.
+  const town = supplyTown(world, site);
+  const need = town && (town.stage ?? 2) >= 2 ? upgradeMaterials(site.kind, site.level + 1) : {};
+  if (Object.keys(need).length > 0) site.upgrade = { to: site.level + 1, need };
+  else site.level += 1;
   return null;
 }
 

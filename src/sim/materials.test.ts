@@ -1,7 +1,7 @@
 // New buildings in a built town wait for materials from its Supply Yard store.
 import { describe, expect, it } from 'vitest';
-import { SITE_DEFS, buildMaterials, type SiteKind } from './defs';
-import { createWorld, depotLeft, materialsHere, placeSite, step, wants } from './world';
+import { SITE_DEFS, buildMaterials, upgradeMaterials, type SiteKind } from './defs';
+import { createWorld, depotLeft, materialsHere, placeSite, step, upgradeSite, wants } from './world';
 
 describe('building materials', () => {
   const kinds = (Object.keys(SITE_DEFS) as SiteKind[]).filter((k) => SITE_DEFS[k].tier >= 1 && !SITE_DEFS[k].dock && !SITE_DEFS[k].station);
@@ -44,5 +44,43 @@ describe('building materials', () => {
 describe('what makes a material is not made to wait for it', () => {
   it('lets the Sawmill be built without lumber', () => {
     expect(buildMaterials('sawmill').lumber).toBeUndefined();
+  });
+});
+
+describe('upgrades and levels', () => {
+  it('asks for a different mix at every level, and every tier', () => {
+    const seen = new Set<string>();
+    for (let l = 2; l <= 8; l++) seen.add(Object.keys(upgradeMaterials('bakery', l)).sort().join('+'));
+    expect(seen.size).toBe(7);
+    const tiers = new Set<string>();
+    for (const k of Object.keys(SITE_DEFS) as SiteKind[]) {
+      const t = SITE_DEFS[k].tier;
+      if (t >= 1 && !SITE_DEFS[k].dock && !SITE_DEFS[k].station && !SITE_DEFS[k].recipe) tiers.add(t + ':' + Object.keys(buildMaterials(k)).sort().join('+'));
+    }
+    expect(new Set([...tiers].map((s) => s.split(':')[1])).size).toBeGreaterThanOrEqual(3);
+  });
+
+  it('keeps the old level working while an upgrade waits for its materials', () => {
+    const w = createWorld(5);
+    w.tier = 4;
+    w.money = 1e6;
+    w.earned = 1e9;
+    const p = w.places[0];
+    p.stage = 2;
+    const yard = w.sites.find((s) => s.placeId === p.id && SITE_DEFS[s.kind].dock === 'freight')!;
+    const before = w.sites.length;
+    for (let r = 3; r <= 10; r++) for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) if (w.sites.length === before) placeSite(w, 'bakery', p.x + dx, p.y + dy);
+    expect(w.sites.length).toBe(before + 1);
+    const site = w.sites[w.sites.length - 1];
+    expect(SITE_DEFS[site.kind].dock).toBeUndefined();
+    delete site.pending;
+    expect(upgradeSite(w, site.id)).toBeNull();
+    expect(site.upgrade).toBeDefined();
+    if (!site.upgrade) return;
+    expect(site.level).toBe(1);
+    yard.depot = { ...site.upgrade.need };
+    for (let i = 0; i < 30; i++) step(w);
+    expect(site.level).toBe(2);
+    expect(site.upgrade).toBeUndefined();
   });
 });

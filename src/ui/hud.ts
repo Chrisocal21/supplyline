@@ -38,6 +38,8 @@ import {
   type WorldSizeId,
   type SiteKind,
   SITE_UNLOCK_QUEST,
+  buildMaterials,
+  upgradeMaterials,
   FREIGHT_DEMAND,
   questLabelOf,
   questOf,
@@ -2612,6 +2614,7 @@ export class HudScene extends Phaser.Scene {
       blurb: d.blurb,
       detail: [
         ...(d.node && isSoftNode(d.node) ? ['Build on any green tile or town plot. It brings its own fields, paddock or trees.'] : d.node ? [`Build on a free ${d.node} node.`] : d.inTown ? ['Build on open ground near a town, then road it to the Market.'] : ['Build on open ground.']),
+        ...(Object.keys(buildMaterials(tool as SiteKind)).length > 0 ? [`Also takes ${Object.entries(buildMaterials(tool as SiteKind)).map(([g, n]) => `${n} ${GOODS[g as Good].label.toLowerCase()}`).join(", ")} from the nearest built town's Supply Yard. It waits as a building site until they arrive.`] : []),
         ...(d.recipe
           ? [`Uses ${Object.entries(d.recipe.inputs).map(([g, n]) => `${n} ${GOODS[g as Good].label.toLowerCase()}`).join(' + ')}`, `Makes ${Object.entries(d.recipe.outputs).map(([g, n], i) => `${n} ${GOODS[g as Good].label.toLowerCase()}${i > 0 ? ' (by-product)' : ''}`).join(' + ')}`]
           : []),
@@ -3524,10 +3527,12 @@ export class HudScene extends Phaser.Scene {
     const can = !err;
     const next = s.level + 1;
     const boost = `Makes ${LEVEL_SPEED[s.level]}x as much, stores ${LEVEL_CAP[s.level]}x more and its yard holds ${fleetLimit(next)} vehicles.`;
+    const mats = upgradeMaterials(s.kind, next);
+    const matsText = Object.keys(mats).length > 0 ? ` Also takes ${Object.entries(mats).map(([gd, n]) => `${n} ${GOODS[gd as Good].label.toLowerCase()}`).join(", ")} from the town Supply Yard.` : "";
     const hov = im.hit('upgrade', x, y, w, h, () => can && g.upgrade(s.id), 3);
     im.rect(2, x, y, w, h, can ? (hov ? 0xf4b84f : COLORS.accent) : 0x161d27, 1, 16, can ? COLORS.accent : COLORS.line, 1);
     im.text('ugT', `Upgrade to level ${next}`, x + 24, y + 14, { size: 22, bold: true, color: can ? 0x1b1204 : COLORS.muted, layer: 4 });
-    im.text('ugS', can ? boost : `${err}. ${boost}`, x + 24, y + 44, { size: 12, color: can ? 0x3a2a0c : COLORS.warn, wrap: w - 220, layer: 4 });
+    im.text('ugS', can ? boost + matsText : `${err}. ${boost}`, x + 24, y + 44, { size: 12, color: can ? 0x3a2a0c : COLORS.warn, wrap: w - 220, layer: 4 });
     im.text('ugP', `$${fmt(upgradeCost(s))}`, x + w - 24, y + 20, { size: 26, bold: true, color: can ? 0x1b1204 : COLORS.muted, align: 'right', layer: 4 });
     return h;
   }

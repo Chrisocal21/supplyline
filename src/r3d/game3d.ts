@@ -1330,7 +1330,7 @@ export class Game3D {
     // Roads change with the routes, and when a town grows its streets reach further.
     const roadSig = `${w.routes.length}:${w.places.map((p) => p.level).join('')}`;
     const sig = [
-      w.sites.map((s) => `${s.id}.${s.level}`).join(',') + w.places.map((p) => p.stage ?? 2).join(''),
+      w.sites.map((s) => `${s.id}.${s.level}${s.pending ? 'p' : ''}`).join(',') + w.places.map((p) => p.stage ?? 2).join(''),
       roadSig,
       w.places.map((p) => `${p.level}${Object.values(p.districts ?? {}).join('')}${p.path ?? ''}`).join(''),
       w.vehicles.length,
@@ -1494,6 +1494,11 @@ export class Game3D {
       m.matrix.copy(this.siteMatrix(siteBodyCenter(this.world, s), yaw, s.kind, lvl, 0, s.res !== undefined ? bodyTiles(lvl) : 1));
       m.userData.base = m.matrix.clone();
       m.matrixWorldNeedsUpdate = true;
+      // A building waiting for materials stands as a scaffolded site; once they arrive the work carries on.
+      if (this.construction ) {
+        if (s.pending) this.construction.hold(s.id, this.nowMs, this.siteGeometryFor(s.kind, lvl));
+        else this.construction.release(s.id, this.nowMs);
+      }
     }
     for (const id of [...this.siteLevels.keys()]) if (!live.has(id)) this.siteLevels.delete(id);
     for (const id of [...this.siteAnims.keys()]) if (!live.has(id)) this.siteAnims.delete(id);

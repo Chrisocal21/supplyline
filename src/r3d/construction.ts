@@ -96,7 +96,12 @@ interface Job {
   newGeo: THREE.BufferGeometry;
   /** Said when the work is done. */
   done: string;
+  /** Waiting for materials: held at the point where the scaffolding stands and the lorries have unloaded, until released. */
+  hold?: boolean;
 }
+
+/** How far through its work a building waiting for materials is held: scaffolding up, nothing built yet. */
+const HOLD_AT = 0.3;
 
 interface RoadJob {
   start: number;
@@ -168,6 +173,21 @@ export class Construction {
     });
   }
 
+  /** A building waiting for materials stands as a scaffolded site until they arrive. */
+  hold(siteId: number, now: number, newGeo: THREE.BufferGeometry): void {
+    if (this.jobs.has(siteId)) return;
+    this.start(siteId, now, '', null, newGeo);
+    this.jobs.get(siteId)!.hold = true;
+  }
+
+  /** The materials have come: the held work carries on from where it stood. */
+  release(siteId: number, now: number): void {
+    const j = this.jobs.get(siteId);
+    if (!j?.hold) return;
+    j.hold = false;
+    j.start = now - HOLD_AT * BUILD_MS;
+  }
+
   /** A roller drives the length of a newly laid road or track. */
   startRoad(path: { x: number; y: number }[], mode: 'road' | 'rail', now: number): void {
     if (path.length < 2) return;
@@ -206,7 +226,7 @@ export class Construction {
     for (const [id, j] of this.jobs) {
       const m = meshOf(id);
       const base = m?.userData.base as THREE.Matrix4 | undefined;
-      const t = this.debugT ?? (now - j.start) / BUILD_MS;
+      const t = this.debugT ?? (j.hold ? HOLD_AT : (now - j.start) / BUILD_MS);
       if (!m || !base || t >= 1) {
         if (m && base) {
           m.matrix.copy(base);

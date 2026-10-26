@@ -21,6 +21,16 @@ const ok = (text: string): Diagnosis => ({ level: 'ok', text });
 
 /** What is going on at a building and, if it is stuck, why and what to do. */
 export function diagnose(world: World, s: Site, line: Line = 'main'): Diagnosis {
+  const d = diagnoseBase(world, s, line);
+  // An upgrade waiting for its materials is only worth saying when nothing else is wrong.
+  if (d.level === 'ok' && s.upgrade && !s.pending) {
+    const left = (Object.keys(s.upgrade.need) as Good[]).map((g) => `${Math.ceil(s.upgrade!.need[g] ?? 0)} ${GOODS[g].label.toLowerCase()}`).join(', ');
+    return { level: 'wait', text: `Upgrade to level ${s.upgrade.to} is waiting for materials at the Supply Yard: ${left}.` };
+  }
+  return d;
+}
+
+function diagnoseBase(world: World, s: Site, line: Line): Diagnosis {
   const def = SITE_DEFS[s.kind];
   if (def.dock || def.station) return ok('');
   if (s.pending) {

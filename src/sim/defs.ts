@@ -693,7 +693,28 @@ function baseMaterials(kind: SiteKind): Stock {
   if (def.tier === 1) return { lumber: share(1) };
   if (def.tier === 2) return { lumber: share(0.6), bricks: share(0.4) };
   if (def.tier === 3) return { lumber: share(0.4), bricks: share(0.4), cement: share(0.2) };
-  return { bricks: share(0.4), cement: share(0.3), steel: share(0.3) };
+  return { bricks: share(0.3), concrete: share(0.3), steel: share(0.4) };
+}
+
+/**
+ * What going up to `level` takes from the Supply Yard store, on top of the money. Each level asks for a different mix, heavier as
+ * the building grows: lumber, then bricks, cement, steel, concrete, glass and tools. The amount grows with the level too.
+ */
+export function upgradeMaterials(kind: SiteKind, level: number): Stock {
+  const def = SITE_DEFS[kind];
+  if (def.dock || def.station || level < 2) return {};
+  const units = Math.max(5, Math.min(500, Math.round((def.cost * level) / 45)));
+  const share = (f: number): number => Math.max(1, Math.round(units * f));
+  const mix: Stock =
+    level === 2 ? { lumber: share(1) }
+    : level === 3 ? { lumber: share(0.6), bricks: share(0.4) }
+    : level === 4 ? { lumber: share(0.3), bricks: share(0.4), cement: share(0.3) }
+    : level === 5 ? { bricks: share(0.3), cement: share(0.3), steel: share(0.4) }
+    : level === 6 ? { bricks: share(0.2), concrete: share(0.4), steel: share(0.4) }
+    : level === 7 ? { concrete: share(0.4), steel: share(0.3), glass: share(0.3) }
+    : { concrete: share(0.3), steel: share(0.3), glass: share(0.2), tools: share(0.2) };
+  const own = Object.keys(def.recipe?.outputs ?? {});
+  return Object.fromEntries(Object.entries(mix).filter(([g]) => !own.includes(g) && def.produce?.good !== g)) as Stock;
 }
 
 export const BUILD_GOODS: Good[] = ['logs', 'lumber', 'stone', 'granite', 'blocks', 'bricks', 'sand', 'gravel', 'cement', 'concrete', 'glass', 'steel', 'tools'];
