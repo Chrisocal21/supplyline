@@ -129,7 +129,7 @@
       // GitHub refuses lookups from busy addresses (403), so the page also knows this build's own release files and uses them then.
       var BAKED = '__SL_VERSION__';
       function baked() {
-        if (!/^d+.d+.d+$/.test(BAKED)) return null;
+        if (!/^[0-9]+[.][0-9]+[.][0-9]+$/.test(BAKED)) return null;
         var base = 'https://github.com/Chrisocal21/supplyline/releases/download/v' + BAKED + '/';
         return { tag_name: 'v' + BAKED, assets: [
           { name: 'Supplyline-Setup-' + BAKED + '.exe', browser_download_url: base + 'Supplyline-Setup-' + BAKED + '.exe' },
