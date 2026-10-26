@@ -100,7 +100,7 @@ import {
   type MapData,
   needsNode,
 } from '../sim/world';
-import { nextQuest, tierUnlocks } from '../sim/quests';
+import { nextQuest, questState, tierUnlocks } from '../sim/quests';
 import { tutorialControl, tutorialNext, tutorialSkip } from '../sim/tutorial';
 import { materialTasks, questGuide } from '../sim/guide';
 import { Game3D, districtOfTool, isDistrictTool, type HoverInfo, type OverlayItem, type Tool } from '../r3d/game3d';
@@ -350,6 +350,7 @@ export class HudScene extends Phaser.Scene {
       income: () => this.income,
       toast: (text) => this.toasts.push({ text, until: this.time.now + 3200 }),
       pickDriver: (siteId, vehicle) => (this.driverPick = { mode: 'buy', siteId, vehicle, line: 'main' }),
+      guideTo: (x, y) => this.guideTo(x, y),
     });
     const el = this.game.canvas;
     el.style.position = 'absolute';
@@ -1025,6 +1026,7 @@ export class HudScene extends Phaser.Scene {
     }
     this.offersLayer(W, H);
     this.trackTutorial();
+    if (this.tutorialOn && !this.sheet && !tierUp && !this.trackerCovered()) this.guideMarker(W, H);
     if (!this.sheet && !tierUp) this.tutorialCard(W, H);
     if (this.menuOpen) this.menuPanel(W, H);
     else this.menuPage = 'home';
@@ -1190,6 +1192,8 @@ export class HudScene extends Phaser.Scene {
     // Under the header: how many buildings are stuck. Tap it to jump to the first one, again for the next.
     if (narrow && this.dash === null && !this.sheet && !this.saves) this.stuckBadge(12, headH + 8, Math.min(210, W / 2 - 18), true);
     if (!narrow && this.dash === null && !this.sheet && !this.saves) this.questTracker(headH + 8);
+
+    if (!narrow && this.dash === null && !this.saves && !this.title) this.tierBadge(12 + mw + 10, y, h);
 
     // Right: the one Menu button that opens everything, with the speed control beside it.
     const menuW = narrow ? br * 2 + 4 : 134;
@@ -2953,6 +2957,19 @@ export class HudScene extends Phaser.Scene {
   /** The guide for a building or upgrade waiting on the Supply Yard store: what it needs, why, and the steps to get it there. */
   private trackerH = 0;
 
+  /** Where the guide is pointing on the map right now, if anywhere. */
+  private guideAt: { x: number; y: number } | null = null;
+  private guideKey = '';
+
+  /** Fly the camera to a tile and keep a marker on it until the player does that step. */
+  private guideTo(x: number, y: number): void {
+    const g = this.game3d;
+    this.sheet = null;
+    this.guideAt = { x, y };
+    this.guideKey = this.currentStep()?.step?.text ?? '';
+    g.lookAt(x, y, 22, g.cam.heading, g.cam.pitchManual);
+  }
+
   /** Whether something drawn over the play screen (menu, build tray, a card) would have the tracker bleed through it. */
   private trackerCovered(): boolean {
     const w = this.game3d.world;
@@ -2964,10 +2981,18 @@ export class HudScene extends Phaser.Scene {
     return next && !next.progress.done ? questGuide(this.game3d.world, next.quest) : null;
   }
 
+  /** The step the player is on right now: a waiting building's, else the quest's. */
+  private currentStep(): { title: string; step: { text: string; at?: { x: number; y: number } } | undefined; n: number; of: number } | null {
+    const w = this.game3d.world;
+    const mat = materialTasks(w)[0];
+    if (mat) return { title: mat.title, step: mat.steps[mat.index], n: mat.index + 1, of: mat.steps.length };
+    const qg = this.questSteps();
+    return qg ? { title: qg.title, step: qg.steps[qg.index], n: qg.index + 1, of: qg.steps.length } : null;
+  }
+
   /**
-   * The quest tracker, top left like the objective list of any game: a small "TIER n" line, the quest in hand with its progress,
-   * its subquests ticked off as the player does them, and the "why" in bold underneath. A building waiting on materials takes its
-   * place until it is built. Subquests pay nothing: they are the how-to inside the quest, and the quest pays.
+   * The quest tracker, top left like the objective list of any game, kept small: the quest in hand, its progress, and the one
+   * step to do now in big type. "Show me" flies there; the arrow opens the full tier dashboard. Subquests pay nothing.
    */
   private questTracker(y: number): void {
     if (this.trackerCovered()) {
@@ -2977,58 +3002,121 @@ export class HudScene extends Phaser.Scene {
     const im = this.im;
     const w = this.game3d.world;
     const x = 12;
-    const pw = Math.min(380, Math.round(this.scale.width * 0.42));
-    const px = x + 16;
-    const inner = pw - 32;
-    const mat = this.tutorialOn ? materialTasks(w)[0] : undefined;
+    const pw = Math.min(400, Math.round(this.scale.width * 0.42));
+    const px = x + 18;
+    const inner = pw - 36;
+    const cs = this.tutorialOn ? this.currentStep() : null;
     const next = nextQuest(w);
-    const qg = this.questSteps();
-    const steps = this.tutorialOn ? (mat ? mat.steps : qg ? qg.steps : []) : [];
-    const index = mat ? mat.index : qg ? qg.index : 0;
-    const title = mat ? mat.title : next ? next.quest.label : 'All quests complete';
-    const sub = mat ? 'Needs ' + mat.owed.map(([g, n]) => `${n} ${GOODS[g].label.toLowerCase()}`).join(', ') + ' from the Supply Yard store' : next ? (next.progress.waiting ?? `${fmt(next.progress.have)} / ${fmt(next.progress.need)}${next.progress.detail ? `  (${next.progress.detail})` : ''}`) : '';
-    const why = mat ? mat.why : qg ? qg.why : next ? next.quest.hint : '';
+    const mat = cs && materialTasks(w).length > 0;
+    const title = mat ? cs!.title : next ? next.quest.label : 'All quests complete';
+    const sub = next ? (next.progress.waiting ?? `${fmt(next.progress.have)} / ${fmt(next.progress.need)}`) : '';
     let cy = y + 12;
-    im.text('trkK', mat ? `TIER ${w.tier}  ·  MATERIALS` : `TIER ${w.tier}  ·  QUEST`, px, cy, { size: 11, bold: true, color: COLORS.accent, layer: 2 });
-    cy += 18;
-    const th = im.text('trkT', title, px, cy, { size: 17, bold: true, wrap: inner, layer: 2 }).h;
-    cy += th + 6;
-    if (mat) {
-      const nh = im.text('trkN', sub, px, cy, { size: 13, bold: true, color: COLORS.muted, wrap: inner, layer: 2 }).h;
-      cy += nh + 6;
-    } else if (next) {
-      const n = im.text('trkN', sub, px + inner, cy - 3, { size: 13, bold: true, color: next.progress.waiting ? COLORS.good : COLORS.warn, align: 'right', layer: 2 });
-      im.bar(1, px, cy + 3, Math.max(40, inner - n.w - 12), 8, next.progress.have / Math.max(1, next.progress.need), COLORS.accent);
-      cy += 22;
+    im.text('trkK', mat ? 'MATERIALS' : `QUEST  ·  TIER ${w.tier}`, px, cy, { size: 12, bold: true, color: COLORS.accent, layer: 2 });
+    cy += 20;
+    const th = im.text('trkT', title, px, cy, { size: 19, bold: true, wrap: inner, layer: 2 }).h;
+    cy += th + 8;
+    if (next && !mat) {
+      const n = im.text('trkN', sub, px + inner, cy - 3, { size: 15, bold: true, color: next.progress.waiting ? COLORS.good : COLORS.warn, align: 'right', layer: 2 });
+      im.bar(2, px, cy + 3, Math.max(40, inner - n.w - 12), 9, next.progress.have / Math.max(1, next.progress.need), COLORS.accent);
+      cy += 26;
     }
-    let bottom = cy + 4;
-    if (steps.length > 0) {
-      let sy = cy + 2;
-      im.rect(1, px, sy, inner, 1, COLORS.line, 0.8);
-      sy += 8;
-      steps.slice(0, 7).forEach((st, i) => {
-        const cur = i === index;
-        const t = im.text(`trkS${i}`, st.text, px + 20, sy, { size: 12, bold: cur, color: st.done ? COLORS.muted : 0xffffff, wrap: inner - 20, layer: 2 });
-        im.rect(2, px, sy + 2, 10, 10, st.done ? 0x4caf6a : cur ? COLORS.accent : 0x2a3646, 1, 5);
-        sy += Math.max(20, t.h + 5);
-      });
-      sy += 4;
-      im.rect(1, px, sy, inner, 1, COLORS.line, 0.8);
-      sy += 8;
-      const wh = im.text('trkW', why, px, sy, { size: 13, bold: true, color: 0xcbd5df, wrap: inner, layer: 2 }).h;
-      bottom = sy + wh + 10;
+    let bottom = cy + 2;
+    if (cs?.step) {
+      im.rect(2, px, cy, inner, 1, COLORS.line, 0.8);
+      cy += 10;
+      im.text('trkSN', `STEP ${cs.n} OF ${cs.of}`, px, cy, { size: 11, bold: true, color: COLORS.muted, layer: 2 });
+      cy += 17;
+      const sh = im.text('trkS', cs.step.text, px, cy, { size: 17, bold: true, wrap: inner, layer: 2 }).h;
+      bottom = cy + sh + 12;
+      const at = cs.step.at;
+      if (at) {
+        const bw = 130;
+        const bh = im.hit('trkShow', px, bottom, bw, 32, () => this.guideTo(at.x, at.y), 2);
+        im.rect(2, px, bottom, bw, 32, bh ? 0xf0b250 : COLORS.accent, 1, 8);
+        im.text('trkShowT', 'SHOW ME', px + bw / 2, bottom + 6, { size: 16, bold: true, display: true, color: 0x1b1204, align: 'center', layer: 3 });
+      }
+      const ow = 150;
+      const oh = im.hit('trkOpen', px + inner - ow, bottom, ow, 32, () => this.openQuests(), 2);
+      im.rect(2, px + inner - ow, bottom, ow, 32, oh ? 0x243142 : 0x17202b, 1, 8, COLORS.line, 1);
+      im.text('trkOpenT', 'ALL STEPS  >', px + inner - ow / 2, bottom + 8, { size: 14, bold: true, color: oh ? COLORS.accent : COLORS.text, align: 'center', layer: 3 });
+      bottom += 32;
+    } else {
+      const ow = 150;
+      const oh = im.hit('trkOpen', px + inner - ow, bottom, ow, 32, () => this.openQuests(), 2);
+      im.rect(2, px + inner - ow, bottom, ow, 32, oh ? 0x243142 : 0x17202b, 1, 8, COLORS.line, 1);
+      im.text('trkOpenT', 'ALL QUESTS  >', px + inner - ow / 2, bottom + 8, { size: 14, bold: true, color: oh ? COLORS.accent : COLORS.text, align: 'center', layer: 3 });
+      bottom += 32;
     }
-    const hideLbl = this.tutorialOn ? 'Hide steps' : 'Show steps';
-    const hide = im.hit('trkHide', px + inner - 160, bottom, 76, 20, () => this.toggleTutorial(), 2);
-    im.text('trkHideT', hideLbl, px + inner - 160, bottom + 2, { size: 12, bold: true, color: hide ? COLORS.accent : COLORS.muted, layer: 3 });
-    const all = im.hit('trkAll', px + inner - 70, bottom, 70, 20, () => this.toggleSheet('quests'), 2);
-    im.text('trkAllT', 'All quests', px + inner - 70, bottom + 2, { size: 12, bold: true, color: all ? COLORS.accent : COLORS.muted, layer: 3 });
-    const ph = bottom + 28 - y;
+    const ph = bottom + 14 - y;
     this.trackerH = ph;
-    const on = this.sheet === 'quests';
-    im.rect(1, x, y, pw, ph, 0x0b1117, 0.92, 10, on ? COLORS.accent : COLORS.line, on ? 0.8 : 0.7);
-    im.rect(1, x, y + 10, 3, 34, COLORS.accent, 1, 1);
+    im.rect(1, x, y, pw, ph, 0x0b1117, 0.93, 10, COLORS.line, 0.7);
+    im.rect(2, x, y + 10, 4, 40, COLORS.accent, 1, 1);
     im.block({ x, y, w: pw, h: ph });
+  }
+
+  /** Open the tier dashboard on the quest the player is on. */
+  private openQuests(): void {
+    this.sheets.hubTier = null;
+    this.sheets.hubQuest = null;
+    this.toggleSheet('quests');
+  }
+
+  /** The tier badge beside the money: the tier number, its name, and how far through it the player is. Opens the dashboard. */
+  private tierBadge(x: number, y: number, h: number): number {
+    const im = this.im;
+    const w = this.game3d.world;
+    const tier = TIERS[Math.min(w.tier, TIERS.length - 1)];
+    const done = tier.quests.filter((q) => questState(w, tier, q).done).length;
+    const bw = 190;
+    const on = this.sheet === 'quests';
+    const hov = im.hit('btnTier', x, y, bw, h, () => this.openQuests(), 1);
+    im.rect(1, x, y, bw, h, hov || on ? 0x121a21 : 0x0b1117, 0.92, 8, on || hov ? COLORS.accent : COLORS.line, 0.8);
+    const cx = x + 26;
+    im.circle(1, cx, y + h / 2, 19, COLORS.accent);
+    im.circle(1, cx, y + h / 2, 17, 0x0b1117);
+    im.text('tbN', String(w.tier), cx, y + h / 2 - 15, { size: 26, bold: true, display: true, color: COLORS.accent, align: 'center', layer: 2 });
+    im.text('tbK', `TIER ${w.tier}`, x + 54, y + 5, { size: 11, bold: true, color: COLORS.accent, layer: 2 });
+    im.text('tbName', tier.name, x + 54, y + 18, { size: 14, bold: true, layer: 2 });
+    im.bar(1, x + 54, y + h - 10, bw - 54 - 12, 5, done / Math.max(1, tier.quests.length), COLORS.accent);
+    return bw;
+  }
+
+  /** A pulsing marker on the tile the guide points to, or an arrow at the screen edge when it is off screen. Clears once the player is there. */
+  private guideMarker(W: number, H: number): void {
+    if (!this.guideAt || this.title) return;
+    if ((this.currentStep()?.step?.text ?? '') !== this.guideKey) {
+      this.guideAt = null;
+      return;
+    }
+    const g = this.game3d;
+    const im = this.im;
+    const at = this.guideAt;
+    const here = viewTile(g.world, g.cam.lon, g.cam.lat);
+    const far = Math.hypot(wrapDx(g.world, here.x, at.x), here.y - at.y);
+    const pt = g.screenOf(at.x, at.y, 3);
+    const pulse = 0.5 + 0.5 * Math.sin(this.time.now / 260);
+    const onScreen = pt && pt[0] > 10 && pt[0] < W - 10 && pt[1] > TOP && pt[1] < H - this.bottomInset;
+    if (onScreen && pt) {
+      const [mx, my] = pt;
+      im.rect(4, mx - 22 - pulse * 4, my - 22 - pulse * 4, 44 + pulse * 8, 44 + pulse * 8, 0xffffff, 0, 30, COLORS.accent, 0.5 + pulse * 0.5, 3);
+      im.line(4, mx, my - 70 - pulse * 6, mx, my - 30, COLORS.accent, 1, 4);
+      im.line(4, mx - 10, my - 40, mx, my - 30, COLORS.accent, 1, 4);
+      im.line(4, mx + 10, my - 40, mx, my - 30, COLORS.accent, 1, 4);
+      return;
+    }
+    // Off screen: an arrow on the edge toward it, with the distance.
+    const cx = W / 2;
+    const cy = (TOP + H - this.bottomInset) / 2;
+    const target = pt ?? [cx, TOP + 4];
+    const dx = target[0] - cx;
+    const dy = target[1] - cy;
+    const k = Math.min((W / 2 - 60) / Math.max(1, Math.abs(dx)), (cy - TOP - 30) / Math.max(1, Math.abs(dy)));
+    const ex = cx + dx * Math.min(1, k);
+    const ey = cy + dy * Math.min(1, k);
+    const label = `${Math.round(far)} tiles away`;
+    const t = im.text('gdFar', label, ex, ey + 20, { size: 14, bold: true, color: COLORS.accent, align: 'center', layer: 5 });
+    im.rect(4, ex - t.w / 2 - 10, ey + 14, t.w + 20, 28, 0x0b1117, 0.92, 14, COLORS.accent, 1);
+    im.circle(5, ex, ey - 4, 7 + pulse * 3, COLORS.accent);
   }
 
   /** Which button the current step or quest needs, while the tutorial is on: its category tab and tool. */

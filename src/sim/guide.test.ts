@@ -79,6 +79,13 @@ describe('quest guide', () => {
     expect(n.quest.id).not.toBe('t0-camp');
   });
 
+  it('points the first step at a free forest spot, then at the camp once it stands', () => {
+    const w = createWorld(5);
+    const q = nextQuest(w)!.quest;
+    const at = questGuide(w, q)!.steps[0].at!;
+    expect(w.nodes.some((n) => n.kind === 'forest' && n.x === at.x && n.y === at.y)).toBe(true);
+  });
+
   it('has well-formed steps for every quest in Tier 0 and 1 that has any', () => {
     const w = createWorld(5);
     for (const q of [...TIERS[0].quests, ...TIERS[1].quests]) {

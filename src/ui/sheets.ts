@@ -17,13 +17,16 @@ import {
   TIERS,
   TOWN_LEVELS,
   BUILD_ORDER,
+  SITE_UNLOCK_QUEST,
+  type SiteKind,
   VEHICLE_DEFS,
   VEHICLE_ORDER,
   type Good,
   type VehicleKind,
 } from '../sim/defs';
 import { BANK_TIER, DAY_TICKS, bankReport, FUND_FEE, LOAN_RATE, REAL_MONEY_ENABLED, SAVINGS_RATE, bankOf, borrow, creditLimit, deposit, divest, fundValue, invest, netWorth, repay, withdraw } from '../sim/bank';
-import { pathMastered, pathQuestState, questState, tierUnlocks } from '../sim/quests';
+import { nextQuest, pathMastered, pathQuestState, questState, tierUnlocks } from '../sim/quests';
+import { questGuide } from '../sim/guide';
 import { buildDistrict, choosePath, districtBoost, districtCost, districtError, districtLevel, districtRevenue, districtSatisfaction, pathError, townUpkeep } from '../sim/town';
 import { woodName, buildingNow, campusSites, dockDemand, growthKinds, matsNeeded, isHomePlot, metroBonus, partnerOf, plotTiles, radiusOf, produces, siteCap, stockOf, unitPrice, wants, type Place, type Site, type World } from '../sim/world';
 import { button, companyPage, emptyState, fleetPage, panel, sectionHead, stat } from './company';
@@ -283,6 +286,8 @@ export interface SheetHooks {
   clip: (x: number, y: number, w: number, h: number) => void;
   toast: (text: string) => void;
   pickDriver: (siteId: number, kind: VehicleKind) => void;
+  /** Close the sheet and fly the camera to a tile, with a marker on it. */
+  guideTo: (x: number, y: number) => void;
 }
 
 export class Sheets {
@@ -1018,80 +1023,138 @@ export class Sheets {
     if (err) im.text(`dc-e-${p.id}-${id}`, err, bx + bw, by - 16, { size: 11, color: err.startsWith('Need $') ? COLORS.warn : COLORS.muted, align: 'right', layer: 3 });
   }
 
-  // ---- quests sheet ----
+  // ---- objectives: the tier dashboard ----
+
+  /** The tier tab and quest tile picked on the dashboard; null follows the quest the player is on. */
+  hubTier: number | null = null;
+  hubQuest: string | null = null;
 
   private quests(world: World, v: View): number {
     const im = this.cim;
     const x = v.x0;
     const w = v.x1 - v.x0;
     let y = v.y0 - this.scroll;
-    const chipW = (s: string): number => 22 + Math.ceil(s.length * 6.7);
-    // The tier being worked on first, then what is ahead, and the finished tiers folded down to a line each at the bottom.
-    const rank = (t: number): number => (t === world.tier ? 0 : t > world.tier ? 1 + t : 100 - t);
-    for (const tier of [...TIERS].sort((a, b) => rank(a.tier) - rank(b.tier))) {
-      const state = tier.tier < world.tier ? 'done' : tier.tier === world.tier ? 'now' : 'locked';
-      const unlocks = state === 'done' ? [] : tierUnlocks(tier.tier + 1);
-      const rowH = state === 'now' ? 62 : 34;
-      // Unlock chips wrap. Their widths are estimated, so the card's height is known without drawing it.
-      const spots: { u: string; cx: number; row: number }[] = [];
-      let cx = 0;
-      let row = 0;
-      for (const u of unlocks) {
-        if (cx > 0 && cx + chipW(u) > w - 36) {
-          cx = 0;
-          row += 1;
-        }
-        spots.push({ u, cx, row });
-        cx += chipW(u) + 6;
-      }
-      const head = 76;
-      const shown = state === 'done' ? [] : tier.quests;
-      const h = state === 'done' ? 68 : head + tier.quests.length * rowH + (unlocks.length ? 34 + (row + 1) * 32 : 0) + 10;
-      if (y + h > v.y0 && y < v.y1) {
-        const tint = state === 'done' ? COLORS.good : state === 'now' ? COLORS.accent : 0x4a5666;
-        panel(im, x, y, w, h, tint, state === 'now');
-        im.rect(3, x + 15, y + 17, 42, 42, tint, 1, 3);
-        im.text(`qs-n-${tier.tier}`, String(tier.tier), x + 36, y + 24, { size: 24, bold: true, color: 0x14100a, align: 'center', layer: 3 });
-        im.text(`qs-t-${tier.tier}`, `TIER ${tier.tier}  ·  ${tier.name.toUpperCase()}`, x + 70, y + 14, { size: 18, bold: true, color: state === 'locked' ? COLORS.muted : COLORS.text, layer: 3 });
-        im.text(`qs-b-${tier.tier}`, tier.blurb, x + 70, y + 42, { size: 12, color: COLORS.muted, wrap: w - 220, layer: 3 });
-        im.rect(3, x + w - 120, y + 14, 104, 26, state === 'now' ? COLORS.accent : 0x10161e, 1, 3, tint, 1);
-        im.text(`qs-s-${tier.tier}`, state === 'done' ? 'Complete' : state === 'now' ? 'In progress' : 'Locked', x + w - 68, y + 19, { size: 12, bold: true, color: state === 'now' ? 0x1b1204 : tint, align: 'center', layer: 3 });
+    const shownTier = Math.min(this.hubTier ?? world.tier, TIERS.length - 1);
+    const tier = TIERS[shownTier];
+    const state = tier.tier < world.tier ? 'done' : tier.tier === world.tier ? 'now' : 'locked';
 
-        shown.forEach((q, i) => {
-          const ry = y + head + i * rowH;
-          const p = questState(world, tier, q);
-          im.line(3, x + 16, ry, x + w - 16, ry, 0xffffff, 0.06, 1);
-          const cyc = ry + (state === 'now' ? 20 : 17);
-          if (p.done) {
-            im.circle(3, x + 34, cyc, 11, COLORS.good);
-            im.line(3, x + 28, cyc, x + 32, cyc + 4, 0x0e1a14, 1, 2.5);
-            im.line(3, x + 32, cyc + 4, x + 40, cyc - 5, 0x0e1a14, 1, 2.5);
-          } else {
-            im.circle(3, x + 34, cyc, 11, 0x3a4656);
-            im.circle(3, x + 34, cyc, 8.5, COLORS.panelAlt);
-          }
-          im.text(`qs-q-${q.id}`, q.label, x + 56, ry + (state === 'now' ? 8 : 8), { size: 14, bold: true, color: p.done ? COLORS.good : state === 'locked' ? COLORS.muted : COLORS.text, layer: 3 });
-          im.text(`qs-r-${q.id}`, p.done && state !== 'locked' ? 'Paid' : `+$${fmt(q.reward)}`, x + w - 18, ry + 8, { size: 13, bold: true, color: p.done ? COLORS.muted : COLORS.warn, align: 'right', layer: 3 });
-          if (state === 'now') {
-            im.text(`qs-h-${q.id}`, q.hint, x + 56, ry + 30, { size: 12, color: COLORS.muted, wrap: Math.max(160, w - 56 - 250), layer: 3 });
-            im.bar(3, x + w - 232, ry + 40, 130, 7, p.have / p.need, p.done ? COLORS.good : COLORS.accent);
-            im.text(`qs-p-${q.id}`, `${fmt(p.have)} / ${fmt(p.need)}`, x + w - 18, ry + 33, { size: 12, color: COLORS.muted, align: 'right', layer: 3 });
-          }
-        });
+    // Tier tabs across the top: the number, and whether it is done, in progress or locked.
+    const gap = 6;
+    const tw = Math.min(124, (w - (TIERS.length - 1) * gap) / TIERS.length);
+    const th = 70;
+    TIERS.forEach((t, i) => {
+      const tx = x + i * (tw + gap);
+      const st = t.tier < world.tier ? 'done' : t.tier === world.tier ? 'now' : 'locked';
+      const on = t.tier === shownTier;
+      const hov = im.hit(`hb-t${t.tier}`, tx, y, tw, th, () => { this.hubTier = t.tier; this.hubQuest = null; }, 3);
+      const edge = st === 'done' ? COLORS.good : st === 'now' ? COLORS.accent : 0x4a5666;
+      im.rect(3, tx, y, tw, th, on ? edge : hov ? 0x1c2630 : 0x10161e, on ? 0.95 : 1, 6, edge, on ? 1 : 0.8, on ? 2 : 1);
+      const ink = on ? 0x14100a : st === 'locked' ? COLORS.muted : COLORS.text;
+      im.text(`hb-tk${t.tier}`, 'TIER', tx + tw / 2, y + 7, { size: 11, bold: true, color: ink, align: 'center', layer: 4 });
+      im.text(`hb-tn${t.tier}`, String(t.tier), tx + tw / 2, y + 20, { size: 30, bold: true, display: true, color: ink, align: 'center', layer: 4 });
+      im.text(`hb-ts${t.tier}`, st === 'done' ? 'DONE' : st === 'now' ? 'IN PROGRESS' : 'LOCKED', tx + tw / 2, y + th - 17, { size: 10, bold: true, color: ink, align: 'center', layer: 4 });
+    });
+    y += th + 14;
 
-        if (unlocks.length) {
-          const uy = y + head + tier.quests.length * rowH + 8;
-          im.line(3, x + 16, uy - 8, x + w - 16, uy - 8, 0xffffff, 0.06, 1);
-          im.text(`qs-u-${tier.tier}`, state === 'done' ? `UNLOCKED AT TIER ${tier.tier + 1}` : `FINISH THESE TO UNLOCK TIER ${tier.tier + 1}`, x + 18, uy, { size: 10, bold: true, color: COLORS.muted, layer: 3 });
-          for (const s of spots) {
-            const ux = x + 18 + s.cx;
-            const yy = uy + 20 + s.row * 32;
-            im.rect(3, ux, yy, chipW(s.u), 26, 0x10161e, 1, 13, state === 'done' ? COLORS.good : COLORS.line, state === 'done' ? 0.6 : 1);
-            im.text(`qs-c-${tier.tier}-${s.u}`, s.u, ux + 11, yy + 5, { size: 12, color: state === 'locked' ? COLORS.muted : COLORS.text, layer: 3 });
-          }
-        }
-      }
-      y += h + 14;
+    // The tier's name, how far through it is, and what finishing it opens.
+    const doneN = tier.quests.filter((q) => questState(world, tier, q).done).length;
+    im.text('hb-name', `${tier.name.toUpperCase()}`, x, y, { size: 22, bold: true, display: true, layer: 3 });
+    im.text('hb-count', `${doneN} of ${tier.quests.length} quests done`, x + w, y + 6, { size: 14, bold: true, color: state === 'done' ? COLORS.good : COLORS.muted, align: 'right', layer: 3 });
+    y += 30;
+    im.bar(3, x, y, w, 8, doneN / Math.max(1, tier.quests.length), state === 'done' ? COLORS.good : COLORS.accent);
+    y += 18;
+    const blurbH = im.text('hb-blurb', tier.blurb, x, y, { size: 14, color: COLORS.muted, wrap: w, layer: 3 }).h;
+    y += blurbH + 6;
+    if (state === 'locked') {
+      im.text('hb-lock', `Finish Tier ${tier.tier - 1} to unlock this tier.`, x, y, { size: 14, bold: true, color: COLORS.warn, wrap: w, layer: 3 });
+      y += 24;
+    }
+    y += 8;
+
+    // Quest tiles.
+    const cur = state === 'now' ? nextQuest(world)?.quest.id : undefined;
+    const pickId = this.hubQuest && tier.quests.some((q) => q.id === this.hubQuest) ? this.hubQuest : cur ?? tier.quests[0].id;
+    const tileW = 190;
+    const tileH = 66;
+    const cols = Math.max(1, Math.floor((w + gap) / (tileW + gap)));
+    const tw2 = (w - (cols - 1) * gap) / cols;
+    // The picked quest: rewards on the left, what to do on the right.
+    const q = tier.quests.find((x2) => x2.id === pickId)!;
+    const p = questState(world, tier, q);
+    const half = (w - 24) / 2;
+    const opened = (Object.entries(SITE_UNLOCK_QUEST) as [SiteKind, string][]).filter(([, id]) => id === q.id).map(([k]) => k);
+    let ly = y;
+    im.text('hb-rw', 'REWARDS', x, ly, { size: 13, bold: true, color: COLORS.accent, layer: 3 });
+    im.line(3, x, ly + 20, x + half, ly + 20, COLORS.line, 1, 1);
+    ly += 30;
+    im.text('hb-cash', `$${fmt(q.reward)}`, x, ly, { size: 26, bold: true, display: true, color: COLORS.warn, layer: 3 });
+    im.text('hb-cashL', p.done ? 'paid' : 'cash when you finish', x + 110, ly + 9, { size: 13, color: COLORS.muted, layer: 3 });
+    ly += 40;
+    if (opened.length === 0) im.text('hb-none', 'This quest pays cash and moves you on.', x, ly, { size: 13, color: COLORS.muted, layer: 3 });
+    opened.forEach((k) => {
+      const d = SITE_DEFS[k];
+      im.rect(3, x, ly, half, 72, 0x10161e, 1, 8, COLORS.line, 0.7);
+      if (this.hooks.hasTexture(`thumb-${k}`)) im.image(`hb-i${k}`, `thumb-${k}`, x + 8, ly + 6, 60, 60, 1, 4);
+      im.text(`hb-in${k}`, `Unlocks ${d.label}`, x + 78, ly + 10, { size: 14, bold: true, layer: 4 });
+      im.text(`hb-ic${k}`, `$${fmt(d.cost)}  ·  ${d.blurb}`, x + 78, ly + 32, { size: 12, color: COLORS.muted, wrap: half - 90, layer: 4 });
+      ly += 80;
+    });
+
+    let ry = y;
+    const rx = x + half + 24;
+    im.text('hb-rq', 'WHAT TO DO', rx, ry, { size: 13, bold: true, color: COLORS.accent, layer: 3 });
+    im.line(3, rx, ry + 20, rx + half, ry + 20, COLORS.line, 1, 1);
+    ry += 30;
+    im.text('hb-pg', p.waiting ?? `${fmt(p.have)} / ${fmt(p.need)}${p.detail ? `  (${p.detail})` : ''}`, rx + half, ry - 2, { size: 15, bold: true, color: p.done ? COLORS.good : COLORS.warn, align: 'right', layer: 3 });
+    im.bar(3, rx, ry + 4, Math.max(60, half - 130), 8, p.have / Math.max(1, p.need), p.done ? COLORS.good : COLORS.accent);
+    ry += 26;
+    ry += im.text('hb-hint', q.hint, rx, ry, { size: 14, bold: true, color: 0xcbd5df, wrap: half, layer: 3 }).h + 12;
+    const g = state === 'now' && !p.done ? questGuide(world, q) : null;
+    if (g) {
+      g.steps.slice(0, 7).forEach((st, i) => {
+        const on = i === g.index;
+        im.rect(3, rx, ry + 3, 11, 11, st.done ? 0x4caf6a : on ? COLORS.accent : 0x2a3646, 1, 5.5);
+        const t = im.text(`hb-s${i}`, st.text, rx + 22, ry, { size: 13, bold: on, color: st.done ? COLORS.muted : COLORS.text, wrap: half - 22, layer: 3 });
+        ry += Math.max(22, t.h + 6);
+      });
+    }
+    y = Math.max(ly, ry) + 14;
+
+    // One big button: take the player there, or say what it is.
+    const at = g?.steps[g.index]?.at;
+    const label = p.done ? 'COMPLETED' : state === 'locked' ? `LOCKED  ·  FINISH TIER ${tier.tier - 1}` : at ? 'SHOW ME' : 'IN PROGRESS';
+    const bw = 260;
+    const bx = x + w / 2 - bw / 2;
+    const live = !!at && !p.done && state === 'now';
+    const bh = im.hit('hb-go', bx, y, bw, 44, () => { if (live && at) this.hooks.guideTo(at.x, at.y); }, 3);
+    im.rect(3, bx, y, bw, 44, live ? (bh ? 0xf0b250 : COLORS.accent) : 0x1b2430, 1, 8, live ? COLORS.accent : COLORS.line, 1);
+    im.text('hb-gol', label, bx + bw / 2, y + 11, { size: 18, bold: true, display: true, color: live ? 0x1b1204 : COLORS.muted, align: 'center', layer: 4 });
+    y += 60;
+    im.text('hb-all', 'ALL QUESTS IN THIS TIER', x, y, { size: 13, bold: true, color: COLORS.accent, layer: 3 });
+    y += 26;
+    tier.quests.forEach((q, i) => {
+      const tx = x + (i % cols) * (tw2 + gap);
+      const ty = y + Math.floor(i / cols) * (tileH + gap);
+      const p = questState(world, tier, q);
+      const sel = q.id === pickId;
+      const hov = im.hit(`hb-q${q.id}`, tx, ty, tw2, tileH, () => { this.hubQuest = q.id; }, 3);
+      const edge = p.done ? COLORS.good : q.id === cur ? COLORS.accent : COLORS.line;
+      im.rect(3, tx, ty, tw2, tileH, sel ? 0x1d2732 : hov ? 0x161f29 : 0x10161e, 1, 6, edge, sel ? 1 : 0.7, sel ? 2 : 1);
+      im.text(`hb-qn${q.id}`, String(i + 1), tx + 10, ty + 7, { size: 11, bold: true, color: COLORS.muted, layer: 4 });
+      if (p.done) {
+        im.circle(4, tx + tw2 - 18, ty + 17, 9, COLORS.good);
+        im.line(4, tx + tw2 - 23, ty + 17, tx + tw2 - 19, ty + 21, 0x0e1a14, 1, 2.2);
+        im.line(4, tx + tw2 - 19, ty + 21, tx + tw2 - 13, ty + 13, 0x0e1a14, 1, 2.2);
+      } else if (q.id === cur) im.text(`hb-qc${q.id}`, 'NOW', tx + tw2 - 10, ty + 7, { size: 10, bold: true, color: COLORS.accent, align: 'right', layer: 4 });
+      im.text(`hb-ql${q.id}`, q.label, tx + 10, ty + 22, { size: 13, bold: true, color: p.done ? COLORS.good : state === 'locked' ? COLORS.muted : COLORS.text, wrap: tw2 - 20, layer: 4 });
+      if (!p.done && state !== 'locked') im.bar(4, tx + 10, ty + tileH - 11, tw2 - 20, 5, p.have / Math.max(1, p.need), COLORS.accent);
+    });
+    y += Math.ceil(tier.quests.length / cols) * (tileH + gap) + 10;
+
+    const opens = tierUnlocks(tier.tier + 1);
+    if (opens.length) {
+      const oh = im.text('hb-opens', `${state === 'done' ? 'Opened' : 'Finishing it opens'}: ${opens.join(', ')}`, x, y, { size: 13, bold: true, color: state === 'done' ? COLORS.good : COLORS.accent, wrap: w, layer: 3 }).h;
+      y += oh + 6;
     }
     return y + this.scroll - v.y0;
   }
