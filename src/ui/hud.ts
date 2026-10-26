@@ -1857,19 +1857,31 @@ export class HudScene extends Phaser.Scene {
   private tryMap(id: WorldSizeId): void {
     const def = WORLD_SIZES.find((q) => q.id === id)!;
     this.building = { name: def.label, step: 0, total: 1, label: 'Building the terrain, roads and trees (the map is large: this takes a while)' };
+    // The preview sits over the progress card, so put it away at once.
+    this.viewMap = null;
+    // A failure at any step must give the screen back, or the progress card sits there for good.
+    const fail = (e: unknown): void => {
+      console.error(e);
+      this.building = null;
+      this.toasts.push({ text: `${def.label} could not be built: ${e instanceof Error ? e.message : String(e)}`, until: this.time.now + 9000 });
+    };
     void import('../maps/map3.json').then((m) => {
       setTimeout(() => {
-        const g = this.game3d;
-        g.adoptWorld(createWorldFromMap(m.default as unknown as MapData));
-        this.viewMap = null;
-        this.sizePick = null;
-        this.building = null;
-        this.activeTab = 'select';
-        g.speed = 1;
-        g.world.difficulty = this.difficulty;
-        this.toasts.push({ text: `${def.label}: beta game started`, until: this.time.now + 2500 });
+        try {
+          const g = this.game3d;
+          g.adoptWorld(createWorldFromMap(m.default as unknown as MapData));
+          this.viewMap = null;
+          this.sizePick = null;
+          this.building = null;
+          this.activeTab = 'select';
+          g.speed = 1;
+          g.world.difficulty = this.difficulty;
+          this.toasts.push({ text: `${def.label}: beta game started`, until: this.time.now + 2500 });
+        } catch (e) {
+          fail(e);
+        }
       }, 60);
-    });
+    }, fail);
   }
 
   private beginWorld(id: WorldSizeId): void {

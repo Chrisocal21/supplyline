@@ -547,8 +547,9 @@ export class Scenery {
       // A treeline: nothing grows on the high rock.
       return slope < (sp.kind === 'bush' ? 0.85 : 0.7) && this.hf.surface(sp.lon, sp.lat) < 7.5;
     });
+    // Map 3 keeps hundreds of thousands of spots, too many to spread into push() without overflowing the stack.
     spots.length = 0;
-    spots.push(...kept);
+    for (const sp of kept) spots.push(sp);
 
     const treeMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9 });
     // The leaves change with the season: the colour is the one the game eases (see season.ts).

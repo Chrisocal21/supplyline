@@ -1196,3 +1196,8 @@ What changed:
 - **District income.** The four level 5 capstones (Grand Food Hall, Heavy Industry Exchange, International Terminal, Grand Plaza) cost more to keep than they earned even when fully supplied. Revenue raised to 290, 380, 480 and 350. A test now requires every earning district to pay more than its upkeep.
 - **Island nodes checked.** Oil, coffee and mango nodes on Map 1 all draw (pumpjack on a dirt pad, coffee rows, orange-dotted mango grove). Shots: `dist/review/island-*.png`. The oil pool is small from a distance.
 - **Dropped.** Old-save compatibility is no longer a concern; spoilage is not wanted. A stall-based Market is still only an idea.
+
+## 0.230
+
+- **Map 3 would not load.** The loader sat on "Building the terrain, roads and trees" for good. Cause: after the new rock pass, `Scenery.buildTrees` copied the kept tree spots back with `spots.push(...kept)`, and Map 3 keeps hundreds of thousands, which overflows the call stack. It now copies in a loop. Scenery on Map 3 builds in about 14 s in Node.
+- **A failed map build gives the screen back.** `tryMap` caught nothing, so any error left the progress card up for ever. It now clears the card and shows the error as a toast. The map preview is put away as soon as Play is pressed, so it no longer covers the progress card.
