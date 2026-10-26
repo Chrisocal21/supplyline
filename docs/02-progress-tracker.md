@@ -6,8 +6,8 @@
 
 **Overall progress:** about 74% of the planned scope (phase percentages below; each is checked boxes over total boxes, adjusted where a box was stale)
 **Status:** Active. Tester build is out: Windows and Mac installers on GitHub Releases, coded tester page at /access, public site at /.
-**Tests:** 523 pass, 2 skipped (vitest). Type check and production build clean.
-**Current release:** 0.216 (tag v0.216.0): upgrades take materials per level, waiting buildings show scaffolding, build cards list materials.
+**Tests:** 525 pass, 2 skipped (vitest). Type check and production build clean.
+**Current release:** 0.217 (tag v0.217.0): live guide for buildings waiting on materials (steps tick off as you do them).
 **Pacing (test bot, downtown world, seed 11, 3 game hours):** Tier 1 at 7.9 min, town level 2 at 26.2 min, level 3 not reached (the bot grows one town). A human playthrough is still the real test.
 
 ### Percent by area
@@ -614,3 +614,7 @@ Done earlier:
 - Materials for upgrades: going up a level takes materials from the town's Supply Yard store (`site.upgrade`; the building keeps working at its old level until they arrive). Each level asks for a different mix: lumber, +bricks, +cement, steel, concrete, glass, tools, growing with the level (`upgradeMaterials`). New buildings: Tier 4 now takes bricks, concrete and steel.
 - Waiting buildings stand as a scaffolded site with crane and piles until the materials arrive, then the work plays on. The build card and the upgrade button say what they take. Town growth materials per style and level unchanged (four different lists per style).
 - Downtown pacing (seed 11): T1 7.9 min, town level 2 at 26.2 min; level 3 not reached (bot grows one town).
+
+## 0.217
+- Live materials guide (`src/sim/guide.ts`, card in the HUD): a building or upgrade waiting on the Supply Yard store shows what it needs, why, and a short list of steps that tick off from the real world (build the maker, switch it on, road it to the yard, switch the sale on, buy a truck, wait for delivery with a count). The current step rings its build button. No rewards: these are the how-to inside a quest.
+- Found while checking "can't send materials": the sim does deliver (a brickworks roaded to the yard fills a waiting building); the gap was knowing what to do. Next in this thread: subquests inside the quests themselves, the tutorial folded into the same card, a "waiting for materials" list on the Supply Yard panel.

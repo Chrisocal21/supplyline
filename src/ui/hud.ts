@@ -102,6 +102,7 @@ import {
 } from '../sim/world';
 import { nextQuest, tierUnlocks } from '../sim/quests';
 import { tutorialNext, tutorialSkip } from '../sim/tutorial';
+import { materialTasks, type MaterialTask } from '../sim/guide';
 import { Game3D, districtOfTool, isDistrictTool, type HoverInfo, type OverlayItem, type Tool } from '../r3d/game3d';
 import { DISTRICTS, DISTRICT_ORDER, isSoftNode } from '../sim/defs';
 import { GRID_CELL, gridId } from '../sim/grid';
@@ -2944,6 +2945,11 @@ export class HudScene extends Phaser.Scene {
   private tutorialCard(W: number, H: number): void {
     if (!this.tutorialOn || this.title || this.game3d.demo || this.menuOpen || this.saves || this.graphicsOpen || this.viewMap || this.sizePick || this.driverPick) return;
     const g = this.game3d;
+    const mat = materialTasks(g.world)[0];
+    if (mat) {
+      this.materialCard(W, H, mat);
+      return;
+    }
     const t = tutorialNext(g.world, this.tutFlags);
     if (!t) return;
     const im = this.im;
@@ -2967,10 +2973,44 @@ export class HudScene extends Phaser.Scene {
     im.block({ x, y, w, h });
   }
 
+  /** The guide for a building or upgrade waiting on the Supply Yard store: what it needs, why, and the steps to get it there. */
+  private materialCard(W: number, H: number, t: MaterialTask): void {
+    const im = this.im;
+    const narrow = W < 640;
+    const w = narrow ? W - 24 : 380;
+    const steps = t.steps.slice(0, 7);
+    const needLine = 'Needs ' + t.owed.map(([g, n]) => `${n} ${GOODS[g].label.toLowerCase()}`).join(', ');
+    const h = 76 + steps.length * 20 + 48;
+    const x = 12;
+    const y = H - this.bottomInset - h - 12;
+    if (y < TOP + 8) return;
+    im.rect(2, x, y, w, h, 0x0d141b, 0.94, 12, COLORS.accent, 0.7, 1.5);
+    im.text('matK', 'MATERIALS', x + 14, y + 10, { size: 10, bold: true, color: COLORS.accent, layer: 3 });
+    const bw = 70;
+    const off = im.hit('matOff', x + w - bw - 10, y + 8, bw, 22, () => this.toggleTutorial(), 3);
+    im.rect(3, x + w - bw - 10, y + 8, bw, 22, off ? 0x2a3646 : 0x17202b, 1, 6, COLORS.line, 1);
+    im.text('matOffT', 'Turn off', x + w - bw / 2 - 10, y + 12, { size: 11, bold: true, align: 'center', layer: 4 });
+    im.text('matT', t.title, x + 14, y + 26, { size: 14, bold: true, layer: 3 });
+    im.text('matN', needLine + ' from the Supply Yard store', x + 14, y + 46, { size: 11, color: COLORS.muted, layer: 3 });
+    steps.forEach((s, i) => {
+      const sy = y + 70 + i * 20;
+      const cur = i === t.index;
+      im.rect(3, x + 14, sy + 3, 10, 10, s.done ? 0x4caf6a : cur ? COLORS.accent : 0x2a3646, 1, 5);
+      im.text(`matS${i}`, s.text, x + 32, sy, { size: 11, bold: cur, color: s.done ? COLORS.muted : 0xffffff, layer: 3 });
+    });
+    im.text('matW', t.why, x + 14, y + h - 38, { size: 10, color: COLORS.muted, wrap: w - 28, layer: 3 });
+    im.block({ x, y, w, h });
+  }
+
   /** Which button the current step or quest needs, while the tutorial is on: its category tab and tool. */
   private coachTarget(): { tab: string; tool?: Tool } | null {
     const w = this.game3d.world;
-    if (!this.tutorialOn || w.tier > 1 || this.game3d.demo) return null;
+    if (!this.tutorialOn || this.game3d.demo) return null;
+    const mat = materialTasks(w)[0];
+    const matCoach = mat?.steps[mat.index]?.coach;
+    if (matCoach) return this.game3d.tool !== matCoach.tool ? { tab: matCoach.tab, tool: matCoach.tool as Tool } : null;
+    if (mat) return null;
+    if (w.tier > 1) return null;
     const step = tutorialNext(w, this.tutFlags);
     if (step?.step.coach) {
       const c = step.step.coach;
