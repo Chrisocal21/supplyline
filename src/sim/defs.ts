@@ -802,6 +802,8 @@ export interface DistrictDef {
   price: number;
   /** Income per minute at district level 1, when every good it lives on is in stock. Scales with level. */
   revenue: number;
+  /** Goods this district buys as a customer without being a price boost or an income need (for a district whose list above is empty). */
+  buys?: Good[];
   /** Goods the town's docks start to ask for once this is built. */
   demand?: { market?: Good[]; freight?: Good[] };
   /** Something other than money or price. */
@@ -824,7 +826,7 @@ export const DISTRICTS: Record<DistrictId, DistrictDef> = {
   heating: { label: 'Heating Depot', blurb: 'Warms the town in winter. Wants pellets, coal and oil from the islands.', minLevel: 2, cost: 800, goods: ['pellets', 'coal', 'oil'], price: 0.1, revenue: 20, demand: { market: ['coal'] } },
   cafe: { label: 'Coffee House', blurb: 'The corner cafe. Pays well for island coffee, with bread, jam and milk to go with it.', minLevel: 2, cost: 700, goods: ['coffee', 'bread', 'jam', 'milk'], price: 0.12, revenue: 24, affinity: 'boulevard' },
   hardware: { label: 'Hardware Store', blurb: 'Tools, timber and bricks for every home.', minLevel: 2, cost: 1000, goods: ['tools', 'lumber', 'bricks', 'cement'], price: 0.1, revenue: 26, demand: { market: ['cement'] }, affinity: 'forge' },
-  warehouse: { label: 'Warehouse District', blurb: 'Deep storage. Docks hold more, so prices hold up under heavy deliveries.', minLevel: 2, cost: 1300, goods: [], price: 0, revenue: 0, effect: 'storage', affinity: 'tradehub' },
+  warehouse: { label: 'Warehouse District', blurb: 'Deep storage. Docks hold more, so prices hold up under heavy deliveries.', minLevel: 2, cost: 1300, goods: [], buys: ['lumber', 'bricks', 'blocks', 'cement', 'tools', 'furniture'], price: 0, revenue: 0, effect: 'storage', affinity: 'tradehub' },
   builders: { label: "Builders' Yard", blurb: 'Brick, block and glass for a growing skyline.', minLevel: 3, cost: 2000, goods: ['bricks', 'blocks', 'concrete', 'glass', 'cement'], price: 0.1, revenue: 42, demand: { market: ['blocks', 'concrete'] }, affinity: 'forge' },
   furniture: { label: 'Furniture Gallery', blurb: 'Showrooms for timber and cloth.', minLevel: 3, cost: 1800, goods: ['furniture', 'lumber', 'cloth'], price: 0.1, revenue: 36, affinity: 'boulevard' },
   fashion: { label: 'Fashion Quarter', blurb: 'Boutiques that pay well for cloth and clothes.', minLevel: 3, cost: 2200, goods: ['clothes', 'cloth', 'yarn'], price: 0.12, revenue: 46, demand: { freight: ['yarn'] }, affinity: 'boulevard' },
@@ -839,10 +841,10 @@ export const DISTRICTS: Record<DistrictId, DistrictDef> = {
   resort: { label: 'Beach Resort', blurb: 'Pool, palms and a long list of guests. Pays well for mangoes and coffee. Income grows with the variety the town offers.', minLevel: 3, cost: 3600, goods: ['mango', 'coffee', 'fruit', 'furniture', 'cloth'], price: 0.1, revenue: 58, effect: 'visitors', affinity: 'boulevard' },
   university: { label: 'University', blurb: 'Educated townsfolk. Everything the town buys makes it grow faster.', minLevel: 4, cost: 4500, goods: ['books', 'paper', 'machinery'], price: 0.06, revenue: 0, effect: 'growth' },
   foundry: { label: 'Foundry Row', blurb: 'Casting yards that buy iron and steel in bulk. The Forge only.', minLevel: 3, cost: 3200, goods: ['ingots', 'steel', 'tools', 'slag'], price: 0.15, revenue: 60, demand: { freight: ['ingots', 'steel'] }, path: 'forge' },
-  hotels: { label: 'Hotels and Promenade', blurb: 'Visitors pay by how much variety the town offers.', minLevel: 4, cost: 4000, goods: [], price: 0, revenue: 80, effect: 'visitors', affinity: 'boulevard' },
+  hotels: { label: 'Hotels and Promenade', blurb: 'Visitors pay by how much variety the town offers.', minLevel: 4, cost: 4000, goods: [], buys: ['bread', 'cheese', 'butter', 'coffee', 'fruit', 'fish', 'wine'], price: 0, revenue: 80, effect: 'visitors', affinity: 'boulevard' },
   foodhall: { label: 'Grand Food Hall', blurb: 'The pride of the Breadbasket. Every food good sells at a premium.', minLevel: 5, cost: 18000, goods: ['bread', 'cheese', 'jam', 'flour', 'fruit', 'milk'], price: 0.15, revenue: 160, path: 'breadbasket', capstone: true },
   heavyexchange: { label: 'Heavy Industry Exchange', blurb: 'Where the Forge sets the price of steel and machinery.', minLevel: 5, cost: 24000, goods: ['steel', 'machinery', 'tools', 'ingots'], price: 0.15, revenue: 180, demand: { market: ['steel'] }, path: 'forge', capstone: true },
-  intlterminal: { label: 'International Terminal', blurb: 'Cargo from everywhere passes through. Every good pays a little more.', minLevel: 5, cost: 30000, goods: [], price: 0, revenue: 200, effect: 'storage', path: 'tradehub', capstone: true },
+  intlterminal: { label: 'International Terminal', blurb: 'Cargo from everywhere passes through. Every good pays a little more.', minLevel: 5, cost: 30000, goods: [], buys: ['grain', 'stone', 'ore', 'steel', 'cloth', 'machinery'], price: 0, revenue: 200, effect: 'storage', path: 'tradehub', capstone: true },
   grandplaza: { label: 'Grand Plaza', blurb: 'Theatre, galleries and a skyline. Fine goods pay a premium.', minLevel: 5, cost: 22000, goods: ['clothes', 'furniture', 'books', 'glass', 'cloth'], price: 0.15, revenue: 170, effect: 'visitors', path: 'boulevard', capstone: true },
 };
 

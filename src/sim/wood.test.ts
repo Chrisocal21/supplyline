@@ -1,7 +1,7 @@
 // Logs and lumber keep a buyer after a town is built, and the early menu opens one step at a time.
 import { describe, expect, it } from 'vitest';
-import { GOOD_LIST, LEVEL_MATERIALS, SITE_DEFS, SITE_UNLOCK_QUEST, TIERS } from './defs';
-import { createWorld, needs, sell, townDocks, wants } from './world';
+import { DISTRICTS, DISTRICT_ORDER, GOOD_LIST, LEVEL_MATERIALS, SITE_DEFS, SITE_UNLOCK_QUEST, TIERS } from './defs';
+import { createWorld, dockDemand, needs, sell, townDocks, wants } from './world';
 
 describe('what happens to the wood once the town is built', () => {
   const docks = () => {
@@ -70,5 +70,19 @@ describe('everything sells at the Market', () => {
     expect(p.growth).toBe(before);
     sell(w, market, 'bread', 10);
     expect(p.growth).toBeGreaterThan(before);
+  });
+});
+
+describe('every district is a buyer', () => {
+  it('asks for at least one good, and buys a good it asks for', () => {
+    const w = createWorld(5);
+    const p = w.places[0];
+    p.stage = 2;
+    p.level = 5;
+    for (const id of DISTRICT_ORDER) {
+      expect([...DISTRICTS[id].goods, ...(DISTRICTS[id].buys ?? [])].length, id).toBeGreaterThan(0);
+    }
+    const site = { ...w.sites[0], kind: 'district', districtId: 'hotels', placeId: p.id } as never;
+    expect(dockDemand(w, site as never)).toContain('bread');
   });
 });
