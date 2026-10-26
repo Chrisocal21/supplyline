@@ -133,6 +133,22 @@ export class Im {
     }
   }
 
+  /** Gold corner brackets just inside a box: the mark every window and panel in the game shares. */
+  corners(layer: number, x: number, y: number, w: number, h: number, inset = 5, len = 14, alpha = 1): void {
+    const g = this.gfx[this.L(layer)];
+    g.lineStyle(2, COLORS.accent, alpha);
+    for (const [cx, cy, sx, sy] of [[x + inset, y + inset, 1, 1], [x + w - inset, y + inset, -1, 1], [x + inset, y + h - inset, 1, -1], [x + w - inset, y + h - inset, -1, -1]] as [number, number, number, number][]) {
+      g.lineBetween(cx, cy, cx + sx * len, cy).lineBetween(cx, cy, cx, cy + sy * len);
+    }
+  }
+
+  /** A window edge: dark fill, a gold outer line, a faint gold inner line and corner brackets. */
+  frame(layer: number, x: number, y: number, w: number, h: number, fill = 0x0b1117, alpha = 0.98, radius = 8): void {
+    this.rect(layer, x, y, w, h, fill, alpha, radius, COLORS.accent, 0.85, 2);
+    this.rect(layer, x + 6, y + 6, w - 12, h - 12, 0x000000, 0, 4, COLORS.accent, 0.22, 1);
+    this.corners(layer, x, y, w, h, 11, 16, 0.95);
+  }
+
   /** An angled button face, like the website's: a parallelogram leaning right, with an optional outline. */
   slab(layer: number, x: number, y: number, w: number, h: number, fill: number, alpha = 1, line?: number, lineAlpha = 1): void {
     const s = Math.min(9, h * 0.28);

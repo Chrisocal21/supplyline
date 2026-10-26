@@ -7,7 +7,7 @@
 **Overall progress:** about 74% of the planned scope (phase percentages below; each is checked boxes over total boxes, adjusted where a box was stale)
 **Status:** Active. Tester build is out: Windows and Mac installers on GitHub Releases, coded tester page at /access, public site at /.
 **Tests:** 527 pass, 2 skipped (vitest). Type check and production build clean.
-**Current release:** 0.222 (tag v0.222.0): quest complete and tier unlocked cards redesigned.
+**Current release:** 0.223 (tag v0.223.0): one look across every card, menu, window and the website.
 **Pacing (test bot, downtown world, seed 11, 3 game hours):** Tier 1 at 7.9 min, town level 2 at 26.2 min, level 3 not reached (the bot grows one town). A human playthrough is still the real test.
 
 ### Percent by area
@@ -643,3 +643,12 @@ Done earlier:
 
 ## 0.222
 - Reward cards redesigned (`gameFrame` in hud.ts, shared): a vignetted backdrop, a double gold edge with corner brackets, a gold banner on the top edge with a light sweep, a pulsing emblem, a coin with a reward that counts up, framed building slots with NEW tags that pop in one by one, a NEXT OBJECTIVE strip and an angled CONTINUE button. The Tier unlocked card uses the same frame. The town cards and other notices still need the same treatment.
+
+## 0.223
+- One look everywhere. `Im.frame` (double gold edge, corner brackets) and `Im.corners` added in imui.ts; `gameFrame`, `gameButton` and `rule` in hud.ts.
+- Cards on the gold-banner frame: New town connected, Welcome slides (dots, back, skip), New game (world size), Save and load, Start a new world, Demo complete (stat tiles, angled buttons), Map preview, Choose a driver, Town ready to grow.
+- Menu, Manage pages, building dashboard now use the same window frame; the minimap, tutorial card and truck offers carry the gold corner brackets.
+- Toasts: angled slab with a gold bar and dot.
+- The quest tracker and tutorial card hide behind any full-screen card instead of bleeding through.
+- Website: section kickers are the gold angled banner; maps, roadmap, forms and panels have the double gold edge and corner brackets; the footer logo shows in dev.
+- Not done: in-world labels, the build tray and bottom bar are unchanged; the truck detail and removal dialogs only got the frame where they share the panel code.

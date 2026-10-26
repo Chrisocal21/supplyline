@@ -333,8 +333,8 @@ export class Sheets {
       // A console menu: a rail of pages down the left, the page's title across the top, the page itself in the middle.
       // A floating rail of pages on the left, grouped, with the open page as a lit pill; a big display title on the right.
       const rail = 220;
-      im.rect(2, x, y, w, h, 0x0b1117, 0.97, 10, COLORS.line, 0.7);
-      im.rect(2, x + 8, y + 8, rail - 8, h - 16, 0x070b0f, 0.9, 8, COLORS.line, 0.45);
+      im.frame(2, x, y, w, h, 0x0b1117, 0.97);
+      im.rect(2, x + 14, y + 14, rail - 14, h - 28, 0x070b0f, 0.9, 8, COLORS.line, 0.45);
       im.block({ x, y, w, h });
       const mark = im.text('shMark', 'SUPPLY', x + 24, y + 22, { size: 22, bold: true, display: true, color: COLORS.text, layer: 3 });
       im.text('shMark1', 'LINE', x + 24 + mark.w, y + 22, { size: 22, bold: true, display: true, color: COLORS.accent, layer: 3 });
