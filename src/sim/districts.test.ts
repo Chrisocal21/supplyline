@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import map1 from '../maps/map1.json';
+import { DISTRICTS, DISTRICT_UPKEEP } from './defs';
 import { buildDistrict, districtRevenue, districtSatisfaction } from './town';
 import { districtGoods } from './venues';
 import { buyVehicle, needs, offers, civicAt, civicTiles, createWorldFromMap, districtSite, entryTile, placeError, placeSite, plotTiles, siteAt, step, streetAt, type MapData, type World } from './world';
@@ -105,5 +106,13 @@ describe('districts as buildings', () => {
     expect(menu.some((g) => (dock.stock[g] ?? 0) >= 1)).toBe(true);
     expect(districtSatisfaction(w, p, 'cafe')).toBeGreaterThan(0);
     expect(districtRevenue(w, p)).toBeGreaterThan(0);
+  });
+});
+
+describe('district balance', () => {
+  it('every district that earns pays more than it costs to keep', () => {
+    for (const [id, d] of Object.entries(DISTRICTS)) {
+      if (d.revenue > 0) expect(d.revenue, id).toBeGreaterThan(d.cost * DISTRICT_UPKEEP);
+    }
   });
 });

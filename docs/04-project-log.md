@@ -1190,3 +1190,9 @@ What changed:
 - Wiki has a Venues page (every venue, its district, the town level it opens at, what it buys). Tests: every venue good is made somewhere and on the Warehouse list; a Warehouse truck stocks a venue dock and the district earns; every venue has a good makeable by the tier matching its district; and no building opens before something pays full price for what it makes (by-products sell for salvage at the Market, 60%). Coffee House Dessert Case gained pastry so it is not locked at level 2.
 - Not done: venues for the bulk and industrial districts (kept flat on purpose), a wiki Venues page, a check that every good can be trucked from its source to an open buyer at its tier.
 - docs/11-chatgpt-model-handoff.md written for the model work.
+
+## 0.229
+
+- **District income.** The four level 5 capstones (Grand Food Hall, Heavy Industry Exchange, International Terminal, Grand Plaza) cost more to keep than they earned even when fully supplied. Revenue raised to 290, 380, 480 and 350. A test now requires every earning district to pay more than its upkeep.
+- **Island nodes checked.** Oil, coffee and mango nodes on Map 1 all draw (pumpjack on a dirt pad, coffee rows, orange-dotted mango grove). Shots: `dist/review/island-*.png`. The oil pool is small from a distance.
+- **Dropped.** Old-save compatibility is no longer a concern; spoilage is not wanted. A stall-based Market is still only an idea.
