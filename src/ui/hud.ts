@@ -1336,7 +1336,6 @@ export class HudScene extends Phaser.Scene {
     const screenItems: Item[] = [
       { id: 'gfx', label: 'Graphics', key: 'G', on: this.graphicsOpen, icon: ico('display'), act: () => this.openGraphics() },
       { id: 'mini', label: 'Minimap', key: 'M', on: this.minimapOn, toggle: true, icon: ico('minimap'), act: () => this.toggleMinimap() },
-      { id: 'hudsz', label: `Quest text: ${this.hudScaleName()}`, key: '', on: this.hudScale > 1, toggle: true, icon: ico('display'), act: () => this.cycleHudScale() },
       { id: 'perf', label: 'Frame rate', key: 'F3', on: this.perfOn, toggle: true, icon: ico('perf'), act: () => this.togglePerf() },
     ];
     const folders: { id: 'business' | 'game' | 'sound' | 'screen' | 'keys' | 'about'; label: string; blurb: string; mark: IconName }[] = [
@@ -2954,30 +2953,6 @@ export class HudScene extends Phaser.Scene {
   /** The guide for a building or upgrade waiting on the Supply Yard store: what it needs, why, and the steps to get it there. */
   private trackerH = 0;
 
-  /** HUD text size for the quest tracker: 1, 1.25 or 1.5. A choice kept for every game, for big screens and tired eyes. */
-  private hudScale = (() => {
-    try {
-      const v = Number(localStorage.getItem('sl-hud-scale'));
-      return v === 1.25 || v === 1.5 ? v : 1;
-    } catch {
-      return 1;
-    }
-  })();
-
-  private cycleHudScale(): void {
-    this.hudScale = this.hudScale === 1 ? 1.25 : this.hudScale === 1.25 ? 1.5 : 1;
-    try {
-      localStorage.setItem('sl-hud-scale', String(this.hudScale));
-    } catch {
-      /* ignore */
-    }
-    this.toasts.push({ text: `Quest text size: ${this.hudScaleName()}`, until: this.time.now + 1600 });
-  }
-
-  private hudScaleName(): string {
-    return this.hudScale === 1 ? 'Normal' : this.hudScale === 1.25 ? 'Large' : 'Extra large';
-  }
-
   /** Whether something drawn over the play screen (menu, build tray, a card) would have the tracker bleed through it. */
   private trackerCovered(): boolean {
     const w = this.game3d.world;
@@ -2990,9 +2965,9 @@ export class HudScene extends Phaser.Scene {
   }
 
   /**
-   * The quest tracker, top left like the objective list of any game: the tier and the quest in hand, its progress, and the
-   * subquests under it ticked off as the player does them. A building waiting on materials takes its place until it is built.
-   * Subquests pay nothing: they are the how-to inside the quest, and the quest pays.
+   * The quest tracker, top left like the objective list of any game: a small "TIER n" line, the quest in hand with its progress,
+   * its subquests ticked off as the player does them, and the "why" in bold underneath. A building waiting on materials takes its
+   * place until it is built. Subquests pay nothing: they are the how-to inside the quest, and the quest pays.
    */
   private questTracker(y: number): void {
     if (this.trackerCovered()) {
@@ -3001,9 +2976,10 @@ export class HudScene extends Phaser.Scene {
     }
     const im = this.im;
     const w = this.game3d.world;
-    const k = this.hudScale;
     const x = 12;
-    const pw = Math.min(Math.round(380 * k), Math.round(this.scale.width * 0.42));
+    const pw = Math.min(380, Math.round(this.scale.width * 0.42));
+    const px = x + 16;
+    const inner = pw - 32;
     const mat = this.tutorialOn ? materialTasks(w)[0] : undefined;
     const next = nextQuest(w);
     const qg = this.questSteps();
@@ -3012,51 +2988,46 @@ export class HudScene extends Phaser.Scene {
     const title = mat ? mat.title : next ? next.quest.label : 'All quests complete';
     const sub = mat ? 'Needs ' + mat.owed.map(([g, n]) => `${n} ${GOODS[g].label.toLowerCase()}`).join(', ') + ' from the Supply Yard store' : next ? (next.progress.waiting ?? `${fmt(next.progress.have)} / ${fmt(next.progress.need)}${next.progress.detail ? `  (${next.progress.detail})` : ''}`) : '';
     const why = mat ? mat.why : qg ? qg.why : next ? next.quest.hint : '';
-    const ring = Math.round(22 * k);
-    const tx = x + ring * 2 + 14;
-    const inner = pw - (tx - x) - 14;
-    const th = im.text('trkT', title, tx, y + 10, { size: Math.round(16 * k), bold: true, wrap: inner, layer: 2 }).h;
-    let cy = y + 10 + th + 6;
+    let cy = y + 12;
+    im.text('trkK', mat ? `TIER ${w.tier}  ·  MATERIALS` : `TIER ${w.tier}  ·  QUEST`, px, cy, { size: 11, bold: true, color: COLORS.accent, layer: 2 });
+    cy += 18;
+    const th = im.text('trkT', title, px, cy, { size: 17, bold: true, wrap: inner, layer: 2 }).h;
+    cy += th + 6;
     if (mat) {
-      const nh = im.text('trkN', sub, tx, cy, { size: Math.round(13 * k), bold: true, color: COLORS.muted, wrap: inner, layer: 2 }).h;
+      const nh = im.text('trkN', sub, px, cy, { size: 13, bold: true, color: COLORS.muted, wrap: inner, layer: 2 }).h;
       cy += nh + 6;
     } else if (next) {
-      const n = im.text('trkN', sub, x + pw - 14, cy - 2, { size: Math.round(13 * k), bold: true, color: next.progress.waiting ? COLORS.good : COLORS.warn, align: 'right', layer: 2 });
-      im.bar(1, tx, cy + Math.round(4 * k), Math.max(40, inner - n.w - 12), Math.round(8 * k), next.progress.have / Math.max(1, next.progress.need), COLORS.accent);
-      cy += Math.round(22 * k);
+      const n = im.text('trkN', sub, px + inner, cy - 3, { size: 13, bold: true, color: next.progress.waiting ? COLORS.good : COLORS.warn, align: 'right', layer: 2 });
+      im.bar(1, px, cy + 3, Math.max(40, inner - n.w - 12), 8, next.progress.have / Math.max(1, next.progress.need), COLORS.accent);
+      cy += 22;
     }
     let bottom = cy + 4;
     if (steps.length > 0) {
-      let sy = cy + 4;
-      im.rect(1, x + 12, sy, pw - 24, 1, COLORS.line, 0.8);
+      let sy = cy + 2;
+      im.rect(1, px, sy, inner, 1, COLORS.line, 0.8);
       sy += 8;
-      const dot = Math.round(12 * k);
       steps.slice(0, 7).forEach((st, i) => {
         const cur = i === index;
-        const t = im.text(`trkS${i}`, st.text, x + 18 + dot + 6, sy, { size: Math.round(13 * k), bold: cur, color: st.done ? COLORS.muted : 0xffffff, wrap: pw - 18 - dot - 6 - 14, layer: 2 });
-        im.rect(2, x + 14, sy + Math.round(3 * k), dot, dot, st.done ? 0x4caf6a : cur ? COLORS.accent : 0x2a3646, 1, dot / 2);
-        sy += Math.max(Math.round(22 * k), t.h + 6);
+        const t = im.text(`trkS${i}`, st.text, px + 20, sy, { size: 12, bold: cur, color: st.done ? COLORS.muted : 0xffffff, wrap: inner - 20, layer: 2 });
+        im.rect(2, px, sy + 2, 10, 10, st.done ? 0x4caf6a : cur ? COLORS.accent : 0x2a3646, 1, 5);
+        sy += Math.max(20, t.h + 5);
       });
-      sy += 2;
-      const wh = im.text('trkW', why, x + 14, sy, { size: Math.round(12 * k), color: COLORS.muted, wrap: pw - 28, layer: 2 }).h;
-      bottom = sy + wh + 8;
+      sy += 4;
+      im.rect(1, px, sy, inner, 1, COLORS.line, 0.8);
+      sy += 8;
+      const wh = im.text('trkW', why, px, sy, { size: 13, bold: true, color: 0xcbd5df, wrap: inner, layer: 2 }).h;
+      bottom = sy + wh + 10;
     }
-    const fs = Math.round(12 * k);
     const hideLbl = this.tutorialOn ? 'Hide steps' : 'Show steps';
-    const aw = Math.round(fs * 5.6);
-    const hw = Math.round(fs * 5.4);
-    const hide = im.hit('trkHide', x + pw - 14 - aw - 14 - hw, bottom, hw, fs + 6, () => this.toggleTutorial(), 2);
-    im.text('trkHideT', hideLbl, x + pw - 14 - aw - 14 - hw, bottom + 1, { size: fs, bold: true, color: hide ? COLORS.accent : COLORS.muted, layer: 3 });
-    const all = im.hit('trkAll', x + pw - 14 - aw, bottom, aw, fs + 6, () => this.toggleSheet('quests'), 2);
-    im.text('trkAllT', 'All quests', x + pw - 14 - aw, bottom + 1, { size: fs, bold: true, color: all ? COLORS.accent : COLORS.muted, layer: 3 });
-    const ph = bottom + fs + 14 - y;
+    const hide = im.hit('trkHide', px + inner - 160, bottom, 76, 20, () => this.toggleTutorial(), 2);
+    im.text('trkHideT', hideLbl, px + inner - 160, bottom + 2, { size: 12, bold: true, color: hide ? COLORS.accent : COLORS.muted, layer: 3 });
+    const all = im.hit('trkAll', px + inner - 70, bottom, 70, 20, () => this.toggleSheet('quests'), 2);
+    im.text('trkAllT', 'All quests', px + inner - 70, bottom + 2, { size: 12, bold: true, color: all ? COLORS.accent : COLORS.muted, layer: 3 });
+    const ph = bottom + 28 - y;
     this.trackerH = ph;
     const on = this.sheet === 'quests';
     im.rect(1, x, y, pw, ph, 0x0b1117, 0.92, 10, on ? COLORS.accent : COLORS.line, on ? 0.8 : 0.7);
-    const rc = y + 10 + ring;
-    im.circle(2, x + 14 + ring, rc, ring, COLORS.accent);
-    im.circle(2, x + 14 + ring, rc, ring - 2, 0x0b1117);
-    im.text('trkTier', String(w.tier), x + 14 + ring, rc - Math.round(15 * k), { size: Math.round(28 * k), bold: true, display: true, color: COLORS.accent, align: 'center', layer: 3 });
+    im.rect(1, x, y + 10, 3, 34, COLORS.accent, 1, 1);
     im.block({ x, y, w: pw, h: ph });
   }
 

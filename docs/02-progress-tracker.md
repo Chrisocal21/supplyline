@@ -7,7 +7,7 @@
 **Overall progress:** about 74% of the planned scope (phase percentages below; each is checked boxes over total boxes, adjusted where a box was stale)
 **Status:** Active. Tester build is out: Windows and Mac installers on GitHub Releases, coded tester page at /access, public site at /.
 **Tests:** 527 pass, 2 skipped (vitest). Type check and production build clean.
-**Current release:** 0.219 (tag v0.219.0): tracker never bleeds through menus, quest text size setting, grid marker on the map only.
+**Current release:** 0.220 (tag v0.220.0): quest tracker redesign.
 **Pacing (test bot, downtown world, seed 11, 3 game hours):** Tier 1 at 7.9 min, town level 2 at 26.2 min, level 3 not reached (the bot grows one town). A human playthrough is still the real test.
 
 ### Percent by area
@@ -631,3 +631,6 @@ Done earlier:
 - The quest tracker hides while the menu, build tray, saves, graphics, a card or a growth show is open, so nothing bleeds through.
 - The top-left grid marker is gone: the grid and coordinates are on the world map header. The map's hide button now says HIDE; when it is hidden a SHOW MAP button sits by the compass.
 - Quest text size (Menu, Display): Normal, Large, Extra large; the tracker, its steps and links scale together and the choice is remembered.
+
+## 0.220
+- Quest tracker redesign: the tier ring is gone; a small "TIER n  ·  QUEST" label sits above the quest title. Steps are smaller, the why text under them is bold and larger. The quest text size setting from 0.219 is removed (fixed sizes now).
