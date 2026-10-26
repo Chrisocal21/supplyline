@@ -13,7 +13,8 @@ import type { SiteKind } from '../sim/defs';
 import { HeightField, LAT_SPAN, R, basisMatrix, lonLatToVec } from './geo';
 import { Parts } from './parts';
 import { specialtyNodeProps } from './specialty';
-import { addCropRows, addTree, treeGeometry, treeLodGeometry } from './vegetation';
+import { addBush, addCropRows, addTree, treeGeometry, treeLodGeometry } from './vegetation';
+import { stoneLump } from './stones';
 import { addCow } from './livestock';
 
 function rng(seed: number): () => number {
@@ -45,9 +46,34 @@ function grove(seed: number, x: number, y: number): number {
   return top * (1 - sy) + bot * sy;
 }
 
+/**
+ * Heaps of resource stone, one pattern per variant: [x, z, radius, flatten, seed, yaw]. The stones overlap, so each heap reads as one
+ * tumbled mass with a big slab, leaning stones and loose ones round the foot. The near scene and the far pin share them, so a node
+ * looks the same from a distance as it does up close. Each node picks a variant from its id.
+ */
+const HEAPS: [number, number, number, number, number, number][][] = [
+  [[0, 0, 1.15, 0.8, 3, 0], [0.95, 0.3, 0.7, 0.75, 7, 0.2], [-0.8, -0.45, 0.65, 0.75, 11, 0.5], [0.3, 0.95, 0.32, 0.7, 19, 0.9], [-0.55, 0.8, 0.26, 0.7, 23, 0.3], [1.45, -0.4, 0.26, 0.7, 29, 0.7]],
+  [[-0.7, 0, 0.85, 0.8, 31, 0.4], [0.1, 0.15, 0.95, 0.9, 37, 1.2], [0.95, -0.1, 0.7, 0.75, 41, 0.1], [0.2, 0.9, 0.4, 0.7, 43, 0.6], [-0.3, -0.75, 0.4, 0.7, 47, 0.2], [1.5, 0.5, 0.24, 0.7, 53, 0]],
+  [[0, -0.2, 0.9, 1.15, 59, 0.3], [0.2, 0.7, 0.8, 0.55, 61, 0.8], [-0.95, 0.2, 0.5, 0.8, 67, 0.5], [1.0, -0.4, 0.5, 0.8, 71, 0.1], [-0.5, 1.0, 0.28, 0.7, 73, 0.2], [0.9, 1.0, 0.24, 0.7, 79, 0.6]],
+  [[0, 0, 0.6, 0.85, 83, 0.2], [0.85, 0.2, 0.7, 0.8, 89, 0.7], [-0.7, 0.5, 0.65, 0.8, 97, 0.1], [-0.1, -0.85, 0.7, 0.8, 101, 0.9], [0.6, -0.8, 0.45, 0.75, 103, 0.4], [-1.3, -0.3, 0.3, 0.7, 107, 0.6]],
+];
+
+/** What each stone node is made of. */
+const HEAP_COLOR: Partial<Record<NodeKind, number>> = { quarry: 0xb9ab95, mine: 0x9a6a52, coal: 0x58575f, clay: 0xc8784f };
+
 /** Small scenes that mark an unused resource node, so each kind is recognisable and none looks like a quarry. */
-function nodeProps(kind: NodeKind): THREE.BufferGeometry {
+function nodeProps(kind: NodeKind, variant = 0): THREE.BufferGeometry {
   const p = new Parts();
+  const heapColor = HEAP_COLOR[kind];
+  if (heapColor !== undefined) {
+    // Each stone a touch lighter or darker than the last, so the heap is not one flat tone.
+    const tint = new THREE.Color();
+    HEAPS[variant % HEAPS.length].forEach(([x, z, r, flatten, seed, yaw], i) => {
+      tint.setHex(heapColor).multiplyScalar(0.9 + (i % 3) * 0.08);
+      p.stone(r, flatten, seed, tint.getHex(), { x, z, ry: yaw });
+    });
+    return p.build();
+  }
   const GREEN = 0x4a7a3c;
   switch (kind) {
     case 'farmland':
@@ -95,72 +121,38 @@ function nodeProps(kind: NodeKind): THREE.BufferGeometry {
       }
       break;
     case 'clay':
-      // A small pond in the clay bank with reeds, and a stack of dug clay.
-      p.cyl(0.46, 0.46, 0.03, 0x4f7f96, { x: -0.25, y: 0.02, z: -0.1 }, 16);
-      for (let i = 0; i < 7; i++) {
-        const a = (i / 7) * Math.PI * 2;
-        p.cone(0.03, 0.4, 0x7a8f4a, { x: -0.25 + Math.cos(a) * 0.52, y: 0.03, z: -0.1 + Math.sin(a) * 0.46 }, 5);
-      }
-      for (const [x, z, w] of [[0.6, 0.4, 0.34], [0.9, 0.5, 0.28], [0.72, 0.7, 0.3]]) p.box(w, 0.16, 0.22, 0xb0603f, { x, y: 0.03, z });
+    case 'quarry':
+    case 'mine':
+    case 'coal':
       break;
     case 'forest':
       for (let row = 0; row < 3; row++) for (let col = 0; col < 3; col++) {
         if (row === 2 && col === 1) continue;
         addTree(p, col % 2 ? 'oak' : 'pine', -0.85 + col * 0.85, 0.025, -0.85 + row * 0.7, 0.95 + ((row + col) % 3) * 0.17, row * 3 + col);
       }
-      p.cyl(0.1, 0.12, 0.12, 0x6a4a30, { x: -0.6, y: 0.02, z: 0.5 }, 8);
-      p.cyl(0.09, 0.11, 0.1, 0x6a4a30, { x: 0.9, y: 0.02, z: -0.3 }, 8);
+      p.cyl(0.1, 0.12, 0.12, 0x7a5a3c, { x: -0.6, y: 0.02, z: 0.5 }, 8);
+      p.cyl(0.09, 0.11, 0.1, 0x7a5a3c, { x: 0.9, y: 0.02, z: -0.3 }, 8);
       for (const [x, y, z] of [[0.3, 0.02, 0.8], [0.3, 0.02, 1.0], [0.3, 0.17, 0.9]]) p.cyl(0.08, 0.08, 0.7, 0xc7a068, { x, y, z, rz: Math.PI / 2 }, 8);
+      addBush(p, -1.15, 0.02, 0.2, 0.7);
+      addBush(p, 0.2, 0.02, 0.55, 0.6);
       break;
-    case 'quarry':
-      for (const [x, z, r] of [[-0.6, 0.5, 0.26], [0.7, -0.5, 0.3], [0.9, 0.4, 0.2], [-0.8, -0.4, 0.22]]) p.sphere(r, 0x9a9ea3, { x, y: 0.12, z }, 0);
-      for (const [x, y, z] of [[0.2, 0.02, 0.9], [0.55, 0.02, 0.95], [0.38, 0.18, 0.92]]) p.box(0.34, 0.16, 0.24, 0xc4c1b8, { x, y, z });
-      for (const x of [-0.3, 0.3]) {
-        p.cyl(0.03, 0.03, 0.5, 0xe6e2d6, { x, y: 0.02, z: 1.15 }, 6);
-        p.box(0.05, 0.1, 0.05, 0xcf4a30, { x, y: 0.42, z: 1.15 });
-      }
-      break;
-    case 'mine': {
-      // A timbered adit mouth set in a spoil bank, with an ore cart on its rails.
-      p.cone(0.8, 0.7, 0x6b5a50, { x: 0, y: 0.02, z: -0.5 }, 9);
-      p.box(0.07, 0.62, 0.07, 0x7a5a3c, { x: -0.32, y: 0.02, z: 0.0 });
-      p.box(0.07, 0.62, 0.07, 0x7a5a3c, { x: 0.32, y: 0.02, z: 0.0 });
-      p.box(0.78, 0.09, 0.1, 0x7a5a3c, { x: 0, y: 0.62, z: 0.0 });
-      p.box(0.54, 0.54, 0.04, 0x1d1b1a, { x: 0, y: 0.04, z: -0.04 });
-      p.box(0.34, 0.2, 0.26, 0x8a5a4a, { x: 0.15, y: 0.07, z: 0.7 });
-      for (const [x, z] of [[0.02, 0.6], [0.28, 0.6], [0.02, 0.8], [0.28, 0.8]]) p.cyl(0.06, 0.06, 0.04, 0x1f2124, { x, y: 0.04, z, rz: Math.PI / 2 }, 8);
-      break;
-    }
     case 'coffee':
     case 'mango':
     case 'oil':
       specialtyNodeProps(p, kind);
-      break;
-    case 'coal':
-      p.cone(0.6, 0.55, 0x2b2d31, { x: -0.1, y: 0.02, z: -0.3 }, 9);
-      p.cone(0.36, 0.34, 0x33353a, { x: 0.55, y: 0.02, z: 0.1 }, 8);
-      p.cone(0.28, 0.26, 0x2b2d31, { x: -0.7, y: 0.02, z: 0.45 }, 8);
-      p.box(0.34, 0.2, 0.26, 0x3a3d40, { x: 0.15, y: 0.07, z: 0.85 });
-      for (const [x, z] of [[0.02, 0.76], [0.28, 0.76], [0.02, 0.94], [0.28, 0.94]]) p.cyl(0.06, 0.06, 0.04, 0x1f2124, { x, y: 0.04, z, rz: Math.PI / 2 }, 8);
       break;
   }
   return p.build();
 }
 
 function rockGeometry(): THREE.BufferGeometry {
-  const g = new THREE.IcosahedronGeometry(0.5, 0);
-  const pos = g.getAttribute('position');
-  for (let i = 0; i < pos.count; i++) pos.setY(i, pos.getY(i) * 0.7);
-  g.computeVertexNormals();
-  return g;
+  return stoneLump(0.5, 0.74, 17);
 }
 
 /** A low bush: a few overlapping lumps of leaf, in vertex colours so each one can be tinted. */
 function bushGeometry(): THREE.BufferGeometry {
   const p = new Parts();
-  p.sphere(0.34, 0x4f6f3a, { x: 0, y: 0.2, z: 0 }, 1);
-  p.sphere(0.26, 0x5d7e45, { x: 0.28, y: 0.15, z: 0.1 }, 1);
-  p.sphere(0.24, 0x466a38, { x: -0.22, y: 0.14, z: -0.14 }, 1);
+  addBush(p, 0, 0, 0);
   return p.build();
 }
 
@@ -234,14 +226,16 @@ export class Scenery {
   private buildNodeProps(): void {
     const w = this.world;
     const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9 });
-    const geos = new Map<NodeKind, THREE.BufferGeometry>();
+    const geos = new Map<string, THREE.BufferGeometry>();
     const marks: { id: number; kind: NodeKind; matrix: THREE.Matrix4 }[] = [];
     for (const n of w.nodes) {
       if (isSoftNode(n.kind)) continue;
-      let g = geos.get(n.kind);
+      const variant = n.id % HEAPS.length;
+      const key = n.kind + ':' + (HEAP_COLOR[n.kind] === undefined ? 0 : variant);
+      let g = geos.get(key);
       if (!g) {
-        g = nodeProps(n.kind);
-        geos.set(n.kind, g);
+        g = nodeProps(n.kind, variant);
+        geos.set(key, g);
       }
       const m = new THREE.Mesh(g, mat);
       m.castShadow = true;
@@ -255,6 +249,10 @@ export class Scenery {
       const yaw = n.kind === 'farmland' ? (n.id % 4) * (Math.PI / 2) : n.kind === 'orchard' ? ((n.id * 2.399) % (Math.PI * 2)) : n.kind === 'forest' ? n.id * 1.3 : 0;
       m.matrix.copy(basisMatrix(pos, up, east)).multiply(new THREE.Matrix4().makeRotationY(yaw));
       m.matrixWorldNeedsUpdate = true;
+      // Far until the camera comes near: the pin stands in for the scene at a distance, and only one of the two shows.
+      m.userData.far = true;
+      m.userData.grow = HEAP_COLOR[n.kind] !== undefined ? 6 : 2.2;
+      m.visible = false;
       this.group.add(m);
       this.props.set(n.id, m);
       marks.push({ id: n.id, kind: n.kind, matrix: m.matrix });
@@ -270,11 +268,11 @@ export class Scenery {
   private farMarks: THREE.InstancedMesh[] = [];
   private readonly farIndex = new Map<number, { mesh: THREE.InstancedMesh; i: number; matrix: THREE.Matrix4 }>();
   private static readonly MARK_COLOR: Partial<Record<NodeKind, number>> = {
-    forest: 0x2f6f3c,
-    quarry: 0xa7adb5,
-    mine: 0xb06a4a,
-    coal: 0x2a2a2e,
-    clay: 0xd2784a,
+    forest: 0xffffff,
+    quarry: HEAP_COLOR.quarry,
+    mine: HEAP_COLOR.mine,
+    coal: HEAP_COLOR.coal,
+    clay: HEAP_COLOR.clay,
     oil: 0x101014,
     coffee: 0x3d5e2a,
     mango: 0x4f8a30,
@@ -287,14 +285,14 @@ export class Scenery {
     return 'rock';
   }
 
-  private static markGeometry(shape: 'rock' | 'oil' | 'pine' | 'bush'): THREE.BufferGeometry {
+  private static markGeometry(shape: 'rock' | 'oil' | 'pine' | 'bush', variant = 0): THREE.BufferGeometry {
     const parts: THREE.BufferGeometry[] = [];
     if (shape === 'rock') {
-      for (const [x, z, yaw, r, sq] of [[0, 0, 0, 1, 0.75], [0.9, 0.3, 0.2, 0.6, 0.6], [-0.8, -0.5, 0.5, 0.55, 0.55]]) {
-        const g = new THREE.DodecahedronGeometry(r, 0);
-        g.scale(1.1, sq, 1);
+      // The same heap as the near scene.
+      for (const [x, z, r, flatten, seed, yaw] of HEAPS[variant % HEAPS.length]) {
+        const g = stoneLump(r, flatten, seed);
         g.rotateY(yaw);
-        g.translate(x, r * sq * 0.6, z);
+        g.translate(x, r * flatten * 0.2, z);
         parts.push(g);
       }
     } else if (shape === 'oil') {
@@ -302,7 +300,15 @@ export class Scenery {
       parts.push(new THREE.CylinderGeometry(1.4, 1.5, 0.12, 12).translate(0, 0.06, 0));
       parts.push(new THREE.CylinderGeometry(0.7, 0.8, 0.2, 10).translate(0.6, 0.1, -0.4));
     } else if (shape === 'pine') {
-      for (const [x, z, h] of [[0, 0, 2.4], [0.9, 0.5, 1.7], [-0.8, 0.4, 1.9]]) parts.push(new THREE.ConeGeometry(h * 0.32, h, 6).translate(x, h / 2, z));
+      // Three painted pines, as the pin for a wood.
+      const p = new Parts();
+      p.foliage = { base: 0, height: 2.4 };
+      for (const [x, z, s] of [[0, 0, 1.7], [0.9, 0.5, 1.2], [-0.8, 0.4, 1.35]]) {
+        p.cyl(0.03 * s, 0.07 * s, 0.4 * s, 0x77593f, { x, z, t: 2 }, 4);
+        p.cone(0.42 * s, 0.8 * s, 0x2f6c48, { x, y: 0.25 * s, z, t: 0 }, 6);
+        p.cone(0.3 * s, 0.85 * s, 0x3a7a4c, { x, y: 0.72 * s, z, t: 0 }, 6);
+      }
+      return p.build();
     } else {
       for (const [x, z, r] of [[0, 0, 0.8], [0.9, 0.3, 0.55], [-0.7, 0.5, 0.6]]) parts.push(new THREE.IcosahedronGeometry(r, 0).translate(x, r * 0.9, z));
     }
@@ -314,16 +320,19 @@ export class Scenery {
   private buildFarMarks(marks: { id: number; kind: NodeKind; matrix: THREE.Matrix4 }[]): void {
     if (marks.length === 0) return;
     const col = new THREE.Color();
-    const stone = new THREE.Color(0x8b857c);
+    const kinds: { shape: 'rock' | 'oil' | 'pine' | 'bush'; variant: number }[] = [];
     for (const shape of ['rock', 'oil', 'pine', 'bush'] as const) {
-      const mine = marks.filter((m) => Scenery.markShape(m.kind) === shape);
+      if (shape === 'rock') for (let v = 0; v < HEAPS.length; v++) kinds.push({ shape, variant: v });
+      else kinds.push({ shape, variant: 0 });
+    }
+    for (const { shape, variant } of kinds) {
+      const mine = marks.filter((m) => Scenery.markShape(m.kind) === shape && (shape !== 'rock' || m.id % HEAPS.length === variant));
       if (mine.length === 0) continue;
-      const mat = new THREE.MeshStandardMaterial({ roughness: shape === 'oil' ? 0.25 : 0.95, metalness: shape === 'oil' ? 0.3 : 0, flatShading: true });
-      const mesh = new THREE.InstancedMesh(Scenery.markGeometry(shape), mat, mine.length);
+      const mat = new THREE.MeshStandardMaterial({ roughness: shape === 'oil' ? 0.25 : 0.95, metalness: shape === 'oil' ? 0.3 : 0, flatShading: true, vertexColors: shape === 'rock' || shape === 'pine' });
+      const mesh = new THREE.InstancedMesh(Scenery.markGeometry(shape, variant), mat, mine.length);
       mine.forEach((m, i) => {
         mesh.setMatrixAt(i, ZERO);
         col.setHex(Scenery.MARK_COLOR[m.kind] ?? 0xffffff);
-        if (shape === 'rock') col.lerp(stone, 0.45);
         mesh.setColorAt(i, col);
         this.farIndex.set(m.id, { mesh, i, matrix: m.matrix });
       });
@@ -336,10 +345,10 @@ export class Scenery {
   }
 
   /** Show or hide one node's marker: shown while nothing has been built on it. */
-  private setFarMark(id: number, on: boolean): void {
+  private setFarMark(id: number, on: boolean, scale = 1): void {
     const f = this.farIndex.get(id);
     if (!f) return;
-    f.mesh.setMatrixAt(f.i, on ? f.matrix : ZERO);
+    f.mesh.setMatrixAt(f.i, on ? this.pinMatrix.copy(f.matrix).multiply(this.pinScale.makeScale(scale, scale, scale)) : ZERO);
     f.mesh.instanceMatrix.needsUpdate = true;
   }
 
@@ -348,10 +357,12 @@ export class Scenery {
     this.propUsed = new Set(used);
     for (const [id, m] of this.props) {
       m.visible = !used.has(id) && m.userData.far !== true;
-      this.setFarMark(id, !used.has(id));
+      this.setFarMark(id, !used.has(id) && m.userData.far === true);
     }
   }
   private propUsed = new Set<number>();
+  private readonly pinMatrix = new THREE.Matrix4();
+  private readonly pinScale = new THREE.Matrix4();
 
   private tileIndex(x: number, y: number): number {
     return y * this.world.width + x;
@@ -485,10 +496,77 @@ export class Scenery {
       }
     }
 
+    // The foot of a mountain: shrubs, a few trees and loose stones gather on the gentle ground within two tiles of the rock, thickest
+    // against it, so the grass runs up into the mountain instead of stopping at its wall.
+    for (let y = 0; y < w.height; y++) {
+      for (let x = 0; x < w.width; x++) {
+        const tt = w.terrain[this.tileIndex(x, y)];
+        if (tt !== 'forest' && tt !== 'grass' && tt !== 'mountain') continue;
+        const ti = this.tileIndex(x, y);
+        if (town.has(ti) || corridor.has(ti) || nearQuarry(x, y) || isDesert(w, x, y)) continue;
+        let closest = tt === 'mountain' ? 0 : 9;
+        for (let dy = -2; dy <= 2; dy++) {
+          const ny = y + dy;
+          if (ny < 0 || ny >= w.height) continue;
+          for (let dx = -2; dx <= 2; dx++) if (w.terrain[this.tileIndex(x + dx, ny)] === 'mountain') closest = Math.min(closest, Math.max(Math.abs(dx), Math.abs(dy)));
+        }
+        if (closest > 2) continue;
+        // On the mountain itself only the low, gentle ground between the slabs takes plants (the slope and treeline filter below).
+        // Many candidate spots on every tile here; the slope and treeline filter below keeps only the gentle ground, so the green
+        // pockets between slabs fill with shrubs and scattered trees and no straight grass edge is left bare.
+        const candidates = tt === 'mountain' ? 9 : closest <= 1 ? 7 : 3;
+        const { lon, lat } = tileLonLat(w.width, w.height, x, y);
+        for (let k = 0; k < candidates; k++) {
+          const roll = r();
+          const kind: Spot['kind'] | null = roll < 0.42 ? 'bush' : roll < 0.64 ? 'rock' : roll < 0.84 ? (r() < 0.55 ? 'pine' : r() < 0.5 ? 'birch' : 'round') : null;
+          if (!kind) continue;
+          const scale = kind === 'bush' ? 0.5 + r() * 0.7 : kind === 'rock' ? 0.1 + r() * 0.3 : 0.7 + r() * 0.6;
+          spots.push({ tile: ti, lon: lon + (r() - 0.5) * dLon * 0.96, lat: lat + (r() - 0.5) * dLat * 0.96, kind, scale, yaw: r() * Math.PI * 2, shade: r() });
+        }
+      }
+    }
+
+    // Nothing grows or lies on a cliff face. Trees and bushes need gentle ground; stones may lie on a moderate slope, so they gather as
+    // scree at the foot of a cliff and not stuck to its wall. Slope is rise over run, measured on the ground as drawn.
+    const step = 0.45;
+    const slopeAt = (sp: Spot): number => {
+      const cl = Math.max(0.2, Math.cos(sp.lat));
+      const h0 = this.hf.surface(sp.lon, sp.lat);
+      const dl = step / (R * cl);
+      const da = step / R;
+      return Math.max(
+        Math.abs(this.hf.surface(sp.lon + dl, sp.lat) - h0),
+        Math.abs(this.hf.surface(sp.lon - dl, sp.lat) - h0),
+        Math.abs(this.hf.surface(sp.lon, sp.lat + da) - h0),
+        Math.abs(this.hf.surface(sp.lon, sp.lat - da) - h0),
+      ) / step;
+    };
+    const kept = spots.filter((sp) => {
+      const slope = slopeAt(sp);
+      if (sp.kind === 'rock') return slope < (sp.scale > 0.4 ? 0.9 : 0.6);
+      // A treeline: nothing grows on the high rock.
+      return slope < (sp.kind === 'bush' ? 0.85 : 0.7) && this.hf.surface(sp.lon, sp.lat) < 7.5;
+    });
+    spots.length = 0;
+    spots.push(...kept);
+
     const treeMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9 });
     // The leaves change with the season: the colour is the one the game eases (see season.ts).
     treeMat.color = seasonLook.leaf;
-    const rockMat = new THREE.MeshStandardMaterial({ color: 0x8f8d88, roughness: 1, flatShading: true });
+    const rockMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 1, flatShading: true, vertexColors: true });
+    // Stones lie in the colour of the ground round them: warm sandstone beside a mountain, grey-brown elsewhere.
+    const nearMountain = (tile: number): boolean => {
+      const tx = tile % w.width;
+      const ty = Math.floor(tile / w.width);
+      for (let dy = -2; dy <= 2; dy++) {
+        const ny = ty + dy;
+        if (ny < 0 || ny >= w.height) continue;
+        for (let dx = -2; dx <= 2; dx++) if (w.terrain[this.tileIndex(wrapX(w, tx + dx), ny)] === 'mountain') return true;
+      }
+      return false;
+    };
+    const stoneGrey = new THREE.Color(0xa09a90);
+    const stoneSand = new THREE.Color(0xb39a7c);
     const shapes: Record<Spot['kind'], { geo: THREE.BufferGeometry; lod: THREE.BufferGeometry | null; mat: THREE.Material }> = {
       pine: { geo: treeGeometry('pine'), lod: treeLodGeometry('pine'), mat: treeMat },
       round: { geo: treeGeometry('oak'), lod: treeLodGeometry('oak'), mat: treeMat },
@@ -528,8 +606,8 @@ export class Scenery {
       mesh.receiveShadow = true;
       list.forEach((s, i) => {
         mesh.setMatrixAt(i, this.seat(s));
-        const base = kind === 'rock' ? 0.55 + s.shade * 0.35 : 0.8 + s.shade * 0.4;
-        mesh.setColorAt(i, col.setScalar(base));
+        if (kind === 'rock') mesh.setColorAt(i, col.copy(nearMountain(s.tile) ? stoneSand : stoneGrey).multiplyScalar(0.78 + s.shade * 0.4));
+        else mesh.setColorAt(i, col.setScalar(0.8 + s.shade * 0.4));
         const arr = this.slots.get(s.tile) ?? [];
         arr.push({ mesh, i, spot: s });
         this.slots.set(s.tile, arr);
@@ -774,7 +852,7 @@ export class Scenery {
   }
 
   /** A thin bright line round the outside of a set of tiles, so a blocked area reads as one clean shape instead of a patchwork. */
-  private zoneEdge(tiles: { x: number; y: number }[], color: number, lift: number): THREE.LineSegments {
+  private zoneEdge(tiles: { x: number; y: number }[], color: number, lift: number, contains?: (x: number, y: number) => boolean): THREE.LineSegments {
     const w = this.world;
     const dLon = (Math.PI * 2) / w.width;
     const dLat = (2 * LAT_SPAN) / w.height;
@@ -795,7 +873,7 @@ export class Scenery {
       ];
       for (const [dx, dy, a, b] of sides) {
         const nx = (((t.x + dx) % w.width) + w.width) % w.width;
-        if (has.has((t.y + dy) * w.width + nx)) continue;
+        if (has.has((t.y + dy) * w.width + nx) || contains?.(nx, t.y + dy)) continue;
         corner(lon + a[0] * dLon, lat + a[1] * dLat);
         corner(lon + b[0] * dLon, lat + b[1] * dLat);
       }
@@ -810,18 +888,22 @@ export class Scenery {
 
   private zoneGroup: THREE.Group | null = null;
   private zoneSig = '';
+  private zoneTodo: { x: number; y: number }[] = [];
+  private zoneFocus = '';
 
   /**
    * While a road or track tool is active, the land is washed green where one can be laid and red-orange where it cannot (a
-   * building, a town's own ground, ice). Sea is left bare so the land stands out from the water. Remade when anything changes.
+   * building, a town's own ground, ice). Build one small chunk per frame, nearest the view first, so opening the tool
+   * does not classify and upload the entire world at once. Completed chunks are reused when the tool is reopened.
    */
-  setRoadZones(mode: 'road' | 'rail' | null, sig: string): void {
+  setRoadZones(mode: 'road' | 'rail' | null, sig: string, cx = 0, cy = 0): void {
     const w = this.world;
     if (mode === null) {
       if (this.zoneGroup) this.zoneGroup.visible = false;
       return;
     }
     const key = `${mode}|${sig}`;
+    const chunkSize = 16;
     if (key !== this.zoneSig) {
       this.zoneSig = key;
       if (this.zoneGroup) {
@@ -832,21 +914,50 @@ export class Scenery {
           if (m.material) (m.material as THREE.Material).dispose();
         });
       }
+      this.zoneGroup = new THREE.Group();
+      this.group.add(this.zoneGroup);
+      this.zoneTodo = [];
+      this.zoneFocus = '';
+      for (let y = 0; y < w.height; y += chunkSize) {
+        for (let x = 0; x < w.width; x += chunkSize) this.zoneTodo.push({ x, y });
+      }
+    }
+    const focusX = ((cx % w.width) + w.width) % w.width;
+    const focus = `${Math.floor(focusX / chunkSize)},${Math.floor(cy / chunkSize)}`;
+    if (this.zoneTodo.length && focus !== this.zoneFocus) {
+      this.zoneFocus = focus;
+      const distance = (tile: { x: number; y: number }): number => {
+        const centerX = (tile.x + Math.min(w.width, tile.x + chunkSize)) / 2;
+        const centerY = (tile.y + Math.min(w.height, tile.y + chunkSize)) / 2;
+        const dx = Math.abs(centerX - focusX);
+        return Math.min(dx, w.width - dx) ** 2 + (centerY - cy) ** 2;
+      };
+      this.zoneTodo.sort((a, b) => distance(b) - distance(a));
+    }
+    const next = this.zoneTodo.pop();
+    if (next) {
+      const blocked = (x: number, y: number): boolean => {
+        const terrain = terrainAt(w, x, y);
+        return terrain !== null && terrain !== 'water' &&
+          (terrain === 'ice' || !!siteAt(w, x, y) || townBlocks(w, x, y, mode));
+      };
       const ok: { x: number; y: number }[] = [];
       const no: { x: number; y: number }[] = [];
-      for (let y = 0; y < w.height; y++) {
-        for (let x = 0; x < w.width; x++) {
-          const t = terrainAt(w, x, y);
-          if (t === null || t === 'water') continue;
-          (t === 'ice' || siteAt(w, x, y) || townBlocks(w, x, y, mode) ? no : ok).push({ x, y });
+      for (let y = next.y; y < Math.min(w.height, next.y + chunkSize); y++) {
+        for (let x = next.x; x < Math.min(w.width, next.x + chunkSize); x++) {
+          const terrain = terrainAt(w, x, y);
+          if (terrain === null || terrain === 'water') continue;
+          (blocked(x, y) ? no : ok).push({ x, y });
         }
       }
-      const group = new THREE.Group();
-      group.add(this.tileQuads(ok, 0xa6ebc4, 0.32, 0.13));
-      group.add(this.tileQuads(no, 0xff8a45, 0.44, 0.15));
-      group.add(this.zoneEdge(no, 0xffc27a, 0.17));
-      this.group.add(group);
-      this.zoneGroup = group;
+      const meshes: (THREE.Mesh | THREE.LineSegments)[] = [];
+      if (ok.length) meshes.push(this.tileQuads(ok, 0xa6ebc4, 0.32, 0.13));
+      if (no.length) meshes.push(this.tileQuads(no, 0xff8a45, 0.44, 0.15), this.zoneEdge(no, 0xffc27a, 0.17, blocked));
+      for (const mesh of meshes) {
+        mesh.geometry.computeBoundingSphere();
+        mesh.frustumCulled = true;
+        this.zoneGroup!.add(mesh);
+      }
     }
     if (this.zoneGroup) this.zoneGroup.visible = true;
   }
@@ -1067,10 +1178,20 @@ export class Scenery {
     const propLimit = (this.treeDetailDistance * 4) ** 2;
     for (const [id, m] of this.props) {
       const e = m.matrix.elements;
-      const far = (e[12] - eye.x) ** 2 + (e[13] - eye.y) ** 2 + (e[14] - eye.z) ** 2 > propLimit;
+      const d2 = (e[12] - eye.x) ** 2 + (e[13] - eye.y) ** 2 + (e[14] - eye.z) ** 2;
+      const far = d2 > propLimit;
       if (far !== (m.userData.far === true)) {
         m.userData.far = far;
         m.visible = !far && !this.propUsed.has(id);
+      }
+      // Resource nodes must read from a distance: the pin grows with the distance past where the near scene stops, so a heap is
+      // still a clear shape on the globe, and is its own size where the two swap.
+      if (far) {
+        m.userData.pin = true;
+        this.setFarMark(id, !this.propUsed.has(id), Math.min(m.userData.grow as number, 1 + 2 * (Math.sqrt(d2 / propLimit) - 1)));
+      } else if (m.userData.pin !== false) {
+        m.userData.pin = false;
+        this.setFarMark(id, false);
       }
     }
     // The pins show out to the same distance as the town models.

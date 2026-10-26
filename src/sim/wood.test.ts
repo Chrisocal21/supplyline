@@ -1,3 +1,4 @@
+import { districtGoods } from './venues';
 // Logs and lumber keep a buyer after a town is built, and the early menu opens one step at a time.
 import { describe, expect, it } from 'vitest';
 import { DISTRICTS, DISTRICT_ORDER, GOOD_LIST, LEVEL_MATERIALS, SITE_DEFS, SITE_UNLOCK_QUEST, TIERS } from './defs';
@@ -80,9 +81,10 @@ describe('every district is a buyer', () => {
     p.stage = 2;
     p.level = 5;
     for (const id of DISTRICT_ORDER) {
-      expect([...DISTRICTS[id].goods, ...(DISTRICTS[id].buys ?? [])].length, id).toBeGreaterThan(0);
+      expect([...districtGoods(p, id), ...(DISTRICTS[id].buys ?? [])].length, id).toBeGreaterThan(0);
     }
     const site = { ...w.sites[0], kind: 'district', districtId: 'hotels', placeId: p.id } as never;
-    expect(dockDemand(w, site as never)).toContain('bread');
+    // A venue district asks for what its own venues sell, not for everything.
+    expect(dockDemand(w, site as never)).toContain(districtGoods(p, 'hotels')[0]);
   });
 });

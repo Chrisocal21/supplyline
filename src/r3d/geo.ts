@@ -117,6 +117,29 @@ interface Run {
   level: (s: number) => number;
 }
 
+/**
+ * One big block of rock in a mountain: a flat top with bevelled sides, in tile units. A mountain is the union of a few of these, so
+ * it is built from broad planes that meet in hard creases, like the resource-node rocks, instead of a smooth spike.
+ */
+interface Slab {
+  cx: number;
+  cy: number;
+  cos: number;
+  sin: number;
+  rx: number;
+  rz: number;
+  top: number;
+  /** Height gained per tile along the slab's long axis, so the tops are not all level. */
+  tilt: number;
+}
+
+/** A repeatable 0..1 number for a tile and a purpose, so the same world always gets the same rocks. */
+function tileHash(seed: number, x: number, y: number, salt: number): number {
+  let n = Math.imul(x + 1013, 374761393) ^ Math.imul(y + 2029, 668265263) ^ Math.imul(seed + salt * 7919, 2147483647);
+  n = Math.imul(n ^ (n >>> 13), 1274126177);
+  return ((n ^ (n >>> 16)) >>> 0) / 4294967296;
+}
+
 /** Bilinear terrain height over the globe, matching what the terrain mesh shows. */
 export class HeightField {
   private readonly relief: Float32Array;
@@ -130,12 +153,16 @@ export class HeightField {
   private profiles = new Map<string, EdgeProfile>();
   /** Road level under each mountain tile a road passes through. */
   private levels = new Map<number, number>();
+  /** The rock slabs that reach each mountain tile. */
+  private slabs = new Map<number, Slab[]>();
 
   constructor(private readonly world: World) {
     this.seed = world.seed + 7;
     this.relief = new Float32Array(world.width * world.height);
     for (let i = 0; i < this.relief.length; i++) this.relief[i] = elevToRelief(world.elev[i]);
+    this.dropFoothills();
     this.padOf = new Int16Array(world.width * world.height).fill(-1);
+    this.buildSlabs();
     // A town is one flat model, so the ground along its whole strip is levelled to the height of its centre.
     for (const p of world.places) {
       const height = this.relief[p.y * world.width + p.x];
@@ -496,6 +523,96 @@ export class HeightField {
     return this.levels.get(tile.y * this.world.width + tile.x);
   }
 
+  /**
+   * Grass hills that run up the side of a mountain read as a green wedge between the rock slabs. Land beside a mountain is held
+   * low at the foot (1.2 beside it, 2.2 two tiles out, then free), so the rock stands up out of the plain.
+   */
+  private dropFoothills(): void {
+    const { width: W, height: H, terrain } = this.world;
+    const cap = new Float32Array(W * H).fill(Infinity);
+    for (let y = 0; y < H; y++) {
+      for (let x = 0; x < W; x++) {
+        if (terrain[y * W + x] !== 'mountain' || this.relief[y * W + x] < 2.2) continue;
+        for (let dy = -2; dy <= 2; dy++) {
+          const ny = y + dy;
+          if (ny < 0 || ny >= H) continue;
+          for (let dx = -2; dx <= 2; dx++) {
+            const k = ny * W + (((x + dx) % W) + W) % W;
+            if (terrain[k] === 'mountain') continue;
+            cap[k] = Math.min(cap[k], Math.max(Math.abs(dx), Math.abs(dy)) === 1 ? 1.2 : 2.2);
+          }
+        }
+      }
+    }
+    for (let i = 0; i < cap.length; i++) if (this.relief[i] > cap[i] && terrain[i] !== 'water') this.relief[i] = cap[i];
+  }
+
+  /**
+   * Lay out the slabs: about one for every two mountain tiles, 2 to 4 tiles across, topped near the height the smooth ground has
+   * there. A tall peak is two stacked, a broad one below and a smaller one on top, so it steps up in layers.
+   */
+  private buildSlabs(): void {
+    const { width: W, height: H, terrain } = this.world;
+    const add = (slab: Slab): void => {
+      const reach = Math.ceil(Math.max(slab.rx, slab.rz) * 1.2) + 1;
+      const x0 = Math.round(slab.cx);
+      const y0 = Math.round(slab.cy);
+      for (let dy = -reach; dy <= reach; dy++) {
+        const y = y0 + dy;
+        if (y < 0 || y >= H) continue;
+        for (let dx = -reach; dx <= reach; dx++) {
+          const key = y * W + (((x0 + dx) % W) + W) % W;
+          const list = this.slabs.get(key);
+          if (list) list.push(slab);
+          else this.slabs.set(key, [slab]);
+        }
+      }
+    };
+    for (let y = 0; y < H; y++) {
+      for (let x = 0; x < W; x++) {
+        if (terrain[y * W + x] !== 'mountain') continue;
+        const t0 = this.relief[y * W + x];
+        if (t0 < 2.2) continue;
+        const hs = (salt: number): number => tileHash(this.seed, x, y, salt);
+        if (hs(1) > 0.5) continue;
+        const cx = x + (hs(2) - 0.5) * 0.9;
+        const cy = y + (hs(3) - 0.5) * 0.9;
+        const yaw = hs(4) * Math.PI;
+        const rx = 1.3 + hs(5) * 0.9 + t0 * 0.05;
+        const rz = 1.1 + hs(7 + 20) * 0.7 + t0 * 0.04;
+        const top = t0 * (0.8 + hs(7) * 0.15);
+        const tall = t0 > 7;
+        add({ cx, cy, cos: Math.cos(yaw), sin: Math.sin(yaw), rx, rz, top: tall ? top * 0.62 : top, tilt: (hs(8) - 0.5) * 0.5 });
+        if (tall) {
+          const yaw2 = yaw + 0.6;
+          add({ cx: cx + (hs(9) - 0.5) * 0.5, cy: cy + (hs(10) - 0.5) * 0.5, cos: Math.cos(yaw2), sin: Math.sin(yaw2), rx: rx * 0.58, rz: rz * 0.58, top: top * 1.02, tilt: (hs(11) - 0.5) * 0.4 });
+        }
+      }
+    }
+  }
+
+  /** Height of the slabs at a point in tile units, or 0 where none reach. */
+  private slabHeight(u: number, v: number, W: number, H: number): number {
+    const list = this.slabs.get(Math.min(H - 1, Math.max(0, Math.round(v))) * W + (((Math.round(u) % W) + W) % W));
+    if (!list) return 0;
+    let best = 0;
+    for (const s of list) {
+      let dx = u - s.cx;
+      if (dx > W / 2) dx -= W;
+      if (dx < -W / 2) dx += W;
+      const dy = v - s.cy;
+      const a = dx * s.cos + dy * s.sin;
+      const b = -dx * s.sin + dy * s.cos;
+      const qa = Math.abs(a) / s.rx;
+      const qb = Math.abs(b) / s.rz;
+      // Square-ish, with the corners cut off.
+      const q = Math.max(qa, qb, (qa + qb) * 0.72);
+      const h = s.top + s.tilt * a - Math.max(0, q - 0.7) * s.top * 1.5;
+      if (h > best) best = h;
+    }
+    return best;
+  }
+
   /** Height above the sea surface at a lon/lat, including graded road beds. */
   at(lon: number, lat: number): number {
     const h = this.natural(lon, lat);
@@ -576,7 +693,21 @@ export class HeightField {
     const r = this.relief;
     const top = r[ya * W + xa] * (1 - fx) + r[ya * W + xb] * fx;
     const bot = r[yb * W + xa] * (1 - fx) + r[yb * W + xb] * fx;
-    let h = top * (1 - fy) + bot * fy;
+    const raw = top * (1 - fy) + bot * fy;
+    // Mountains are rock slabs, not a smooth spike. Apply before pads/cuts so yards and roads still grade the real surface. The
+    // smooth ground under a mountain tile is dropped to a low skirt, so it does not slope up the side of the plain as a grass wedge.
+    const mountain = (x: number, y: number): number => this.world.terrain[y * W + x] === 'mountain' ? 1 : 0;
+    const dropped = (x: number, y: number): number => {
+      const v0 = r[y * W + x];
+      return mountain(x, y) ? v0 * (1 - 0.82 * THREE.MathUtils.smoothstep(v0, 1.5, 3.2)) : v0;
+    };
+    const lowTop = dropped(xa, ya) * (1 - fx) + dropped(xb, ya) * fx;
+    const lowBot = dropped(xa, yb) * (1 - fx) + dropped(xb, yb) * fx;
+    let h = lowTop * (1 - fy) + lowBot * fy;
+    const mt = mountain(xa, ya) * (1 - fx) + mountain(xb, ya) * fx;
+    const mb = mountain(xa, yb) * (1 - fx) + mountain(xb, yb) * fx;
+    const rock = (mt * (1 - fy) + mb * fy) * THREE.MathUtils.smoothstep(raw, 1.5, 3.2);
+    if (rock > 0) h += (Math.max(this.slabHeight(u, v, W, H), raw * 0.18) - h) * rock;
     let flat = 0;
     const pi = this.padOf[Math.min(H - 1, Math.max(0, Math.round(v))) * W + (((Math.round(u) % W) + W) % W)];
     if (pi >= 0) {
@@ -595,7 +726,7 @@ export class HeightField {
     // Rugged detail on high ground only, so coasts and plains stay calm.
     const p = lonLatToVec(lon, lat, 1);
     const rough = (fbm3(this.seed, p.x * 46, p.y * 46, p.z * 46, 3) - 0.5) * 1.4;
-    return h + rough * THREE.MathUtils.smoothstep(h, 1.2, 4.5) * (1 - flat);
+    return h + rough * THREE.MathUtils.smoothstep(h, 1.2, 4.5) * (1 - flat) * (1 - rock * 0.85);
   }
 
   /** Distance from the globe centre to the ground at a lon/lat. */

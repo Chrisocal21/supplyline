@@ -625,7 +625,7 @@ export const MARKET_DEMAND: Good[][] = [
 ];
 // Every food the Market can sell on to its customers is in its list, so no ingredient or crop is left without a buyer. Everything the
 // first two tiers can make for sale (jam, butter, juice, water, feed, mulch, pellets, coal) sells at a level 1 Market from the start.
-for (const [from, goods] of [[0, ['jam', 'butter', 'juice', 'water', 'feed', 'mulch', 'pellets', 'coal']], [1, ['flour', 'sugar', 'salt']], [2, ['spices', 'pork', 'grapes', 'spirits', 'books']], [3, ['machinery']]] as [number, Good[]][]) {
+for (const [from, goods] of [[0, ['jam', 'butter', 'juice', 'water', 'feed', 'mulch', 'pellets', 'coal', 'clay', 'sand', 'stone', 'gravel', 'ore', 'grain', 'barley', 'sugarbeet', 'sunflower', 'bricks', 'blocks', 'slag']], [1, ['flour', 'sugar', 'salt', 'cotton', 'wool', 'hops', 'cocoa', 'yarn']], [2, ['spices', 'pork', 'grapes', 'spirits', 'books']], [3, ['machinery']]] as [number, Good[]][]) {
   for (let l = from; l < MARKET_DEMAND.length; l++) for (const g of goods) if (!MARKET_DEMAND[l].includes(g)) MARKET_DEMAND[l].push(g);
 }
 
@@ -720,7 +720,7 @@ export function upgradeMaterials(kind: SiteKind, level: number): Stock {
 export const BUILD_GOODS: Good[] = ['logs', 'lumber', 'stone', 'granite', 'blocks', 'bricks', 'sand', 'gravel', 'cement', 'concrete', 'glass', 'steel', 'tools'];
 
 /** What a Warehouse (the Distribution Warehouse) may hold: finished goods only. Tools can go in both it and the Supply Yard. */
-export const WAREHOUSE_GOODS: Good[] = ['smokedfish', 'cannedfish', 'bread', 'pastry', 'pizza', 'pasta', 'cheese', 'butter', 'icecream', 'jam', 'juice', 'canned', 'crisps', 'meat', 'sausage', 'beer', 'wine', 'spirits', 'soda', 'chocolate', 'candles', 'pillows', 'paper', 'books', 'clothes', 'furniture', 'tools', 'machinery', 'pellets', 'feed', 'cookoil', 'fuel', 'oil', 'mulch', 'coffee', 'mango', 'honey'];
+export const WAREHOUSE_GOODS: Good[] = ['vegetables', 'spices', 'potatoes', 'salt', 'flour', 'milk', 'fish', 'pork', 'sugar', 'water', 'fruit', 'eggs', 'firewood', 'cloth', 'lumber', 'glass', 'cement', 'concrete', 'steel', 'clay', 'sand', 'stone', 'gravel', 'ore', 'coal', 'grain', 'barley', 'hops', 'sugarbeet', 'sunflower', 'cotton', 'wool', 'cocoa', 'bricks', 'blocks', 'ingots', 'yarn', 'granite', 'smokedfish', 'cannedfish', 'bread', 'pastry', 'pizza', 'pasta', 'cheese', 'butter', 'icecream', 'jam', 'juice', 'canned', 'crisps', 'meat', 'sausage', 'beer', 'wine', 'spirits', 'soda', 'chocolate', 'candles', 'pillows', 'paper', 'books', 'clothes', 'furniture', 'tools', 'machinery', 'pellets', 'feed', 'cookoil', 'fuel', 'oil', 'mulch', 'coffee', 'mango', 'honey'];
 
 // ---- specialisation paths and districts ----
 
@@ -865,10 +865,10 @@ export const AFFINITY_BONUS = 1.5;
 
 export const DISTRICTS: Record<DistrictId, DistrictDef> = {
   farmersmarket: { label: 'Farmers Market', blurb: 'Stalls of fresh produce. Buys honey, juice and pasta that the Market ignores.', minLevel: 1, cost: 450, goods: ['honey', 'juice', 'pasta', 'bread', 'cheese', 'jam', 'flour'], price: 0.08, revenue: 10, demand: { market: ['honey', 'juice', 'pasta'] }, affinity: 'breadbasket' },
-  restaurants: { label: 'Restaurant Row', blurb: 'Kitchens that burn through bread, cheese and jam.', minLevel: 2, cost: 1000, goods: ['bread', 'cheese', 'jam', 'flour'], price: 0.1, revenue: 24, affinity: 'breadbasket' },
+  restaurants: { label: 'Restaurant Row', blurb: 'Restaurants that cook what you supply. Each town has its own mix.', minLevel: 2, cost: 1000, goods: ['bread', 'cheese', 'jam', 'flour'], price: 0.1, revenue: 24, affinity: 'breadbasket' },
   heating: { label: 'Heating Depot', blurb: 'Warms the town in winter. Wants pellets, coal and oil from the islands.', minLevel: 2, cost: 800, goods: ['pellets', 'coal', 'oil'], price: 0.1, revenue: 20, demand: { market: ['coal'] } },
   cafe: { label: 'Coffee House', blurb: 'The corner cafe. Pays well for island coffee, with bread, jam and milk to go with it.', minLevel: 2, cost: 700, goods: ['coffee', 'bread', 'jam', 'milk'], price: 0.12, revenue: 24, affinity: 'boulevard' },
-  hardware: { label: 'Hardware Store', blurb: 'Tools, timber and bricks for every home.', minLevel: 2, cost: 1000, goods: ['tools', 'lumber', 'bricks', 'cement'], price: 0.1, revenue: 26, demand: { market: ['cement'] }, affinity: 'forge' },
+  hardware: { label: 'Hardware Store', blurb: 'Shops for tools, timber and bricks. Each town has its own mix.', minLevel: 2, cost: 1000, goods: ['tools', 'lumber', 'bricks', 'cement'], price: 0.1, revenue: 26, demand: { market: ['cement'] }, affinity: 'forge' },
   warehouse: { label: 'Warehouse District', blurb: 'Deep storage. Docks hold more, so prices hold up under heavy deliveries.', minLevel: 2, cost: 1300, goods: [], buys: ['lumber', 'bricks', 'blocks', 'cement', 'tools', 'furniture'], price: 0, revenue: 0, effect: 'storage', affinity: 'tradehub' },
   builders: { label: "Builders' Yard", blurb: 'Brick, block and glass for a growing skyline.', minLevel: 3, cost: 2000, goods: ['bricks', 'blocks', 'concrete', 'glass', 'cement'], price: 0.1, revenue: 42, demand: { market: ['blocks', 'concrete'] }, affinity: 'forge' },
   furniture: { label: 'Furniture Gallery', blurb: 'Showrooms for timber and cloth.', minLevel: 3, cost: 1800, goods: ['furniture', 'lumber', 'cloth'], price: 0.1, revenue: 36, affinity: 'boulevard' },
@@ -877,10 +877,10 @@ export const DISTRICTS: Record<DistrictId, DistrictDef> = {
   terminal: { label: 'Freight Terminal', blurb: 'Raw goods and bulk freight find a better buyer.', minLevel: 3, cost: 2400, goods: ['logs', 'stone', 'ore', 'coal', 'sand', 'clay', 'gravel'], price: 0.1, revenue: 32, demand: { freight: ['ingots', 'steel'] }, affinity: 'tradehub' },
   community: { label: 'Community Centre', blurb: 'A hall for classes, clubs and markets. Wants books, furniture, bread and milk.', minLevel: 2, cost: 900, goods: ['books', 'furniture', 'bread', 'milk'], price: 0.06, revenue: 22, demand: { market: ['books'] } },
   amphitheatre: { label: 'Amphitheatre', blurb: 'Open-air stage and tiered seating. Timber, cloth and paper for the shows.', minLevel: 3, cost: 2600, goods: ['lumber', 'cloth', 'clothes', 'paper'], price: 0.08, revenue: 50, affinity: 'boulevard' },
-  stadium: { label: 'Football Stadium', blurb: 'Game day fills the town. Wants bread, cheese, milk, clothes and coffee for the crowd.', minLevel: 4, cost: 6500, goods: ['bread', 'cheese', 'milk', 'clothes', 'coffee'], price: 0.08, revenue: 120 },
-  ballpark: { label: 'Baseball Park', blurb: 'Summer evenings and a full house. Wants bread, fruit, paper, clothes and coffee.', minLevel: 4, cost: 6000, goods: ['bread', 'fruit', 'paper', 'clothes', 'coffee'], price: 0.08, revenue: 110 },
-  soccer: { label: 'Soccer Stadium', blurb: 'The beautiful game, under floodlights. Wants bread, fruit, milk, clothes and coffee for the supporters.', minLevel: 4, cost: 6000, goods: ['bread', 'fruit', 'milk', 'clothes', 'coffee'], price: 0.08, revenue: 105 },
-  arena: { label: 'Hockey Arena', blurb: 'An indoor arena on ice. Wants milk, cheese, clothes, steel and coffee.', minLevel: 4, cost: 5500, goods: ['milk', 'cheese', 'clothes', 'steel', 'coffee'], price: 0.08, revenue: 100 },
+  stadium: { label: 'Football Stadium', blurb: 'Game day fills the town. Vendors in the concourse each sell their own food.', minLevel: 4, cost: 6500, goods: ['bread', 'cheese', 'milk', 'clothes', 'coffee'], price: 0.08, revenue: 120 },
+  ballpark: { label: 'Baseball Park', blurb: 'Summer evenings and a full house. Vendors sell dogs, peanuts and cold drinks.', minLevel: 4, cost: 6000, goods: ['bread', 'fruit', 'paper', 'clothes', 'coffee'], price: 0.08, revenue: 110 },
+  soccer: { label: 'Soccer Stadium', blurb: 'The beautiful game, under floodlights. Vans and stalls feed the supporters.', minLevel: 4, cost: 6000, goods: ['bread', 'fruit', 'milk', 'clothes', 'coffee'], price: 0.08, revenue: 105 },
+  arena: { label: 'Hockey Arena', blurb: 'An indoor arena on ice. Concession stands sell hot food and drink.', minLevel: 4, cost: 5500, goods: ['milk', 'cheese', 'clothes', 'steel', 'coffee'], price: 0.08, revenue: 100 },
   resort: { label: 'Beach Resort', blurb: 'Pool, palms and a long list of guests. Pays well for mangoes and coffee. Income grows with the variety the town offers.', minLevel: 3, cost: 3600, goods: ['mango', 'coffee', 'fruit', 'furniture', 'cloth'], price: 0.1, revenue: 58, effect: 'visitors', affinity: 'boulevard' },
   university: { label: 'University', blurb: 'Educated townsfolk. Everything the town buys makes it grow faster.', minLevel: 4, cost: 4500, goods: ['books', 'paper', 'machinery'], price: 0.06, revenue: 0, effect: 'growth' },
   foundry: { label: 'Foundry Row', blurb: 'Casting yards that buy iron and steel in bulk. The Forge only.', minLevel: 3, cost: 3200, goods: ['ingots', 'steel', 'tools', 'slag'], price: 0.15, revenue: 60, demand: { freight: ['ingots', 'steel'] }, path: 'forge' },

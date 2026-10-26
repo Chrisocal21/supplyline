@@ -1,5 +1,5 @@
 // Paints the globe's colour texture: shorelines, biomes, mountains and snow, ice caps, resource-node patches
-// and town ground. The 3D lighting does the shading; this supplies realistic, muted albedo.
+// and town ground. Broad painted colour shapes supply the albedo; 3D lighting supplies the shading.
 import { corridorTiles } from '../sim/corridors';
 import { SEA_LEVEL, isSoftNode } from '../sim/defs';
 import { isDesert } from '../sim/desert';
@@ -15,22 +15,24 @@ export interface Pixels {
 type RGB = [number, number, number];
 
 const PAL = {
-  grassA: [76, 118, 64] as RGB,
-  grassB: [130, 154, 82] as RGB,
-  dry: [180, 160, 98] as RGB,
+  grassA: [53, 119, 83] as RGB,
+  grassB: [155, 180, 94] as RGB,
+  dry: [193, 168, 112] as RGB,
   tundra: [122, 142, 116] as RGB,
   duneA: [196, 164, 108] as RGB,
   duneB: [222, 192, 134] as RGB,
   duneDark: [168, 134, 88] as RGB,
-  forestA: [34, 72, 52] as RGB,
-  forestB: [52, 96, 60] as RGB,
-  rockA: [98, 92, 86] as RGB,
-  rockB: [158, 148, 134] as RGB,
+  forestA: [42, 91, 76] as RGB,
+  forestB: [88, 129, 83] as RGB,
+  rockA: [88, 105, 112] as RGB,
+  rockB: [181, 168, 145] as RGB,
   snow: [238, 242, 246] as RGB,
-  sand: [198, 186, 148] as RGB,
-  wetSand: [170, 158, 124] as RGB,
-  shallow: [70, 138, 182] as RGB,
-  deep: [18, 50, 104] as RGB,
+  sand: [213, 190, 143] as RGB,
+  wetSand: [176, 151, 111] as RGB,
+  shallow: [96, 208, 202] as RGB,
+  mid: [40, 150, 188] as RGB,
+  deep: [16, 66, 126] as RGB,
+  foam: [238, 246, 242] as RGB,
   ice: [230, 238, 245] as RGB,
   iceB: [196, 214, 230] as RGB,
   soil: [122, 98, 70] as RGB,
@@ -192,7 +194,7 @@ export function paintGlobe(world: World, ppt: number): Pixels {
   const data = new Uint8ClampedArray(width * height * 4);
   const { grain, patch, warp, broad } = noise();
   const s = 16 / ppt;
-  const { grassA, grassB, dry, tundra, duneA, duneB, duneDark, forestA, forestB, rockA, rockB, snow, sand, wetSand, shallow, deep, ice, iceB } = PAL;
+  const { grassA, grassB, dry, tundra, duneA, duneB, duneDark, forestA, forestB, rockA, rockB, snow, sand, wetSand, shallow, mid, deep, foam, ice, iceB } = PAL;
 
   for (let py = 0; py < height; py++) {
     const v = (py + 0.5) / ppt - 0.5;
@@ -213,24 +215,37 @@ export function paintGlobe(world: World, ppt: number): Pixels {
 
       if (wv > 0.5) {
         const dv = bilinear(f.dist, W, rows, u, v);
-        const t = Math.min(1, Math.max(0, (dv - 0.5) / 7)) + (p - 0.5) * 0.03;
-        r = shallow[0] + (deep[0] - shallow[0]) * t;
-        gr = shallow[1] + (deep[1] - shallow[1]) * t;
-        bl = shallow[2] + (deep[2] - shallow[2]) * t;
+        // Bright turquoise shallows hugging the shore, easing through clear blue to deep navy further out.
+        const d = dv + (p - 0.5) * 0.35 + (g - 0.5) * 0.1;
+        const t1 = smoothstep(0.5, 3.2, d);
+        const t2 = smoothstep(3.0, 8.0, d);
+        r = shallow[0] + (mid[0] - shallow[0]) * t1 + (deep[0] - mid[0]) * t2;
+        gr = shallow[1] + (mid[1] - shallow[1]) * t1 + (deep[1] - mid[1]) * t2;
+        bl = shallow[2] + (mid[2] - shallow[2]) * t1 + (deep[2] - mid[2]) * t2;
+        // Foam: a thin broken pale line where the water meets the beach.
+        const edge = 1 - smoothstep(0.5, 0.78, dv + (p - 0.5) * 0.45 + (w - 0.5) * 0.3);
+
+        const fa = Math.min(1, edge * 0.8);
+        r += (foam[0] - r) * fa;
+        gr += (foam[1] - gr) * fa;
+        bl += (foam[2] - bl) * fa;
       } else {
         const h = bilinear(f.relief, W, rows, u, v);
         const mt = bilinear(f.mountain, W, rows, u, v) + (p - 0.5) * 0.35;
-        const mA = smoothstep(0.38, 0.62, mt);
+        const mA = smoothstep(0.30, 0.68, mt);
         const hillA = smoothstep(0.3, 0.58, h) * 0.6 * (0.6 + p * 0.8);
         const rock = Math.max(mA, hillA);
 
         const fv = bilinear(f.forest, W, rows, u, v) + (p - 0.5) * 0.45 + (w - 0.5) * 0.2;
-        const fa = smoothstep(0.42, 0.58, fv);
-        const gr0 = grassA[0] + (grassB[0] - grassA[0]) * p;
-        const gr1 = grassA[1] + (grassB[1] - grassA[1]) * p;
-        const gr2 = grassA[2] + (grassB[2] - grassA[2]) * p;
+        const fa = smoothstep(0.30, 0.70, fv);
+        // Broad, gently edged painted masses. Existing fields supply all the detail at texture-bake time.
+        const meadow = smoothstep(0.28, 0.72, b * 0.55 + w * 0.30 + p * 0.15);
+        const gr0 = grassA[0] + (grassB[0] - grassA[0]) * meadow;
+        const gr1 = grassA[1] + (grassB[1] - grassA[1]) * meadow;
+        const gr2 = grassA[2] + (grassB[2] - grassA[2]) * meadow;
         // Dry steppe patches, and a cooler tundra tint toward the poles.
-        const dr = smoothstep(0.5, 0.74, b + (g - 0.5) * 0.04) * 0.7;
+        // Keep golden grass as an accent instead of turning most bright meadow patches brown.
+        const dr = smoothstep(0.62, 0.84, b + (p - 0.5) * 0.08) * 0.42;
         const tu = smoothstep(0.55, 1.0, rowLat) * 0.7;
         let lr = gr0 + (dry[0] - gr0) * dr;
         let lg = gr1 + (dry[1] - gr1) * dr;
@@ -238,9 +253,10 @@ export function paintGlobe(world: World, ppt: number): Pixels {
         lr += (tundra[0] - lr) * tu;
         lg += (tundra[1] - lg) * tu;
         lb += (tundra[2] - lb) * tu;
-        const fo0 = forestA[0] + (forestB[0] - forestA[0]) * p;
-        const fo1 = forestA[1] + (forestB[1] - forestA[1]) * p;
-        const fo2 = forestA[2] + (forestB[2] - forestA[2]) * p;
+        const floor = b * 0.65 + p * 0.35;
+        const fo0 = forestA[0] + (forestB[0] - forestA[0]) * floor;
+        const fo1 = forestA[1] + (forestB[1] - forestA[1]) * floor;
+        const fo2 = forestA[2] + (forestB[2] - forestA[2]) * floor;
         r = lr + (fo0 - lr) * fa;
         gr = lg + (fo1 - lg) * fa;
         bl = lb + (fo2 - lb) * fa;
@@ -260,7 +276,14 @@ export function paintGlobe(world: World, ppt: number): Pixels {
         }
 
         if (rock > 0) {
-          const k = p * 0.8 + g * 0.2;
+          // Broad stone strata and painted faces, baked into the existing colour map.
+          // Warp the altitude bands so they follow irregular rock rather than drawing ruler-straight rings.
+          const strataHeight = h + (w - 0.5) * 0.16 + (b - 0.5) * 0.08;
+          const strata = smoothstep(0.20, 0.30, strataHeight) * 0.32
+            + smoothstep(0.44, 0.56, strataHeight) * 0.38
+            + smoothstep(0.70, 0.82, strataHeight) * 0.30;
+          const face = smoothstep(0.28, 0.72, p * 0.55 + w * 0.45);
+          const k = strata * 0.60 + face * 0.40;
           const ro = rockA[0] + (rockB[0] - rockA[0]) * k;
           const rg = rockA[1] + (rockB[1] - rockA[1]) * k;
           const rb = rockA[2] + (rockB[2] - rockA[2]) * k;
@@ -274,7 +297,7 @@ export function paintGlobe(world: World, ppt: number): Pixels {
           gr += (snow[1] - gr) * sn;
           bl += (snow[2] - bl) * sn;
         }
-        const sa = smoothstep(0.16, 0.25, wv) * (1 - rock);
+        const sa = smoothstep(0.08, 0.32, wv) * (1 - rock);
         if (sa > 0) {
           const wet = smoothstep(0.4, 0.5, wv);
           r += (sand[0] + (wetSand[0] - sand[0]) * wet - r) * sa;
@@ -291,7 +314,8 @@ export function paintGlobe(world: World, ppt: number): Pixels {
         bl += (ice[2] + (iceB[2] - ice[2]) * p - bl) * ia;
       }
 
-      const shade = 0.96 + g * 0.08;
+      // Keep water unchanged; land gets soft painted variation instead of high-frequency speckle.
+      const shade = wv > 0.5 ? 0.96 + g * 0.08 : 0.97 + p * 0.05 + g * 0.01;
       const o = (py * width + px) * 4;
       data[o] = r * shade;
       data[o + 1] = gr * shade;
@@ -517,10 +541,25 @@ function overlays(world: World, data: Uint8ClampedArray, width: number, height: 
   }
 }
 
-/** Per-texel roughness for the globe: smooth, glossy water and matte land. Green channel is what Three.js reads. */
+/** Packed terrain data: red = mountain coverage, green = roughness (Three.js), blue = soft halo round mountains. */
 export function paintRoughness(world: World, ppt = 4): Pixels {
   const W = world.width;
   const f = buildFields(world);
+  // How near each tile is to a mountain, fading out over three tiles, so grass beside rock can dry toward earth well before the wall.
+  const halo = new Float32Array(W * f.rows);
+  for (let r = 0; r < f.rows; r++) {
+    for (let x = 0; x < W; x++) {
+      let best = 0;
+      for (let dy = -3; dy <= 3; dy++) {
+        const nr = r + dy;
+        if (nr < 0 || nr >= f.rows) continue;
+        for (let dx = -3; dx <= 3; dx++) {
+          if (f.mountain[nr * W + ((x + dx + W) % W)] > 0.5) best = Math.max(best, 1 - Math.max(Math.abs(dx), Math.abs(dy)) / 3.6);
+        }
+      }
+      halo[r * W + x] = best;
+    }
+  }
   const rows = f.rows;
   const width = W * ppt;
   const height = rows * ppt;
@@ -533,7 +572,10 @@ export function paintRoughness(world: World, ppt = 4): Pixels {
       const iv = bilinear(f.ice, W, rows, u, v);
       const rough = wv > 0.5 && iv < 0.5 ? 0.42 : iv > 0.5 ? 0.6 : 0.93;
       const o = (py * width + px) * 4;
-      data[o] = data[o + 1] = data[o + 2] = rough * 255;
+      data[o] = smoothstep(0.25, 0.75, bilinear(f.mountain, W, rows, u, v)) * (1 - wv) * (1 - iv) * 255;
+      data[o + 1] = rough * 255;
+      // Blue: a wide, soft halo around mountains, so the shader can tint the grass beside rock toward dry earth.
+      data[o + 2] = bilinear(halo, W, rows, u, v) * (1 - wv) * (1 - iv) * 255;
       data[o + 3] = 255;
     }
   }

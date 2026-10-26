@@ -674,3 +674,8 @@ Done earlier:
 ## 0.227
 - Placing a building: the hover marker is a square on the grid cell, and the ground a building holds (2x2) is one green or red square with a light fill, not four circles. Both follow the east-west narrowing of the lots.
 - Quest "Keep more logs coming" needs a second Forestry Camp (it counted the first one and popped its Quest Complete card right after "Build a Forestry Camp").
+
+## After 0.227 (unreleased)
+- Painterly earth pass done through node heaps; buildings are next (docs/visual-direction.md).
+- Bulk raw goods sell at the Market and pass through the Warehouse; wiki goods cards show who buys each good.
+- Venues (town-chosen, own menu) built for Restaurant Row and Hardware Store. To do: the other districts, a wiki Venues page, a reachability check for every good.

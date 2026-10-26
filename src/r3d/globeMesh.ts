@@ -4,6 +4,7 @@ import type { World } from '../sim/world';
 import { CAP_ROWS, HeightField, MESH_SUB, R, lonLatToVec, textureRows } from './geo';
 import type { Pixels } from './paint';
 import { seasonLook } from './season';
+import { packRockDetail } from './rockTexture';
 
 
 function canvasFrom(p: Pixels): HTMLCanvasElement {
@@ -14,7 +15,7 @@ function canvasFrom(p: Pixels): HTMLCanvasElement {
   return c;
 }
 
-/** Small tileable greyscale noise, multiplied over the colour map so close-ups keep fine grain. */
+/** One packed tileable texture: ground grain in green, broad stone colour/height in red/blue. */
 function detailTexture(): THREE.Texture {
   const size = 256;
   const cells = [8, 16, 32, 64];
@@ -56,6 +57,7 @@ function detailTexture(): THREE.Texture {
     data[i * 4] = data[i * 4 + 1] = data[i * 4 + 2] = v;
     data[i * 4 + 3] = 255;
   }
+  packRockDetail(data, size);
   const tex = new THREE.CanvasTexture(canvasFrom({ data, width: size, height: size }));
   tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
   tex.anisotropy = 8;
@@ -210,6 +212,8 @@ export function buildGlobe(world: World, hf: HeightField, color: Pixels, rough: 
   material.onBeforeCompile = (shader) => {
     shader.uniforms.detailMap = { value: detail };
     shader.uniforms.detailRepeat = { value: repeat };
+    // Stone is projected from three directions in world space: one texture repeat spans six tiles, whatever the slope.
+    shader.uniforms.rockScale = { value: world.width / (6 * 2 * Math.PI * R) };
     shader.uniforms.surfaceTime = time;
     shader.uniforms.uSnow = seasonLook.snow;
     shader.uniforms.uSeasonTint = seasonLook.tint;
@@ -221,6 +225,7 @@ export function buildGlobe(world: World, hf: HeightField, color: Pixels, rough: 
       .replace('#include <common>', `#include <common>
 uniform sampler2D detailMap;
 uniform vec2 detailRepeat;
+uniform float rockScale;
 uniform float surfaceTime;
 uniform float uSnow;
 uniform vec3 uSeasonTint;
@@ -229,26 +234,88 @@ varying vec3 vSurfacePosition;`)
       .replace(
         '#include <map_fragment>',
         `#include <map_fragment>
-  float surfaceWater = 1.0 - smoothstep(0.46, 0.57, texture2D(roughnessMap, vRoughnessMapUv).g);
+  vec4 surfaceData = texture2D(roughnessMap, vRoughnessMapUv);
+  float surfaceWater = 1.0 - smoothstep(0.46, 0.57, surfaceData.g);
   float grain = texture2D(detailMap, vMapUv * detailRepeat).g;
-  diffuseColor.rgb *= mix(0.86 + 0.28 * grain, 1.0, surfaceWater);
   // The season: a tint over the land, and snow on the high ground and toward the poles as winter comes in; the tropics stay clear.
   float seasonLand = 1.0 - surfaceWater;
   diffuseColor.rgb *= mix(vec3(1.0), uSeasonTint, seasonLand);
   float seaLevelHeight = length(vSurfacePosition) - uSeaR;
+  // The map's rock mask is widened, so the low ground between slabs reads as scree and not bright grass.
+  float surfaceRock = smoothstep(0.0, 0.55, surfaceData.r) * (1.0 - surfaceWater);
+  vec3 faceN = normalize(cross(dFdx(vSurfacePosition), dFdy(vSurfacePosition)));
+  float faceSlope = 1.0 - abs(dot(faceN, normalize(vSurfacePosition)));
+  // Steep ground is bare rock wherever the map painted grass, so the green stops at the foot of a cliff instead of creeping up it.
+  surfaceRock = max(surfaceRock, smoothstep(0.5, 0.7, faceSlope) * (1.0 - surfaceWater));
+  // Stone is projected from three directions in world space, so it keeps its size on a cliff instead of streaking down it.
+  vec3 stoneN = faceN;
+  vec3 stoneAxis = pow(abs(stoneN), vec3(6.0));
+  stoneAxis /= stoneAxis.x + stoneAxis.y + stoneAxis.z;
+  vec3 stoneP = vSurfacePosition * rockScale;
+  // Two scales of soft mottling (the fine noise channel, blurred), so the tone drifts across a face in broad blotches.
+  float mottleBig = texture2D(detailMap, stoneP.zy * 0.55, 1.5).g * stoneAxis.x + texture2D(detailMap, stoneP.xz * 0.55, 1.5).g * stoneAxis.y + texture2D(detailMap, stoneP.xy * 0.55, 1.5).g * stoneAxis.z;
+  float mottleSmall = texture2D(detailMap, stoneP.zy * 2.1, 1.0).g * stoneAxis.x + texture2D(detailMap, stoneP.xz * 2.1, 1.0).g * stoneAxis.y + texture2D(detailMap, stoneP.xy * 2.1, 1.0).g * stoneAxis.z;
+  float cliff = mix(0.9, 1.0, smoothstep(0.02, 0.16, faceSlope)) * surfaceRock;
+  diffuseColor.rgb *= mix(0.95 + 0.10 * grain, 1.0, max(surfaceWater, surfaceRock));
+  // Rock is coloured from world height, not the map, which stretches down a cliff. Layers of uneven thickness that follow the
+  // heights, but mostly tone drifting in blotches: umber in the hollows, rose and ochre through the middle, pale sand where the
+  // sun has bleached it, grey stone and snow toward the peaks.
+  float phase = seaLevelHeight / 1.9 + (mottleBig - 0.5) * 2.4;
+  float layerPhase = fract(phase);
+  float band = 0.5 + 0.5 * (sin(phase * 6.2832) * 0.6 + sin(phase * 2.3 + 1.7) * 0.4);
+  float tone = 0.5 + (mottleBig * 0.75 + mottleSmall * 0.25 - 0.5) * 1.15 + (band - 0.5) * 0.45;
+  tone += clamp(seaLevelHeight * 0.02, 0.0, 0.2) - (1.0 - smoothstep(0.0, 2.5, seaLevelHeight)) * 0.15;
+  tone = clamp(tone, 0.0, 1.0);
+  vec3 sandRock = mix(vec3(0.30, 0.19, 0.15), vec3(0.58, 0.34, 0.24), smoothstep(0.0, 0.35, tone));
+  sandRock = mix(sandRock, vec3(0.78, 0.50, 0.28), smoothstep(0.3, 0.65, tone));
+  sandRock = mix(sandRock, vec3(0.90, 0.74, 0.52), smoothstep(0.65, 1.0, tone));
+  sandRock = mix(sandRock, vec3(0.62, 0.50, 0.42), mottleSmall * 0.3);
+  vec3 slateRock = mix(vec3(0.30, 0.33, 0.38), vec3(0.64, 0.65, 0.67), tone);
+  vec3 cliffColor = mix(sandRock, slateRock, smoothstep(8.0, 13.5, seaLevelHeight));
+  // Long dark water stains running down the face.
+  float stain = smoothstep(0.55, 0.8, texture2D(detailMap, vec2(stoneP.x + stoneP.z, stoneP.y * 0.12) * 0.8, 2.0).g) * 0.2;
+  // The foot of a cliff: scree and dusty earth, tinted by the ground colour round it, darker where the rock meets the grass, so the
+  // grass runs into the mountain through a ragged band instead of stopping at a wall.
+  float footBand = (1.0 - smoothstep(0.6, 3.2, seaLevelHeight)) + (mottleSmall - 0.5) * 0.9;
+  float foot = clamp(footBand, 0.0, 1.0) * cliff;
+  vec3 groundLinear = diffuseColor.rgb;
+  vec3 screeColor = mix(pow(vec3(0.50, 0.40, 0.30), vec3(2.2)), groundLinear * 0.9, 0.45);
+  vec3 rockLinear = mix(pow(cliffColor, vec3(2.2)), screeColor, foot * 0.8);
+  rockLinear *= mix(0.72, 1.0, smoothstep(0.0, 3.5, seaLevelHeight));
+  diffuseColor.rgb = mix(diffuseColor.rgb, rockLinear, cliff);
+  // Grass beside a mountain dries toward earth and fallen stone in broken patches, so green fades into the rock and has no hard edge.
+  float halo = smoothstep(0.0, 0.6, surfaceData.b) * (1.0 - cliff) * (1.0 - surfaceWater);
+  float dry = clamp(halo * (0.85 + (mottleSmall - 0.5) * 1.4 + (mottleBig - 0.5) * 0.7), 0.0, 1.0);
+  diffuseColor.rgb = mix(diffuseColor.rgb, mix(pow(vec3(0.46, 0.40, 0.28), vec3(2.2)), screeColor, 0.4), dry * 0.8);
+  diffuseColor.rgb *= 1.0 - stain * cliff * (1.0 - foot);
   // Snow lies in patches, not as a blanket: only the far north and south and the high ground, broken up by a coarse noise so
   // under half of the land in winter is white.
   float snowPatch = texture2D(detailMap, vMapUv * 2.5).g;
   float snowScore = seaLevelHeight * 0.5 + abs(vSurfacePosition.y) / length(vSurfacePosition) * 1.0 + (snowPatch - 0.5) * 1.3 + (grain - 0.5) * 0.3;
-  float snow = uSnow * smoothstep(0.8, 0.98, snowScore);
+  // Snow settles on tops and ledges and slides off steep rock, so a mountain in winter keeps its rock faces.
+  float snow = uSnow * smoothstep(0.8, 0.98, snowScore) * (1.0 - 0.8 * smoothstep(0.12, 0.42, faceSlope) * surfaceRock);
   diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.93, 0.96, 1.0), snow * seasonLand * 0.9);`,
+      )
+      .replace(
+        '#include <emissivemap_fragment>',
+        `#include <emissivemap_fragment>
+  // Shadowed rock is never black: warm light bounces up into it from the ground and sky.
+  totalEmissiveRadiance += diffuseColor.rgb * vec3(1.0, 0.86, 0.72) * 0.1 * surfaceRock * (1.0 - snow * 0.5);`,
       )
       .replace(
         '#include <normal_fragment_maps>',
         `#include <normal_fragment_maps>
   // Water is flat and still: a plain blue that darkens with depth (painted into the ground texture), no moving waves.
   float height = 0.0;
-  height += (1.0 - surfaceWater) * (grain - 0.5) * 0.018;
+  // On stone, shade by the actual triangle, so the slabs read as broad flat planes meeting in hard edges.
+  vec3 rockFace = normalize(cross(dFdx(-vViewPosition), dFdy(-vViewPosition)));
+  rockFace *= dot(rockFace, normal) < 0.0 ? -1.0 : 1.0;
+  normal = normalize(mix(normal, rockFace, surfaceRock * 0.92 * (1.0 - snow * 0.8)));
+  // Ledges: each stone layer tilts the surface up on its lip and down in its recess, so layers catch light and shadow on a cliff.
+  vec3 ledgeUp = normalize((viewMatrix * vec4(normalize(vSurfacePosition), 0.0)).xyz);
+  normal = normalize(normal + ledgeUp * sin(layerPhase * 6.2832) * 0.1 * cliff * (1.0 - snow * 0.8));
+  // Quiet the pebbly micro-bump so the painted colour masses carry the surface at play distance.
+  height += (1.0 - surfaceWater) * (grain - 0.5) * 0.005;
   vec3 surfaceDx = dFdx(-vViewPosition);
   vec3 surfaceDy = dFdy(-vViewPosition);
   vec3 crossX = cross(surfaceDy, normal);
@@ -256,7 +323,8 @@ varying vec3 vSurfacePosition;`)
   float determinant = dot(surfaceDx, crossX);
   vec3 gradient = sign(determinant) * (dFdx(height) * crossX + dFdy(height) * crossY);
   normal = normalize(max(abs(determinant), 1e-8) * normal - gradient);
-  roughnessFactor = mix(roughnessFactor, 0.5, surfaceWater);`,
+  // Glossier water, so the sun catches it as a bright glitter path; land stays matte.
+  roughnessFactor = mix(roughnessFactor, 0.42, surfaceWater);`,
       );
   };
 

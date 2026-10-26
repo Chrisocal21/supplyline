@@ -40,7 +40,8 @@ export function truckGeometry(kind: RoadTruck) {
       p.box(meters(0.025), meters(0.17), cargoLength, paint, { x: side * w * 0.503, y: meters(2.05), z: cargoZ, t: 0 });
       for (let rib = 0; rib < 9; rib++) {
         p.box(meters(0.025), h - meters(1.2), meters(0.035), 0x939c9a, {
-          x: side * w * 0.503, y: meters(1.12), z: cargoZ - cargoLength * 0.44 + rib * cargoLength * 0.11, t: 5,
+          // Stand the ribs clear of the painted stripe: their outer faces previously occupied the same plane.
+          x: side * (w * 0.503 + meters(0.035)), y: meters(1.12), z: cargoZ - cargoLength * 0.44 + rib * cargoLength * 0.11, t: 5,
         });
       }
     }

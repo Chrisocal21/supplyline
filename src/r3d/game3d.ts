@@ -1386,7 +1386,10 @@ export class Game3D {
     this.scenery.showGates(this.isRouteTool());
     this.syncEntryArrows();
     // The same green and orange wash as the road tool, while a building is being placed: it shows where its road and driveway can go.
-    this.scenery.setRoadZones(this.isRouteTool() ? this.routeMode : this.isBuildTool() ? 'road' : null, `${w.sites.length}.${w.places.map((p) => `${p.level}${Object.values(p.districtLots ?? {}).join('_')}`).join(',')}`);
+    const zoneView = viewTileOf(w, this.cam.lon, this.cam.lat);
+    this.scenery.setRoadZones(this.isRouteTool() ? this.routeMode : this.isBuildTool() ? 'road' : null,
+      `${roadSig}|${w.sites.map((s) => `${s.id}:${s.x}:${s.y}:${s.level}`).join(',')}|${w.places.map((p) => `${p.level}${Object.values(p.districtLots ?? {}).join('_')}`).join(',')}`,
+      zoneView.x, zoneView.y);
     this.scenery.setParcels(this.isBuildTool() && !!w.landRules, String((w.owned ?? []).length));
     // A building that goes on open ground: show where it can stand and where it cannot, round the view.
     const vt = townTool ? viewTileOf(w, this.cam.lon, this.cam.lat) : { x: 0, y: 0 };
@@ -2386,7 +2389,8 @@ export class Game3D {
     this.draftHistory = [];
     this.draftPlan = null;
     this.updateDraftMesh();
-    this.signature += '!'; // refresh node markers on the next frame
+    // Tool markers are refreshed every frame by syncWorld, outside its world-change branch.
+    // Invalidating the world here needlessly resyncs towns, sites and vehicles when opening a menu.
     this.ghostKind = null;
     this.placeRot = null;
     if (this.ghost) this.ghost.visible = false;

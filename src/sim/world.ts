@@ -81,6 +81,7 @@ import { WEAR_SLOWDOWN, WEAR_TILES, stepBreakdown, applicants, assignDriver, dri
 import { registerBase } from './compact';
 import { saleMult, wearMult } from './perks';
 import { seasonMult } from './seasons';
+import { VENUE_POOLS, districtGoods } from './venues';
 import { districtDemand, stepEconomy, townGrowthMult, townLoadMult, townPriceMult, townSpeedMult, townStorageMult } from './town';
 
 export type { Place, Region, ResourceNode, Tile };
@@ -1597,7 +1598,7 @@ export function dockDemand(world: World, site: Site): Good[] {
   const place = placeOf(world, site);
   if (!place) return [];
   const def = SITE_DEFS[site.kind];
-  if (def.dock === 'civic') return site.districtId ? [...DISTRICTS[site.districtId].goods, ...(DISTRICTS[site.districtId].buys ?? [])] : [];
+  if (def.dock === 'civic') return site.districtId ? [...districtGoods(place, site.districtId), ...(VENUE_POOLS[site.districtId] ? [] : DISTRICTS[site.districtId].buys ?? [])] : [];
   const stage = place.stage ?? 2;
   if (def.dock === 'market') {
     // Until the Market is built it asks only for lumber, from the Supply Yard's own trucks. Afterwards it also takes the

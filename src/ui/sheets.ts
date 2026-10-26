@@ -28,6 +28,8 @@ import { BANK_TIER, DAY_TICKS, bankReport, FUND_FEE, LOAN_RATE, REAL_MONEY_ENABL
 import { nextQuest, pathMastered, pathQuestState, questState, tierUnlocks } from '../sim/quests';
 import { questGuide } from '../sim/guide';
 import { buildDistrict, choosePath, districtBoost, districtCost, districtError, districtLevel, districtRevenue, districtSatisfaction, pathError, townUpkeep } from '../sim/town';
+import { buyersOf } from '../sim/buyers';
+import { VENUE_POOLS, districtGoods, venuesOf } from '../sim/venues';
 import { woodName, buildingNow, campusSites, dockDemand, growthKinds, matsNeeded, isHomePlot, metroBonus, partnerOf, plotTiles, radiusOf, produces, siteCap, stockOf, unitPrice, wants, type Place, type Site, type World } from '../sim/world';
 import { button, companyPage, emptyState, fleetPage, panel, sectionHead, stat } from './company';
 import { COLORS, Im } from './imui';
@@ -319,7 +321,7 @@ export class Sheets {
       { id: 'bank', label: 'Finance', title: 'Finance', sub: 'Loans, savings and the market fund', key: 'B' },
       { id: 'quests', label: 'Objectives', title: 'Objectives', sub: 'Tiers, goals and rewards', key: 'O' },
       { id: 'guide', label: 'How to play', title: 'How to play', sub: 'The guide to every building', key: 'H' },
-      { id: 'wiki', label: 'Wiki', title: 'Wiki', sub: 'Every building, vehicle and good, locked or not', key: 'I' },
+      { id: 'wiki', label: 'Wiki', title: 'Wiki', sub: 'Every building, vehicle, good and venue, locked or not', key: 'I' },
     ];
     const page = pages.find((p) => p.id === id)!;
     const select = (tid: SheetId): void => {
@@ -982,16 +984,19 @@ export class Sheets {
     // What it lives on: a square per good, bright when its building has that good in stock (the town's docks, until it has one).
     const home = world.sites.find((s) => s.placeId === p.id && s.districtId === id);
     const docks = home ? [home] : world.sites.filter((s) => s.placeId === p.id && SITE_DEFS[s.kind].dock);
-    def.goods.slice(0, 9).forEach((g, k) => {
+    const lives = districtGoods(p, id);
+    lives.slice(0, 12).forEach((g, k) => {
       const have = docks.some((d) => stockOf(d, g) >= 1);
       im.rect(3, x + 16 + k * 20, y + 70, 15, 15, GOODS[g].color, have ? 1 : 0.22, 3);
     });
     const bits: string[] = [];
-    if (def.price > 0) bits.push(`+${Math.round(def.price * shown * boost * 100)}% price on ${def.goods.length} goods`);
+    const venues = venuesOf(p, id, Math.max(1, lvl));
+    if (venues.length > 0) im.text(`dc-v-${p.id}-${id}`, `${lvl > 0 ? 'Here' : 'Would open'}: ${venues.map((v) => v.label).join(', ')}`, x + 16, y + 52, { size: 11, bold: true, color: COLORS.accent, layer: 3 });
+    if (def.price > 0) bits.push(`+${Math.round(def.price * shown * boost * 100)}% price on ${lives.length} goods`);
     if (def.revenue > 0) {
       bits.push(`$${fmt(def.revenue * shown * boost)}/min at full supply${lvl > 0 ? ` (now ${Math.round(districtSatisfaction(world, p, id) * 100)}%)` : ''}`);
     }
-    if (lvl > 0 && def.goods.length > 0) bits.push(home ? 'trucks deliver to its door' : 'finding a lot for it');
+    if (lvl > 0 && lives.length > 0) bits.push(home ? 'trucks deliver to its door' : 'finding a lot for it');
     if (def.effect === 'storage') bits.push(`docks hold +${Math.round((def.capstone ? 30 : 25) * shown * boost)}%`);
     if (def.effect === 'growth') bits.push(`growth +${20 * shown}%`);
     if (def.effect === 'visitors') bits.push('income grows with the variety delivered');
@@ -1294,7 +1299,7 @@ export class Sheets {
   }
 
   /** Which list the wiki shows. */
-  wikiPage: 'buildings' | 'vehicles' | 'goods' = 'buildings';
+  wikiPage: 'buildings' | 'vehicles' | 'goods' | 'venues' = 'buildings';
 
   /**
    * The wiki: every building, vehicle and good in the game, whether or not it is open yet, each with its tier, price and what
@@ -1304,12 +1309,17 @@ export class Sheets {
     const im = this.cim;
     const W = v.x1 - v.x0;
     let y = v.y0 - this.scroll;
-    y += this.pageTabs('wk', [['buildings', `Buildings  ·  ${BUILD_ORDER.length}`], ['vehicles', 'Vehicles'], ['goods', 'Goods']] as ['buildings' | 'vehicles' | 'goods', string][], this.wikiPage, v.x0, y, W, (id) => (this.wikiPage = id));
+    y += this.pageTabs('wk', [['buildings', `Buildings  ·  ${BUILD_ORDER.length}`], ['vehicles', 'Vehicles'], ['goods', 'Goods'], ['venues', 'Venues']] as ['buildings' | 'vehicles' | 'goods' | 'venues', string][], this.wikiPage, v.x0, y, W, (id) => (this.wikiPage = id));
     const top = y;
     const gap = 10;
     const cols = W > 900 ? 3 : W > 560 ? 2 : 1;
     const cw = (W - gap * (cols - 1)) / cols;
     const lower = (gs: Partial<Record<Good, number>>): string => Object.entries(gs).map(([g, n]) => `${n} ${GOODS[g as Good].label.toLowerCase()}`).join(' + ');
+    const sellsTo = (g: Good): string => {
+      const all = buyersOf(g);
+      const full = all.filter((b) => !b.salvage).map((b) => (b.level > 1 ? `${b.label} (town level ${b.level})` : b.label));
+      return full.length > 0 ? full.join(', ') : 'Market, at a lower price (sold off as surplus)';
+    };
     type Entry = { key: string; name: string; tier: number; thumb: string | null; color: number; lines: string[] };
     let entries: Entry[];
     if (this.wikiPage === 'buildings') {
@@ -1325,12 +1335,25 @@ export class Sheets {
         const d = VEHICLE_DEFS[k];
         return { key: k, name: d.label, tier: d.tier, thumb: null, color: COLORS.info, lines: [`$${d.cost.toLocaleString('en-US')}  ·  ${d.mode}  ·  carries ${d.capacity}`, d.blurb, `Needs a level ${d.needLevel} building to buy`] };
       });
+    } else if (this.wikiPage === 'venues') {
+      // Every venue a district can have: what it buys, and the town level its district opens at. A town has only some of them.
+      entries = Object.entries(VENUE_POOLS).flatMap(([id, pool]) => {
+        const d = DISTRICTS[id as keyof typeof DISTRICTS];
+        return pool!.map((v) => ({
+          key: `${id}-${v.id}`,
+          name: v.label,
+          tier: -1,
+          thumb: null,
+          color: d.capstone ? COLORS.accent : COLORS.info,
+          lines: [`${d.label}  ·  opens at town level ${d.minLevel}${v.styles ? '  ·  favoured in ' + v.styles.join(', ') + ' towns' : ''}`, `Buys: ${v.goods.map((g) => GOODS[g].label.toLowerCase()).join(', ')}`],
+        }));
+      });
     } else {
       entries = GOOD_LIST.map((g) => {
         const d = GOODS[g];
         const makers = BUILD_ORDER.filter((k) => SITE_DEFS[k].produce?.good === g || (SITE_DEFS[k].recipe?.outputs[g] ?? 0) > 0 || (SITE_DEFS[k].produce?.also ?? []).some((a) => a.good === g)).map((k) => SITE_DEFS[k].label);
         const users = BUILD_ORDER.filter((k) => (SITE_DEFS[k].recipe?.inputs[g] ?? 0) > 0).map((k) => SITE_DEFS[k].label);
-        return { key: g, name: d.label, tier: -1, thumb: null, color: d.color, lines: [`$${d.price} a unit  ·  ${d.kind}`, `Made by: ${makers.join(', ') || 'towns and imports'}`, `Used by: ${users.join(', ') || 'towns buy it'}`] };
+        return { key: g, name: d.label, tier: -1, thumb: null, color: d.color, lines: [`$${d.price} a unit  ·  ${d.kind}`, `Made by: ${makers.join(', ') || 'towns and imports'}`, `Used by: ${users.join(', ') || 'towns buy it'}`, `Sells to: ${sellsTo(g)}`] };
       });
     }
     const colY = new Array<number>(cols).fill(top);

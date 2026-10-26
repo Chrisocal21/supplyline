@@ -211,6 +211,8 @@ Each district is a landmark that sits on a town lot and grows with its level. Fo
 
 Level 1: Farmers Market.
 Level 2 and up: Restaurant Row, Heating Depot, Coffee House, Hardware Store, Warehouse District, Community Centre.
+
+Venues (added 2026-10-26): Restaurant Row and the Hardware Store are rows of named venues, each wanting its own goods, and a town has only some of them (names and menus in src/sim/venues.ts). Plan one shell per district with a swappable sign and props per venue, not a model per venue. The other districts will follow the same way. See docs/11-chatgpt-model-handoff.md.
 Level 3 and up: Builders' Yard, Furniture Gallery, Fashion Quarter, Library and Bookshops, Freight Terminal, Amphitheatre, Beach Resort, Foundry Row.
 Level 4 and up: Football Stadium, Baseball Park, Soccer Stadium, Hockey Arena, University, Hotels and Promenade.
 Level 5: Grand Food Hall, Heavy Industry Exchange, International Terminal, Grand Plaza.

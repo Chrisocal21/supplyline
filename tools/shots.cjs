@@ -28,7 +28,7 @@ const done = (code) => {
   for (let i = 0; i < 60; i++) {
     try {
       list = await (await fetch(`http://127.0.0.1:${port}/json/list`)).json();
-      if (list.length) break;
+      if (list.some((t) => t.type === 'page')) break;
     } catch {}
     await sleep(250);
   }

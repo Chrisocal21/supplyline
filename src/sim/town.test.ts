@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { DISTRICTS, PATHS, PATH_COST, VEHICLE_DEFS } from './defs';
+import { districtGoods, venuesOf } from './venues';
 import { questProgress } from './quests';
 import {
   buildDistrict,
@@ -61,12 +62,13 @@ describe('districts', () => {
     const w = world();
     const p = w.places[0];
     p.level = 2;
-    const base = townPriceMult(p, 'bread');
     buildDistrict(w, p, 'restaurants');
-    expect(townPriceMult(p, 'bread')).toBeGreaterThan(base);
+    // What the town's own restaurants cook with pays more; what none of them cook with does not.
+    const menu = districtGoods(p, 'restaurants');
+    expect(townPriceMult(p, menu[0])).toBeGreaterThan(1);
     expect(townPriceMult(p, 'steel')).toBe(1);
     const market = w.sites.find((s) => s.placeId === p.id && s.kind === 'market')!;
-    expect(unitPrice(w, market, 'bread')).toBeGreaterThan(0);
+    expect(unitPrice(w, market, menu[0])).toBeGreaterThan(0);
   });
 
   it('earn only while the town is stocked with what they live on', () => {
@@ -77,12 +79,11 @@ describe('districts', () => {
     expect(districtRevenue(w, p)).toBe(0);
     // The district's own building is what has to be stocked: its trucks drop the goods there.
     const market = w.sites.find((s) => s.placeId === p.id && s.districtId === 'restaurants')!;
-    market.stock.bread = 5;
-    market.stock.cheese = 5;
-    expect(districtRevenue(w, p)).toBeGreaterThan(0);
+    const [first, second] = venuesOf(p, 'restaurants', 1);
+    for (const g of first.goods) market.stock[g] = 5;
     const half = districtRevenue(w, p);
-    market.stock.jam = 5;
-    market.stock.flour = 5;
+    expect(half).toBeGreaterThan(0);
+    for (const g of second.goods) market.stock[g] = 5;
     expect(districtRevenue(w, p)).toBeGreaterThan(half);
   });
 });

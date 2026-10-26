@@ -1,6 +1,7 @@
 // Builds one merged, vertex-coloured geometry out of simple primitives, so a whole building is a single draw call.
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { stoneLump } from './stones';
 
 export interface Place {
   x?: number;
@@ -21,6 +22,11 @@ export class Parts {
    * When unset, each part is its own anchor.
    */
   anchor: [number, number] | null = null;
+  /**
+   * While set, parts added take light and shade from their own surface, so a tree is painted in broad masses: tops facing the sky
+   * warm and bright, undersides cool and deep, the crown brighter than the skirts. `base` and `height` are the tree's foot and size.
+   */
+  foliage: { base: number; height: number } | null = null;
   private readonly list: THREE.BufferGeometry[] = [];
   private readonly m = new THREE.Matrix4();
   private readonly e = new THREE.Euler();
@@ -36,16 +42,34 @@ export class Parts {
     const c = new THREE.Color(color);
     const count = g.getAttribute('position').count;
     const arr = new Float32Array(count * 3);
+    // Geometry that brings its own colours (stones) is tinted by `color`; plain primitives are filled with it.
+    const own = g.getAttribute('color');
     for (let i = 0; i < count; i++) {
-      arr[i * 3] = c.r;
-      arr[i * 3 + 1] = c.g;
-      arr[i * 3 + 2] = c.b;
+      arr[i * 3] = c.r * (own ? own.getX(i) : 1);
+      arr[i * 3 + 1] = c.g * (own ? own.getY(i) : 1);
+      arr[i * 3 + 2] = c.b * (own ? own.getZ(i) : 1);
     }
+    if (this.foliage) this.lightFoliage(g, arr);
     g.setAttribute('color', new THREE.BufferAttribute(arr, 3));
     g.setAttribute('mid', new THREE.BufferAttribute(new Float32Array(count).fill(o.t ?? this.tex), 1));
     this.setAnchor(g, count, o.x ?? 0, o.z ?? 0);
     this.list.push(g);
     return this;
+  }
+
+  private lightFoliage(g: THREE.BufferGeometry, arr: Float32Array): void {
+    const f = this.foliage!;
+    const normal = g.getAttribute('normal');
+    const pos = g.getAttribute('position');
+    for (let i = 0; i < pos.count; i++) {
+      const lit = Math.min(1, Math.max(0, normal.getY(i) * 0.5 + 0.5));
+      const sun = lit * lit * (3 - 2 * lit);
+      const crown = Math.min(1.1, Math.max(0, (pos.getY(i) - f.base) / f.height));
+      const v = 0.78 + crown * 0.34;
+      arr[i * 3] *= v * (0.74 + sun * 0.42);
+      arr[i * 3 + 1] *= v * (0.84 + sun * 0.28);
+      arr[i * 3 + 2] *= v * (0.94 - sun * 0.2);
+    }
   }
 
   /** Add geometry that is already positioned by a full matrix (for pieces laid along curved roads). */
@@ -110,6 +134,14 @@ export class Parts {
 
   cone(r: number, h: number, color: number, o: Place = {}, seg = 8): this {
     return this.cyl(0, r, h, color, o, seg);
+  }
+
+  /** A weathered stone (see stones.ts), tinted by `color`, standing on y. */
+  stone(radius: number, flatten: number, seed: number, color: number, o: Place = {}): this {
+    // Sunk well into the ground, so the earth meets the stone along a natural line.
+    const g = stoneLump(radius, flatten, seed);
+    g.translate(0, radius * flatten * 0.2, 0);
+    return this.add(g, color, o);
   }
 
   /** Upper half of a sphere, sitting on y. */

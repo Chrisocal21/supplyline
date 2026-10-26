@@ -30,6 +30,7 @@ import { tendDrivers, wagesPerMinute } from './drivers';
 import type { Place } from './features';
 import { freeCivicLot, layoutOf, routeAt, siteAt, syncDistrictSite, wrapDx, wrapX, type World } from './world';
 import { civicFootprint } from './townlayout';
+import { districtGoods, venuesOf } from './venues';
 
 const TICKS_PER_MINUTE = 600;
 
@@ -184,8 +185,8 @@ export function townPriceMult(place: Place, good: Good): number {
     else if (place.mastered && !path.goods.length) m *= 1 + PATH_MASTERY_BONUS;
   }
   if (!place.districts) return m;
-  for (const { def, level } of builtDistricts(place)) {
-    if (def.goods.includes(good)) m *= 1 + def.price * level * boost(place, def);
+  for (const { id, def, level } of builtDistricts(place)) {
+    if (districtGoods(place, id).includes(good)) m *= 1 + def.price * level * boost(place, def);
     if (def.capstone && def.path === 'tradehub') m *= 1 + 0.05 * level;
   }
   return Math.min(2.6, m);
@@ -229,14 +230,16 @@ export function townLoadMult(place: Place): number {
 export function districtSatisfaction(world: World, place: Place, id: DistrictId): number {
   const def = DISTRICTS[id];
   if (def.effect === 'visitors') return Math.min(1, GOOD_LIST.filter((g) => (place.delivered[g] ?? 0) > 0).length / 10);
-  if (def.goods.length === 0) return 1;
+  const venues = venuesOf(place, id, districtLevel(place, id));
+  if (venues.length === 0 && def.goods.length === 0) return 1;
   // What the district's own building has in store (its trucks drop the goods there). A district with no building yet
   // (an old save, before it is given a lot) is judged by the town's docks, as before.
   const home = world.sites.find((s) => s.placeId === place.id && s.districtId === id);
   const docks = home ? [home] : world.sites.filter((s) => s.placeId === place.id && SITE_DEFS[s.kind].dock);
-  let have = 0;
-  for (const g of def.goods) if (docks.some((d) => (d.stock[g] ?? 0) >= 1)) have += 1;
-  return have / def.goods.length;
+  const stocked = (g: Good): boolean => docks.some((d) => (d.stock[g] ?? 0) >= 1);
+  // A district with venues earns from each venue by how much of its own menu is in stock: a venue nobody supplies adds nothing.
+  if (venues.length > 0) return venues.reduce((sum, v) => sum + v.goods.filter(stocked).length / v.goods.length, 0) / venues.length;
+  return def.goods.filter(stocked).length / def.goods.length;
 }
 
 /** Money per minute the town's districts bring in right now. */
