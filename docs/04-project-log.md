@@ -1141,3 +1141,43 @@ What changed:
 
 - The SPREAD OUT / HIGHEST DEMAND / BEST PRICE / CLOSEST / BEST EARNINGS row on a truck card is back even with a single buyer joined, so the strategy is already set once more buyers connect.
 - A new vehicle now picks BEST PRICE by default when unpinned (Any buyer), instead of spreading out blindly; the header line next to DELIVERS TO shows which strategy is active.
+
+## 0.190 to 0.196: the guided start
+
+- Trucks reach much farther and buyers that do not buy are hidden (0.190). The quest line walks the first town to level 2 with a reason for each step (0.191, 0.192); new towns get a card; welcome slides for a new game (0.193).
+- Early buildings unlock one at a time through the quest line (`SITE_UNLOCK_QUEST`, 0.194): Dairy Ranch, Orchard, Farm, Flour Mill, Bakery and Dairy each wait for one earlier quest. Cheese follows the milk, the Mechanic Shop comes earlier, the Orchard moves after the Bakery (0.195). Locked buildings show as padlock cards in the build tray (0.196).
+
+## 0.197 to 0.205: footprints and held ground
+
+- Buildings fit their ground and the airport is a 5x3 rectangle; roads join a turned building at its driveway (0.197, 0.201). Cheese quest teaches the chain (0.198). A second truck for another buyer, drivers spot quicker roads (0.199).
+- A building holds the ground of its last level from day one so upgrades grow into it (0.200); camps, quarries and mines hold the room beside their node (0.203); land plots never cross the ground a town holds (0.205). Placing any building shows the green and orange wash for its road and driveway (0.204).
+
+## 0.206 to 0.208: levels, wood and downtown
+
+- Quarry opens at town level 2, Wood Yard quests, logs and lumber keep a buyer, unlock cards, ordered padlocks, growth plays before popups (0.206).
+- Downtown housing and skylines that grow with each town, factories on open ground, 160 m peaks, scale chart (0.207). Window grids, shopfronts, lit windows, style colours, reserved district sites, see-through towers (0.208).
+
+## 0.209: demo off, installer version from the tag
+
+- The browser demo is switched off. The release workflow sets the installer version from the git tag (`npm version`), fixing "Cannot find latest.yml" in the update check, which came from a stale package.json version. The test bot buys land on downtown worlds.
+
+## 0.210 to 0.211: quest cards and growth
+
+- Every finished quest shows a card: cash paid, what it unlocked, the next quest and its hint. Continue starts the town or city growth show; halfway through it a "Back to previous place" button returns the camera. Hints written out in full, new quest "Earn your first $60".
+- Bug: a factory on open ground could be walled in by neighbours' held ground, so no road reached it and town growth did not count it. The bot checks for a way out; the game now refuses the placement with "Boxed in by nearby buildings" (0.211).
+
+## 0.212 to 0.214: everything sells
+
+- The Market buys every good: full price and growth for what the town wants, surplus at 60% (`SALVAGE_PRICE`) with no growth credit for everything else (0.212). Supply Yard stock sells to the store.
+- Every district is a buyer (`DistrictDef.buys`), and Warehouse, Hotels and the International Terminal buy across the board (0.213).
+- Surplus is kept out of the panel lists and labelled; a save round-trip test covers new-game worlds (0.214).
+
+## 0.215 to 0.216: materials
+
+- New buildings (Tier 1 on) cost money plus materials from the nearest built town's Supply Yard store and wait as a pending site until it has them. Tier 0 buildings and anything that makes the material itself are exempt (`buildMaterials`). Lumber at Tier 1, plus bricks at Tier 2, plus cement at Tier 3, bricks, concrete and steel from Tier 4 (0.215, 0.216).
+- Upgrades take a different mix of materials per level (`upgradeMaterials`); the building works at its old level until they arrive. Waiting buildings stand as a scaffolded site with crane and piles. Build cards and upgrade buttons list the materials. Town growth materials per style and level are unchanged.
+- Tests: materials.test.ts (5), saveio round trip, wood.test.ts. 523 pass, 2 skipped.
+
+## After 0.216: testers page
+
+- The /access page asked GitHub's API for the latest release from each browser and showed "Latest build unknown" on a 403 (rate limit). The Vite build now bakes the site's own version into the page (`releaseFallback`, `__SL_VERSION__`) and the page falls back to that version's direct download links.

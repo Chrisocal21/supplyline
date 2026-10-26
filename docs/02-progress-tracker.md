@@ -2,42 +2,92 @@
 
 ---
 
-## Supplyline
+## Where we are (October 25, 2026, release 0.216)
 
-### Warehouse list filters (unreleased)
+**Overall progress:** about 74% of the planned scope (phase percentages below; each is checked boxes over total boxes, adjusted where a box was stale)
+**Status:** Active. Tester build is out: Windows and Mac installers on GitHub Releases, coded tester page at /access, public site at /.
+**Tests:** 523 pass, 2 skipped (vitest). Type check and production build clean.
+**Current release:** 0.216 (tag v0.216.0): upgrades take materials per level, waiting buildings show scaffolding, build cards list materials.
+**Pacing (test bot, downtown world, seed 11, 3 game hours):** Tier 1 at 7.9 min, town level 2 at 26.2 min, level 3 not reached (the bot grows one town). A human playthrough is still the real test.
 
-- A warehouse or terminal's Businesses and Sells to pages (and every building's Selling page) get a filter bar: live text search by name, kind, town or good; status, type and goods chips that show how many match; sort orders; a "Showing X of Y" count; and Clear filters.
-- Search is a real text field, so typing never triggers game hotkeys.
-- "Send all shown" / "Stop all shown" (and "Sell to all shown" on the buyers list) switch everything the filters show at once.
+### Percent by area
 
-### Train movement polish (unreleased)
+| Area | Progress | Note |
+|---|---|---|
+| Core sim (production, logistics, towns, districts, paths) | 100% | Locked in; see "Locked in" below |
+| Vehicles, drivers, mechanics, fleet | 95% | Wagons and per-mode perks not built |
+| Quest line and teaching (Tier 0 to 4, cards, hints) | 90% | Quest numbers need a human playthrough |
+| Materials economy (Supply Yard store, build and upgrade materials) | 90% | Shipped 0.215 and 0.216; balance unmeasured by a person |
+| Market and buyers (everything sells, districts buy) | 95% | Surplus sells at 60%; Supply Yard raw-goods price is Chris's call |
+| Town growth and downtown skylines | 85% | Bot never reaches level 3; towers not in title world; tower shadows |
+| UI and menus (site look applied) | 90% | One small approved UI change at a time |
+| World look and art | 55% | Real models arrive later; clouds, day/night cycle, sound not done |
+| Performance | 70% | Chunked ground, instancing; phone check and dormant towns open |
+| Desktop app and release pipeline | 85% | Installer, auto-update check, release on tag; code signing not done |
+| Tester launch | 80% | /access fixed in 0.216+; waiting on tester feedback |
+| Steam | 0% | Not raised until the demo is 100% complete |
 
-- Rolling stock follows measured distance along the rendered rails instead of a fixed tile-to-world conversion, keeping wagon spacing consistent through curves and across latitudes.
-- Each carriage turns between its own bogie positions; station stops account for the full train length.
-- Exhaust follows the locomotive's stack rather than the route's centre point.
-
-**Overall progress:** about 72% (by checklist count; all of it runs, most of it is playtested only through automated clicks)
-**Last updated:** October 24, 2026 (release 0.108)
-**Status:** Active
-
-**Current release:** [0.11 - A fuller, more detailed world](release-0.11.md)
-
----
-
-## Phases at a glance
+### Phases at a glance
 
 | Phase | What it is | Progress |
 |---|---|---|
 | Step Zero | Prove the loop | 100% |
-| Phase 1 | MVP as a 3D globe | 95% |
-| Phase 2 | Core loop: rail, air, goods, highways | 90% |
+| Phase 1 | MVP as a 3D globe | 100% |
+| Phase 2 | Core loop: rail, air, goods, highways | 100% |
 | Phase 3 | The world, polished (graphics, sound) | 58% |
 | Phase 4 | Depth: districts, paths, vehicle ladder | 90% |
 | Phase 5 | Living towns, bank, rail yard, joined roads | 100% |
-| Phase 6 | Later: sea transport, real-money cash, events | 30% |
-| Phase 7 | Desktop version: .exe, auto-updates, WebGPU, Steam (plan in [05-desktop-version.md](05-desktop-version.md)) | 0% |
+| Phase 6 | Later: sea transport, real-money cash, events | 50% |
+| Phase 7 | Desktop version: .exe, auto-updates, WebGPU, Steam (plan in [05-desktop-version.md](05-desktop-version.md)) | 23% |
 
-Overall: about 72%.
+### Release history since 0.108 (details in [04-project-log.md](04-project-log.md))
+
+| Releases | Date | What moved |
+|---|---|---|
+| 0.109 to 0.117 | Oct 23 | Map 3 preview, more land, compact saves, About page, goods page on the website |
+| 0.118 to 0.129 | Oct 24 | Fog removed, green/orange build zones (0.122), fuller Tier 0 and 1 quest lines, tutorial (0.124), Map 3 opens for play as beta |
+| 0.130 to 0.138 | Oct 24 | Map 3 channels, F3 triangle breakdown, far trees hide sooner, node pins from far out, demo on Map 1 ending at Tier 2 (0.136) |
+| 0.139 to 0.148 | Oct 24 | Full game as a download, tester page, mock Steam page, Next.js website, chunked ground (0.145), buyer reach shown (0.148) |
+| 0.149 to 0.159 | Oct 24 | Small hills levelled, land plots green/orange, model and art brief, Forestry Camp v2, new logo and site look in the game |
+| 0.160 to 0.169 | Oct 24 | Mac build, /access page, title screen, drawn menu icons, sleeker HUD, Map 3 ground cheaper |
+| 0.170 to 0.183 | Oct 24 | UI redesign in small bits: cards, Finance, How to play, world chooser, saved games, tabs, building window, vehicle cards, placement overlay, keys, room to build |
+| 0.184 to 0.189 | Oct 24 | Trucks wait for orders, node markers, tier unlock cards, in-game Wiki, buyer filters |
+| 0.190 to 0.196 | Oct 24 to 25 | Trucks reach farther, quest line walks the first town to level 2, early buildings unlock one at a time, padlock cards |
+| 0.197 to 0.205 | Oct 25 | Footprints, 5x3 airport, driveway rule, held ground for growth, placement wash for roads and driveways |
+| 0.206 to 0.208 | Oct 25 | Quarry opens at town level 2, Wood Yard quests, unlock cards, downtown housing and skylines, window grids and shopfronts |
+| 0.209 | Oct 25 | Demo switched off, installer version taken from the release tag |
+| 0.210 to 0.211 | Oct 25 | Quest card for every quest, Continue plays the growth show, "Back to previous place" halfway, full hints, first-income quest, walled-in factory refused |
+| 0.212 to 0.214 | Oct 25 | Market buys every good (surplus at 60%), every district is a buyer, surplus labelled and kept out of panel lists, save round-trip test |
+| 0.215 | Oct 25 | New buildings take materials from the town's Supply Yard store and wait until it has them |
+| 0.216 | Oct 25 | Upgrades take materials per level, scaffold on waiting buildings, materials on build cards |
+| after 0.216 | Oct 25 | Testers page falls back to the build's own release files when GitHub refuses the version lookup (403) |
+
+### Open right now
+
+- [ ] Vehicles through the driveway: Chris to describe what he sees
+- [ ] Test bot grows only one town, so Tier 2 and town level 3 are not re-measured on downtown worlds
+- [ ] Towers in the title and sample world; tower shadows do not shrink with the squash
+- [ ] Tropical and temperate style look; performance on phones; dormant towns; wagons; Hard mode
+- [ ] Padlock card to Wiki link; old-save airports
+- [ ] Quest numbers and material amounts after a human playthrough
+- [ ] Supply Yard price for raw goods: full price or salvage (Chris's call)
+- [ ] Confirm the live /access page shows the version and downloads after the latest deploy
+
+---
+
+### Older notes kept from earlier sessions (built)
+
+#### Warehouse list filters
+- A warehouse or terminal's Businesses and Sells to pages (and every building's Selling page) get a filter bar: live text search by name, kind, town or good; status, type and goods chips that show how many match; sort orders; a "Showing X of Y" count; and Clear filters.
+- Search is a real text field, so typing never triggers game hotkeys.
+- "Send all shown" / "Stop all shown" (and "Sell to all shown" on the buyers list) switch everything the filters show at once.
+
+#### Train movement polish
+- Rolling stock follows measured distance along the rendered rails instead of a fixed tile-to-world conversion, keeping wagon spacing consistent through curves and across latitudes.
+- Each carriage turns between its own bogie positions; station stops account for the full train length.
+- Exhaust follows the locomotive's stack rather than the route's centre point.
+
+**Older current release note:** [0.11 - A fuller, more detailed world](release-0.11.md)
 
 ---
 
@@ -56,7 +106,7 @@ Overall: about 72%.
 
 ### Phase 1 — MVP (rebuilt as a 3D globe)
 
-**Phase progress:** 95% (18/19)
+**Phase progress:** 100% (19/19)
 
 #### Feature 1.1 — The World
 - [x] Globe with continents, oceans, mountains, forests and polar caps
@@ -88,13 +138,13 @@ Overall: about 72%.
 - [x] Category menu with 3D thumbnails, hover cards, selection panels, status rings, collision-free labels
 - [x] Save and load in browser local storage
 - [x] How to play guide (opens on a first visit; H, the ? button, or the menu)
-- [ ] Deploy to Vercel (needs Chris go-ahead and a GitHub repo)
+- [x] Deploy to Vercel (every push to main is live)
 
 ---
 
 ### Phase 2 — Core Loop
 
-**Phase progress:** 90% (9/10)
+**Phase progress:** 100% (10/10)
 
 - [x] Rail as its own network, with level crossings, and freight trains
 - [x] Airports and cargo planes
@@ -295,7 +345,7 @@ Money
 
 ### Phase 6 — Later
 
-**Phase progress:** 0%
+**Phase progress:** 50% (4/8)
 
 - [x] Sea transport: ports, ships, water lanes, island specialties
 - [ ] Buying cash with real money (needs a payment service and a server)
@@ -310,7 +360,7 @@ Money
 
 ### Phase 7 — Desktop version and beyond (planned Oct 18, 2026)
 
-**Phase progress:** 0%. Full detail, tables and reasoning: [05-desktop-version.md](05-desktop-version.md). Distribution: GitHub download first, Steam later. The browser version stays alive from the same code.
+**Phase progress:** 23% (22/96; installer, auto-update check, release on tag and Mac build shipped; the rest is plan). Full detail, tables and reasoning: [05-desktop-version.md](05-desktop-version.md). Distribution: GitHub download first, Steam later. The browser version stays alive from the same code.
 
 #### 7.000 Release 0.15: custom maps and the placement rules (Chris, 2026-10-19; Chris says "continue" between steps)
 Notes from playing a Large world (41 fps, 24 ms a frame, draw 10 ms): roads look alike in every town; nodes bunch up in places; too much ocean (water should be about 15% of the globe, it is 64% on random worlds); treeless strips in forests; wants hand-made maps with hard node rules around mountains, oceans, lakes and rivers. Towns should connect naturally, never take over (dominance dropped).
@@ -354,11 +404,11 @@ Notes from playing a Large world (41 fps, 24 ms a frame, draw 10 ms): roads look
 - [ ] Save versioning and migration check before saves move to disk
 
 #### 7.1 The .exe and the all-in-one launcher
-- [ ] Electron shell around the existing build
+- [x] Electron shell around the existing build (0.139 onward)
 - [ ] Saves as real files in Documents/Supplyline, with a one-time import of old localStorage saves
 - [ ] Autosave on a timer and on quit, many slots with screenshot, date and play time, automatic backups, save migration across versions
-- [ ] Auto-updater (electron-updater on GitHub Releases), "Update ready - restart", "What's new" screen
-- [ ] GitHub Action that builds the installer on a version tag
+- [x] Update check against GitHub Releases (latest.yml; installer version now taken from the tag, 0.209). Restart prompt and What's new screen still to do
+- [x] GitHub Action that builds the Windows and Mac installers on a version tag (.github/workflows/release.yml)
 - [ ] Stable and Beta channels, one-click rollback, "Repair game" button
 - [ ] Settings that survive updates: graphics presets chosen from the GPU, resolution, fullscreen, vsync, frame cap, UI scale, key rebinding, volume
 - [ ] Crash reports (opt in) and a "Report a bug" button that attaches log and screenshot
@@ -456,6 +506,7 @@ Notes from playing a Large world (41 fps, 24 ms a frame, draw 10 ms): roads look
 | Oct 23 to 24, 2026 | 0.99 to 0.106: $6,000 start and lower running costs, smarter sell-to choices, by-product scrap and buyers for every early product, staged building menu, idle vehicles, nearer clay and stone, roadside patch, fishing boats sail | see project log |
 | Oct 24, 2026 | 0.107: a hired crew of mechanics | see project log |
 | Oct 24, 2026 | 0.108: yard vehicle limits by building level; Map 3 made and shown in the menu as in progress | see project log |
+| Oct 23 to 25, 2026 | 0.109 to 0.216: see "Release history since 0.108" at the top | about 74% |
 | Oct 11, 2026 | Direction changed to a 3D globe. Rebuilt the renderer in Three.js, added terrain, towns, nodes, push/pull hubs, vehicle classes, levels, demolish, new HUD | 45% (new, larger scope) |
 
 ---

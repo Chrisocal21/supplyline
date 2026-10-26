@@ -2,7 +2,7 @@
 
 > A browser-based logistics and production game on a 3D globe. Build production sites, lay the roads between them, move goods, combine them into more valuable goods, and grow towns into an empire. Also a learning project: Chris's first real game dev, built with tools he already knows.
 
-Updated October 11, 2026 (v2). The first version of this document described a flat 2D map. The direction changed after the 2D prototype: the play space is now a 3D globe with real terrain, towns that grow, and a push/pull logistics system. What changed is called out in the project log.
+Updated October 25, 2026 (release 0.216). Originally written October 11, 2026 (v2); sections below were brought up to date for the materials economy, the Market, quest cards and the tester build. The first version of this document described a flat 2D map. The direction changed after the 2D prototype: the play space is now a 3D globe with real terrain, towns that grow, and a push/pull logistics system. What changed is called out in the project log.
 
 ---
 
@@ -92,11 +92,19 @@ Quests are data in `src/sim/defs.ts` (the `TIERS` list) and progress is measured
 
 A **How to play** guide (H, the ? button, or the menu) walks through the loop in twelve short cards. It opens by itself on a first visit.
 
----|---|---|
-| 0 | Start | Box truck, forestry, farm, quarry, sawmill, flour mill |
-| 1 | Deliver 100 lumber | Paper mill, distribution hub, big rig, level 2 buildings, longer bridges and tunnels |
-| 2 | Grow a town to level 3 | Level 3 buildings (rail comes here, when built) |
-| 3 | Grow 3 towns to level 4 | (air freight comes here, when built) |
+The Tier 0 list above is the short form. In the game it is a longer guided line (forestry, sawmill, market, farm, mill, bakery, dairy, cheese, Wood Yard, first income and more) that walks the first town to level 2. Each building opens when its quest is done (`SITE_UNLOCK_QUEST`), and the quarry opens at town level 2.
+
+**Quest cards (0.206, 0.210).** Every finished quest shows a card: the cash paid, what it unlocked with a short blurb, and the next quest with its hint. Continue starts the town or city growth show; halfway through it a "Back to previous place" button returns the camera to where the player was.
+
+---
+
+## Materials and the Market (0.212 to 0.216)
+
+- **Everything sells.** The Market buys every good in the game. What the town wants pays full price and counts toward growth; anything else sells as surplus at 60% with no growth credit. Districts are buyers too, and the Warehouse, Hotels and International Terminal buy across the board.
+- **Build materials.** From Tier 1, a new building in or beside a built town costs money plus materials taken from that town's Supply Yard store (the nearest yard supplies it). Lumber at Tier 1, plus bricks at Tier 2, plus cement at Tier 3, bricks, concrete and steel from Tier 4. Tier 0 buildings and anything that makes the material itself are exempt, so the first camp and sawmill need nothing. A building without its materials stands as a scaffolded site and waits; the message says what is missing.
+- **Upgrade materials.** Each level asks for a different mix (lumber, bricks, cement, steel, concrete, glass, tools), growing with the level. The building keeps working at its old level until they arrive.
+- **Town growth materials** are set per style and level and are separate from the above.
+- Build cards and upgrade buttons list what they take. The test bot stocks the yard for waiting buildings.
 
 ---
 
@@ -206,7 +214,13 @@ No backend, no AI, no accounts.
 
 ---
 
-## Desktop Version (planned, Phase 7)
+## Tester build (live since 0.209)
+
+- Windows and Mac installers on GitHub Releases, built by a GitHub Action when a version tag is pushed; the installer version comes from the tag. The in-game update check reads the same release.
+- Coded tester page at /access with the latest build and download buttons (falls back to the build's own version when GitHub refuses the lookup). Public site at / (Next.js on Vercel, every push to main deploys).
+- The browser demo is off; the game runs from the installer.
+
+## Desktop Version (in progress, Phase 7)
 
 The same game as a downloadable Windows app, with the browser version kept. Full plan, graphics ceiling and wish list: [05-desktop-version.md](05-desktop-version.md); checklist in the tracker's Phase 7.
 

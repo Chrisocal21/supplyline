@@ -46,6 +46,13 @@
 | What happens to idle trucks? | They cost less, are counted apart from working ones, and the Fleet sheet sells the surplus | Oct 24, 2026 |
 | How many vehicles can a building hold? | 4 at level 1, 2 more per level, across all lines | Oct 24, 2026 |
 | How does a town's first step work? | Level 1 to 2 needs lumber only; later levels add the style's materials | Oct 24, 2026 |
+| Can every good be sold at the Market? | Yes. Wanted goods pay full price and grow the town; everything else sells as surplus at 60% with no growth | Oct 25, 2026 |
+| Should districts buy things? | Yes, every district is a buyer, across the board | Oct 25, 2026 |
+| Do buildings need materials? | Money plus materials from the nearest built town's Supply Yard store; the build waits with a clear message; materials differ per tier and per upgrade level | Oct 25, 2026 |
+| Which buildings are exempt from materials? | The Forestry Camp, the first few Tier 0 buildings, and anything that makes the material itself (Sawmill) | Oct 25, 2026 |
+| Which yard supplies a building? | The nearest Supply Yard (a downtown or city yard supplies the town's growth too) | Oct 25, 2026 |
+| What does a finished quest show? | A card: cash paid, what it unlocked, the next quest. Continue plays the town growth show, with a "Back to previous place" button halfway | Oct 25, 2026 |
+| Browser or installer for testers? | Installer only (Windows and Mac); the browser demo is off, tester page at /access | Oct 25, 2026 |
 
 ---
 
@@ -53,6 +60,10 @@
 
 | Question | Why It Matters |
 |---|---|
+| What exactly goes wrong with vehicles through the driveway? | Chris raised it on Oct 25 and has not described it yet; nothing can be fixed until it is seen |
+| Should the Supply Yard pay full price for raw goods, or salvage? | Today surplus sells at 60%; raw goods at full price would make the yard a stronger early market. Chris's call |
+| Do the new material amounts pace right? | Units are clamp(round(cost/40), 6, 400); the bot reaches town level 2 at 26 min on a downtown world and never reaches level 3 because it grows one town. Only a person can judge the feel |
+| How should the test bot grow more than one town? | Without it Tier 2 and town level 3 are not measured on downtown worlds |
 | Should trains need stations (stops with their own storage) instead of joining sites directly? | Makes rail feel different from roads, but adds a building and more clicks. It would also let trains serve town centres: today track cannot reach a Market or Freight Yard, so a train ends at a hub or an outer-lot factory |
 | Should a station also send goods out? | Today a station only receives. Factories on outer lots can be reached by track directly; the two inner corner lots cannot |
 | Do the new goods and chains pace right? | The careful bot reaches Tier 1 at 8 minutes and town level 3 at 34 to 60; Tier 2 (a level 4 town) is slow. A person should check the feel |
