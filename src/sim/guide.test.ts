@@ -1,7 +1,9 @@
 // The materials guide follows what the player has really done.
 import { describe, expect, it } from 'vitest';
 import { SITE_DEFS, buildMaterials, type SiteKind } from './defs';
-import { materialTasks } from './guide';
+import { materialTasks, questGuide } from './guide';
+import { TIERS } from './defs';
+import { nextQuest } from './quests';
 import { buyVehicle, createRoute, createWorld, findPath, placeSite, step } from './world';
 
 describe('materials guide', () => {
@@ -60,5 +62,31 @@ describe('materials guide', () => {
     for (let i = 0; i < 1500 && waiting.pending; i++) step(w);
     expect(waiting.pending).toBeUndefined();
     expect(materialTasks(w).find((x) => x.site === waiting)).toBeUndefined();
+  });
+});
+
+describe('quest guide', () => {
+  it('gives the first quest a step that ticks off when the camp stands, and moves to the next quest', () => {
+    const w = createWorld(5);
+    let n = nextQuest(w)!;
+    expect(n.quest.id).toBe('t0-camp');
+    let g = questGuide(w, n.quest)!;
+    expect(g.steps[0].done).toBe(false);
+    expect(g.steps[0].coach?.tool).toBe('forestry');
+    expect(g.why.length).toBeGreaterThan(20);
+    w.questsDone.push('t0-camp');
+    n = nextQuest(w)!;
+    expect(n.quest.id).not.toBe('t0-camp');
+  });
+
+  it('has well-formed steps for every quest in Tier 0 and 1 that has any', () => {
+    const w = createWorld(5);
+    for (const q of [...TIERS[0].quests, ...TIERS[1].quests]) {
+      const g = questGuide(w, q);
+      if (!g) continue;
+      expect(g.steps.length).toBeGreaterThan(0);
+      expect(g.index).toBeGreaterThanOrEqual(0);
+      expect(g.index).toBeLessThan(g.steps.length);
+    }
   });
 });

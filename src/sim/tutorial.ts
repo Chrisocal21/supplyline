@@ -60,3 +60,12 @@ export function tutorialSkip(world: World, id: string): void {
   const done = (world.tutorialDone ??= []);
   if (!done.includes(id)) done.push(id);
 }
+
+/** The next on-screen control step (camera, speed, sheets). Steps about building are taught by the quest tracker instead. */
+export function tutorialControl(world: World, flags: ReadonlySet<string>): { step: TutStep; index: number; total: number } | null {
+  tutorialNext(world, flags);
+  const done = world.tutorialDone ?? [];
+  const steps = TUTORIAL.filter((s) => s.tier <= world.tier && s.flag);
+  const i = steps.findIndex((s) => !done.includes(s.id));
+  return i < 0 ? null : { step: steps[i], index: steps.filter((s) => done.includes(s.id)).length, total: steps.length };
+}

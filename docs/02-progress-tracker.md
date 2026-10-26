@@ -6,8 +6,8 @@
 
 **Overall progress:** about 74% of the planned scope (phase percentages below; each is checked boxes over total boxes, adjusted where a box was stale)
 **Status:** Active. Tester build is out: Windows and Mac installers on GitHub Releases, coded tester page at /access, public site at /.
-**Tests:** 525 pass, 2 skipped (vitest). Type check and production build clean.
-**Current release:** 0.217 (tag v0.217.0): live guide for buildings waiting on materials (steps tick off as you do them).
+**Tests:** 527 pass, 2 skipped (vitest). Type check and production build clean.
+**Current release:** 0.218 (tag v0.218.0): quest tracker with subquests at the top left, status pills in the footer.
 **Pacing (test bot, downtown world, seed 11, 3 game hours):** Tier 1 at 7.9 min, town level 2 at 26.2 min, level 3 not reached (the bot grows one town). A human playthrough is still the real test.
 
 ### Percent by area
@@ -618,3 +618,11 @@ Done earlier:
 ## 0.217
 - Live materials guide (`src/sim/guide.ts`, card in the HUD): a building or upgrade waiting on the Supply Yard store shows what it needs, why, and a short list of steps that tick off from the real world (build the maker, switch it on, road it to the yard, switch the sale on, buy a truck, wait for delivery with a count). The current step rings its build button. No rewards: these are the how-to inside a quest.
 - Found while checking "can't send materials": the sim does deliver (a brickworks roaded to the yard fills a waiting building); the gap was knowing what to do. Next in this thread: subquests inside the quests themselves, the tutorial folded into the same card, a "waiting for materials" list on the Supply Yard panel.
+
+## 0.218
+- Quest tracker at the top left of the play screen (not the header): the tier, the quest in hand, its progress bar, and its subquests ticked off live from the world, with the quest's "why" under them. The current step rings the button to press. A building waiting on materials takes its place until built. "Hide steps" and "All quests" links. Subquests pay nothing; the parent quest pays.
+- Subquests are generated from each quest's goal (`questGuide` in guide.ts): build chains (place, switch on, road, truck, sale), roads, trucks, the first logs to the town, selling, making. Quests that are plain counts (earn, grow a town) show just their progress.
+- The old tutorial now teaches only controls (camera, zoom, speed, sheets) in the bottom-left card; building steps moved into the tracker.
+- Status pills ("All running", "waiting on supply", cash warning) moved to the lower left of the footer; the key hints left the footer and stay in Menu, Keybinds.
+- The Supply Yard panel lists the buildings waiting on its store and what each still needs.
+- Tests: 527 pass, 2 skipped.

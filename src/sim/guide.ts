@@ -104,3 +104,59 @@ export function materialTasks(world: World): MaterialTask[] {
   }
   return out;
 }
+
+export interface QuestGuide {
+  questId: string;
+  title: string;
+  why: string;
+  steps: GuideStep[];
+  index: number;
+}
+
+const TAB_OF = (k: SiteKind): string => SITE_DEFS[k].category ?? 'logistics';
+
+/** The steps of a chain that makes goods for a buyer: place it, switch it on, road it, sell, truck. `kind` is its building. */
+function chainSteps(world: World, kind: SiteKind, count: number): GuideStep[] {
+  const def = SITE_DEFS[kind];
+  const mine = world.sites.filter((s) => s.kind === kind && !s.pending);
+  const site = mine[0];
+  const steps: GuideStep[] = [
+    { text: count > 1 ? `Build ${count} ${def.label}s (${Math.min(count, mine.length)} of ${count})` : `Pick ${def.label} in ${TAB_OF(kind)[0].toUpperCase() + TAB_OF(kind).slice(1)} and place it`, done: mine.length >= count, coach: mine.length < count ? { tab: TAB_OF(kind), tool: kind } : undefined },
+  ];
+  if (!(def.produce || def.recipe) || def.dock) return steps;
+  if (def.recipe) steps.push({ text: `Click it and switch ${GOODS[Object.keys(def.recipe.outputs)[0] as Good].label.toLowerCase()} on: a factory makes nothing until you do`, done: !!site?.making });
+  const linked = !!site && world.routes.some((r) => !r.free && (r.fromSiteId === site.id || r.toSiteId === site.id));
+  steps.push({ text: 'Road it to the buyer (Logistics, Road, drag between the two)', done: linked, coach: site && !linked ? { tab: 'logistics', tool: 'route' } : undefined });
+  steps.push({ text: 'Buy a truck for it: click it, then Buy Box Truck', done: !!site && world.vehicles.some((v) => v.homeId === site.id) });
+  const sells = !!site && sellTargets(world, site).some((t) => t.on);
+  steps.push({ text: 'Open its Selling tab and switch a buyer on', done: sells });
+  return steps;
+}
+
+/** Subquests for the quest the player is on: its how-to steps, read from the world. Null when the quest is a plain count. */
+export function questGuide(world: World, quest: { id: string; label: string; hint: string; goal: import('./defs').QuestGoal }): QuestGuide | null {
+  const goal = quest.goal;
+  let steps: GuideStep[] = [];
+  if (goal.kind === 'build') steps = chainSteps(world, goal.site, goal.count);
+  else if (goal.kind === 'route') steps = [{ text: 'Pick Road in Logistics and drag from one building to another', done: world.routes.some((r) => r.mode === goal.mode && !r.free), coach: { tab: 'logistics', tool: goal.mode === 'rail' ? 'rail' : goal.grade === 'highway' ? 'highway' : 'route' } }];
+  else if (goal.kind === 'fleet' || goal.kind === 'yardfleet') steps = [{ text: goal.kind === 'yardfleet' ? 'Click the Supply Yard, open Trucks, press Buy Box Truck' : 'Click a building and press Buy Box Truck, then pick a driver', done: goal.kind === 'yardfleet' ? world.vehicles.some((v) => SITE_DEFS[world.sites.find((s) => s.id === v.homeId)?.kind ?? 'forestry'].dock === 'freight') : world.vehicles.length >= goal.count }];
+  else if (goal.kind === 'selling') steps = [{ text: 'Click one of your buildings and open its Selling tab', done: world.sites.some((x) => sellTargets(world, x).length > 0) }, { text: 'Switch a buyer on under Sell to', done: world.sites.some((x) => sellTargets(world, x).some((t) => t.on)) }];
+  else if (goal.kind === 'making') steps = [{ text: 'Click a factory and switch what it makes on', done: world.sites.filter((x) => x.making).length >= goal.count }];
+  else if (goal.kind === 'townbuilt') {
+    const camp = world.sites.find((s) => s.kind === 'forestry');
+    const linked = !!camp && world.routes.some((r) => !r.free && (r.fromSiteId === camp.id || r.toSiteId === camp.id));
+    steps = [
+      { text: 'Have a Forestry Camp cutting logs', done: !!camp, coach: camp ? undefined : { tab: 'production', tool: 'forestry' } },
+      { text: 'Road the camp to the town', done: linked, coach: camp && !linked ? { tab: 'logistics', tool: 'route' } : undefined },
+      { text: 'Buy the camp a truck', done: !!camp && world.vehicles.some((v) => v.homeId === camp.id) },
+      { text: 'Open the camp\'s Selling tab and switch the town on', done: !!camp && sellTargets(world, camp).some((t) => t.on) },
+      { text: 'Keep the logs coming: the quest bar counts them', done: false },
+    ];
+  } else if (goal.kind === 'deliver' || goal.kind === 'make') {
+    const kind = makerKind(world, goal.good);
+    if (kind) steps = chainSteps(world, kind, 1);
+  }
+  if (steps.length === 0) return null;
+  const i = steps.findIndex((s) => !s.done);
+  return { questId: quest.id, title: quest.label, why: quest.hint, steps, index: i < 0 ? steps.length - 1 : i };
+}

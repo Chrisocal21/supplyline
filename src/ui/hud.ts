@@ -101,8 +101,8 @@ import {
   needsNode,
 } from '../sim/world';
 import { nextQuest, tierUnlocks } from '../sim/quests';
-import { tutorialNext, tutorialSkip } from '../sim/tutorial';
-import { materialTasks, type MaterialTask } from '../sim/guide';
+import { tutorialControl, tutorialNext, tutorialSkip } from '../sim/tutorial';
+import { materialTasks, questGuide } from '../sim/guide';
 import { Game3D, districtOfTool, isDistrictTool, type HoverInfo, type OverlayItem, type Tool } from '../r3d/game3d';
 import { DISTRICTS, DISTRICT_ORDER, isSoftNode } from '../sim/defs';
 import { GRID_CELL, gridId } from '../sim/grid';
@@ -1188,7 +1188,8 @@ export class HudScene extends Phaser.Scene {
     im.text('income', `${inc >= 0 ? '+' : '-'}$${fmt(Math.abs(inc))} per min`, 60, y + 27, { size: 12, color: inc > 0 ? COLORS.good : COLORS.muted, layer: 2 });
 
     // Under the header: how many buildings are stuck. Tap it to jump to the first one, again for the next.
-    if (this.dash === null && !this.sheet && !this.saves) this.stuckBadge(12, headH + 8, narrow ? Math.min(210, W / 2 - 18) : mw, narrow);
+    if (narrow && this.dash === null && !this.sheet && !this.saves) this.stuckBadge(12, headH + 8, Math.min(210, W / 2 - 18), true);
+    if (!narrow && this.dash === null && !this.sheet && !this.saves) this.questTracker(headH + 8);
 
     // Right: the one Menu button that opens everything, with the speed control beside it.
     const menuW = narrow ? br * 2 + 4 : 134;
@@ -1262,7 +1263,7 @@ export class HudScene extends Phaser.Scene {
     const perfW = this.perfReadout(speedUp ? spX - 8 : menuX - 10, narrow);
     const free1 = narrow ? W - 12 : spX - 12 - perfW;
     const cw = narrow ? free1 - free0 : Math.min(430, free1 - free0);
-    if (cw >= (narrow ? 150 : 250)) {
+    if (narrow && cw >= 150) {
       const cx0 = narrow ? free0 : Math.round(Math.max(free0, Math.min(free1 - cw, W / 2 - cw / 2)));
       const qy = narrow ? sy : y;
       const qh = narrow ? sh : h;
@@ -2696,23 +2697,8 @@ export class HudScene extends Phaser.Scene {
       this.compass('looseCompass', W - 12 - cr - 4, footY - cr - 14, cr, 2);
     }
 
-    // Key hints at the left of the footer, in as much detail as there is room for.
-    const room = dx - 28;
-    if (!isTouch() && room > 120) {
-      const lines = [
-        ['Esc  menu', 'Space  pause', '- / +  speed', 'Tab  category', '1-9  pick'],
-        ['R  rotate', 'V  road', 'X  demolish', 'U  upgrade', 'M  map', 'N  next problem'],
-      ];
-      lines.forEach((parts, li) => {
-        let s = '';
-        for (const p of parts) {
-          const next = s ? `${s}    ${p}` : p;
-          if (next.length * 6 > room) break;
-          s = next;
-        }
-        if (s) im.text(`keysHint${li}`, s, 16, dy + 20 + li * 22, { size: 11, color: COLORS.muted, alpha: 0.85, layer: 2 });
-      });
-    }
+    // Status pills at the left of the footer. The keys are in Menu, Keybinds.
+    if (!isTouch() && dx - 28 > 160 && this.dash === null && !this.sheet && !this.saves) this.stuckBadge(16, dy + 12, Math.min(210, dx - 44), false);
 
     if (!open) return;
 
@@ -2945,12 +2931,7 @@ export class HudScene extends Phaser.Scene {
   private tutorialCard(W: number, H: number): void {
     if (!this.tutorialOn || this.title || this.game3d.demo || this.menuOpen || this.saves || this.graphicsOpen || this.viewMap || this.sizePick || this.driverPick) return;
     const g = this.game3d;
-    const mat = materialTasks(g.world)[0];
-    if (mat) {
-      this.materialCard(W, H, mat);
-      return;
-    }
-    const t = tutorialNext(g.world, this.tutFlags);
+    const t = tutorialControl(g.world, this.tutFlags);
     if (!t) return;
     const im = this.im;
     const narrow = W < 640;
@@ -2974,32 +2955,65 @@ export class HudScene extends Phaser.Scene {
   }
 
   /** The guide for a building or upgrade waiting on the Supply Yard store: what it needs, why, and the steps to get it there. */
-  private materialCard(W: number, H: number, t: MaterialTask): void {
+  private trackerH = 0;
+
+  private questSteps(): ReturnType<typeof questGuide> {
+    const next = nextQuest(this.game3d.world);
+    return next && !next.progress.done ? questGuide(this.game3d.world, next.quest) : null;
+  }
+
+  /**
+   * The quest tracker, top left like the objective list of any game: the tier and the quest in hand, its progress, and the
+   * subquests under it ticked off as the player does them. A building waiting on materials takes its place until it is built.
+   * Subquests pay nothing: they are the how-to inside the quest, and the quest pays.
+   */
+  private questTracker(y: number): void {
     const im = this.im;
-    const narrow = W < 640;
-    const w = narrow ? W - 24 : 380;
-    const steps = t.steps.slice(0, 7);
-    const needLine = 'Needs ' + t.owed.map(([g, n]) => `${n} ${GOODS[g].label.toLowerCase()}`).join(', ');
-    const h = 76 + steps.length * 20 + 48;
+    const w = this.game3d.world;
     const x = 12;
-    const y = H - this.bottomInset - h - 12;
-    if (y < TOP + 8) return;
-    im.rect(2, x, y, w, h, 0x0d141b, 0.94, 12, COLORS.accent, 0.7, 1.5);
-    im.text('matK', 'MATERIALS', x + 14, y + 10, { size: 10, bold: true, color: COLORS.accent, layer: 3 });
-    const bw = 70;
-    const off = im.hit('matOff', x + w - bw - 10, y + 8, bw, 22, () => this.toggleTutorial(), 3);
-    im.rect(3, x + w - bw - 10, y + 8, bw, 22, off ? 0x2a3646 : 0x17202b, 1, 6, COLORS.line, 1);
-    im.text('matOffT', 'Turn off', x + w - bw / 2 - 10, y + 12, { size: 11, bold: true, align: 'center', layer: 4 });
-    im.text('matT', t.title, x + 14, y + 26, { size: 14, bold: true, layer: 3 });
-    im.text('matN', needLine + ' from the Supply Yard store', x + 14, y + 46, { size: 11, color: COLORS.muted, layer: 3 });
-    steps.forEach((s, i) => {
-      const sy = y + 70 + i * 20;
-      const cur = i === t.index;
-      im.rect(3, x + 14, sy + 3, 10, 10, s.done ? 0x4caf6a : cur ? COLORS.accent : 0x2a3646, 1, 5);
-      im.text(`matS${i}`, s.text, x + 32, sy, { size: 11, bold: cur, color: s.done ? COLORS.muted : 0xffffff, layer: 3 });
-    });
-    im.text('matW', t.why, x + 14, y + h - 38, { size: 10, color: COLORS.muted, wrap: w - 28, layer: 3 });
-    im.block({ x, y, w, h });
+    const pw = 340;
+    const mat = this.tutorialOn ? materialTasks(w)[0] : undefined;
+    const next = nextQuest(w);
+    const qg = this.questSteps();
+    const steps = this.tutorialOn ? (mat ? mat.steps : qg ? qg.steps : []) : [];
+    const index = mat ? mat.index : qg ? qg.index : 0;
+    const title = mat ? mat.title : next ? next.quest.label : 'All quests complete';
+    const sub = mat ? 'Needs ' + mat.owed.map(([g, n]) => `${n} ${GOODS[g].label.toLowerCase()}`).join(', ') + ' from the Supply Yard store' : next ? (next.progress.waiting ?? `${fmt(next.progress.have)} / ${fmt(next.progress.need)}${next.progress.detail ? `  (${next.progress.detail})` : ''}`) : '';
+    const why = mat ? mat.why : qg ? qg.why : next ? next.quest.hint : '';
+    const tx = x + 56;
+    const th = im.text('trkT', title, tx, y + 9, { size: 14, bold: true, wrap: pw - 70, layer: 2 }).h;
+    let cy = y + 9 + th + 5;
+    if (next || mat) {
+      if (!mat && next) im.bar(1, tx, cy + 3, pw - 70 - 90, 7, next.progress.have / Math.max(1, next.progress.need), COLORS.accent);
+      im.text('trkN', sub, mat ? tx : x + pw - 14, cy - 1, { size: 11, bold: true, color: mat ? COLORS.muted : next?.progress.waiting ? COLORS.good : COLORS.warn, align: mat ? 'left' : 'right', wrap: mat ? pw - 70 : undefined, layer: 2 });
+      cy += mat ? 30 : 18;
+    }
+    let bottom = cy + 4;
+    if (steps.length > 0) {
+      const sy0 = cy + 6;
+      im.rect(1, x + 12, sy0 - 4, pw - 24, 1, COLORS.line, 0.8);
+      steps.slice(0, 7).forEach((st, i) => {
+        const sy = sy0 + 4 + i * 20;
+        const cur = i === index;
+        im.rect(2, x + 14, sy + 3, 10, 10, st.done ? 0x4caf6a : cur ? COLORS.accent : 0x2a3646, 1, 5);
+        im.text(`trkS${i}`, st.text, x + 32, sy, { size: 11, bold: cur, color: st.done ? COLORS.muted : 0xffffff, layer: 2 });
+      });
+      const wy = sy0 + 8 + Math.min(steps.length, 7) * 20;
+      const wh = im.text('trkW', why, x + 14, wy, { size: 10, color: COLORS.muted, wrap: pw - 28, layer: 2 }).h;
+      bottom = wy + wh + 6;
+    }
+    const hide = im.hit('trkHide', x + pw - 150, bottom, 70, 18, () => this.toggleTutorial(), 2);
+    im.text('trkHideT', this.tutorialOn ? 'Hide steps' : 'Show steps', x + pw - 150, bottom + 1, { size: 10, bold: true, color: hide ? COLORS.accent : COLORS.muted, layer: 3 });
+    const all = im.hit('trkAll', x + pw - 70, bottom, 56, 18, () => this.toggleSheet('quests'), 2);
+    im.text('trkAllT', 'All quests', x + pw - 70, bottom + 1, { size: 10, bold: true, color: all ? COLORS.accent : COLORS.muted, layer: 3 });
+    const ph = bottom + 24 - y;
+    this.trackerH = ph;
+    const on = this.sheet === 'quests';
+    im.rect(1, x, y, pw, ph, 0x0b1117, 0.92, 10, on ? COLORS.accent : COLORS.line, on ? 0.8 : 0.7);
+    im.circle(2, x + 28, y + 28, 19, COLORS.accent);
+    im.circle(2, x + 28, y + 28, 17, 0x0b1117);
+    im.text('trkTier', String(w.tier), x + 28, y + 14, { size: 26, bold: true, display: true, color: COLORS.accent, align: 'center', layer: 3 });
+    im.block({ x, y, w: pw, h: ph });
   }
 
   /** Which button the current step or quest needs, while the tutorial is on: its category tab and tool. */
@@ -3010,6 +3024,9 @@ export class HudScene extends Phaser.Scene {
     const matCoach = mat?.steps[mat.index]?.coach;
     if (matCoach) return this.game3d.tool !== matCoach.tool ? { tab: matCoach.tab, tool: matCoach.tool as Tool } : null;
     if (mat) return null;
+    const qs = this.questSteps();
+    const qc = qs?.steps[qs.index]?.coach;
+    if (qc) return this.game3d.tool !== qc.tool && !this.game3d.draft ? { tab: qc.tab, tool: qc.tool as Tool } : null;
     if (w.tier > 1) return null;
     const step = tutorialNext(w, this.tutFlags);
     if (step?.step.coach) {
@@ -3110,7 +3127,7 @@ export class HudScene extends Phaser.Scene {
     offers.forEach((o, i) => {
       const s = siteById(world, o.siteId);
       if (!s) return;
-      const y = inMenu ? H - 140 - i * 120 : TOP + 130 + i * 120;
+      const y = inMenu ? H - 140 - i * 120 : TOP + 20 + this.trackerH + i * 120;
       const cost = VEHICLE_DEFS[o.kind].cost;
       const can = buyError(world, o.siteId, o.kind) === null;
       const label = vehicleLabel(o.kind, bodyForLine(s, o.line));
@@ -3896,6 +3913,18 @@ export class HudScene extends Phaser.Scene {
       im.text(`dt${gd}p`, forBuild ? 'for building' : `sells $${unitPrice(world, s, gd).toFixed(1)}`, x + w - 10, cy + 8, { size: 12, bold: true, color: forBuild ? COLORS.muted : COLORS.warn, align: 'right', layer: 3 });
       cy += 34;
     }
+    if (yardPlace && (yardPlace.stage ?? 2) >= 2) {
+      const waiting = materialTasks(world).filter((t) => t.yard === s);
+      if (waiting.length > 0) {
+        cy += 6;
+        im.text('dtWk', 'WAITING FOR MATERIALS FROM THIS YARD', x, cy, { size: 10, bold: true, color: COLORS.accent, layer: 3 });
+        cy += 16;
+        waiting.slice(0, 6).forEach((t, i) => {
+          im.text(`dtW${i}`, `${t.title.replace(' is waiting for materials', '')}: ${t.owed.map(([g, n]) => `${n} ${GOODS[g].label.toLowerCase()}`).join(', ')}`, x + 4, cy, { size: 11, color: COLORS.muted, wrap: w - 8, layer: 3 });
+          cy += 18;
+        });
+      }
+    }
     cy += 4;
     im.text('dtNote', 'The town uses up what it buys, so it keeps wanting more. A fuller stall pays less: sell it something else for a while.' + (SITE_DEFS[s.kind].dock === 'market' ? ' Any other good sells here too as surplus: 60% of the price, and it does not help the town grow.' : ''), x, cy, { size: 11, color: COLORS.muted, wrap: w, layer: 2 });
     return cy + 40 - y;
@@ -4336,7 +4365,8 @@ export class HudScene extends Phaser.Scene {
       im.circle(2, wx + 18, y2 + h2 / 2, 5, COLORS.info);
       im.text('waitT', narrow ? `${this.waitCount} waiting` : `${this.waitCount} waiting on supply`, wx + 34, y2 + 6, { size: 12, bold: true, color: COLORS.text, layer: 2 });
     }
-    this.cashBadge(x, y + h + 6 + (this.waitCount > 0 && !narrow ? 34 : 0), narrow ? Math.min(w, 220) : w);
+    if (narrow) this.cashBadge(x, y + h + 6, Math.min(w, 220));
+    else this.cashBadge(x + w + 10, y, w);
   }
 
   /**
