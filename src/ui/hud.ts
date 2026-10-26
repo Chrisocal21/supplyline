@@ -2095,8 +2095,6 @@ export class HudScene extends Phaser.Scene {
     const kinds = BUILD_ORDER.filter((k) => SITE_DEFS[k].tier === tier);
     const labels = new Set(kinds.map((k) => SITE_DEFS[k].label));
     const rest = tierUnlocks(tier).filter((t) => !labels.has(t));
-    im.rect(3, 0, 0, W, H, 0x05080c, 0.78);
-    im.block({ x: 0, y: 0, w: W, h: H });
     const pw = Math.min(1040, W - 24);
     const pad = 24;
     const inner = pw - pad * 2;
@@ -2104,18 +2102,17 @@ export class HudScene extends Phaser.Scene {
     const cw = (inner - 8 * (cols - 1)) / cols;
     const rows = Math.ceil(kinds.length / cols);
     const restRows = Math.ceil(rest.length / 3);
-    const fixed = 110 + (rest.length ? 34 + restRows * 22 : 0) + 76;
+    const fixed = 136 + (rest.length ? 34 + restRows * 22 : 0) + 76;
     // The cards shrink to fit the window: a big tier opens twenty-odd buildings.
     const ch = Math.max(56, Math.min(96, (H - TOP - 24 - fixed) / Math.max(1, rows) - 8));
     const img = Math.min(56, ch - 36);
     const ph = fixed + rows * (ch + 8);
     const x = (W - pw) / 2;
     const y = Math.max(TOP + 6, (H - ph) / 2);
-    im.rect(4, x, y, pw, ph, 0x0b1117, 0.98, 10, COLORS.accent, 0.7);
-    let cy = y + pad;
-    im.text('tuK', `TIER ${tier} UNLOCKED`, x + pad, cy, { size: 11, bold: true, color: COLORS.accent, layer: 4 });
-    im.text('tuT', (def?.name ?? `Tier ${tier}`).toUpperCase(), x + pad, cy + 14, { size: 32, bold: true, display: true, layer: 4 });
-    im.text('tuS', 'New buildings are in the build bar now. Every one is also in the Wiki.', x + pad, cy + 54, { size: 12, color: COLORS.muted, layer: 4 });
+    this.gameFrame(W, H, x, y, pw, ph, `TIER ${tier} UNLOCKED`, this.cardAge(`t:${tier}`), false);
+    let cy = y + pad + 24;
+    im.text('tuT', (def?.name ?? `Tier ${tier}`).toUpperCase(), x + pw / 2, cy, { size: 40, bold: true, display: true, align: 'center', layer: 6 });
+    im.text('tuS', 'New buildings are in the build bar now. Every one is also in the Wiki.', x + pw / 2, cy + 50, { size: 13, color: COLORS.muted, align: 'center', layer: 6 });
     cy += 86;
     kinds.forEach((k, i) => {
       const d = SITE_DEFS[k];
@@ -2169,59 +2166,145 @@ export class HudScene extends Phaser.Scene {
     this.unlockSeen = w.questsDone.length;
   }
 
+  /** When the card on show first appeared, for its entrance. */
+  private cardKey = '';
+  private cardStart = 0;
+
+  /** Seconds since the current card appeared, restarting whenever the card changes. */
+  private cardAge(key: string): number {
+    if (this.cardKey !== key) {
+      this.cardKey = key;
+      this.cardStart = this.time.now;
+    }
+    return (this.time.now - this.cardStart) / 1000;
+  }
+
+  /**
+   * The frame every reward card shares: a dim, vignetted backdrop, a dark panel with a double gold edge and corner brackets, and a
+   * gold banner standing on its top edge with the kicker in it. A bright sweep crosses the banner, and a ring pulses behind the emblem.
+   */
+  private gameFrame(W: number, H: number, x: number, y: number, w: number, h: number, kicker: string, age: number, emblem = true): void {
+    const im = this.im;
+    const e = Math.min(1, age / 0.35);
+    im.rect(3, 0, 0, W, H, 0x04070a, 0.8 * e);
+    im.block({ x: 0, y: 0, w: W, h: H });
+    im.rect(4, x - 6, y - 2, w + 12, h + 14, 0x000000, 0.4, 12);
+    im.rect(4, x, y, w, h, 0x0b1117, 0.99, 8, COLORS.accent, 0.95, 2);
+    im.rect(4, x + 7, y + 7, w - 14, h - 14, 0x000000, 0, 4, COLORS.accent, 0.28, 1);
+    // A faint gold wash down from the banner.
+    for (let i = 0; i < 10; i++) im.rect(4, x + 2, y + 2 + i * 7, w - 4, 7, COLORS.accent, 0.07 * (1 - i / 10));
+    // Corner brackets, the way the minimap is framed.
+    for (const [cx0, cy0, sx, sy] of [[x + 12, y + 12, 1, 1], [x + w - 12, y + 12, -1, 1], [x + 12, y + h - 12, 1, -1], [x + w - 12, y + h - 12, -1, -1]] as [number, number, number, number][]) {
+      im.line(5, cx0, cy0, cx0 + sx * 18, cy0, COLORS.accent, 1, 2);
+      im.line(5, cx0, cy0, cx0, cy0 + sy * 18, COLORS.accent, 1, 2);
+    }
+    // The banner.
+    const bw = Math.min(w - 40, 380);
+    const bx = x + (w - bw) / 2;
+    const by = y - 20;
+    im.slab(5, bx - 4, by - 4, bw + 8, 52, 0x2a2010, 1);
+    im.slab(5, bx, by, bw, 44, COLORS.accent, 1);
+    im.text('gfKick', kicker, x + w / 2, by + 8, { size: 24, bold: true, display: true, color: 0x1b1204, align: 'center', layer: 6 });
+    const sweep = ((age * 0.9) % 2.4) / 1.4;
+    if (sweep < 1) {
+      const sx = bx + 10 + sweep * (bw - 40);
+      im.line(6, sx, by + 43, sx + 14, by + 1, 0xffffff, 0.4, 7);
+    }
+    for (const dx of [-1, 1]) {
+      const cx = x + w / 2 + dx * (bw / 2 + 22);
+      im.circle(5, cx, by + 22, 5, COLORS.accent);
+      im.line(5, cx + dx * 10, by + 22, cx + dx * 40, by + 22, COLORS.accent, 0.8, 2);
+    }
+    if (emblem) {
+      const ex = x + w / 2;
+      const ey = y + 74;
+      const p = (age * 0.8) % 1;
+      im.circle(5, ex, ey, 30 + p * 26, COLORS.accent, 0.22 * (1 - p));
+      im.circle(5, ex, ey, 30, COLORS.accent);
+      im.circle(5, ex, ey, 26, 0x0b1117);
+      im.circle(5, ex, ey, 22, 0x1a1608);
+      im.line(6, ex - 11, ey + 1, ex - 3, ey + 9, COLORS.accent, 1, 4);
+      im.line(6, ex - 3, ey + 9, ex + 12, ey - 8, COLORS.accent, 1, 4);
+    }
+  }
+
   /** "You just unlocked": what a finished quest opened, where it is in the build bar, and why. Continue shows the next one, or carries on. */
   private unlockModal(W: number, H: number): void {
     const im = this.im;
     const g = this.game3d;
     const card = this.unlockCards[0];
-    im.rect(3, 0, 0, W, H, 0x05080c, 0.78);
-    im.block({ x: 0, y: 0, w: W, h: H });
-    const pw = Math.min(520, W - 24);
-    const pad = 24;
+    const age = this.cardAge(`q:${card.quest}`);
+    const e = Math.min(1, age / 0.35);
+    const slide = (1 - (1 - e) * (1 - e)) ;
+    const oy = (1 - slide) * 36;
+    const pw = Math.min(600, W - 24);
+    const pad = 30;
     const inner = pw - pad * 2;
-    const img = 64;
-    const rowH = 96;
     const quest = questOf(card.quest);
     const next = nextQuest(g.world);
-    const nextHint = next ? (next.quest.hint.length > 150 ? next.quest.hint.slice(0, 147).replace(/s+S*$/, '') + '...' : next.quest.hint) : '';
-    const nextH = next ? 44 + Math.ceil(nextHint.length / 62) * 16 : 0;
-    const ph = (card.kinds.length > 0 ? 132 : 100) + card.kinds.length * rowH + nextH + 76;
+    const nextHint = next ? (next.quest.hint.length > 170 ? next.quest.hint.slice(0, 167).replace(/\s+\S*$/, '') + '...' : next.quest.hint) : '';
+    const titleLines = Math.ceil(((quest?.label.length ?? 20) * 15) / inner);
+    const rowH = 92;
+    const nextH = next ? 54 + Math.ceil(nextHint.length / 60) * 17 + 18 : 0;
+    const ph = 132 + titleLines * 32 + 52 + card.kinds.length * rowH + (card.kinds.length ? 14 : 0) + nextH + 72;
     const x = (W - pw) / 2;
-    const y = Math.max(TOP + 6, (H - ph) / 2);
-    im.rect(4, x, y, pw, ph, 0x0b1117, 0.98, 10, COLORS.accent, 0.7);
-    let cy = y + pad;
-    im.text('ulK', card.kinds.length === 0 ? 'QUEST COMPLETE' : card.kinds.length > 1 ? 'QUEST COMPLETE  ·  NEW BUILDINGS' : 'QUEST COMPLETE  ·  NEW BUILDING', x + pad, cy, { size: 11, bold: true, color: COLORS.accent, layer: 4 });
-    cy += 18;
-    const why = `You finished: ${questLabelOf(card.quest) ?? 'a quest'}`;
-    cy += im.text('ulW', why, x + pad, cy, { size: 15, bold: true, wrap: inner, layer: 4 }).h + 6;
-    const paid = quest && quest.reward > 0 ? `$${fmt(quest.reward)} paid.  ` : '';
-    im.text('ulS', paid + (card.kinds.length > 0 ? 'What it opened is in the build bar now, and in the Wiki.' : 'Well done.'), x + pad, cy, { size: 12, color: COLORS.muted, wrap: inner, layer: 4 });
-    cy += 34;
-    for (const k of card.kinds) {
+    const y = Math.max(TOP + 30, (H - ph) / 2) + oy;
+    this.gameFrame(W, H, x, y, pw, ph, card.kinds.length > 0 ? 'NEW UNLOCK' : 'QUEST COMPLETE', age);
+    let cy = y + 118;
+    im.text('ulW', 'YOU FINISHED', x + pw / 2, cy - 2, { size: 12, bold: true, color: COLORS.muted, align: 'center', layer: 6 });
+    cy += 20;
+    const th = im.text('ulT', quest?.label ?? 'A quest', x + pw / 2, cy, { size: 28, bold: true, display: true, align: 'center', wrap: inner, layer: 6 }).h;
+    cy += th + 12;
+    // The reward: a coin and a count that runs up.
+    const reward = quest?.reward ?? 0;
+    if (reward > 0) {
+      const shown = Math.round(reward * Math.max(0, Math.min(1, (age - 0.35) / 0.8)));
+      const cxm = x + pw / 2;
+      im.rect(5, cxm - 110, cy, 220, 40, 0x1a1608, 1, 6, COLORS.accent, 0.6, 1);
+      im.circle(6, cxm - 88, cy + 20, 13, 0xe8b23a);
+      im.circle(6, cxm - 88, cy + 20, 9, 0xc9951f);
+      im.text('ulCoin', '$', cxm - 88, cy + 11, { size: 13, bold: true, color: 0xf7e3a8, align: 'center', layer: 7 });
+      im.text('ulCash', `+${fmt(shown)}`, cxm - 62, cy + 5, { size: 26, bold: true, display: true, color: 0xf7e3a8, layer: 6 });
+      im.text('ulPaid', 'PAID', cxm + 98, cy + 14, { size: 11, bold: true, color: COLORS.good, align: 'right', layer: 6 });
+      cy += 52;
+    }
+    for (const [i, k] of card.kinds.entries()) {
       const d = SITE_DEFS[k];
-      im.rect(4, x + pad, cy, inner, rowH - 8, 0x0f161d, 1, 8, COLORS.line, 0.6);
-      if (this.textures.exists(`thumb-${k}`)) im.image(`ulI${k}`, `thumb-${k}`, x + pad + 8, cy + (rowH - 8 - img) / 2, img, img, 1, 5);
+      const ry = cy + i * rowH;
+      const pop = Math.max(0, Math.min(1, (age - 0.5 - i * 0.18) / 0.25));
+      const rx = x + pad + (1 - pop) * 24;
+      im.rect(5, rx, ry, inner, rowH - 10, 0x10171f, 1, 6, COLORS.accent, 0.55 * pop, 1);
+      im.rect(5, rx, ry, 4, rowH - 10, COLORS.accent, 1, 0);
+      im.rect(5, rx + 12, ry + 8, 66, 66, 0x070b0f, 1, 6, COLORS.accent, 0.8, 2);
+      if (this.textures.exists(`thumb-${k}`)) im.image(`ulI${k}`, `thumb-${k}`, rx + 14, ry + 10, 62, 62, 1, 6);
       const tab = TABS.find((t) => t.tools.includes(k));
-      const tx = x + pad + img + 20;
-      im.text(`ulN${k}`, d.label, tx, cy + 8, { size: 16, bold: true, layer: 5 });
-      im.text(`ulC${k}`, `${tab ? tab.label + ' tab' : 'Build bar'}  ·  $${fmt(d.cost)}`, tx, cy + 28, { size: 11, bold: true, color: COLORS.accent, layer: 5 });
-      im.text(`ulB${k}`, d.blurb, tx, cy + 46, { size: 11, color: COLORS.muted, wrap: inner - img - 32, layer: 5 });
-      cy += rowH;
+      im.text(`ulN${k}`, d.label, rx + 94, ry + 8, { size: 22, bold: true, display: true, layer: 6 });
+      im.slab(6, rx + inner - 64, ry + 10, 52, 20, COLORS.accent, 1);
+      im.text(`ulNew${k}`, 'NEW', rx + inner - 38, ry + 13, { size: 12, bold: true, color: 0x1b1204, align: 'center', layer: 7 });
+      im.text(`ulC${k}`, `${tab ? tab.label.toUpperCase() : 'BUILD BAR'}  ·  $${fmt(d.cost)}`, rx + 94, ry + 34, { size: 12, bold: true, color: COLORS.accent, layer: 6 });
+      im.text(`ulB${k}`, d.blurb, rx + 94, ry + 52, { size: 12, color: COLORS.muted, wrap: inner - 106, layer: 6 });
     }
+    cy += card.kinds.length * rowH + (card.kinds.length ? 14 : 0);
     if (next) {
-      im.text('ulNx', 'NEXT UP', x + pad, cy + 2, { size: 11, bold: true, color: COLORS.accent, layer: 4 });
-      im.text('ulNxL', next.quest.label, x + pad, cy + 18, { size: 14, bold: true, wrap: inner, layer: 4 });
-      im.text('ulNxH', nextHint, x + pad, cy + 38, { size: 12, color: COLORS.muted, wrap: inner, layer: 4 });
+      im.line(5, x + pad, cy, x + pw - pad, cy, COLORS.accent, 0.35, 1);
+      im.circle(5, x + pw / 2, cy, 4, COLORS.accent);
+      cy += 14;
+      im.line(6, x + pad, cy + 7, x + pad + 8, cy + 3, COLORS.accent, 1, 2);
+      im.line(6, x + pad, cy - 1, x + pad + 8, cy + 3, COLORS.accent, 1, 2);
+      im.text('ulNx', 'NEXT OBJECTIVE', x + pad + 16, cy - 2, { size: 12, bold: true, color: COLORS.accent, layer: 6 });
+      im.text('ulNxL', next.quest.label, x + pad, cy + 18, { size: 20, bold: true, display: true, wrap: inner, layer: 6 });
+      im.text('ulNxH', nextHint, x + pad, cy + 44, { size: 13, color: 0xcbd5df, wrap: inner, layer: 6 });
     }
-    const bw = 200;
+    const bw = 220;
     const bx = x + pw - pad - bw;
-    const by = y + ph - pad - 44;
-    const hov = im.hit('ulOk', bx, by, bw, 44, () => {
+    const by = y + ph - pad - 46;
+    const hov = im.hit('ulOk', bx, by, bw, 46, () => {
       this.unlockCards.shift();
       if (this.unlockCards.length === 0) g.speed = this.speedBeforeTier || 1;
-    }, 5);
-    im.slab(4, bx, by, bw, 44, hov ? 0xe6c98e : COLORS.accent, 1);
-    im.text('ulOkT', 'CONTINUE', bx + bw / 2, by + 11, { size: 20, bold: true, display: true, color: 0x1b1204, align: 'center', layer: 5 });
+    }, 6);
+    im.slab(6, bx - 3, by - 3, bw + 6, 52, 0x2a2010, 1);
+    im.slab(6, bx, by, bw, 46, hov ? 0xf0c878 : COLORS.accent, 1);
+    im.text('ulOkT', this.unlockCards.length > 1 ? 'NEXT  >' : 'CONTINUE  >', bx + bw / 2, by + 10, { size: 22, bold: true, display: true, color: 0x1b1204, align: 'center', layer: 7 });
   }
 
   /** The "new town" card: shown once, the first time a road reaches a second (or later) town's Supply Yard or Market. */

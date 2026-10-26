@@ -7,7 +7,7 @@
 **Overall progress:** about 74% of the planned scope (phase percentages below; each is checked boxes over total boxes, adjusted where a box was stale)
 **Status:** Active. Tester build is out: Windows and Mac installers on GitHub Releases, coded tester page at /access, public site at /.
 **Tests:** 527 pass, 2 skipped (vitest). Type check and production build clean.
-**Current release:** 0.221 (tag v0.221.0): tier dashboard, tier badge, compact tracker, Show me guidance.
+**Current release:** 0.222 (tag v0.222.0): quest complete and tier unlocked cards redesigned.
 **Pacing (test bot, downtown world, seed 11, 3 game hours):** Tier 1 at 7.9 min, town level 2 at 26.2 min, level 3 not reached (the bot grows one town). A human playthrough is still the real test.
 
 ### Percent by area
@@ -640,3 +640,6 @@ Done earlier:
 - Tier badge beside the money (number, name, progress bar); click opens the dashboard.
 - Compact quest tracker: quest, progress, the one step to do now in big type with "step n of m", SHOW ME and ALL STEPS.
 - Guidance: SHOW ME flies the camera to where the step happens (free forest spot, the camp, the town, the building) and puts a pulsing marker with an arrow there; off screen it shows an edge marker with the distance. The marker clears when the step is done.
+
+## 0.222
+- Reward cards redesigned (`gameFrame` in hud.ts, shared): a vignetted backdrop, a double gold edge with corner brackets, a gold banner on the top edge with a light sweep, a pulsing emblem, a coin with a reward that counts up, framed building slots with NEW tags that pop in one by one, a NEXT OBJECTIVE strip and an angled CONTINUE button. The Tier unlocked card uses the same frame. The town cards and other notices still need the same treatment.
