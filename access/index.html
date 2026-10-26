@@ -126,7 +126,20 @@
         if (note) el.querySelector('small').textContent = note;
       }
       // The latest release is looked up once, as the page opens, so its version shows before the code is entered.
-      var latest = fetch('https://api.github.com/repos/Chrisocal21/supplyline/releases/latest').then(function (r) { return r.ok ? r.json() : null; });
+      // GitHub refuses lookups from busy addresses (403), so the page also knows this build's own release files and uses them then.
+      var BAKED = '__SL_VERSION__';
+      function baked() {
+        if (!/^d+.d+.d+$/.test(BAKED)) return null;
+        var base = 'https://github.com/Chrisocal21/supplyline/releases/download/v' + BAKED + '/';
+        return { tag_name: 'v' + BAKED, assets: [
+          { name: 'Supplyline-Setup-' + BAKED + '.exe', browser_download_url: base + 'Supplyline-Setup-' + BAKED + '.exe' },
+          { name: 'Supplyline-' + BAKED + '-arm64.dmg', browser_download_url: base + 'Supplyline-' + BAKED + '-arm64.dmg' },
+          { name: 'Supplyline-' + BAKED + '-x64.dmg', browser_download_url: base + 'Supplyline-' + BAKED + '-x64.dmg' }
+        ] };
+      }
+      var latest = fetch('https://api.github.com/repos/Chrisocal21/supplyline/releases/latest')
+        .then(function (r) { return r.ok ? r.json() : baked(); })
+        .catch(function () { return baked(); });
       latest.then(function (rel) {
         var v = String((rel && rel.tag_name) || '').replace(/^v/, '');
         document.getElementById('latest').textContent = v || 'unknown';

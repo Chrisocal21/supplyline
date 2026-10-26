@@ -6,6 +6,12 @@ import { defineConfig, type Plugin } from 'vite';
 /** The version the build was made at, read from src/version.ts. */
 const builtVersion = (): string => /VERSION = '([^']+)'/.exec(readFileSync(resolve(__dirname, 'src/version.ts'), 'utf8'))?.[1] ?? '0';
 
+/** The testers' page falls back to this build's own release files when GitHub's lookup is refused (it rate-limits visitors by address). */
+const releaseFallback = (): Plugin => ({
+  name: 'release-fallback',
+  transformIndexHtml: (html) => html.replace('__SL_VERSION__', builtVersion() + '.0'),
+});
+
 /** Publishes /version.json so a game that is open can tell a newer build has gone out, and offer to sync to it. */
 const versionFile = (): Plugin => ({
   name: 'version-file',
@@ -45,7 +51,7 @@ const website = (): Plugin => ({
 
 // The game at /play/, the goods catalogue at /goods/ and the testers' page at /access/ (old /dockside/ links forward to it from public/dockside). The website at / and /steam/ comes from web/.
 export default defineConfig({
-  plugins: [versionFile(), website()],
+  plugins: [versionFile(), releaseFallback(), website()],
   server: { port: 3000, strictPort: true, open: false, host: true },
   build: { rollupOptions: { input: { play: resolve(__dirname, 'play/index.html'), goods: resolve(__dirname, 'goods/index.html'), access: resolve(__dirname, 'access/index.html') } } },
 });
