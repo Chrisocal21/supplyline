@@ -2718,7 +2718,13 @@ export function setVehiclePick(world: World, vehicleId: number, pick: PickMode):
   const v = world.vehicles.find((x) => x.id === vehicleId);
   if (!v) return;
   v.pick = pick;
+  // Choosing how to pick buyers means no single buyer is pinned any more.
+  v.destId = 0;
   v.awaitOrders = undefined;
+  // A truck waiting empty at home switches to its new favourite run now, not at its next trip.
+  const route = world.routes.find((r) => r.id === v.routeId);
+  const atHome = !!route && v.idx === (homeEnd(route, v) === 0 ? 0 : route.path.length - 1);
+  if (v.cargo <= 0 && (v.routeId === 0 || (v.state === 'loading' && atHome))) assignVehicle(world, v);
 }
 
 function stepVehicle(world: World, v: Vehicle): void {

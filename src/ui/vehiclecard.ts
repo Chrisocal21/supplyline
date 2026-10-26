@@ -264,9 +264,10 @@ export function routePicture(im: Im, world: World, v: Vehicle, id: string, x: nu
       const on = !held && !pinned && info.pick === m;
       const label = PICK_LABEL[m].toUpperCase();
       const cx = x + i * (cw + gap);
-      const hov = im.hit(`${id}pk${m}`, cx, cy, cw, 24, () => !pinned && act.setPick(m), 3);
-      im.rect(3, cx, cy, cw, 24, on ? COLORS.accent : hov && !pinned ? 0x26364a : 0x121920, 1, 12, on ? COLORS.accent : COLORS.line, 1);
-      im.text(`${id}pt${m}`, label, cx + cw / 2, cy + 7, { size: fitSize(label, cw - 8, 9, 6), bold: true, color: on ? 0x1b1204 : pinned ? COLORS.muted : COLORS.text, align: 'center', layer: 4 });
+      // Clicking a chip while a buyer is pinned lets the truck choose again, by that rule.
+      const hov = im.hit(`${id}pk${m}`, cx, cy, cw, 24, () => act.setPick(m), 3);
+      im.rect(3, cx, cy, cw, 24, on ? COLORS.accent : hov ? 0x26364a : 0x121920, 1, 12, on ? COLORS.accent : COLORS.line, 1);
+      im.text(`${id}pt${m}`, label, cx + cw / 2, cy + 7, { size: fitSize(label, cw - 8, 9, 6), bold: true, color: on ? 0x1b1204 : COLORS.text, align: 'center', layer: 4 });
     });
   }
 }
