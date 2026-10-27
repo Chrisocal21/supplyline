@@ -2,7 +2,7 @@
 
 One running list that Claude and ChatGPT both read and add to, with Chris deciding. It replaces passing whole documents back and forth: paste this one file, get a reply that edits it, bring it back.
 
-Background: [15-future-plan.md](15-future-plan.md) (the plan), [13-suggestions-for-review.md](13-suggestions-for-review.md) (near-term suggestions and ChatGPT's review). Last updated October 26, 2026, release 0.234. The ledger is self-contained: the Context section below is enough to reply without the other files.
+Pack plan: [17-dlc-pack-plan.md](17-dlc-pack-plan.md) (Chris's 13 packs, cleaned up, with the pattern and PK rows). Background: [15-future-plan.md](15-future-plan.md) (the plan), [13-suggestions-for-review.md](13-suggestions-for-review.md) (near-term suggestions and ChatGPT's review). Last updated October 26, 2026, release 0.234. The ledger is self-contained: the Context section below is enough to reply without the other files.
 
 ## Context (for a reader who has not seen the project)
 
@@ -182,3 +182,4 @@ Generate the typed catalog and wiki deterministically from these definitions. Va
 | 2026-10-26 | Claude | Filled my positions on FP-41 to FP-43, corrected the stale goods count (45 to 89), added a reply note on ChatGPT's update |
 | 2026-10-26 | Claude | Recorded Chris's answers: FP-18 and FP-40 Decided, FP-44 storage tabs, FP-45 DLC ownership, updated open questions |
 | 2026-10-26 | Claude | Recorded Chris's second-round answers: FP-03 Leaning (each world different), FP-17 and FP-45 TBD; added FP-46 to FP-48 |
+| 2026-10-26 | Claude | Added [17-dlc-pack-plan.md](17-dlc-pack-plan.md): Chris's 13 packs read from the planner page, cleaned and aligned, with rows PK-01 to PK-08 |
