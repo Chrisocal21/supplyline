@@ -230,7 +230,7 @@ export function townLoadMult(place: Place): number {
 export function districtSatisfaction(world: World, place: Place, id: DistrictId): number {
   const def = DISTRICTS[id];
   if (def.effect === 'visitors') return Math.min(1, GOOD_LIST.filter((g) => (place.delivered[g] ?? 0) > 0).length / 10);
-  const venues = venuesOf(place, id, districtLevel(place, id));
+  const venues = venuesOf(place, id, districtLevel(place, id), world.tier);
   if (venues.length === 0 && def.goods.length === 0) return 1;
   // What the district's own building has in store (its trucks drop the goods there). A district with no building yet
   // (an old save, before it is given a lot) is judged by the town's docks, as before.

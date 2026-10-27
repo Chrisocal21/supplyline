@@ -73,6 +73,7 @@ describe('districts', () => {
 
   it('earn only while the town is stocked with what they live on', () => {
     const w = world();
+    w.tier = 25;
     const p = w.places[0];
     p.level = 2;
     buildDistrict(w, p, 'restaurants');

@@ -77,6 +77,7 @@ describe('everything sells at the Market', () => {
 describe('every district is a buyer', () => {
   it('asks for at least one good, and buys a good it asks for', () => {
     const w = createWorld(5);
+    w.tier = 25;
     const p = w.places[0];
     p.stage = 2;
     p.level = 5;

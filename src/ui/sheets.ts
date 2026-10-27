@@ -987,13 +987,13 @@ export class Sheets {
     // What it lives on: a square per good, bright when its building has that good in stock (the town's docks, until it has one).
     const home = world.sites.find((s) => s.placeId === p.id && s.districtId === id);
     const docks = home ? [home] : world.sites.filter((s) => s.placeId === p.id && SITE_DEFS[s.kind].dock);
-    const lives = districtGoods(p, id);
+    const lives = districtGoods(p, id, world.tier);
     lives.slice(0, 12).forEach((g, k) => {
       const have = docks.some((d) => stockOf(d, g) >= 1);
       im.rect(3, x + 16 + k * 20, y + 70, 15, 15, GOODS[g].color, have ? 1 : 0.22, 3);
     });
     const bits: string[] = [];
-    const venues = venuesOf(p, id, Math.max(1, lvl));
+    const venues = venuesOf(p, id, Math.max(1, lvl), world.tier);
     if (venues.length > 0) im.text(`dc-v-${p.id}-${id}`, `${lvl > 0 ? 'Here' : 'Would open'}: ${venues.map((v) => v.label).join(', ')}`, x + 16, y + 52, { size: 11, bold: true, color: COLORS.accent, layer: 3 });
     if (def.price > 0) bits.push(`+${Math.round(def.price * shown * boost * 100)}% price on ${lives.length} goods`);
     if (def.revenue > 0) {

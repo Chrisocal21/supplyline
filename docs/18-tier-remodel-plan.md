@@ -164,3 +164,9 @@ Open questions for Chris:
 
 - A town needs a tier to reach each level (`TOWN_LEVEL_TIER` in defs.ts): level 2 at tier 2, level 3 at tier 5, level 4 at tier 8, level 5 at tier 24. These match the old quest tiers (town 3 at 5, city at 8, metropolis at 24). A town that has earned its growth early says so once ("will grow into a Town at Tier 5") and grows when the tier arrives. Tier goals ask for the town level the tier allows.
 - The venue gap is now 54 (was counted against old level gates). Venues still open with their district, not their goods. Real fix, still open: a venue appears only when the goods it sells can be made at the player's tier (per-venue tier), which brings the gap to zero.
+
+### 0.244: venues open when their goods can be made (built)
+
+- A venue's tier is the first tier its first good can be made (`venueTier` in venues.ts). A town still picks its venues the same way; the ones whose goods cannot be made yet are not open, so a district never asks for a good that cannot exist. The known gap (54) is gone: the old count test is replaced by one that checks no venue is shown before its tier.
+- The price boost still counts a district's whole menu (nobody can sell an unmade good, so it does nothing); the demand, income and the district card use the tier.
+- Open: a district built early may have no open venue for a while (hardware at tier 2 has only the stone and merchant at tier 3). It earns nothing until one opens.

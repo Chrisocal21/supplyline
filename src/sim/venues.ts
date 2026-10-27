@@ -1,6 +1,6 @@
 // Venues inside a district. A town decides which venues stand in its Restaurant Row or Hardware Store; the player only supplies them.
 // Each venue has its own menu, so a district asks for what its venues sell and no more. A venue nobody supplies earns nothing and costs nothing.
-import { DISTRICTS, type DistrictId, type Good, type TownStyle } from './defs';
+import { DISTRICTS, SITE_DEFS, type DistrictId, type Good, type SiteDef, type TownStyle } from './defs';
 import type { Place } from './features';
 
 export interface Venue {
@@ -159,6 +159,23 @@ export const VENUE_POOLS: Partial<Record<DistrictId, Venue[]>> = {
   ],
 };
 
+/** The first tier at which a good can be made: the earliest building that grows it or has it as an output. */
+const goodTier = new Map<Good, number>();
+function makeTier(good: Good): number {
+  if (goodTier.size === 0) {
+    for (const d of Object.values(SITE_DEFS) as SiteDef[]) {
+      const made = [...(d.produce ? [d.produce.good, ...(d.produce.also ?? []).map((x) => x.good)] : []), ...(d.recipe ? (Object.keys(d.recipe.outputs) as Good[]) : [])];
+      for (const g of made) goodTier.set(g, Math.min(goodTier.get(g) ?? 99, d.tier));
+    }
+  }
+  return goodTier.get(good) ?? 99;
+}
+
+/** The tier a venue opens at: when the first thing it sells can be made. Before that it is not there, so nothing is asked for that cannot exist. */
+export function venueTier(venue: Venue): number {
+  return Math.min(...venue.goods.map(makeTier));
+}
+
 /** A steady score from 0 to 1 for a town and a venue, so a town always picks the same ones. */
 function scoreOf(place: Place, venue: Venue): number {
   let h = 2166136261 ^ place.id;
@@ -168,7 +185,7 @@ function scoreOf(place: Place, venue: Venue): number {
 }
 
 /** The venues a town has in a district at a district level: its favourites first, one more with each level. */
-export function venuesOf(place: Place, id: DistrictId, level: number): Venue[] {
+export function venuesOf(place: Place, id: DistrictId, level: number, tier = 99): Venue[] {
   const pool = VENUE_POOLS[id];
   if (!pool) return [];
   const ranked = pool
@@ -176,16 +193,17 @@ export function venuesOf(place: Place, id: DistrictId, level: number): Venue[] {
     .sort((a, b) => b.s - a.s)
     .map((x) => x.v);
   // A capstone is one big hall: all its venues stand from the start.
-  return DISTRICTS[id].capstone ? ranked : ranked.slice(0, Math.min(pool.length, level + 1));
+  // The town picks its venues as before; the ones whose goods cannot be made at this tier yet are simply not open.
+  return (DISTRICTS[id].capstone ? ranked : ranked.slice(0, Math.min(pool.length, level + 1))).filter((x) => venueTier(x) <= tier);
 }
 
 /** Everything the venues of a district sell to: the goods its dock asks for. */
-export function venueMenu(place: Place, id: DistrictId, level: number): Good[] {
-  return Array.from(new Set(venuesOf(place, id, level).flatMap((v) => v.goods)));
+export function venueMenu(place: Place, id: DistrictId, level: number, tier = 99): Good[] {
+  return Array.from(new Set(venuesOf(place, id, level, tier).flatMap((v) => v.goods)));
 }
 
 /** The goods a built district lives on: its venues' menus where it has venues, otherwise its own list. */
-export function districtGoods(place: Place, id: DistrictId): Good[] {
+export function districtGoods(place: Place, id: DistrictId, tier = 99): Good[] {
   if (!VENUE_POOLS[id]) return DISTRICTS[id].goods;
-  return venueMenu(place, id, Math.max(1, place.districts?.[id] ?? 0));
+  return venueMenu(place, id, Math.max(1, place.districts?.[id] ?? 0), tier);
 }

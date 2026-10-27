@@ -1608,7 +1608,7 @@ export function dockDemand(world: World, site: Site): Good[] {
   const place = placeOf(world, site);
   if (!place) return [];
   const def = SITE_DEFS[site.kind];
-  if (def.dock === 'civic') return site.districtId ? [...districtGoods(place, site.districtId), ...(VENUE_POOLS[site.districtId] ? [] : DISTRICTS[site.districtId].buys ?? [])] : [];
+  if (def.dock === 'civic') return site.districtId ? [...districtGoods(place, site.districtId, world.tier), ...(VENUE_POOLS[site.districtId] ? [] : DISTRICTS[site.districtId].buys ?? [])] : [];
   const stage = place.stage ?? 2;
   if (def.dock === 'market') {
     // Until the Market is built it asks only for lumber, from the Supply Yard's own trucks. Afterwards it also takes the

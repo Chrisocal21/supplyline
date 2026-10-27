@@ -18,11 +18,11 @@ const SYSTEMS = [
 ];
 
 const SHOTS = [
-  ['/site/shot-overview.png', 'The network from orbit'],
+  ['/site/shot-world-startup.png', 'A new world, ready for its first route'],
+  ['/site/shot-harbor-objectives.png', 'Harbor objectives open new supply chains'],
   ['/site/shot-home.png', 'A working town and production base'],
   ['/site/shot-river.png', 'Routes crossing a river valley'],
   ['/site/shot-range.png', 'Industry among the mountains'],
-  ['/site/shot-island.png', 'Islands waiting for a supply line'],
 ];
 
 export default function Home() {
@@ -47,7 +47,7 @@ export default function Home() {
             <div><strong>{COUNTS.goods}</strong><span>goods to move</span></div>
             <div><strong>{COUNTS.buildings}</strong><span>buildings and sites</span></div>
             <div><strong>{COUNTS.vehicles}</strong><span>vehicle classes</span></div>
-            <div><strong>{MAPS.length}</strong><span>world maps</span></div>
+            <div><strong>Map 3</strong><span>current focus</span></div>
           </div>
         </header>
 
@@ -86,7 +86,7 @@ export default function Home() {
           <div className="wrap">{PILLARS.map((p) => <article className="clean-pillar" key={p.tag}><img src={p.img} alt={p.alt} loading="lazy" /><div><p className="eyebrow">{p.n} · {p.tag}</p><h2>{p.title}</h2><p>{p.body}</p></div></article>)}</div>
         </section>
 
-        <section className="site-section world-section" id="maps"><div className="wrap"><div className="section-heading split-heading"><div><p className="eyebrow">Worlds to work</p><h2>Routes do not stop at the edge of town.</h2></div><p>Each map changes the geography of your company: distance, water, terrain and the places worth connecting.</p></div>
+        <section className="site-section world-section" id="maps"><div className="wrap"><div className="section-heading split-heading"><div><p className="eyebrow">The current world</p><h2>Map 3 is where the network grows.</h2></div><p>The Meridian Sea is the active focus: a large connected world of rivers, sea channels, towns and long-haul logistics.</p></div>
           <div className="world-grid">{MAPS.map((m) => <article key={m.n}><img src={m.img} alt={`Map ${m.n}: ${m.name}`} loading="lazy" /><div><span>Map {m.n}</span><h3>{m.name}</h3><p>{m.body}</p><small>{m.facts.join(' · ')}</small></div></article>)}</div>
         </div></section>
 

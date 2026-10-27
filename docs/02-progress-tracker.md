@@ -97,6 +97,7 @@ New work must not undo these. Check the covering tests and ask first.
 
 | Release | What changed |
 |---|---|
+| 0.244 | Venues open when their goods can be made; the 54-venue gap is gone |
 | 0.243 | Town levels follow the tiers (2, 5, 8, 24) |
 | 0.242 | Town level-ups follow the material stages (cement added at city step) |
 | 0.241 | One material rule by tier; building levels spread over 26 tiers |

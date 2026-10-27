@@ -57,9 +57,7 @@ export const DEMO_POINTS = [
 ];
 
 export const MAPS = [
-  { n: 1, name: 'The Known World', img: '/site/map-1.jpg', status: 'Free demo', body: 'Small and friendly, built to teach. Every good is within reach, and island goods need ships.', facts: ['33 towns'] },
-  { n: 2, name: 'The Continental', img: '/site/map-2.jpg', status: 'Full game', body: 'Four continents and a lot of sea. Coffee, mangoes and oil lie overseas, so you need ports and planes.', facts: ['55 towns'] },
-  { n: 3, name: 'The Meridian Sea', img: '/site/map-3.jpg', status: 'Full game, beta', body: 'Five times the land of Map 2, with a desert continent and sea channels. It wants a good graphics card.', facts: ['About 190 towns'] },
+  { n: 3, name: 'The Meridian Sea', img: '/site/map-3.jpg', status: 'Current focus', body: 'The current SupplyLine world: a large, connected landmass shaped by rivers, sea channels and long-haul routes. Build the network that makes it work.', facts: ['Map 3', 'About 190 towns'] },
 ];
 
 export const ROADMAP: { now: string[]; next: string[] } = {
