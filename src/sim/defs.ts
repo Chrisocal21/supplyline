@@ -570,9 +570,28 @@ export const SPAN_LIMIT = [2, 4, 8, 16];
 export function spanLimit(tier: number): number {
   return tier < 3 ? SPAN_LIMIT[0] : tier < 7 ? SPAN_LIMIT[1] : tier < 12 ? SPAN_LIMIT[2] : SPAN_LIMIT[3];
 }
-/** The tier a building needs to be taken up from `level` to the next. Level 2 needs tier 1, and so on, every two tiers. */
+/** The tier a building needs to be taken up from `level` to the next: levels are spread over the whole ladder, level 10 at tier 24. */
+const LEVEL_TIERS = [1, 3, 6, 9, 12, 15, 18, 21, 24];
 export function levelNeedsTier(level: number): number {
-  return Math.min(25, level * 2 - 1);
+  return LEVEL_TIERS[Math.min(level, LEVEL_TIERS.length) - 1] ?? 24;
+}
+/** The highest building level a tier allows. */
+export function maxLevelAt(tier: number): number {
+  return 1 + LEVEL_TIERS.filter((t) => t <= tier).length;
+}
+
+/**
+ * One rule for every building material: a thing asks for the heaviest goods that exist at the tier it opens at. Lumber from the start,
+ * bricks once the Brickworks (tier 3) is working, cement after the Cement Works (tier 8), concrete and glass after their plants, and steel
+ * only after the Steelworks (tier 23). Placing a building uses its own tier; a level uses the tier that level opens at (levelNeedsTier).
+ * Each entry is a share of the units.
+ */
+export function materialBand(tier: number): Stock {
+  if (tier <= 3) return { lumber: 1 };
+  if (tier <= 8) return { lumber: 0.6, bricks: 0.4 };
+  if (tier <= 14) return { lumber: 0.3, bricks: 0.4, cement: 0.3 };
+  if (tier <= 23) return { bricks: 0.3, cement: 0.2, concrete: 0.3, glass: 0.2 };
+  return { bricks: 0.2, concrete: 0.3, steel: 0.3, tools: 0.2 };
 }
 
 /** Rails are a separate network from roads. Track costs more per tile, and unlocks at Tier 6. */
@@ -688,12 +707,7 @@ function baseMaterials(kind: SiteKind): Stock {
   if (def.tier < 1 || def.dock || def.station || (['farm', 'mill', 'bakery', 'orchard'] as SiteKind[]).includes(kind)) return {};
   const units = Math.max(6, Math.min(400, Math.round(def.cost / 40)));
   const share = (f: number): number => Math.max(1, Math.round(units * f));
-  // Bands of tiers, set by when the goods exist: lumber from the start, bricks once the Brickworks (tier 3) stands, cement once the Cement
-  // Works (tier 8) does, and steel once the Steelworks (tier 23) does.
-  if (def.tier <= 3) return { lumber: share(1) };
-  if (def.tier <= 7) return { lumber: share(0.6), bricks: share(0.4) };
-  if (def.tier <= 22) return { lumber: share(0.4), bricks: share(0.4), cement: share(0.2) };
-  return { bricks: share(0.3), concrete: share(0.3), steel: share(0.4) };
+  return Object.fromEntries(Object.entries(materialBand(def.tier)).map(([g, f]) => [g, share(f as number)])) as Stock;
 }
 
 /**
@@ -705,14 +719,8 @@ export function upgradeMaterials(kind: SiteKind, level: number): Stock {
   if (def.dock || def.station || level < 2) return {};
   const units = Math.max(5, Math.min(500, Math.round((def.cost * level) / 45)));
   const share = (f: number): number => Math.max(1, Math.round(units * f));
-  const mix: Stock =
-    level === 2 ? { lumber: share(1) }
-    : level === 3 ? { lumber: share(0.6), bricks: share(0.4) }
-    : level === 4 ? { lumber: share(0.3), bricks: share(0.4), cement: share(0.3) }
-    : level === 5 ? { bricks: share(0.3), cement: share(0.3), steel: share(0.4) }
-    : level === 6 ? { bricks: share(0.2), concrete: share(0.4), steel: share(0.4) }
-    : level === 7 ? { concrete: share(0.4), steel: share(0.3), glass: share(0.3) }
-    : { concrete: share(0.3), steel: share(0.3), glass: share(0.2), tools: share(0.2) };
+  // The mix is what exists at the tier that level opens at, so a level never asks for a good the player cannot make yet.
+  const mix: Stock = Object.fromEntries(Object.entries(materialBand(levelNeedsTier(level - 1))).map(([g, f]) => [g, share(f as number)])) as Stock;
   const own = Object.keys(def.recipe?.outputs ?? {});
   return Object.fromEntries(Object.entries(mix).filter(([g]) => !own.includes(g) && def.produce?.good !== g)) as Stock;
 }
@@ -1135,7 +1143,7 @@ function milestones(t: number): Quest[] {
   const kinds = Math.min(40, Math.round(4 + t * 1.4));
   const townLevel = Math.min(5, 3 + Math.floor((t - 3) / 8));
   const towns = 1 + Math.floor(t / 8);
-  const upLevel = Math.min(MAX_LEVEL, Math.floor((t + 3) / 2));
+  const upLevel = Math.min(MAX_LEVEL, maxLevelAt(t));
   const ups = 3 + Math.floor(t / 2);
   return [
     { id: `t${t}-m-earn`, label: `Earn $${earn.toLocaleString('en-US')} in sales`, hint: 'Money from what you sell to towns while you are on this tier. Any goods, any route: sell more, or sell dearer goods.', goal: { kind: 'earn', amount: earn, tier: t }, reward: Math.round(earn * 0.06 / 50) * 50 },

@@ -141,3 +141,12 @@ Open questions for Chris:
 - Chris: no "branch opened" message; think of the MAM in Satisfactory, where opening something starts unlocking the tree. Routes now start and open their branches silently. The Objectives sheet draws them as a tree (a route sits under the one that opened it, with a connector).
 - Side objectives (`src/sim/side.ts`): up to three open at once, one per town. A town you already ship to asks for a good its Market wants, that you make, and that it has never had from you. Pays cash when the town has received the amount. No announcement when one appears; they sit under SIDE OBJECTIVES on the Objectives sheet. Stored in `world.side` and `world.sideDone`.
 - Not done: achievements (later, by request); side objectives from cities asking for more than goods (a district, a level); pack lines.
+
+### 0.241: one material rule (built)
+
+- Problem: with 26 tiers, level 5 upgrades (tier 9) asked for steel, which only exists at tier 23, and level 4 asked for cement a tier before the Cement Works. Levels also all closed by tier 17.
+- One rule now (`materialBand(tier)` in defs.ts): a thing asks for the heaviest goods that exist at the tier it opens at. Tiers 1 to 3 lumber; 4 to 8 lumber and bricks; 9 to 14 lumber, bricks and cement; 15 to 23 bricks, cement, concrete and glass; 24 and up bricks, concrete, steel and tools.
+- Placing a building uses its own tier. A level uses the tier that level opens at. Town levels keep their own table (`LEVEL_MATERIALS`): level 5 is the only one that asks for steel, and it is a late-ladder town.
+- Building levels are spread over the ladder: level 2 at tier 1, then tiers 3, 6, 9, 12, 15, 18, 21 and 24 for level 10 (`LEVEL_TIERS`). The tier goals "take buildings to level N" follow it.
+- A test checks that no tier asks for a material before its maker opens.
+- Open: town levels are still gated by growth points, not tier. They may need to be tied to tiers 3, 8, 15 and 24 when phase E spreads districts.

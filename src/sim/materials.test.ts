@@ -1,6 +1,6 @@
 // New buildings in a built town wait for materials from its Supply Yard store.
 import { describe, expect, it } from 'vitest';
-import { SITE_DEFS, buildMaterials, upgradeMaterials, type SiteKind } from './defs';
+import { SITE_DEFS, buildMaterials, levelNeedsTier, materialBand, maxLevelAt, upgradeMaterials, type Good, type SiteKind } from './defs';
 import { createWorld, depotLeft, materialsHere, placeSite, step, upgradeSite, wants } from './world';
 
 describe('building materials', () => {
@@ -48,10 +48,12 @@ describe('what makes a material is not made to wait for it', () => {
 });
 
 describe('upgrades and levels', () => {
-  it('asks for a different mix at every level, and every tier', () => {
+  it('asks for heavier goods as the levels rise, and only goods that exist at that tier', () => {
     const seen = new Set<string>();
-    for (let l = 2; l <= 8; l++) seen.add(Object.keys(upgradeMaterials('bakery', l)).sort().join('+'));
-    expect(seen.size).toBe(7);
+    for (let l = 2; l <= 10; l++) seen.add(Object.keys(upgradeMaterials('bakery', l)).sort().join('+'));
+    expect(seen.size).toBe(5);
+    expect([...seen][0]).toBe('lumber');
+    expect([...seen].at(-1)).toContain('steel');
     const tiers = new Set<string>();
     for (const k of Object.keys(SITE_DEFS) as SiteKind[]) {
       const t = SITE_DEFS[k].tier;
@@ -82,5 +84,23 @@ describe('upgrades and levels', () => {
     for (let i = 0; i < 30; i++) step(w);
     expect(site.level).toBe(2);
     expect(site.upgrade).toBeUndefined();
+  });
+});
+
+describe('material bands follow the ladder', () => {
+  it('no tier asks for a material before the building that makes it opens', () => {
+    const makers: Partial<Record<Good, SiteKind>> = { lumber: 'sawmill', bricks: 'brickworks', cement: 'cementworks', concrete: 'concrete', glass: 'glassworks', steel: 'steelworks', tools: 'toolworks' };
+    for (let t = 1; t <= 25; t++) {
+      for (const g of Object.keys(materialBand(t)) as Good[]) {
+        const maker = makers[g];
+        expect(maker, g).toBeDefined();
+        expect(SITE_DEFS[maker!].tier, `${g} at tier ${t}`).toBeLessThanOrEqual(t);
+      }
+    }
+  });
+
+  it('every level opens at a tier whose materials exist', () => {
+    expect(maxLevelAt(25)).toBe(10);
+    expect(levelNeedsTier(9)).toBeLessThanOrEqual(25);
   });
 });

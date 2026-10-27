@@ -3706,7 +3706,7 @@ export function upgradeError(world: World, siteId: number): string | null {
   if (def.station) return 'Stations belong to the town';
   if (site.upgrade) return 'The upgrade is waiting for materials from the Supply Yard';
   if (site.level >= maxLevelOf(def)) return 'Already at max level';
-  const needTier = levelNeedsTier(site.level); // level 2 needs tier 1, level 3 tier 3, and so on every two tiers
+  const needTier = levelNeedsTier(site.level); // levels are spread over the ladder (see LEVEL_TIERS)
   if (world.tier < needTier) return `Level ${site.level + 1} needs Tier ${needTier}`;
   const needEarn = LEVEL_EARN[site.level + 1];
   if (needEarn && world.earned < needEarn) return `Level ${site.level + 1} needs $${needEarn.toLocaleString('en-US')} earned in total`;
