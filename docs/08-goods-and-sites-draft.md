@@ -1,3 +1,5 @@
+> **History only.** This is the original design draft (built in 0.90 to 0.93). The current, always up-to-date list is generated from the game: [08-goods-and-sites.md](08-goods-and-sites.md).
+
 # Goods and production sites: draft list (built in 0.90 to 0.93; kept as the design record)
 
 Farming-Simulator style: raw sites make raw goods, factories take one or SEVERAL inputs and mix them into something new.
