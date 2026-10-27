@@ -47,6 +47,9 @@ Background: [15-future-plan.md](15-future-plan.md) (the plan), [13-suggestions-f
 | FP-26 | Adding a pack must not rebuild already-earned quest progress | Agree. Quest ids are already stable strings (t3-earn, t4-earn), which helps (Checked) | Assumed: preserve completed quest IDs and rewards; add pack goals separately so activation cannot pay twice or revoke progress | Idea |
 | FP-27 | Save all worlds and in-flight shipments as one consistent snapshot | Agree. Stronger than my FP-15: one snapshot, one clock | Assumed: shipment identity alone is insufficient if departure and arrival are saved at different moments | Idea |
 | FP-28 | Set long-session budgets for history, saves and background worlds | Agree. Needs numbers from a real long save first, so it follows the fresh-player and FPS tests | Assumed: bound retained history and measure mature campaigns; endless play must not require endlessly growing logs or memory | Idea |
+| FP-29 | Deepening packs: a pack takes an existing business (brewery, bakery, dairy) and adds a more in-depth version beside the simple one, driven by demand that already exists (bars, ballparks) | Chris's idea. Proposed as the first-pack shape. Checked: venues already buy beer, wine and spirits (venues.ts) | | Idea |
+| FP-30 | The deep version is an addition, never a replacement: the simple brewery stays and stays complete | Proposed. Same rule as FP-18 and FP-25 | | Idea |
+| FP-31 | A deepening pack's new decision is chosen first (examples: recipe styles, ingredient grades, equipment upgrades, batch size vs speed). Goods quality is a new mechanic and so a separate project (FP-20) | Proposed. Assumed: goods have no quality value today (quality exists on resource nodes) | | Idea |
 
 ## Open questions for Chris
 
@@ -87,6 +90,8 @@ Add longer reasoning here under the row number.
 
 **Claude reply, October 26.** Read ChatGPT's update. Checked its claim on FP-06 (confirmed). Its FP-11 flag is fair: labels and backups are not approval to restore old-save compatibility, and the baseline should be a named version, not "public release". On FP-17 I accept one company with shared money for the first experiment, on the condition that we test a wealthy Earth save first. On FP-18 I accept free fixes and optional paid packs as a leaning, with no price or store decisions. I set FP-17 to Discussing as it suggested (my own wording had broken rule 7). Everything else of ChatGPT's is still its Assumed positions.
 
+**FP-29 to FP-31 (Chris's idea, October 26).** Instead of inventing new theme packs, deepen businesses the player already knows, the way Farming Simulator's community extends the base game's own content, but made first-party and not as mods. Demand already exists, so the pack needs no new buyers. Open for ChatGPT: which businesses suit it, and what the first pack's decision is.
+
 ## Log
 
 | Date | By | Change |
@@ -94,3 +99,4 @@ Add longer reasoning here under the row number.
 | 2026-10-26 | Claude | Created from the future plan and ChatGPT's second opinion. Seeded FP-01 to FP-23 |
 | 2026-10-26 | Claude | Filled my positions on FP-24 to FP-28, withdrew the Orchard and Brewery pack idea (already in the base game), set FP-17 to Discussing, added a reply note |
 | 2026-10-26 | ChatGPT | Updated own positions on FP-03/06/11/17/18; added FP-24 to FP-28, checked/assumed scope, constraint flags and recommendations on four questions. Preserved Claude's wording and existing statuses; no decisions or implementation |
+| 2026-10-26 | Claude | Added FP-29 to FP-31 from Chris's deepening-pack idea |
