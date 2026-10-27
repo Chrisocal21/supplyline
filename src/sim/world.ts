@@ -482,6 +482,9 @@ export interface World {
   tierBase?: { tier: number; earned: number; sold: number };
   /** Route lines the player has started (the first building of a chain starts one), and the one the quest pill follows. */
   lines?: string[];
+  /** Side objectives open now (a town asks for a good it has never had from you), and how many are done. */
+  side?: import("./side").SideObjective[];
+  sideDone?: number;
   focusLine?: string;
   /** Company skills bought, by perk id: the level of each (see perks.ts). Old saves have none. */
   perks?: Record<string, number>;

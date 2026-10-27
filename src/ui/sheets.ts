@@ -27,7 +27,8 @@ import {
 } from '../sim/defs';
 import { BANK_TIER, DAY_TICKS, bankReport, FUND_FEE, LOAN_RATE, REAL_MONEY_ENABLED, SAVINGS_RATE, bankOf, borrow, creditLimit, deposit, divest, fundValue, invest, netWorth, repay, withdraw } from '../sim/bank';
 import { LINES_BY_ID } from '../sim/lines';
-import { focusLine, lineSteps, nextQuest, pathMastered, pathQuestState, questState, startedLines, stepOpensAt, tierNeed, tierUnlocks } from '../sim/quests';
+import { sideProgress } from '../sim/side';
+import { focusLine, routeTree, lineSteps, nextQuest, pathMastered, pathQuestState, questState, stepOpensAt, tierNeed, tierUnlocks } from '../sim/quests';
 import { questGuide } from '../sim/guide';
 import { buildDistrict, choosePath, districtBoost, districtCost, districtError, districtLevel, districtRevenue, districtSatisfaction, pathError, townUpkeep } from '../sim/town';
 import { buyersOf } from '../sim/buyers';
@@ -1182,26 +1183,44 @@ export class Sheets {
       y += 8;
       im.text('rt-h', 'YOUR ROUTES', x, y, { size: 13, bold: true, color: COLORS.accent, layer: 3 });
       y += 26;
-      const mine = startedLines(world);
+      const mine = routeTree(world);
       if (mine.length === 0) {
         y += im.text('rt-none', 'Build the first building of a chain (an iron mine, a clay pit, a harbor, a brewery...) and its route starts here, one step at a time.', x, y, { size: 13, color: COLORS.muted, wrap: w, layer: 3 }).h + 8;
       }
       const follow = focusLine(world);
-      mine.forEach((line) => {
+      routeTree(world).forEach(({ line, depth }) => {
         const st = lineSteps(world, line);
+        const ix = depth * 28;
         const rowH = 72;
         const on = follow?.id === line.id;
-        const hov = im.hit(`rt-${line.id}`, x, y, w, rowH, () => { if (st.next) world.focusLine = line.id; }, 3);
-        im.rect(3, x, y, w, rowH, hov ? 0x161f29 : 0x10161e, 1, 6, st.next ? (on ? COLORS.accent : COLORS.line) : COLORS.good, on ? 1 : 0.7, on ? 2 : 1);
-        im.text(`rt-n${line.id}`, line.name, x + 12, y + 8, { size: 14, bold: true, color: st.next ? COLORS.text : COLORS.good, layer: 4 });
+        const hov = im.hit(`rt-${line.id}`, x + ix, y, w - ix, rowH, () => { if (st.next) world.focusLine = line.id; }, 3);
+        if (depth > 0) { im.line(3, x + ix - 14, y - gap, x + ix - 14, y + rowH / 2, COLORS.line, 1, 2); im.line(3, x + ix - 14, y + rowH / 2, x + ix, y + rowH / 2, COLORS.line, 1, 2); }
+        im.rect(3, x + ix, y, w - ix, rowH, hov ? 0x161f29 : 0x10161e, 1, 6, st.next ? (on ? COLORS.accent : COLORS.line) : COLORS.good, on ? 1 : 0.7, on ? 2 : 1);
+        im.text(`rt-n${line.id}`, line.name, x + ix + 12, y + 8, { size: 14, bold: true, color: st.next ? COLORS.text : COLORS.good, layer: 4 });
         im.text(`rt-c${line.id}`, st.next ? `${st.done} of ${line.steps.length}${on ? '  ·  following' : ''}` : 'Route complete', x + w - 12, y + 8, { size: 12, bold: true, color: on ? COLORS.accent : COLORS.muted, align: 'right', layer: 4 });
         if (st.next) {
           const opens = stepOpensAt(world, st.next);
-          if (line.opens?.length) im.text(`rt-b${line.id}`, `Finishing opens: ${line.opens.map((id) => LINES_BY_ID[id]?.name).filter(Boolean).join(', ')}`, x + 12, y + 54, { size: 11, color: COLORS.muted, layer: 4 });
-          im.text(`rt-s${line.id}`, `${st.next.label}${opens === null ? '' : `  (opens at tier ${opens})`}  ·  +$${fmt(st.next.reward)}`, x + 12, y + 32, { size: 13, color: COLORS.muted, wrap: w - 24, layer: 4 });
+          if (line.opens?.length) im.text(`rt-b${line.id}`, `Finishing opens: ${line.opens.map((id) => LINES_BY_ID[id]?.name).filter(Boolean).join(', ')}`, x + ix + 12, y + 54, { size: 11, color: COLORS.muted, layer: 4 });
+          im.text(`rt-s${line.id}`, `${st.next.label}${opens === null ? '' : `  (opens at tier ${opens})`}  ·  +$${fmt(st.next.reward)}`, x + ix + 12, y + 32, { size: 13, color: COLORS.muted, wrap: w - 24, layer: 4 });
         }
-        else if (line.opens?.length) im.text(`rt-o${line.id}`, `Opened: ${line.opens.map((id) => LINES_BY_ID[id]?.name).filter(Boolean).join(', ')}`, x + 12, y + 36, { size: 13, color: COLORS.good, layer: 4 });
+        else if (line.opens?.length) im.text(`rt-o${line.id}`, `Opened: ${line.opens.map((id) => LINES_BY_ID[id]?.name).filter(Boolean).join(', ')}`, x + ix + 12, y + 36, { size: 13, color: COLORS.good, layer: 4 });
         y += rowH + gap;
+      });
+      // Side objectives: towns you ship to ask for something you make but have never sent them.
+      y += 10;
+      im.text('sd-h', 'SIDE OBJECTIVES', x, y, { size: 13, bold: true, color: COLORS.accent, layer: 3 });
+      y += 26;
+      const side = world.side ?? [];
+      if (side.length === 0) y += im.text('sd-none', 'A town you ship to will ask for something you make but have not sent it yet.', x, y, { size: 13, color: COLORS.muted, wrap: w, layer: 3 }).h + 8;
+      side.forEach((o) => {
+        const pl = world.places.find((p) => p.id === o.placeId);
+        const pr = sideProgress(world, o);
+        im.rect(3, x, y, w, 52, 0x10161e, 1, 6, COLORS.line, 0.7);
+        im.text(`sd-n${o.id}`, `${pl?.name ?? 'A town'} wants ${fmt(o.amount)} ${GOODS[o.good].label.toLowerCase()}`, x + 12, y + 8, { size: 14, bold: true, layer: 4 });
+        im.text(`sd-r${o.id}`, `+${fmt(o.reward)}`, x + w - 12, y + 8, { size: 13, bold: true, color: COLORS.warn, align: 'right', layer: 4 });
+        im.bar(4, x + 12, y + 36, w - 24 - 80, 6, pr.have / Math.max(1, pr.need), COLORS.accent);
+        im.text(`sd-p${o.id}`, `${fmt(pr.have)} / ${fmt(pr.need)}`, x + w - 12, y + 31, { size: 12, color: COLORS.muted, align: 'right', layer: 4 });
+        y += 58;
       });
     }
 

@@ -135,3 +135,9 @@ Open questions for Chris:
 - 23 lines now cover every chain: bricks, iron, cement, harbor, cloth, sweets, brewing, meat, bread, farmyard, dairy, wood, paper, glass, prepared foods, oil, honey, spirits, exotics, machines, rail, sea, air. Building any building of a chain still starts its line at once; a branch is the same line, started early.
 - The Objectives sheet shows each started route with "Finishing opens: ..." so the player can see where it leads.
 - Not done: achievements and bonus-cash side objectives; pacing and playtest (left alone by request).
+
+### 0.239: quiet tree and side objectives (built)
+
+- Chris: no "branch opened" message; think of the MAM in Satisfactory, where opening something starts unlocking the tree. Routes now start and open their branches silently. The Objectives sheet draws them as a tree (a route sits under the one that opened it, with a connector).
+- Side objectives (`src/sim/side.ts`): up to three open at once, one per town. A town you already ship to asks for a good its Market wants, that you make, and that it has never had from you. Pays cash when the town has received the amount. No announcement when one appears; they sit under SIDE OBJECTIVES on the Objectives sheet. Stored in `world.side` and `world.sideDone`.
+- Not done: achievements (later, by request); side objectives from cities asking for more than goods (a district, a level); pack lines.

@@ -27,6 +27,7 @@ import {
 } from './defs';
 import { builtDistricts, pathsInUse } from './town';
 import { LINES_BY_ID, ROUTE_LINES, type RouteLine } from './lines';
+import { checkSide } from './side';
 import { sellTargets, type World } from './world';
 
 export interface Progress {
@@ -248,6 +249,24 @@ export function startedLines(world: World): RouteLine[] {
   return [...out.filter((l) => lineSteps(world, l).next), ...out.filter((l) => !lineSteps(world, l).next)];
 }
 
+/** The started routes as a tree, like a research tree: a route sits under the one that opened it. */
+export function routeTree(world: World): { line: RouteLine; depth: number }[] {
+  const started = startedLines(world);
+  const ids = new Set(started.map((l) => l.id));
+  const out: { line: RouteLine; depth: number }[] = [];
+  const seen = new Set<string>();
+  const add = (l: RouteLine, depth: number): void => {
+    if (seen.has(l.id)) return;
+    seen.add(l.id);
+    out.push({ line: l, depth });
+    for (const id of l.opens ?? []) if (ids.has(id)) add(LINES_BY_ID[id], depth + 1);
+  };
+  const child = new Set(started.flatMap((l) => l.opens ?? []));
+  for (const l of started) if (!child.has(l.id)) add(l, 0);
+  for (const l of started) add(l, 0);
+  return out;
+}
+
 /** The line the quest pill follows: the one the player picked, or else the oldest one still going. */
 export function focusLine(world: World): RouteLine | null {
   const lines = startedLines(world).filter((l) => lineSteps(world, l).next);
@@ -269,7 +288,6 @@ function checkLines(world: World, log: (text: string) => void): void {
     if (world.lines.includes(line.id) || !world.sites.some((s) => line.starts.includes(s.kind))) continue;
     world.lines.push(line.id);
     world.focusLine ??= line.id;
-    log(`New route: ${line.name}. ${line.blurb}`);
   }
   for (const line of startedLines(world)) {
     for (const q of line.steps) {
@@ -284,7 +302,6 @@ function checkLines(world: World, log: (text: string) => void): void {
       for (const id of line.opens ?? []) {
         if (world.lines.includes(id) || !LINES_BY_ID[id]) continue;
         world.lines.push(id);
-        log(`Branch opened: ${LINES_BY_ID[id].name}. ${LINES_BY_ID[id].blurb}`);
       }
     }
   }
@@ -314,6 +331,7 @@ export function checkQuests(world: World, log: (text: string) => void): void {
   world.questsDone ??= [];
   checkPathQuests(world, log);
   checkLines(world, log);
+  if (world.tier >= FREE_FROM_TIER) checkSide(world, log);
   for (;;) {
     const tier = TIERS[world.tier];
     if (!tier) return;
