@@ -50,6 +50,11 @@ Background: [15-future-plan.md](15-future-plan.md) (the plan), [13-suggestions-f
 | FP-29 | Deepening packs: a pack takes an existing business (brewery, bakery, dairy) and adds a more in-depth version beside the simple one, driven by demand that already exists (bars, ballparks) | Chris's idea. Proposed as the first-pack shape. Checked: venues already buy beer, wine and spirits (venues.ts) | | Idea |
 | FP-30 | The deep version is an addition, never a replacement: the simple brewery stays and stays complete | Proposed. Same rule as FP-18 and FP-25 | | Idea |
 | FP-31 | A deepening pack's new decision is chosen first (examples: recipe styles, ingredient grades, equipment upgrades, batch size vs speed). Goods quality is a new mechanic and so a separate project (FP-20) | Proposed. Assumed: goods have no quality value today (quality exists on resource nodes) | | Idea |
+| FP-32 | Design principle for the whole game: variety comes from combining things the player already makes. A product has several versions, each built from different ingredients on the map (beer: malt, hops, water, yeast; wine: red, white, flavoured, using fruit and honey) | Chris's idea, applied across every industry, not just brewing. Checked: today each site has exactly one recipe (`recipe?` in `SiteDef`), beer and wine are single goods, and there is no yeast good | | Idea |
+| FP-33 | A building can run one of several recipes, chosen by the player (a recipe selector). Checked: not built | Proposed as the core new mechanic. It is a mechanic, not data (FP-05, FP-20), so it needs its own small project and tests | | Idea |
+| FP-34 | Variant goods count as their base good for demand (any beer fills "beer"), and better or rarer variants pay more or open special buyers | Proposed, Assumed. Keeps base demand and quests working (FP-25), avoids a buyer list per variant | | Idea |
+| FP-35 | Variants are a content series with a cap per product line, so the catalog grows on purpose (45 goods today, hundreds possible) | Proposed. Flows and by-product outlets must be valid for each variant (FP-19) | | Idea |
+| FP-36 | First proof is one product line only (beer), as the first deepening pack, with the recipe selector as its only new mechanic | Proposed, replaces my earlier "pick a new chain" ask in FP-06 | | Idea |
 
 ## Open questions for Chris
 
@@ -92,6 +97,8 @@ Add longer reasoning here under the row number.
 
 **FP-29 to FP-31 (Chris's idea, October 26).** Instead of inventing new theme packs, deepen businesses the player already knows, the way Farming Simulator's community extends the base game's own content, but made first-party and not as mods. Demand already exists, so the pack needs no new buyers. Open for ChatGPT: which businesses suit it, and what the first pack's decision is.
 
+**FP-32 to FP-36 (Chris, October 26).** The key is being able to use more of what you make. Beer from hops, water and yeast, then malts and pales; wine from grapes, water and yeast, then red, white and flavoured wines using other products on the map. Applies to every industry. Claude checked the code: one recipe per building and no yeast good, so the gap is a recipe selector plus variant goods. Open for ChatGPT: how variants should count for demand and price, which product lines suit the idea, and how to keep the catalog from sprawling.
+
 ## Log
 
 | Date | By | Change |
@@ -100,3 +107,4 @@ Add longer reasoning here under the row number.
 | 2026-10-26 | Claude | Filled my positions on FP-24 to FP-28, withdrew the Orchard and Brewery pack idea (already in the base game), set FP-17 to Discussing, added a reply note |
 | 2026-10-26 | ChatGPT | Updated own positions on FP-03/06/11/17/18; added FP-24 to FP-28, checked/assumed scope, constraint flags and recommendations on four questions. Preserved Claude's wording and existing statuses; no decisions or implementation |
 | 2026-10-26 | Claude | Added FP-29 to FP-31 from Chris's deepening-pack idea |
+| 2026-10-26 | Claude | Added FP-32 to FP-36 from Chris's ingredient-variety idea, with a code check |
