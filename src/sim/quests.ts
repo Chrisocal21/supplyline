@@ -37,6 +37,16 @@ export interface Progress {
   detail?: string;
 }
 
+function soldTotal(world: World): number {
+  return GOOD_LIST.reduce((n, g) => n + (world.delivered[g] ?? 0), 0);
+}
+
+/** Where the current tier began; set the first time it is looked at if the tier was reached some other way. */
+function tierBase(world: World): { tier: number; earned: number; sold: number } {
+  if (!world.tierBase || world.tierBase.tier !== world.tier) world.tierBase = { tier: world.tier, earned: world.earned, sold: soldTotal(world) };
+  return world.tierBase;
+}
+
 export function questProgress(world: World, goal: QuestGoal): Progress {
   let have = 0;
   let need = 1;
@@ -113,6 +123,10 @@ export function questProgress(world: World, goal: QuestGoal): Progress {
       have = world.delivered[goal.good] ?? 0;
       need = goal.amount;
       break;
+    case 'sold':
+      have = soldTotal(world) - (goal.tier === undefined ? 0 : goal.tier === world.tier ? tierBase(world).sold : soldTotal(world));
+      need = goal.amount;
+      break;
     case 'variety':
       have = GOOD_LIST.filter((g) => (world.delivered[g] ?? 0) > 0).length;
       need = goal.count;
@@ -122,7 +136,7 @@ export function questProgress(world: World, goal: QuestGoal): Progress {
       need = goal.amount;
       break;
     case 'earn':
-      have = world.earned;
+      have = world.earned - (goal.tier === undefined ? 0 : goal.tier === world.tier ? tierBase(world).earned : world.earned);
       need = goal.amount;
       break;
     case 'town':
@@ -213,6 +227,11 @@ export function questState(world: World, tier: TierDef, q: Quest): Progress {
   return questProgress(world, q.goal);
 }
 
+/** How many of a tier's quests finish it: all of them in the guided tiers, a few of a menu after that. */
+export function tierNeed(tier: TierDef): number {
+  return Math.min(tier.quests.length, tier.need ?? tier.quests.length);
+}
+
 /** The first unfinished quest of the current tier, or null when every quest in the game is done. */
 export function nextQuest(world: World): { quest: Quest; progress: Progress } | null {
   const tier = TIERS[world.tier];
@@ -231,20 +250,22 @@ export function checkQuests(world: World, log: (text: string) => void): void {
   for (;;) {
     const tier = TIERS[world.tier];
     if (!tier) return;
-    let all = true;
+    let finished = 0;
     for (const q of tier.quests) {
-      if (world.questsDone.includes(q.id)) continue;
-      if (!questProgress(world, q.goal).done) {
-        all = false;
+      if (world.questsDone.includes(q.id)) {
+        finished++;
         continue;
       }
+      if (!questProgress(world, q.goal).done) continue;
+      finished++;
       world.questsDone.push(q.id);
       world.money += q.reward;
       log(`Quest complete: ${q.label}${q.reward > 0 ? `  +$${q.reward.toLocaleString('en-US')}` : ''}`);
     }
     const next = TIERS[world.tier + 1];
-    if (!all || !next) return;
+    if (finished < tierNeed(tier) || !next) return;
     world.tier = next.tier;
+    world.tierBase = { tier: next.tier, earned: world.earned, sold: soldTotal(world) };
     // From Tier 1 a closed town builds from lumber: logs already in a yard's store are sawn into it, so nothing is stranded.
     if (next.tier === 1) for (const s of world.sites) if (s.depot?.logs) {
       s.depot.lumber = (s.depot.lumber ?? 0) + s.depot.logs / LOGS_PER_LUMBER;

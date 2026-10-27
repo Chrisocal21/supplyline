@@ -912,12 +912,14 @@ export type QuestGoal =
   | { kind: 'townbuilt'; stage: 1 | 2; count: number }
   /** Units of one good sold to towns. */
   | { kind: 'deliver'; good: Good; amount: number }
+  /** Units of any goods sold to towns, in total. */
+  | { kind: 'sold'; amount: number; /** Counts only what happens during this tier. */ tier?: number }
   /** Different goods sold to towns. */
   | { kind: 'variety'; count: number }
   /** Units of one good made by your buildings. */
   | { kind: 'make'; good: Good; amount: number }
   /** Money earned from sales, in total. */
-  | { kind: 'earn'; amount: number }
+  | { kind: 'earn'; amount: number; /** Counts only what happens during this tier. */ tier?: number }
   /** Towns at or above a level. */
   | { kind: 'town'; level: number; count: number }
   /** Buildings at or above a level. */
@@ -984,8 +986,10 @@ export interface TierDef {
   tier: number;
   name: string;
   blurb: string;
-  /** Finishing all of these unlocks the next tier. The last tier's quests are the end game. */
+  /** The quests of this tier. */
   quests: Quest[];
+  /** How many of them finish the tier. Absent means all of them (the guided tiers); from tier 3 the player picks a route. */
+  need?: number;
 }
 
 /** The quests as written for five tiers. TIERS (below) re-sorts them onto the ladder. */
@@ -1112,6 +1116,36 @@ const QUEST_TIER: Record<string, number> = {
   't4-paths': 25, 't4-jet': 25, 't4-metropolises': 25, 't4-capstones': 25, 't4-earn': 25,
 };
 
+/** The first tier that is a menu of milestones instead of guided steps. */
+export const FREE_FROM_TIER = 3;
+
+/** A round figure: two significant digits. */
+const round2 = (n: number): number => {
+  const m = 10 ** Math.max(0, Math.floor(Math.log10(n)) - 1);
+  return Math.round(n / m) * m;
+};
+
+/**
+ * The milestones of a free tier: five goals that grow with the tier and suit any route (a rich trader, a big shipper, a town builder,
+ * a builder of tall factories). Finish any few and the tier is done; nothing says which, or in what order.
+ */
+function milestones(t: number): Quest[] {
+  const earn = round2(9000 * 1.2 ** (t - 3));
+  const sold = round2(2500 * 1.17 ** (t - 3));
+  const kinds = Math.min(40, Math.round(4 + t * 1.4));
+  const townLevel = Math.min(5, 3 + Math.floor((t - 3) / 8));
+  const towns = 1 + Math.floor(t / 8);
+  const upLevel = Math.min(MAX_LEVEL, Math.floor((t + 3) / 2));
+  const ups = 3 + Math.floor(t / 2);
+  return [
+    { id: `t${t}-m-earn`, label: `Earn $${earn.toLocaleString('en-US')} in sales`, hint: 'Money from what you sell to towns while you are on this tier. Any goods, any route: sell more, or sell dearer goods.', goal: { kind: 'earn', amount: earn, tier: t }, reward: Math.round(earn * 0.06 / 50) * 50 },
+    { id: `t${t}-m-sold`, label: `Sell ${sold.toLocaleString('en-US')} goods to towns`, hint: 'Units of any goods delivered to towns while you are on this tier. More trucks and more buildings mean bigger numbers.', goal: { kind: 'sold', amount: sold, tier: t }, reward: Math.round(sold * 4 / 50) * 50 },
+    { id: `t${t}-m-variety`, label: `Sell ${kinds} different goods`, hint: 'Different kinds of goods that a town has bought from you. Add a new chain and a new kind joins the count.', goal: { kind: 'variety', count: kinds }, reward: kinds * 100 },
+    { id: `t${t}-m-town`, label: `Grow ${towns > 1 ? `${towns} towns` : 'a town'} to level ${townLevel}`, hint: 'Towns grow when their Market is stocked with a good mix and their Supply Yard holds building materials.', goal: { kind: 'town', level: townLevel, count: towns }, reward: townLevel * towns * 500 },
+    { id: `t${t}-m-up`, label: `Take ${ups} buildings to level ${upLevel}`, hint: 'Open a building and press its upgrade. A level needs the tier you are on, money, and materials.', goal: { kind: 'upgrade', level: upLevel, count: ups }, reward: upLevel * ups * 150 },
+  ];
+}
+
 function buildTiers(): TierDef[] {
   const pool = OLD_TIERS.flatMap((t) => t.quests);
   const builtBy = new Set<string>();
@@ -1148,9 +1182,12 @@ function buildTiers(): TierDef[] {
       });
     }
     // The guided early run keeps its own order; from tier 6 on, the new things come first so later quests can use them.
-    const quests = s.tier <= 5 ? [...old, ...made] : [...made, ...old];
+    const listed = s.tier <= 5 ? [...old, ...made] : [...made, ...old];
+    // Tiers 0 to 2 are the guided start. From tier 3 the player builds freely, and a tier is a menu of milestones: finish any few.
+    const free = s.tier >= FREE_FROM_TIER;
+    const quests = free ? [...milestones(s.tier), ...listed.slice(0, 2).map((q) => ({ ...q, label: `Optional: ${q.label}` }))] : listed;
     const opens = [...s.sites.map((k) => SITE_DEFS[k].label), ...s.vehicles.map((k) => VEHICLE_DEFS[k].label)];
-    return { tier: s.tier, name: s.name, blurb: opens.length ? `Opens ${opens.join(', ')}.` : 'The end game.', quests };
+    return { tier: s.tier, name: s.name, blurb: opens.length ? `Opens ${opens.join(', ')}.` : 'The end game.', quests, ...(free ? { need: s.tier < 6 ? 2 : 3 } : {}) };
   });
 }
 

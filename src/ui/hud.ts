@@ -100,7 +100,7 @@ import {
   type MapData,
   needsNode,
 } from '../sim/world';
-import { nextQuest, questState, tierUnlocks } from '../sim/quests';
+import { nextQuest, questState, tierNeed, tierUnlocks } from '../sim/quests';
 import { tutorialControl, tutorialNext, tutorialSkip } from '../sim/tutorial';
 import { materialTasks, questGuide } from '../sim/guide';
 import { Game3D, districtOfTool, isDistrictTool, type HoverInfo, type OverlayItem, type Tool } from '../r3d/game3d';
@@ -3206,7 +3206,7 @@ export class HudScene extends Phaser.Scene {
     im.text('tbN', String(w.tier), cx, y + h / 2 - 15, { size: 26, bold: true, display: true, color: COLORS.accent, align: 'center', layer: 2 });
     im.text('tbK', `TIER ${w.tier}`, x + 54, y + 5, { size: 11, bold: true, color: COLORS.accent, layer: 2 });
     im.text('tbName', tier.name, x + 54, y + 18, { size: 14, bold: true, layer: 2 });
-    im.bar(1, x + 54, y + h - 10, bw - 54 - 12, 5, done / Math.max(1, tier.quests.length), COLORS.accent);
+    im.bar(1, x + 54, y + h - 10, bw - 54 - 12, 5, Math.min(1, done / Math.max(1, tierNeed(tier))), COLORS.accent);
     return bw;
   }
 

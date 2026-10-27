@@ -95,6 +95,7 @@ Open questions for Chris:
 - Rail at tier 6, ports at tier 12, air at tier 18.
 - The Rail Yard and the Distribution Warehouse need a permanent home in every town, like the Supply Yard and the Market. They should also be buildable later, in a free spot in the town. Rail should be able to form circuits and loops, like Satisfactory and Factorio. **Not built yet; needs design** (see below).
 - Rice or Brewery first is no longer a question: all quests are being rebuilt anyway.
+- **Quests follow the player (decided, later in the day).** Tiers 0 to 2 stay a guided tutorial. From tier 3 the game is expansion and free building, and quests stop being steps. They become goals that match the route the player is already taking: what they build, make and sell decides which goals show up. Not written yet.
 
 ## Known gaps after 0.235
 
@@ -111,3 +112,10 @@ Open questions for Chris:
 |---|---|---|
 | 2026-10-26 | Claude | Phase A: ladder data, test, and this plan |
 | 2026-10-26 | Claude | 0.235: phases B, C (first pass), D and G. Ladder wired into the game; 26 tiers; tests updated; tier tab window |
+
+### 0.236: free tiers (built)
+
+- Tiers 0 to 2 stay guided. From tier 3 (`FREE_FROM_TIER` in defs.ts) a tier is a menu: five goals that suit any route (earn, sell volume, sell variety, grow towns, upgrade buildings) plus up to two optional "build this" goals for what the tier opens. Finish any 2 (tiers 3 to 5) or 3 (tier 6 on) and the next tier opens.
+- The earn and sell goals count from the moment the tier began (`world.tierBase`), so they cannot be satisfied by earlier play. Variety, town level and upgrade goals are about the state of the factory.
+- All numbers are in `milestones()` in defs.ts and scale with the tier. First pacing run (skilled bot, seed 11): tier 3 at 21.5 min, tier 6 at 27 min, tier 9 at 50 min, tier 12 at 74 min, tier 14 at 118 min. Tiers 3 to 5 are still too quick for the bot. A human will be slower; tune after a real playtest.
+- Not done yet: goals that read the player's own route (a bakery means "feed a town bread"), side objectives with bonus cash, and the pack quest lines.

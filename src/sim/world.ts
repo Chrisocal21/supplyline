@@ -478,6 +478,8 @@ export interface World {
   tier: number;
   /** Ids of the quests already finished and paid out. */
   questsDone: string[];
+  /** Money earned and goods sold when the current tier began: the free tiers' goals count what you do from here, not your lifetime total. */
+  tierBase?: { tier: number; earned: number; sold: number };
   /** Company skills bought, by perk id: the level of each (see perks.ts). Old saves have none. */
   perks?: Record<string, number>;
   /** Path quests finished, by id (see PATH_QUESTS). */

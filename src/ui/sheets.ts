@@ -25,7 +25,7 @@ import {
   type VehicleKind,
 } from '../sim/defs';
 import { BANK_TIER, DAY_TICKS, bankReport, FUND_FEE, LOAN_RATE, REAL_MONEY_ENABLED, SAVINGS_RATE, bankOf, borrow, creditLimit, deposit, divest, fundValue, invest, netWorth, repay, withdraw } from '../sim/bank';
-import { nextQuest, pathMastered, pathQuestState, questState, tierUnlocks } from '../sim/quests';
+import { nextQuest, pathMastered, pathQuestState, questState, tierNeed, tierUnlocks } from '../sim/quests';
 import { questGuide } from '../sim/guide';
 import { buildDistrict, choosePath, districtBoost, districtCost, districtError, districtLevel, districtRevenue, districtSatisfaction, pathError, townUpkeep } from '../sim/town';
 import { buyersOf } from '../sim/buyers';
@@ -1076,9 +1076,9 @@ export class Sheets {
     // The tier's name, how far through it is, and what finishing it opens.
     const doneN = tier.quests.filter((q) => questState(world, tier, q).done).length;
     im.text('hb-name', `${tier.name.toUpperCase()}`, x, y, { size: 22, bold: true, display: true, layer: 3 });
-    im.text('hb-count', `${doneN} of ${tier.quests.length} quests done`, x + w, y + 6, { size: 14, bold: true, color: state === 'done' ? COLORS.good : COLORS.muted, align: 'right', layer: 3 });
+    im.text('hb-count', `${Math.min(doneN, tierNeed(tier))} of ${tierNeed(tier)} done${tierNeed(tier) < tier.quests.length ? ' (pick any)' : ''}`, x + w, y + 6, { size: 14, bold: true, color: state === 'done' ? COLORS.good : COLORS.muted, align: 'right', layer: 3 });
     y += 30;
-    im.bar(3, x, y, w, 8, doneN / Math.max(1, tier.quests.length), state === 'done' ? COLORS.good : COLORS.accent);
+    im.bar(3, x, y, w, 8, Math.min(1, doneN / Math.max(1, tierNeed(tier))), state === 'done' ? COLORS.good : COLORS.accent);
     y += 18;
     const blurbH = im.text('hb-blurb', tier.blurb, x, y, { size: 14, color: COLORS.muted, wrap: w, layer: 3 }).h;
     y += blurbH + 6;
