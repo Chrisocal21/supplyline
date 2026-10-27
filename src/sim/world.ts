@@ -486,6 +486,8 @@ export interface World {
   /** Side objectives open now (a town asks for a good it has never had from you), and how many are done. */
   side?: import("./side").SideObjective[];
   sideDone?: number;
+  /** Achievements earned, by id (see achievements.ts). */
+  achievements?: string[];
   focusLine?: string;
   /** Company skills bought, by perk id: the level of each (see perks.ts). Old saves have none. */
   perks?: Record<string, number>;

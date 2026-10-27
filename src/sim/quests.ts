@@ -28,6 +28,7 @@ import {
 import { builtDistricts, pathsInUse } from './town';
 import { LINES_BY_ID, ROUTE_LINES, type RouteLine } from './lines';
 import { checkSide } from './side';
+import { checkAchievements } from './achievements';
 import { sellTargets, type World } from './world';
 
 export interface Progress {
@@ -332,6 +333,7 @@ export function checkQuests(world: World, log: (text: string) => void): void {
   checkPathQuests(world, log);
   checkLines(world, log);
   if (world.tier >= FREE_FROM_TIER) checkSide(world, log);
+  checkAchievements(world, log);
   for (;;) {
     const tier = TIERS[world.tier];
     if (!tier) return;

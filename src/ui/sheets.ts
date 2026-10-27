@@ -28,6 +28,7 @@ import {
 import { BANK_TIER, DAY_TICKS, bankReport, FUND_FEE, LOAN_RATE, REAL_MONEY_ENABLED, SAVINGS_RATE, bankOf, borrow, creditLimit, deposit, divest, fundValue, invest, netWorth, repay, withdraw } from '../sim/bank';
 import { LINES_BY_ID } from '../sim/lines';
 import { sideProgress } from '../sim/side';
+import { ACHIEVEMENTS, achievementProgress } from '../sim/achievements';
 import { focusLine, routeTree, lineSteps, nextQuest, pathMastered, pathQuestState, questState, stepOpensAt, tierNeed, tierUnlocks } from '../sim/quests';
 import { questGuide } from '../sim/guide';
 import { buildDistrict, choosePath, districtBoost, districtCost, districtError, districtLevel, districtRevenue, districtSatisfaction, pathError, townUpkeep } from '../sim/town';
@@ -1224,6 +1225,27 @@ export class Sheets {
       });
     }
 
+    // Achievements: badges for what has been done. Done ones lit, the rest dim with how far along they are.
+    if (world.tier >= FREE_FROM_TIER) {
+      y += 14;
+      const earned = ACHIEVEMENTS.filter((a) => achievementProgress(world, a).done).length;
+      im.text('ac-h', 'ACHIEVEMENTS', x, y, { size: 13, bold: true, color: COLORS.accent, layer: 3 });
+      im.text('ac-c', `${earned} of ${ACHIEVEMENTS.length}`, x + w, y, { size: 13, bold: true, color: COLORS.muted, align: 'right', layer: 3 });
+      y += 26;
+      const aw = 190;
+      const ah = 54;
+      const acols = Math.max(1, Math.floor((w + gap) / (aw + gap)));
+      const atw = (w - (acols - 1) * gap) / acols;
+      ACHIEVEMENTS.forEach((a, i) => {
+        const ax = x + (i % acols) * (atw + gap);
+        const ay = y + Math.floor(i / acols) * (ah + gap);
+        const ap = achievementProgress(world, a);
+        im.rect(3, ax, ay, atw, ah, ap.done ? 0x1d2a22 : 0x10161e, 1, 6, ap.done ? COLORS.good : COLORS.line, ap.done ? 1 : 0.7, 1);
+        im.text(`ac-n${a.id}`, a.label, ax + 10, ay + 8, { size: 13, bold: true, color: ap.done ? COLORS.good : COLORS.muted, wrap: atw - 20, layer: 4 });
+        if (!ap.done) im.bar(4, ax + 10, ay + ah - 12, atw - 20, 5, ap.have / Math.max(1, ap.need), COLORS.accent);
+      });
+      y += Math.ceil(ACHIEVEMENTS.length / acols) * (ah + gap) + 10;
+    }
     return y + this.scroll - v.y0;
   }
 

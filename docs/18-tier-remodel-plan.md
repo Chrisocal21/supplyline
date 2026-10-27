@@ -170,3 +170,8 @@ Open questions for Chris:
 - A venue's tier is the first tier its first good can be made (`venueTier` in venues.ts). A town still picks its venues the same way; the ones whose goods cannot be made yet are not open, so a district never asks for a good that cannot exist. The known gap (54) is gone: the old count test is replaced by one that checks no venue is shown before its tier.
 - The price boost still counts a district's whole menu (nobody can sell an unmade good, so it does nothing); the demand, income and the district card use the tier.
 - Open: a district built early may have no open venue for a while (hardware at tier 2 has only the stone and merchant at tier 3). It earns nothing until one opens.
+
+### 0.245: achievements (built)
+
+- `src/sim/achievements.ts`: about 60 one-off badges in groups (money, trade, towns, building, fleet, progress, logistics, making), each measured from the world so it cannot fall out of step. They pay nothing and never gate a tier. A log line when one is earned; the Objectives sheet lists them all under ACHIEVEMENTS, lit when done and dim with a bar when not. Stored in `world.achievements`.
+- Open: rewards (cosmetics or a perk point) if Chris wants any; pack-specific achievements; hidden ones.

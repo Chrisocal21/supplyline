@@ -109,3 +109,15 @@ it('a town you ship to asks for a good you make but have not sent it, and pays w
   expect(w.money).toBeGreaterThanOrEqual(money + o.reward);
   expect(w.sideDone).toBe(1);
 });
+
+it('achievements are earned once, from what has really happened, with no cash attached', () => {
+  const w = createWorldFromMap(map1 as MapData);
+  const logs: string[] = [];
+  w.earned = 12000;
+  checkQuests(w, (t) => logs.push(t));
+  expect(w.achievements).toEqual(expect.arrayContaining(['earn-1000', 'earn-10000']));
+  expect(w.achievements).not.toContain('earn-100000');
+  const n = logs.filter((t) => t.startsWith('Achievement')).length;
+  checkQuests(w, (t) => logs.push(t));
+  expect(logs.filter((t) => t.startsWith('Achievement')).length).toBe(n);
+});
