@@ -5,7 +5,7 @@ describe('fishing', () => {
   it('a harbor on the coast catches more fish with every boat, and its boats need no road', () => {
     const w = createWorld(11);
     w.money = 1e6;
-    w.tier = 2;
+    w.tier = 9;
     let spot: { x: number; y: number } | null = null;
     for (let y = 2; y < w.height - 2 && !spot; y++) for (let x = 0; x < w.width && !spot; x++) if (placeError(w, 'harbor', x, y) === null) spot = { x, y };
     expect(spot).not.toBeNull();

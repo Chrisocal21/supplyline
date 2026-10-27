@@ -57,13 +57,13 @@ Tier names are placeholders.
 
 | Phase | What | Notes |
 |---|---|---|
-| A | Ladder as data and a test | **Done** (this commit). Nothing in the game changes |
-| B | Wire it in: derive each building's and vehicle's tier from the ladder | Touches about 100 places that read a tier. Rail, sea, air, highway and bridge limits all point at fixed tier numbers and must be re-pointed |
-| C | Quests for 26 tiers | Keep the hand-written early quests. Later tiers get short generated quests (build the new thing, deliver its good). Re-measure the demo |
-| D | Material bands | Lumber, bricks, cement, steel for building are tied to tiers 1 to 4. Move them onto bands of tiers |
+| A | Ladder as data and a test | **Done** |
+| B | Wire it in: derive each building's and vehicle's tier from the ladder | **Done** (0.235). Rail is tier 6, ports 12, air 18; bridge spans and building-level caps re-pointed. Highways stay at tier 1 |
+| C | Quests for 26 tiers | **Done as a first pass** (0.235). The 58 old quests were re-sorted onto the ladder; each building or vehicle with no quest got a plain "build it" or "buy it" quest. To be rewritten properly |
+| D | Material bands | **Done** (0.235). Lumber to tier 3, bricks from tier 4, cement from tier 8, steel from tier 23. Farm, mill, bakery and orchard stay free of materials, as before |
 | E | Town levels | 24 districts over 5 town levels today (1, 6, 8, 6, 4). Spread them over more levels, 2 to 4 each |
 | F | Building experience | See below |
-| G | Fix tests and the pacing bot | They assume five tiers |
+| G | Fix tests and the pacing bot | **Done** for tests (566 pass). The pacing bot plays the new ladder: tier 3 at 21.5 min, tier 8 at 47.7 min in one game hour |
 
 ## Building experience (the new mechanic)
 
@@ -89,8 +89,25 @@ Open questions for Chris:
 - **Logistics.** Delaying rail and sea to tiers 12 and 14 may make the middle game feel stuck on trucks. Needs your call.
 - **Locked-in systems.** Building levels stay at ten; direct vehicle purchase, truck reach and fuel limits, and the by-product rules are unchanged.
 
+## Chris's decisions, October 26
+
+- 26 tiers (0 to 25); "tiers" and "levels" are the same thing.
+- Rail at tier 6, ports at tier 12, air at tier 18.
+- The Rail Yard and the Distribution Warehouse need a permanent home in every town, like the Supply Yard and the Market. They should also be buildable later, in a free spot in the town. Rail should be able to form circuits and loops, like Satisfactory and Factorio. **Not built yet; needs design** (see below).
+- Rice or Brewery first is no longer a question: all quests are being rebuilt anyway.
+
+## Known gaps after 0.235
+
+- **Town levels and districts** are not spread along the ladder. 48 venues open before the goods they sell can be made (a counted known gap in `venues.test.ts`; phase E brings it to zero).
+- **Pacing.** The early tiers fly by (tiers 3 to 5 in under two minutes) because their quests are plain builds. The quests are due to be rebuilt.
+- **Demo end** moved to tier 3 (town level 2). The bot reaches it at 21.5 min, below the 30 to 50 minute target.
+- **Highways** still open at tier 1.
+- **Tier tabs** on the Objectives sheet show a window of seven with arrows. Checked in a screenshot at tier 9.
+- **Rail Yard and Distribution Warehouse homes, and rail circuits:** today both are ordinary buildings placed by hand. The new idea is a town plot like the Supply Yard and Market that can also be placed later, plus rail loops. Needs a design.
+
 ## Log
 
 | Date | By | Change |
 |---|---|---|
 | 2026-10-26 | Claude | Phase A: ladder data, test, and this plan |
+| 2026-10-26 | Claude | 0.235: phases B, C (first pass), D and G. Ladder wired into the game; 26 tiers; tests updated; tier tab window |

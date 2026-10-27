@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { SITE_DEFS, VEHICLE_DEFS, type Good, type SiteKind, type VehicleKind } from './defs';
-import { LADDER, ladderTier } from './ladder';
+import { LADDER, STARTING_VEHICLES, TOWN_MADE, ladderTier } from './ladder';
 
-// Town-made buildings are not on the ladder: the town builds them. The Rail Station comes with the Rail Yard.
-const NOT_ON_LADDER: string[] = ['market', 'freight', 'district', 'station'];
+// Town-made buildings are not on the ladder: the town builds them. The Rail Station comes with the Rail Yard. The Box Truck is the starting vehicle.
+const NOT_ON_LADDER: string[] = [...TOWN_MADE, ...STARTING_VEHICLES];
 
 describe('unlock ladder', () => {
   const sites = Object.keys(SITE_DEFS) as SiteKind[];
@@ -16,7 +16,7 @@ describe('unlock ladder', () => {
   it('lists every building and vehicle exactly once', () => {
     const listed = LADDER.flatMap((s) => [...s.sites, ...s.vehicles]) as string[];
     const dupes = listed.filter((id, i) => listed.indexOf(id) !== i);
-    const missing = [...sites.filter((k) => !NOT_ON_LADDER.includes(k)), ...vehicles].filter((id) => !listed.includes(id));
+    const missing = [...sites, ...vehicles].filter((id) => !NOT_ON_LADDER.includes(id) && !listed.includes(id));
     const unknown = listed.filter((id) => !(sites as string[]).includes(id) && !(vehicles as string[]).includes(id));
     expect({ dupes, missing, unknown }).toEqual({ dupes: [], missing: [], unknown: [] });
   });

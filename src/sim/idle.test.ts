@@ -6,7 +6,7 @@ describe('idle vehicles', () => {
   const setup = () => {
     const w = createBlankWorld(30, 14, new Array(30 * 14).fill('grass'));
     w.money = 1e6;
-    w.tier = 3;
+    w.tier = 25;
     expect(placeSite(w, 'sawmill', 9, 9)).toBeNull();
     const saw = siteAt(w, 9, 9)!;
     for (let i = 0; i < 3; i++) expect(buyVehicle(w, saw.id, 'boxtruck')).toBeNull();

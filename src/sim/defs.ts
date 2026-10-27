@@ -1,4 +1,5 @@
 // Static game data. Add goods, sites, vehicles and quests here; the sim reads them generically.
+import { LADDER, ladderTier } from './ladder';
 
 const GOOD_IDS = [
   // raw
@@ -410,23 +411,9 @@ const DEFS = {
   } as SiteDef,
 };
 
-/**
- * When each building opens. The menu grows with the game instead of arriving all at once: the staples first, then the wider farm
- * and kitchen chains, then the specialist plants. A building opens no earlier than the buildings that make its ingredients.
- */
-const OPENS: Record<number, string[]> = {
-  0: ['forestry', 'farm', 'ranch', 'orchard', 'mill', 'bakery', 'dairy', 'woodyard'],
-  1: ['quarry', 'sawmill', 'claypit', 'waterpump', 'chickenfarm', 'vegfarm', 'potatofarm', 'sandpit', 'coalmine', 'harbor', 'sugarfarm',
-    'jamfactory', 'feedmill', 'creamery', 'juicepress', 'sugarrefinery', 'gardensupply', 'scrapyard',
-    'brickworks', 'stonecutter', 'granitecutter', 'hub', 'garage', 'pelletmill'],
-  2: ['cottonfarm', 'papermill', 'spinmill', 'oremine', 'barleyfarm', 'oilseedfarm', 'pigfarm', 'sheepfarm', 'apiary', 'vineyard', 'saltpan', 'coffeefarm', 'mangogrove', 'oilwell',
-    'smokehouse', 'fishcannery', 'fishmeal', 'oilpress', 'pastrykitchen', 'noodlemaker', 'cannery', 'butcher', 'woolmill', 'compostyard',
-    'silage', 'weavery', 'tailor', 'workshop', 'printery', 'winery', 'distillery', 'cementworks', 'concrete', 'glassworks',
-    'smelter', 'toolworks', 'railyard', 'port'],
-  3: ['hopfarm', 'spicefarm', 'cocoafarm', 'pizzeria', 'brewery', 'sodaplant', 'icecreamplant', 'crispfryer', 'sausagemaker', 'chocolatier',
-    'candlemaker', 'pillowmaker', 'refinery', 'steelworks', 'slagcrusher', 'machinery', 'airport'],
-};
-for (const [tier, kinds] of Object.entries(OPENS)) for (const k of kinds) (DEFS as Record<string, SiteDef>)[k].tier = Number(tier);
+/** When each building opens comes from the unlock ladder (ladder.ts): three or four things a tier, from tier 0 to 25. */
+for (const step of LADDER) for (const k of step.sites) (DEFS as Record<string, SiteDef>)[k].tier = step.tier;
+for (const k of ['market', 'freight', 'district', 'station']) (DEFS as Record<string, SiteDef>)[k].tier = ladderTier(k) ?? 0;
 
 export type SiteKind = keyof typeof DEFS;
 export const SITE_DEFS: Record<SiteKind, SiteDef> = DEFS;
@@ -489,6 +476,8 @@ export const VEHICLE_DEFS: Record<VehicleKind, VehicleDef> = {
   containership: { label: 'Container Ship', blurb: 'Boxes stacked high. Carries more than any other vehicle.', mode: 'sea', cost: 28000, tier: 4, capacity: 520, ticksPerTile: 3, implemented: true, needLevel: 3, draft: 2 },
   jet: { label: 'Cargo Jet', blurb: 'A wide-body freighter for the longest hauls.', mode: 'air', cost: 22000, tier: 4, capacity: 220, ticksPerTile: 2.25, implemented: true, needLevel: 3 },
 };
+
+for (const k of Object.keys(VEHICLE_DEFS) as VehicleKind[]) VEHICLE_DEFS[k].tier = ladderTier(k) ?? 0;
 
 export const VEHICLE_ORDER: VehicleKind[] = ['boxtruck', 'bigtruck', 'rig', 'convoy', 'train', 'heavytrain', 'plane', 'jet', 'barge', 'boat', 'freighter', 'containership'];
 
@@ -577,18 +566,26 @@ export const NODE_QUALITY = [
 /** Road building. Costs per tile; bridge and tunnel spans are limited by world tier. */
 export const ROAD_COST: Record<Terrain, number> = { grass: 2, forest: 4, water: 24, mountain: 36, ice: Infinity };
 export const SPAN_LIMIT = [2, 4, 8, 16];
+/** The longest bridge or tunnel span, in tiles, at a tier: it grows with rail (tier 6) and ports (tier 12). */
+export function spanLimit(tier: number): number {
+  return tier < 3 ? SPAN_LIMIT[0] : tier < 7 ? SPAN_LIMIT[1] : tier < 12 ? SPAN_LIMIT[2] : SPAN_LIMIT[3];
+}
+/** The tier a building needs to be taken up from `level` to the next. Level 2 needs tier 1, and so on, every two tiers. */
+export function levelNeedsTier(level: number): number {
+  return Math.min(25, level * 2 - 1);
+}
 
-/** Rails are a separate network from roads. Track costs more per tile, and unlocks at Tier 2. */
+/** Rails are a separate network from roads. Track costs more per tile, and unlocks at Tier 6. */
 export type RouteMode = 'road' | 'rail' | 'air' | 'sea';
 export const RAIL_COST_FACTOR = 1.8;
-export const RAIL_TIER = 2;
+export const RAIL_TIER = 6;
 /** A Distribution Hub can be given a rail yard, which is how trains reach a town. */
 export const DEPOT_COST = 3000;
 /** Air routes link two airports in a straight line. */
-export const AIR_TIER = 3;
+export const AIR_TIER = 18;
 export const AIR_COST_PER_TILE = 4;
 /** Sea routes link two ports over open water. */
-export const SEA_TIER = 2;
+export const SEA_TIER = 12;
 export const SEA_COST_PER_TILE = 3;
 /** Extra cost where a road and a rail cross at a level crossing. */
 export const CROSSING_COST = 8;
@@ -687,12 +684,15 @@ export function buildMaterials(kind: SiteKind): Stock {
 
 function baseMaterials(kind: SiteKind): Stock {
   const def = SITE_DEFS[kind];
-  if (def.tier < 1 || def.dock || def.station) return {};
+  // The farm, mill, bakery and orchard stay free of materials, as they were when they opened with the first camps: the guided start builds them.
+  if (def.tier < 1 || def.dock || def.station || (['farm', 'mill', 'bakery', 'orchard'] as SiteKind[]).includes(kind)) return {};
   const units = Math.max(6, Math.min(400, Math.round(def.cost / 40)));
   const share = (f: number): number => Math.max(1, Math.round(units * f));
-  if (def.tier === 1) return { lumber: share(1) };
-  if (def.tier === 2) return { lumber: share(0.6), bricks: share(0.4) };
-  if (def.tier === 3) return { lumber: share(0.4), bricks: share(0.4), cement: share(0.2) };
+  // Bands of tiers, set by when the goods exist: lumber from the start, bricks once the Brickworks (tier 3) stands, cement once the Cement
+  // Works (tier 8) does, and steel once the Steelworks (tier 23) does.
+  if (def.tier <= 3) return { lumber: share(1) };
+  if (def.tier <= 7) return { lumber: share(0.6), bricks: share(0.4) };
+  if (def.tier <= 22) return { lumber: share(0.4), bricks: share(0.4), cement: share(0.2) };
   return { bricks: share(0.3), concrete: share(0.3), steel: share(0.4) };
 }
 
@@ -988,8 +988,8 @@ export interface TierDef {
   quests: Quest[];
 }
 
-/** TIERS[n] is what the player works on while at tier n. */
-export const TIERS: TierDef[] = [
+/** The quests as written for five tiers. TIERS (below) re-sorts them onto the ladder. */
+const OLD_TIERS: TierDef[] = [
   {
     tier: 0,
     name: 'Startup',
@@ -1086,6 +1086,76 @@ export const TIERS: TierDef[] = [
     ],
   },
 ];
+
+/**
+ * The quests above were written for five tiers. The ladder (ladder.ts) has 26, so each quest now lives in the tier where what it asks
+ * for has been unlocked, and every building and vehicle that no quest asks for gets a plain "build it" or "buy it" quest. Quests are due
+ * to be rewritten; until then this keeps every tier playable. Quest ids not listed here belong to tier 0 (the t0- quests).
+ */
+const QUEST_TIER: Record<string, number> = {
+  't1-sawmill': 1, 't1-lumber': 1, 't1-farm': 1, 't1-mill': 1, 't1-bakery': 1,
+  't1-garage': 2, 't1-mechanic': 2, 't1-orchard': 2, 't1-variety': 2, 't1-town2': 2, 't1-bigtruck': 2, 't1-earn': 2, 't1-upgrade': 2,
+  't1-bricks': 3,
+  't1-scrap': 4, 't1-hub': 4, 't1-highway': 4, 't1-district': 4,
+  't1-town3': 5, 't1-town': 8,
+  't2-depot': 6, 't2-rail': 6, 't2-rig': 6,
+  't2-upgrade': 7,
+  't2-path': 8, 't2-districts': 8,
+  't2-ingots': 11,
+  't2-port': 12, 't3-sea': 12,
+  't2-tools': 13,
+  't2-cities': 15,
+  't3-fleet': 17,
+  't3-air': 18,
+  't3-steel': 23,
+  't3-machinery': 24, 't3-metropolis': 24, 't3-capstone': 24, 't3-earn': 24,
+  't4-paths': 25, 't4-jet': 25, 't4-metropolises': 25, 't4-capstones': 25, 't4-earn': 25,
+};
+
+function buildTiers(): TierDef[] {
+  const pool = OLD_TIERS.flatMap((t) => t.quests);
+  const builtBy = new Set<string>();
+  const boughtBy = new Set<string>();
+  for (const q of pool) {
+    if (q.goal.kind === 'build') builtBy.add(q.goal.site);
+    if (q.goal.kind === 'depot') builtBy.add('railyard');
+    if (q.goal.kind === 'vehicle') boughtBy.add(q.goal.vehicle);
+  }
+  const an = (label: string): string => (/^[aeiou]/i.test(label) ? 'an' : 'a');
+  return LADDER.map((s) => {
+    const old = pool.filter((q) => (QUEST_TIER[q.id] ?? (q.id.startsWith('t0-') ? 0 : -1)) === s.tier);
+    const made: Quest[] = [];
+    for (const kind of s.sites) {
+      if (builtBy.has(kind)) continue;
+      const d = SITE_DEFS[kind];
+      made.push({
+        id: `t${s.tier}-build-${kind}`,
+        label: `Build ${an(d.label)} ${d.label}`,
+        hint: `${d.blurb} Build it, road it to what feeds it and to a buyer, and switch its production on.`,
+        goal: { kind: 'build', site: kind, count: 1 },
+        reward: Math.max(100, Math.min(3000, Math.round(d.cost / 2 / 50) * 50)),
+      });
+    }
+    for (const kind of s.vehicles) {
+      if (boughtBy.has(kind)) continue;
+      const d = VEHICLE_DEFS[kind];
+      made.push({
+        id: `t${s.tier}-buy-${kind}`,
+        label: `Buy ${an(d.label)} ${d.label}`,
+        hint: `${d.blurb} Buy one at a building that can use it.`,
+        goal: { kind: 'vehicle', vehicle: kind, count: 1 },
+        reward: Math.max(100, Math.min(3000, Math.round(d.cost / 3 / 50) * 50)),
+      });
+    }
+    // The guided early run keeps its own order; from tier 6 on, the new things come first so later quests can use them.
+    const quests = s.tier <= 5 ? [...old, ...made] : [...made, ...old];
+    const opens = [...s.sites.map((k) => SITE_DEFS[k].label), ...s.vehicles.map((k) => VEHICLE_DEFS[k].label)];
+    return { tier: s.tier, name: s.name, blurb: opens.length ? `Opens ${opens.join(', ')}.` : 'The end game.', quests };
+  });
+}
+
+/** TIERS[n] is what the player works on while at tier n. */
+export const TIERS: TierDef[] = buildTiers();
 
 /**
  * A handful of early buildings stay locked behind one specific earlier quest, on top of the usual Tier lock: the guided

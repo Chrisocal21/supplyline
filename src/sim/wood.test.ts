@@ -41,7 +41,7 @@ describe('what happens to the wood once the town is built', () => {
 
 describe('the first steps of the menu', () => {
   it('opens the quarry with town level 2 and the wood yard after the cheese, not at the very start', () => {
-    expect(SITE_DEFS.quarry.tier).toBe(1);
+    expect(SITE_DEFS.quarry.tier).toBe(3); // the tier after the one whose last quests grow a town to level 2
     expect(SITE_UNLOCK_QUEST.quarry).toBe('t1-town2');
     expect(SITE_DEFS.woodyard.tier).toBe(0);
     expect(SITE_UNLOCK_QUEST.woodyard).toBe('t0-cheese');

@@ -24,7 +24,7 @@ describe('ground held for the town it will become', () => {
   it('turns every kind of building away from a future home or district lot, and keeps every road off it', () => {
     for (const seed of [3, 8, 21]) {
       const w = createWorld(seed);
-      w.tier = 9;
+      w.tier = 25;
       w.money = 1e9;
       let checked = 0;
       for (const t of future(w)) {

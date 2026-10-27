@@ -28,7 +28,7 @@ describe('save files', () => {
   it('an older save keeps playing: missing newer fields, a farm that still points at a field node, goods it never heard of', () => {
     const w = createWorld(7);
     w.money = 1e6;
-    w.tier = 3;
+    w.tier = 25;
     const farmNode = w.nodes.find((n) => n.kind === 'farmland')!;
     expect(placeSite(w, 'farm', farmNode.x, farmNode.y)).toBeNull();
     const farm = w.sites.find((x) => x.kind === 'farm')!;

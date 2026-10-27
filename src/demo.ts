@@ -3,7 +3,7 @@
 import { inBrowser } from './r3d/graphics';
 
 /** The tier the demo ends at: reaching it ends the demo. */
-export const DEMO_END_TIER = 2;
+export const DEMO_END_TIER = 3;
 /** The one map the demo plays. */
 export const DEMO_MAP = 'map1';
 

@@ -197,3 +197,4 @@ Generate the typed catalog and wiki deterministically from these definitions. Va
 | 2026-10-26 | Claude | Added FP-49 to FP-52: free first packs, per-world switch, progression card and quest line, Rice as the first build |
 | 2026-10-26 | Claude | Added FP-53 to FP-57: thinner unlocks per tier, an ordered unlock ladder, town levels, material bands, packs as late chapters |
 | 2026-10-26 | Claude | Added FP-58 and FP-59; ladder data and test built (phase A), plan written |
+| 2026-10-26 | Claude | Tier remodel 0.235: 26-tier ladder wired into the game (FP-53, FP-54, FP-56 built); rail tier 6, ports 12, air 18 per Chris |

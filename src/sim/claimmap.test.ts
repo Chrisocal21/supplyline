@@ -2,7 +2,7 @@
 // placement allows, it says is not held.
 import { describe, expect, it } from 'vitest';
 import { blockedBy, claimAt, isPermanent } from './claims';
-import { HIGHWAY_TIER, SITE_DEFS, type SiteKind } from './defs';
+import { SITE_DEFS, type SiteKind } from './defs';
 import { createWorld, placeError, placeSite, siteTiles, wrapX } from './world';
 
 const PLAIN = (Object.keys(SITE_DEFS) as SiteKind[]).filter((k) => {
@@ -14,7 +14,7 @@ describe('claim map', () => {
   it('names what is on a tile, and refuses plain buildings wherever the claim is permanent', () => {
     expect(PLAIN.length).toBeGreaterThan(0);
     const w = createWorld(6);
-    w.tier = Math.max(w.tier, HIGHWAY_TIER);
+    w.tier = 25;
     w.money = 1e9;
     const kind = PLAIN[0];
     const seen: Record<string, number> = {};
@@ -34,7 +34,7 @@ describe('claim map', () => {
 
   it('keeps a building where it was put: its tiles read as a building, and blockedBy names the stop', () => {
     const w = createWorld(6);
-    w.tier = Math.max(w.tier, HIGHWAY_TIER);
+    w.tier = 25;
     w.money = 1e9;
     const kind = PLAIN[0];
     let site = null;

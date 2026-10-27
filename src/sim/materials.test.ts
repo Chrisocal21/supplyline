@@ -8,20 +8,20 @@ describe('building materials', () => {
 
   it('asks nothing of Tier 0 buildings and grows heavier with the tiers', () => {
     expect(buildMaterials('forestry')).toEqual({});
-    const t1 = kinds.find((k) => SITE_DEFS[k].tier === 1)!;
+    const t1 = kinds.find((k) => SITE_DEFS[k].tier >= 1 && SITE_DEFS[k].tier <= 3 && Object.keys(buildMaterials(k)).length > 0)!;
     expect(Object.keys(buildMaterials(t1))).toEqual(['lumber']);
-    const high = kinds.find((k) => SITE_DEFS[k].tier >= 4);
+    const high = kinds.find((k) => SITE_DEFS[k].tier >= 23);
     if (high) expect(buildMaterials(high).steel).toBeGreaterThan(0);
   });
 
   it('keeps a building waiting until the yard has the materials, then lets it run', () => {
     const w = createWorld(5);
-    w.tier = 4;
+    w.tier = 25;
     w.money = 1e6;
     const p = w.places[0];
     p.stage = 2;
     const yard = w.sites.find((s) => s.placeId === p.id && SITE_DEFS[s.kind].dock === 'freight')!;
-    const kind = kinds.find((k) => SITE_DEFS[k].tier === 1 && SITE_DEFS[k].inTown && !SITE_DEFS[k].dock && Object.keys(buildMaterials(k)).length > 0)!;
+    const kind = kinds.find((k) => SITE_DEFS[k].tier >= 1 && SITE_DEFS[k].tier <= 3 && SITE_DEFS[k].inTown && !SITE_DEFS[k].dock && Object.keys(buildMaterials(k)).length > 0)!;
     let spot: { x: number; y: number } | null = null;
     for (let dy = -12; dy <= 12 && !spot; dy++) for (let dx = -12; dx <= 12 && !spot; dx++) {
       const x = p.x + dx, y = p.y + dy;
@@ -62,7 +62,7 @@ describe('upgrades and levels', () => {
 
   it('keeps the old level working while an upgrade waits for its materials', () => {
     const w = createWorld(5);
-    w.tier = 4;
+    w.tier = 25;
     w.money = 1e6;
     w.earned = 1e9;
     const p = w.places[0];

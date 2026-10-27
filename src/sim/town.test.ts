@@ -165,8 +165,8 @@ describe('vehicle trade-up', () => {
     w.vehicles.push({ id: 901, homeId: 1, routeId: 900, destId: 0, kind: 'boxtruck', idx: 0, dir: 1, state: 'loading', moveTimer: 0, cargo: 0, good: null });
     w.vehicles.push({ id: 903, homeId: 1, routeId: 900, destId: 0, kind: 'boxtruck', idx: 0, dir: 1, state: 'loading', moveTimer: 0, cargo: 0, good: null });
     w.tier = 0;
-    expect(upgradeVehicleError(w, 901)).toMatch(/Tier 1/);
-    w.tier = 1;
+    expect(upgradeVehicleError(w, 901)).toMatch(/Tier 2/);
+    w.tier = 2;
     // A bigger class needs a bigger yard: the Big Box Truck wants level 2 at its home.
     expect(upgradeVehicleError(w, 901)).toMatch(/at level 2/);
     w.sites.find((q) => q.id === 1)!.level = 2;
@@ -178,9 +178,9 @@ describe('vehicle trade-up', () => {
     // Only the one that was picked changes.
     expect(w.vehicles[0].kind).toBe('bigtruck');
     expect(w.vehicles[1].kind).toBe('boxtruck');
-    // Next up is the rig at Tier 2.
-    expect(upgradeVehicleError(w, 901)).toMatch(/Tier 2/);
-    w.tier = 4;
+    // Next up is the rig at Tier 6.
+    expect(upgradeVehicleError(w, 901)).toMatch(/Tier 6/);
+    w.tier = 25;
     w.sites.find((q) => q.id === 1)!.level = 5;
     for (let i = 0; i < 2; i++) expect(upgradeVehicle(w, 901)).toBeNull();
     expect(w.vehicles[0].kind).toBe('convoy');

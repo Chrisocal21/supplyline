@@ -22,7 +22,7 @@ describe('company skills', () => {
 
   it('stop at the top level', () => {
     const w = createBlankWorld(20, 10, new Array<Terrain>(200).fill('grass'));
-    w.tier = 9;
+    w.tier = 25;
     for (let i = 0; i < PERK_MAX; i++) expect(buyPerk(w, 'tough')).toBeNull();
     expect(perkError(w, 'tough')).toBe('Fully trained');
   });

@@ -17,7 +17,7 @@ const line = (w: World, a: number, b: number, from: { x: number; y: number }, to
 describe('a second truck for another buyer', () => {
   it('is bought pinned to that buyer and leaves the first truck on its own run', () => {
     const w = createBlankWorld(30, 20, new Array<Terrain>(30 * 20).fill('grass'));
-    w.tier = 3;
+    w.tier = 25;
     w.money = 1e6;
     const ranch = add(w, 'ranch', 3, 5);
     const market = add(w, 'hub', 12, 5);
@@ -39,7 +39,7 @@ describe('a second truck for another buyer', () => {
 
   it('refuses a buyer the building is not joined to', () => {
     const w = createBlankWorld(30, 20, new Array<Terrain>(30 * 20).fill('grass'));
-    w.tier = 3;
+    w.tier = 25;
     w.money = 1e6;
     const ranch = add(w, 'ranch', 3, 5);
     const lone = add(w, 'hub', 20, 15);

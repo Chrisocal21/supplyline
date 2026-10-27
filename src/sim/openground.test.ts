@@ -7,7 +7,7 @@ import { placeError } from './world';
 describe('open ground', () => {
   it('every site that needs no node can go somewhere on open ground', () => {
     const w = createWorld(12345);
-    w.tier = 9;
+    w.tier = 25;
     w.money = 1e9;
     const kinds = (Object.keys(SITE_DEFS) as SiteKind[]).filter((k) => {
       const d = SITE_DEFS[k];

@@ -7,7 +7,7 @@ import { buyVehicle, needs, offers, civicAt, civicTiles, createWorldFromMap, dis
 
 const town = (): { w: World; p: World['places'][number] } => {
   const w = createWorldFromMap(map1 as MapData);
-  w.tier = 3;
+  w.tier = 25;
   w.money = 1e6;
   const p = w.places[0];
   p.level = 3;

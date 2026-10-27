@@ -51,7 +51,8 @@ import {
   SITE_FOOTPRINT,
   RESERVED_GROUND,
   bodyTiles,
-  SPAN_LIMIT,
+  spanLimit,
+  levelNeedsTier,
   START_MONEY,
   TOWN_LEVELS,
   UPGRADE_COST_FACTOR,
@@ -3697,7 +3698,7 @@ export function upgradeError(world: World, siteId: number): string | null {
   if (def.station) return 'Stations belong to the town';
   if (site.upgrade) return 'The upgrade is waiting for materials from the Supply Yard';
   if (site.level >= maxLevelOf(def)) return 'Already at max level';
-  const needTier = Math.min(site.level, 4); // level 2 needs tier 1, and so on up to tier 4 for level 5 and beyond
+  const needTier = levelNeedsTier(site.level); // level 2 needs tier 1, level 3 tier 3, and so on every two tiers
   if (world.tier < needTier) return `Level ${site.level + 1} needs Tier ${needTier}`;
   const needEarn = LEVEL_EARN[site.level + 1];
   if (needEarn && world.earned < needEarn) return `Level ${site.level + 1} needs $${needEarn.toLocaleString('en-US')} earned in total`;
@@ -3829,7 +3830,7 @@ export function planRoute(world: World, rawPath: Tile[], mode: RouteMode = 'road
     }
   }
 
-  const limit = SPAN_LIMIT[Math.min(world.tier, SPAN_LIMIT.length - 1)];
+  const limit = spanLimit(world.tier);
   let run = 0;
   let runKind: Terrain | null = null;
   for (let i = 0; i < path.length; i++) {
@@ -4607,7 +4608,7 @@ export function findPath(world: World, from: Tile, to: Tile, maxVisits = 120000,
   const startEntry = mode === 'road' ? entryTile(world, from.x, from.y) : null;
   const goalEntry = mode === 'road' ? entryTile(world, to.x, to.y) : null;
   const W = world.width;
-  const limit = SPAN_LIMIT[Math.min(world.tier, SPAN_LIMIT.length - 1)];
+  const limit = spanLimit(world.tier);
   const R = limit + 1;
   const own = axisMap(world, mode);
   const other = axisMap(world, mode === 'road' ? 'rail' : 'road');

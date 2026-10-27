@@ -7,7 +7,7 @@ import { buyVehicle, createWorld, sellVehicle, siteById } from './world';
 function setup() {
   const w = createWorld(11);
   w.money = 1e6;
-  w.tier = 3;
+  w.tier = 25;
   const mill = w.sites[0];
   mill.kind = 'hub';
   mill.level = 4;

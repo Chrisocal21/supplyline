@@ -5,7 +5,7 @@ import { buyVehicle, createBlankWorld, fleetOf, siteById, upgradeSite, type Worl
 
 function world(): World {
   const w = createBlankWorld(30, 14, new Array<Terrain>(30 * 14).fill('grass'));
-  w.tier = 4;
+  w.tier = 25;
   w.money = 1e9;
   return w;
 }

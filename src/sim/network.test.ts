@@ -69,7 +69,7 @@ describe('keeping a network joined', () => {
   it('joins buildings through the yards in between, so a chain of roads joins every stop on it', () => {
     const w = createBlankWorld(60, 16, new Array(60 * 16).fill('grass'));
     w.money = 1e6;
-    w.tier = 3;
+    w.tier = 25;
     const row = (a: number, b: number, y: number) => Array.from({ length: b - a + 1 }, (_, i) => ({ x: a + i, y }));
     // Two farms and a mill, strung along one road: farm A, then farm B, then the mill. Each road runs yard to yard.
     for (const x of [5, 15]) w.nodes.push({ id: w.nextId++, kind: 'farmland', x, y: 8, quality: 1, regionId: 0 });
@@ -93,7 +93,7 @@ describe('automatic roads', () => {
   const flat = (): World => {
     const w = createBlankWorld(40, 16, new Array(40 * 16).fill('grass'));
     w.money = 1e6;
-    w.tier = 3;
+    w.tier = 25;
     return w;
   };
 
@@ -118,7 +118,7 @@ describe('automatic roads', () => {
   it('join an existing road instead of running a new one beside it', () => {
     const w = createBlankWorld(120, 16, new Array(120 * 16).fill('grass'));
     w.money = 1e6;
-    w.tier = 3;
+    w.tier = 25;
     const row = (a: number, b: number, y: number) => Array.from({ length: b - a + 1 }, (_, i) => ({ x: a + i, y }));
     expect(createRoute(w, row(10, 50, 4))).toBeNull();
     const path = findPath(w, { x: 10, y: 8 }, { x: 50, y: 8 })!;
@@ -131,7 +131,7 @@ describe('a building turned by hand takes its road at its driveway side', () => 
   it('only lets a road in over the tile it faces, and finds its way round to it', () => {
     const w = createBlankWorld(60, 30, new Array(60 * 30).fill('grass'));
     w.money = 1e6;
-    w.tier = 3;
+    w.tier = 25;
     expect(placeSite(w, 'hub', 30, 15, 1)).toBeNull();
     const hub = siteAt(w, 30, 15)!;
     expect(hub.rot).toBe(1);
@@ -153,7 +153,7 @@ describe('places for airports and rail yards', () => {
   it('an airport needs flat open ground with room for a road, clear of towns and water', () => {
     const w = createBlankWorld(60, 30, new Array(60 * 30).fill('grass'));
     w.money = 1e6;
-    w.tier = 3;
+    w.tier = 25;
     expect(placeError(w, 'airport', 20, 15)).toBeNull();
     // A spit of land with sea on three sides is no place for a runway.
     for (let y = 10; y <= 20; y++) for (let x = 28; x <= 40; x++) w.terrain[y * 60 + x] = 'water';
@@ -169,7 +169,7 @@ describe('places for airports and rail yards', () => {
   it('an airport covers a 5x3 rectangle, faces the way it was turned, and takes its road at the middle of its front', () => {
     const w = createBlankWorld(60, 30, new Array(60 * 30).fill('grass'));
     w.money = 1e6;
-    w.tier = 3;
+    w.tier = 25;
     expect(placeSite(w, 'airport', 20, 15, 1)).toBeNull();
     const a = w.sites[w.sites.length - 1];
     // Placed by its middle, facing east: its gate is the middle of the east side.
@@ -201,7 +201,7 @@ describe('places for airports and rail yards', () => {
   it('keeps the ground a town will grow over clear, while its plots stay free to build on', () => {
     const w = createBlankWorld(60, 30, new Array(60 * 30).fill('grass'));
     w.money = 1e6;
-    w.tier = 3;
+    w.tier = 25;
     const town = { id: 1, name: 'Midton', x: 30, y: 15, level: 1, growth: 0, delivered: {}, marketTile: { x: 31, y: 15 }, freightTile: { x: 29, y: 15 }, style: 'temperate' as const, taste: {}, radius: 3, homePlots: [] };
     w.places.push(town);
     // The main street reaches 3 tiles each way now and 7 when fully grown: the stretch between is kept for it.
@@ -218,7 +218,7 @@ describe('places for airports and rail yards', () => {
   it('clears forest and levels the ground for an airport, at a price', () => {
     const w = createBlankWorld(60, 30, new Array(60 * 30).fill('grass'));
     w.money = 1e6;
-    w.tier = 3;
+    w.tier = 25;
     for (let dy = -1; dy <= 1; dy++) w.terrain[(15 + dy) * 60 + 20] = 'forest';
     expect(placeError(w, 'airport', 20, 15)).toBeNull();
     expect(buildCost(w, 'airport', 20, 15)).toBe(SITE_DEFS.airport.cost + 3 * FOREST_CLEAR_COST);
@@ -234,7 +234,7 @@ describe('places for airports and rail yards', () => {
 
   it('keeps a spot for an airport by every town on the map, and lets an airport go there', () => {
     const w = createWorldFromMap(map1 as MapData);
-    w.tier = 3;
+    w.tier = 25;
     w.money = 1e6;
     const withPad = w.places.filter((p) => airportPad(w, p));
     expect(withPad.length).toBeGreaterThanOrEqual(w.places.length - 1);
@@ -250,7 +250,7 @@ describe('places for airports and rail yards', () => {
 
   it('puts a Rail Yard just outside a town, never in its streets or lots, and gives it track and trucks', () => {
     const w = createWorldFromMap(map1 as MapData);
-    w.tier = 3;
+    w.tier = 25;
     w.money = 1e6;
     const town = w.places[0];
     const spot = yardSpot(w, town)!;
@@ -295,7 +295,7 @@ describe('islands and the sea', () => {
 
   it('puts a port on the coast only, and sails goods from an island to the mainland', () => {
     const w = createWorldFromMap(map1 as MapData);
-    w.tier = 4;
+    w.tier = 25;
     w.money = 1e7;
     const isle = w.places.find((p) => p.name === 'Ventura')!;
     const main = w.places.find((p) => p.name === 'Rio Palma')!;

@@ -10,7 +10,7 @@ function flatWorld() {
   const w = createBlankWorld(192, 64, new Array(192 * 64).fill('grass'));
   w.places = [{ ...source.places[0], x: 96, y: 32, level: 5, radius: 5, districts: {} }];
   w.money = 1e8;
-  w.tier = 3;
+  w.tier = 25;
   prepareRealisticWorld(w);
   return w;
 }

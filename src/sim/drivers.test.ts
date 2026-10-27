@@ -7,7 +7,7 @@ import { VEHICLE_DEFS } from './defs';
 
 function world(): World {
   const w = createBlankWorld(30, 14, new Array<Terrain>(30 * 14).fill('grass'));
-  w.tier = 4;
+  w.tier = 25;
   w.money = 1e6;
   w.sites.push({ id: w.nextId++, kind: 'forestry', name: 'Camp', x: 5, y: 5, stock: {}, timer: 0, level: 3, nodeId: null, placeId: null, pull: [], making: undefined, sendTo: [] });
   return w;

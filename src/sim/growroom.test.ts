@@ -5,7 +5,7 @@ import { createBlankWorld, placeError, placeSite, siteAt, siteBodyCenter, siteTi
 
 function world(): World {
   const w = createBlankWorld(40, 30, new Array<Terrain>(40 * 30).fill('grass'));
-  w.tier = 3;
+  w.tier = 25;
   w.money = 1e6;
   w.growRoom = true;
   return w;

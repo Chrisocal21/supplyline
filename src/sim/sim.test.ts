@@ -88,7 +88,7 @@ function col(x: number, y0: number, y1: number): Tile[] {
 describe('building', () => {
   it('requires nodes for extraction; industry goes on open ground or a town plot', () => {
     const w = testWorld();
-    w.tier = 1;
+    w.tier = 25;
     // Forests, quarries and the like are permanent spots: only a farm, ranch or orchard goes on open ground.
     expect(placeError(w, 'forestry', 5, 5)).toMatch(/forest node/);
     expect(placeError(w, 'sawmill', 3, 4)).toMatch(/forest node/);
@@ -107,8 +107,8 @@ describe('building', () => {
 
   it('keeps clear of towns, and gates by tier and money', () => {
     const w = testWorld();
-    expect(placeError(w, 'hub', 9, 4)).toMatch(/Tier 1/);
-    w.tier = 1;
+    expect(placeError(w, 'hub', 9, 4)).toMatch(/Tier 4/);
+    w.tier = 25;
     expect(placeError(w, 'hub', 14, 10)).toMatch(/main street/);
     expect(placeError(w, 'hub', 13, 12)).toMatch(/Too close to Testford|Reserved/);
     expect(placeError(w, 'hub', 13, 11)).toMatch(/Reserved/);
@@ -129,7 +129,7 @@ describe('building', () => {
 describe('roads, bridges and tunnels', () => {
   it('limits bridge span by tier', () => {
     const w = testWorld();
-    w.tier = 1;
+    w.tier = 25;
     w.money = 100000;
     put(w, 'sawmill', 19, 5);
     placeSite(w, 'hub', 27, 5);
@@ -143,7 +143,7 @@ describe('roads, bridges and tunnels', () => {
 
   it('prices tunnels above roads and limits them by tier', () => {
     const w = testWorld();
-    w.tier = 1;
+    w.tier = 25;
     w.money = 100000;
     placeSite(w, 'hub', 28, 8);
     put(w, 'sawmill', 34, 8);
@@ -157,7 +157,7 @@ describe('roads, bridges and tunnels', () => {
 
   it('refuses routes through towns, through ice, or between sites with nothing to trade', () => {
     const w = testWorld();
-    w.tier = 1;
+    w.tier = 25;
     w.money = 100000;
     placeSite(w, 'hub', 14, 6);
     placeSite(w, 'hub', 14, 13);
@@ -239,7 +239,7 @@ describe('logistics loop', () => {
 describe('hubs', () => {
   it('a warehouse feeds a factory: forestry -> hub -> sawmill', () => {
     const w = testWorld();
-    w.tier = 1;
+    w.tier = 25;
     w.money = 100000;
     placeSite(w, 'forestry', 3, 4);
     placeSite(w, 'hub', 8, 8);
@@ -255,7 +255,7 @@ describe('hubs', () => {
 
   it('does not ping-pong goods between two hubs, and honours the pull list', () => {
     const w = testWorld();
-    w.tier = 1;
+    w.tier = 25;
     w.money = 100000;
     put(w, 'hub', 8, 8);
     put(w, 'hub', 8, 12);
@@ -304,14 +304,14 @@ describe('towns and levels', () => {
     w.tier = 1;
     expect(upgradeSite(w, s.id)).toBeNull();
     expect(s.level).toBe(2);
-    expect(upgradeSite(w, s.id)).toMatch(/needs Tier 2/);
+    expect(upgradeSite(w, s.id)).toMatch(/needs Tier 3/);
     expect(upgradeSite(w, siteAt(w, 15, 9)!.id)).toMatch(/deliveries/);
   });
 
   it('keeps planes off roads', () => {
     const w = testWorld();
     w.money = 100000;
-    w.tier = 3;
+    w.tier = 25;
     placeSite(w, 'forestry', 3, 4);
     put(w, 'sawmill', 9, 4);
     createRoute(w, row(3, 9, 4));

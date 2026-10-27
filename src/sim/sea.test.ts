@@ -18,7 +18,7 @@ function portTiles(w: World): { x: number; y: number }[] {
 describe('ships and channels', () => {
   const w = createWorldFromMap(map2 as MapData);
   prepareRealisticWorld(w);
-  w.tier = 4;
+  w.tier = 25;
   w.money = 1e6;
   const tiles = portTiles(w);
 
@@ -66,7 +66,7 @@ describe('canals', () => {
   it('join two ports no water joins, by digging, and take boats but not freighters', () => {
     const w = createWorldFromMap(map2 as MapData);
     prepareRealisticWorld(w);
-    w.tier = 4;
+    w.tier = 25;
     w.money = 1e6;
     const tiles = portTiles(w);
     let plan: ReturnType<typeof seaPlan> = null;

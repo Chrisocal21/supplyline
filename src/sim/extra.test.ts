@@ -36,7 +36,7 @@ function open(): World {
   addDock(world, world.places[0], 'market');
   world.nodes.push({ id: 1, kind: 'farmland', x: 3, y: 6, quality: 1, regionId: 0 });
   world.money = 1e6;
-  world.tier = 3;
+  world.tier = 25;
   return world;
 }
 
@@ -168,7 +168,7 @@ describe('rail', () => {
   /** A road runs north to south at x=6; a farm and a mill sit either side for a rail line to join. */
   function crossed(): World {
     const w = open();
-    w.tier = 3;
+    w.tier = 25;
     w.money = 100000;
     placeSite(w, 'farm', 3, 6);
     put(w, 'mill', 9, 6);
@@ -178,14 +178,14 @@ describe('rail', () => {
     return w;
   }
 
-  it('needs Tier 2 and is its own network', () => {
+  it('needs Tier 6 and is its own network', () => {
     const w = open();
-    w.tier = 0;
+    w.tier = 1;
     placeSite(w, 'farm', 3, 6);
     put(w, 'mill', 9, 6);
     const path = findPath(w, siteAt(w, 3, 6)!, siteAt(w, 9, 6)!, 120000, 'rail')!;
-    expect(planRoute(w, path, 'rail').error).toMatch(/Tier 2/);
-    w.tier = 2;
+    expect(planRoute(w, path, 'rail').error).toMatch(/Tier 6/);
+    w.tier = 6;
     expect(createRoute(w, path, 'rail')).toBeNull();
     expect(w.routes[0].mode).toBe('rail');
     // Roads and rails open the way; vehicles are bought at the buildings.
@@ -229,7 +229,7 @@ describe('rail', () => {
 
   it('a train moves goods between sites', () => {
     const w = open();
-    w.tier = 2;
+    w.tier = 6;
     w.money = 100000;
     placeSite(w, 'farm', 3, 6);
     put(w, 'mill', 9, 6);
@@ -243,7 +243,7 @@ describe('rail', () => {
 describe('towns as districts', () => {
   function townWorld(): World {
     const w = open();
-    w.tier = 3;
+    w.tier = 25;
     w.money = 100000;
     w.places[0].marketTile = { x: 21, y: 5 };
     w.places[0].freightTile = { x: 19, y: 7 };
@@ -424,7 +424,7 @@ describe('cities, entrances and highways', () => {
 
   it('a road into a plot arrives by the plot street', () => {
     const w = open();
-    w.tier = 3;
+    w.tier = 25;
     w.money = 100000;
     put(w, 'hub', 14, 6);
     put(w, 'bakery', 19, 5); // plot (x-1,y-1) of Midton at (20,6): its street is the one below it, (19,6)
@@ -496,7 +496,7 @@ describe('tier quests', () => {
     checkQuests(w, (t) => log.push(t));
     expect(w.tier).toBe(1);
     expect(log.some((l) => /Tier 1 unlocked/.test(l))).toBe(true);
-    expect(nextQuest(w)?.quest.id).toBe('t1-garage');
+    expect(nextQuest(w)?.quest.id).toBe('t1-lumber');
   });
 
   it('only asks for things that are unlocked at that tier', async () => {
@@ -539,7 +539,7 @@ describe('rail stations', () => {
 
   it('no longer builds a station in every town; trains come in through a Rail Yard at the edge', () => {
     const w = stationWorld();
-    w.tier = 2;
+    w.tier = 6;
     w.money = 1e6;
     for (let i = 0; i < 40; i++) step(w);
     expect(w.sites.some((q) => q.kind === 'station')).toBe(false);
@@ -554,9 +554,9 @@ describe('rail stations', () => {
     const town = w.places[0];
     const spot = yardSpot(w, town)!;
     expect(spot).not.toBeNull();
-    w.tier = 1;
-    expect(placeError(w, 'railyard', spot.x, spot.y)).toMatch(/Tier 2/);
-    w.tier = 2;
+    w.tier = 5;
+    expect(placeError(w, 'railyard', spot.x, spot.y)).toMatch(/Tier 6/);
+    w.tier = 6;
     expect(placeError(w, 'railyard', town.x, town.y)).toMatch(/edge of town|Reserved|Too close|main street/);
     // Somewhere well away from every town is not the edge of one.
     let away: { x: number; y: number } | null = null;
@@ -599,7 +599,7 @@ describe('rail stations', () => {
 describe('air routes and station freight', () => {
   it('flies cargo between two airports over water', () => {
     const w = open();
-    w.tier = 3;
+    w.tier = 25;
     w.money = 1e6;
     put(w, 'airport', 5, 4);
     put(w, 'airport', 27, 9);
@@ -622,7 +622,7 @@ describe('air routes and station freight', () => {
 
   it('sends goods from a town factory out by train, and feeds a factory from the platform', () => {
     const w = open();
-    w.tier = 3;
+    w.tier = 25;
     w.money = 1e6;
     w.places[0].marketTile = { x: 21, y: 5 };
     w.sites = [];

@@ -88,7 +88,7 @@ describe('land plots', () => {
     prepareRealisticWorld(w);
     enableLandRules(w);
     w.money = 1e9;
-    w.tier = 9;
+    w.tier = 25;
     const kinds = (Object.keys(SITE_DEFS) as (keyof typeof SITE_DEFS)[]).filter((k) => !SITE_DEFS[k].dock && !SITE_DEFS[k].station && !SITE_DEFS[k].inTown && !SITE_DEFS[k].node);
     let checked = 0;
     for (const kind of kinds) {

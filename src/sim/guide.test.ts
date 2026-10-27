@@ -9,7 +9,7 @@ import { buyVehicle, createRoute, createWorld, findPath, placeSite, step } from 
 describe('materials guide', () => {
   const setup = () => {
     const w = createWorld(5);
-    w.tier = 4;
+    w.tier = 25;
     w.money = 1e7;
     w.earned = 1e9;
     const p = w.places[0];

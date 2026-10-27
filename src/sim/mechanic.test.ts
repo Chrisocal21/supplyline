@@ -7,7 +7,7 @@ import { buyVehicle, createWorld, step, type Site } from './world';
 function setup() {
   const w = createWorld(11);
   w.money = 1e6;
-  w.tier = 3;
+  w.tier = 25;
   const home = w.sites[0];
   home.kind = 'hub';
   home.level = 4;

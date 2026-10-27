@@ -27,14 +27,14 @@ describe('economy flows', () => {
 
   it('never opens a building whose product has no buyer yet', () => {
     // A tester who builds something the moment it opens must be able to sell what it makes: to a Market of the level a town
-    // has by then, or to another open building that uses it. Tier 0 and 1 towns are level 1, Tier 2 towns reach level 3, Tier 3 level 4.
-    const marketLevel = [1, 1, 3, 4];
+    // has by then, or to another open building that uses it. Town level 2 comes with tier 3, level 3 with tier 6, level 4 with tier 9, level 5 with tier 24.
+    const marketLevelAt = (t: number): number => (t < 3 ? 1 : t < 6 ? 2 : t < 9 ? 3 : t < 24 ? 4 : 5);
     const bad: string[] = [];
-    for (let t = 0; t <= 3; t++) {
+    for (let t = 0; t <= 25; t++) {
       const open = BUILD_ORDER.filter((k) => SITE_DEFS[k].tier <= t);
       const used = new Set<Good>();
       for (const k of open) for (const g of Object.keys(SITE_DEFS[k].recipe?.inputs ?? {})) used.add(g as Good);
-      const market = new Set(MARKET_DEMAND[marketLevel[t] - 1]);
+      const market = new Set(MARKET_DEMAND[marketLevelAt(t) - 1]);
       for (const k of open) {
         const d = SITE_DEFS[k];
         const outs = d.produce ? [d.produce.good] : (Object.keys(d.recipe?.outputs ?? {}) as Good[]);
@@ -51,7 +51,7 @@ describe('by-product shelves', () => {
     const { diagnoseAll } = await import('./diagnose');
     const w = createBlankWorld(30, 14, new Array(30 * 14).fill('grass'));
     w.money = 1e6;
-    w.tier = 3;
+    w.tier = 25;
     expect(placeSite(w, 'sawmill', 9, 9)).toBeNull();
     const saw = siteAt(w, 9, 9)!;
     setMaking(w, saw.id, true);

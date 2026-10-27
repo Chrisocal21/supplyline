@@ -5,7 +5,7 @@ import { GOOD_LIST, vehicleLabel, type SiteKind, type Terrain } from './defs';
 
 function world(): World {
   const w = createBlankWorld(30, 14, new Array<Terrain>(30 * 14).fill('grass'));
-  w.tier = 3;
+  w.tier = 25;
   w.money = 1e6;
   return w;
 }

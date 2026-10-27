@@ -1044,11 +1044,23 @@ export class Sheets {
     const state = tier.tier < world.tier ? 'done' : tier.tier === world.tier ? 'now' : 'locked';
 
     // Tier tabs across the top: the number, and whether it is done, in progress or locked.
+    // 26 tiers do not fit across the sheet: a window of seven around the one shown, with arrows to step along.
     const gap = 6;
-    const tw = Math.min(124, (w - (TIERS.length - 1) * gap) / TIERS.length);
+    const VISIBLE = 7;
+    const arrowW = 30;
+    const first = Math.max(0, Math.min(TIERS.length - VISIBLE, shownTier - 3));
+    const tw = Math.min(124, (w - 2 * (arrowW + gap) - (VISIBLE - 1) * gap) / VISIBLE);
     const th = 70;
-    TIERS.forEach((t, i) => {
-      const tx = x + i * (tw + gap);
+    const step = (to: number): void => { this.hubTier = Math.max(0, Math.min(TIERS.length - 1, to)); this.hubQuest = null; };
+    for (const dir of [-1, 1]) {
+      const ax = dir < 0 ? x : x + w - arrowW;
+      const canGo = dir < 0 ? shownTier > 0 : shownTier < TIERS.length - 1;
+      const hov = im.hit(`hb-arrow${dir}`, ax, y, arrowW, th, () => { if (canGo) step(shownTier + dir); }, 3);
+      im.rect(3, ax, y, arrowW, th, hov && canGo ? 0x1c2630 : 0x10161e, 1, 6, 0x4a5666, 0.8, 1);
+      im.text(`hb-arrowt${dir}`, dir < 0 ? '<' : '>', ax + arrowW / 2, y + 20, { size: 30, bold: true, display: true, color: canGo ? COLORS.text : COLORS.muted, align: 'center', layer: 4 });
+    }
+    TIERS.slice(first, first + VISIBLE).forEach((t, i) => {
+      const tx = x + arrowW + gap + i * (tw + gap);
       const st = t.tier < world.tier ? 'done' : t.tier === world.tier ? 'now' : 'locked';
       const on = t.tier === shownTier;
       const hov = im.hit(`hb-t${t.tier}`, tx, y, tw, th, () => { this.hubTier = t.tier; this.hubQuest = null; }, 3);

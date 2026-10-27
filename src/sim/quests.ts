@@ -11,8 +11,11 @@ import {
   PATH_ORDER,
   PATH_QUESTS,
   RAIL_TIER,
+  SEA_TIER,
+  AIR_TIER,
   SITE_DEFS,
-  SPAN_LIMIT,
+  spanLimit,
+  levelNeedsTier,
   TIERS,
   VEHICLE_DEFS,
   VEHICLE_ORDER,
@@ -258,7 +261,9 @@ export function tierUnlocks(tier: number): string[] {
   for (const k of VEHICLE_ORDER) if (VEHICLE_DEFS[k].tier === tier && VEHICLE_DEFS[k].implemented) out.push(VEHICLE_DEFS[k].label);
   if (tier === HIGHWAY_TIER) out.push('Highways');
   if (tier === RAIL_TIER) out.push('Rail lines');
-  if (tier >= 1 && tier + 1 <= MAX_LEVEL) out.push(`Building level ${tier + 1}`);
-  if (tier >= 1 && tier < SPAN_LIMIT.length) out.push(`Bridges and tunnels up to ${SPAN_LIMIT[tier]} tiles`);
+  if (tier === SEA_TIER) out.push('Sea routes');
+  if (tier === AIR_TIER) out.push('Air routes');
+  for (let lv = 2; lv <= MAX_LEVEL; lv++) if (levelNeedsTier(lv - 1) === tier) out.push(`Building level ${lv}`);
+  if (tier >= 1 && spanLimit(tier) > spanLimit(tier - 1)) out.push(`Bridges and tunnels up to ${spanLimit(tier)} tiles`);
   return out;
 }
