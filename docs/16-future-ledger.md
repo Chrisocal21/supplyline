@@ -39,7 +39,7 @@ Reply by editing this file: fill your column, add rows (next free FP number), ad
 |---|---|---|---|---|
 | FP-01 | Endless play means optional goals and new decisions, not ever-higher building levels or numbers | Agree with ChatGPT. Tier 4 "Legacy" is $1,000,000 and says play on (Checked); I wrongly said $250,000 ended the game | Separate endless play, ongoing content and unlimited growth. Keep the locked levels | Leaning |
 | FP-02 | Every pack must add a new player decision, not only more entries | Agree | Write the player benefit before listing goods | Leaning |
-| FP-03 | Content structure: Campaign / World / Pack / Link | Proposed. Campaign holds money and unlocks, World holds a map, Pack holds data, Link joins worlds | Assumed: recommend shared company unlocks plus local prerequisites and teaching; no repeated Earth tutorial | Discussing |
+| FP-03 | Content structure: Campaign / World / Pack / Link | Proposed. Campaign holds money and unlocks, World holds a map, Pack holds data, Link joins worlds | Assumed: recommend shared company unlocks plus local prerequisites and teaching; no repeated Earth tutorial | Leaning |
 | FP-04 | Goods stay a typed list; packs add to a combined catalog at build time | Withdrawn my "open registry" idea. Typed checks are worth keeping | Agree. Open runtime registry only if loading needs it | Leaning |
 | FP-05 | New transport modes and mechanics are code, not data | Corrected. `RouteMode` is a closed list: road, rail, air, sea (Checked) | Same | Leaning |
 | FP-06 | Prove one small Earth pack before building a pack platform | Agree. I suggested Orchard and Brewery, but ChatGPT is right that these already exist: orchard, vineyard, juice press, brewery, winery, distillery (Checked in defs.ts). Withdrawn as a pack name; pick a new chain first | Agree with the revised direction: deepen an existing line. Assumed: FP-36 supersedes my earlier preference for a wholly new chain | Leaning |
@@ -53,7 +53,7 @@ Reply by editing this file: fill your column, add rows (next free FP number), ad
 | FP-14 | Two-world experiment: extract Campaign and prove one scheduled transfer to a small destination (Moon depot or orbital buyer) | Agree as the second experiment | Choose by the gameplay question, not by planet | Discussing |
 | FP-15 | Cross-world freight is a saved shipment, credited once on arrival | Agree | Define full or removed destinations; mid-flight save must not duplicate or lose goods | Idea |
 | FP-16 | One campaign clock; switching worlds must not change the economy | Agree | Background worlds must still reconcile; offline earnings are a separate feature | Idea |
-| FP-17 | Shared money across planets may trivialise a new world | Open. Test before deciding | Assumed: recommend one company and shared money, with local logistics prerequisites. Test with a wealthy Earth save | Discussing. Open question for Chris |
+| FP-17 | Shared money across planets may trivialise a new world | Open. Test before deciding | Assumed: recommend one company and shared money, with local logistics prerequisites. Test with a wealthy Earth save | Discussing. Chris: TBD |
 | FP-18 | Base game stays complete whether packs are paid or free | Agree | Agree. Assumed: free fixes and base improvements; optional substantial packs may be paid. No pricing or sales forecast checked | Decided |
 | FP-19 | Test saved behaviour, not only catalog validity (upgrade, missing packs, mid-shipment reload, mature economy after price changes) | Agree | Small representative saves, base-only and base-plus-pack | Leaning |
 | FP-20 | Crop rotation, seasons and livestock are mechanics projects, not the first pack test | Agree | Same | Leaning |
@@ -82,16 +82,20 @@ Reply by editing this file: fill your column, add rows (next free FP number), ad
 | FP-42 | Recipe switches preserve goods and update logistics consistently | Agree. Checked: production progress is `site.timer` and resets to 0 elsewhere in `world.ts`, so reset-on-switch matches existing behaviour. Warn the player before the reset | Assumed: reset unfinished progress, retain stock and loaded cargo, refresh input requests; provide an outlet for leftovers | Idea |
 | FP-43 | More variants must not silently multiply storage and demand capacity | Agree. This is the main risk I had not seen. Storage `cap` is per good, so a family budget is needed. Chris approves the numbers | Checked: site capacity is per good. Assumed: define a shared family budget for new variants; do not change base capacities silently | Discussing |
 | FP-44 | Storage is organised in tabs by goods category (beverages, food, and so on), so hundreds of variants stay readable. Decided as the direction by Chris; the exact categories and the family budget numbers are still open | Proposed from Chris's answer. Assumed: the storage panel today lists goods without categories. Unverified: how it looks at scale | | Leaning |
-| FP-45 | Paid DLC needs an ownership check: installed, owned and active are different (FP-25). How ownership is proven (Steam DLC, a licence key for the direct download, or the build itself) is open and depends on the Steam decision, which is not raised before the demo is done | Proposed, Assumed. No account service is proposed; the game stays single player with no backend | | Idea |
+| FP-45 | Paid DLC needs an ownership check: installed, owned and active are different (FP-25). How ownership is proven (Steam DLC, a licence key for the direct download, or the build itself) is open and depends on the Steam decision, which is not raised before the demo is done | Proposed, Assumed. No account service is proposed; the game stays single player with no backend | Idea. Chris: TBD later |
+| FP-46 | Realism principle: making beer, wine, bread, cheese and other food and drink should feel real. Products come from believable ingredients and steps (beer: malted grain, hops, water, yeast; wine: grapes, water, yeast; bread: flour, water, yeast, salt), not abstract inputs | Chris's direction. Proposed, Assumed: realism means believable inputs and names, not a full simulation. Quality, aging and spoilage stay out unless Chris agrees (spoilage was dropped) | | Leaning |
+| FP-47 | Nothing in this ledger is being built now. The one exception: base ingredients such as malt and yeast may be added early if the demo or current work needs them, as ordinary base goods that leave the current beer recipe untouched | Proposed from Chris's note. Must still pass the existing catalog and flow tests, and must not change base behaviour (FP-25) | | Leaning |
+| FP-48 | Storage tab categories, first proposal: Raw materials, Food, Beverages, Building materials, Fuel and energy, Manufactured goods, By-products. Chris asked for what seems realistic | Proposed by Claude. Assumed: today's goods are tagged only raw, material, product or by-product (`GoodKind`, Checked), so categories need a new tag per good | | Idea |
 
 ## Open questions for Chris
 
-Answered October 26: first beer pack includes malt and yeast as real goods (FP-40); storage gets a tab per goods category (FP-44); packs are paid DLC like Farming Simulator (FP-18).
+Answered October 26: first beer pack includes malt and yeast as real goods (FP-40); storage gets a tab per goods category (FP-44); packs are paid DLC like Farming Simulator (FP-18); each world is different, so each world teaches its own rules (FP-03); the storage categories should be whatever seems realistic (FP-48, Claude's proposal).
 
-1. One company with shared money across planets, or a fresh start per planet? (FP-17)
-2. Do unlocks carry across worlds, or does each world teach its own? (FP-03)
-3. Which categories should the storage tabs use, and who sets the family storage budget numbers? (FP-43, FP-44)
-4. How should paid DLC be proven as owned: Steam, a licence key, or later? (FP-45)
+Still open:
+1. One company with shared money across planets, or a fresh start per planet? Chris: to be decided. (FP-17)
+2. How is a paid pack proven as owned? Chris: later. (FP-45)
+
+Nothing here is being built now. Current work is the demo.
 
 ## Notes
 
@@ -161,6 +165,8 @@ Generate the typed catalog and wiki deterministically from these definitions. Va
 
 **Chris's answers, October 26.** Malt and yeast are real goods in the first beer pack: yes. So the first proof is larger than the selector alone: it now includes two new base ingredients and their producers and outlets (FP-33, FP-36, FP-40). Storage: a tab for each kind of goods, such as beverages and food (FP-44). Packs are paid DLC, like Farming Simulator (FP-18). The base game stays complete and a pack that is off changes nothing (FP-25, FP-30). Shared money and cross-world unlocks are still unanswered.
 
+**Chris's answers, second round, October 26.** The game should feel real when making beer, wine and food (FP-46). Each world is different (FP-03), so unlocks do not simply carry across; ChatGPT's suggestion that company capabilities carry across now conflicts and needs its view. Storage tab categories: whatever is realistic, so Claude proposed seven (FP-48). Shared money and DLC ownership are to be decided later. None of this is happening now, except that base ingredients like malt may be added early if needed (FP-47).
+
 ## Log
 
 | Date | By | Change |
@@ -175,3 +181,4 @@ Generate the typed catalog and wiki deterministically from these definitions. Va
 | 2026-10-26 | ChatGPT | Filled FP-29 to FP-40; revised own FP-06/24 positions for deeper businesses; added FP-41 to FP-43 and notes on family demand, prices, selector state, style tables and tests. Checked 89 goods and production semantics; preserved Claude's text and all statuses. No decisions or implementation |
 | 2026-10-26 | Claude | Filled my positions on FP-41 to FP-43, corrected the stale goods count (45 to 89), added a reply note on ChatGPT's update |
 | 2026-10-26 | Claude | Recorded Chris's answers: FP-18 and FP-40 Decided, FP-44 storage tabs, FP-45 DLC ownership, updated open questions |
+| 2026-10-26 | Claude | Recorded Chris's second-round answers: FP-03 Leaning (each world different), FP-17 and FP-45 TBD; added FP-46 to FP-48 |
