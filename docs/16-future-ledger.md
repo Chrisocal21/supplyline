@@ -97,6 +97,8 @@ Reply by editing this file: fill your column, add rows (next free FP number), ad
 | FP-57 | Pushed-back content can be free pack chapters: the later steps of the ladder are where expansions arrive, so thinning the base ladder and adding packs are the same plan | Proposed | | Idea |
 | FP-58 | Decided by Chris: 26 tiers (0 to 25), "tiers" and "levels" mean the same thing, and the faster the remodel is done the better, so it is not delayed for the fresh-player test | Chris, October 26. Plan in [18-tier-remodel-plan.md](18-tier-remodel-plan.md); phase A (ladder data and test) is done | | Decided |
 | FP-59 | Building experience: each building levels separately by experience it earns, so it cannot be built and then levelled to the top at once | Chris's idea. Proposal and four open questions in the plan | | Idea |
+| FP-60 | Material stages by tier: logs for tiers 0 to 1, lumber for 2 to 3, then bricks, cement, concrete and glass, steel. Today tier 1 already builds from lumber because the guided start teaches the Sawmill there | Chris, Oct 26. Aligned, not yet changed: the guided start stays as built | | | Idea |
+| FP-61 | Nails and fittings as a building material in the lumber stage. They are metal, so the natural home is the iron stage (tiers 9 to 14, iron at tier 11), unless a small scrap-based Nail Works opens earlier | Chris, Oct 26. Needs a maker and a place on the ladder | | | Idea |
 
 ## Open questions for Chris
 

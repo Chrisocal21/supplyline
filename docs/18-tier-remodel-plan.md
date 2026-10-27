@@ -155,3 +155,7 @@ Open questions for Chris:
 
 - Chris: towns and cities need a level per material stage, and a town that never becomes a city should need less. Kept five town levels (four level-ups) and put the stages on them: 1 to 2 lumber, 2 to 3 lumber and bricks, 3 to 4 adds cement (new), 4 to 5 the heavy goods (concrete, glass, steel, tools). Each town only asks for the next step it is on, so a small town never asks for heavy goods.
 - Open: a sixth town level ("Capital") as a later pack, if each stage should have its own level-up. Town levels still grow by points, not by tier.
+
+### Material stages, aligned (not changed in code)
+
+- Chris: logs for the first levels, then lumber and nails and so on. Aligned as FP-60 and FP-61. Logs are the tier 0 stage and lumber follows from tier 1, because the guided start teaches the Sawmill at tier 1. Nails have no maker yet and are metal, so they fit the iron stage (tiers 9 to 14) best. Open until Chris says otherwise.
