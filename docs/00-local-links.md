@@ -37,6 +37,7 @@ Rebuild the DLC view's data after editing [17-dlc-pack-plan.md](17-dlc-pack-plan
 | [15-future-plan.md](15-future-plan.md) | Never-ending game, packs, other planets |
 | [16-future-ledger.md](16-future-ledger.md) | Running Claude and ChatGPT ledger (FP rows) |
 | [17-dlc-pack-plan.md](17-dlc-pack-plan.md) | The DLC pack plan (PK rows, ownership map) |
+| [18-tier-remodel-plan.md](18-tier-remodel-plan.md) | The 26-tier unlock ladder and building experience |
 
 ## Notes
 

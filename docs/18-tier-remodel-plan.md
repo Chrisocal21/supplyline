@@ -1,0 +1,96 @@
+# Supplyline — Tier Remodel (Tiers 0 to 25)
+
+Started October 26, 2026, release 0.234. Chris's direction: spread unlocks thin, about 3 to 4 per tier, across 26 tiers (0 to 25), because the game will keep growing. Buildings also get their own levels that must be earned with experience, so a building cannot be built and then levelled to the top at once. This file is the plan and the working ladder. Rows in [16-future-ledger.md](16-future-ledger.md): FP-53 to FP-57.
+
+## What exists now
+
+The unlock ladder is written as data in [src/sim/ladder.ts](../src/sim/ladder.ts) and checked by [src/sim/ladder.test.ts](../src/sim/ladder.test.ts). **It is not wired into the game yet.** The game still uses the old five tiers. The test checks that:
+
+1. Tiers run 0 to 25 in order.
+2. Every building and vehicle appears exactly once (the town-made Market, Supply Yard, District and Rail Station are exempt; the Rail Station comes with the Rail Yard).
+3. Every tier opens three or four things (the last may open fewer).
+4. Every building opens at or after the buildings that make its inputs.
+5. Boats, trains and planes open at or after the Harbor, Rail Yard, Port or Airport they need.
+
+I broke the ladder on purpose once and confirmed the test fails, so it is not passing by accident.
+
+## The ladder (draft, edit freely)
+
+| Tier | Name | Buildings | Vehicles |
+|---|---|---|---|
+| 0 | Startup | Forestry Camp, Wood Yard, Dairy Ranch | Box Truck |
+| 1 | Mill and Dairy | Sawmill, Dairy, Farm, Flour Mill | |
+| 2 | Daily Bread | Bakery, Orchard, Juice Press | Big Box Truck |
+| 3 | Brick and Stone | Clay Pit, Brickworks, Quarry, Stonecutter | |
+| 4 | Water and Sand | Sand Pit, Water Pump, Recycling Yard, Distribution Warehouse | |
+| 5 | Farmyard | Chicken Farm, Vegetable Farm, Potato Farm, Creamery | |
+| 6 | Sweet Trade | Sugar Beet Farm, Sugar Refinery, Jam Factory, Feed Mill | |
+| 7 | Coal and Cement | Coal Mine, Cement Works, Concrete Plant, Granite Cutter | |
+| 8 | The Kitchen | Pastry Kitchen, Noodle Maker, Garden Supply, Pellet Mill | |
+| 9 | Harbor | Fishing Harbor, Salt Pan, Smokehouse | Fishing Boat |
+| 10 | Preserves | Fish Cannery, Cannery, Mechanic Shop, Glassworks | |
+| 11 | Iron Age | Iron Mine, Smelter, Toolworks, Slag Crusher | |
+| 12 | Rails | Rail Yard (with Rail Station) | Freight Train, Big Rig |
+| 13 | Pork and Oil | Pig Farm, Butcher, Sunflower Farm, Oil Press | |
+| 14 | Ports | Port, Sheep Farm | River Barge, Cargo Boat |
+| 15 | Cloth | Wool Mill, Cotton Farm, Spinning Mill, Weavery | |
+| 16 | Fine Goods | Garment Factory, Furniture Workshop, Paper Mill, Printery | |
+| 17 | Hives and Hauling | Apiary, Candle Maker, Pillow Maker | Truck Fleet |
+| 18 | Brewing | Barley Farm, Hop Farm, Brewery, Silage Plant | |
+| 19 | Vines and Spirits | Distillery, Vineyard, Winery, Compost Yard | |
+| 20 | Prepared Foods | Fish Meal Plant, Pizzeria, Soft Drink Plant | Heavy Haul Train |
+| 21 | Snacks | Spice Plantation, Sausage Maker, Crisp Fryer, Ice Cream Plant | |
+| 22 | Exotics | Cocoa Plantation, Chocolate Maker, Coffee Plantation, Mango Grove | |
+| 23 | Heavy Industry | Oil Well, Fuel Refinery, Steelworks | |
+| 24 | Machines and Air | Machine Works, Airport | Cargo Plane, Freighter |
+| 25 | Legacy | | Cargo Jet, Container Ship |
+
+Tier names are placeholders.
+
+**Notes on the order.**
+- The early tiers follow the chains the quest line already teaches (camp, dairy, mill, bakery, orchard).
+- Brick and Stone comes at tier 3 so bricks exist early for the materials economy. Cement follows at tier 7, steel at tier 23.
+- Rail arrives at tier 12 and sea at tier 14. Today both open at Tier 2, so this is a real slowdown. Is that what you want, or should logistics come earlier?
+- Late tiers are dense with food and exotic goods, which is where new free packs will slot in (FP-57).
+
+## The work, in order
+
+| Phase | What | Notes |
+|---|---|---|
+| A | Ladder as data and a test | **Done** (this commit). Nothing in the game changes |
+| B | Wire it in: derive each building's and vehicle's tier from the ladder | Touches about 100 places that read a tier. Rail, sea, air, highway and bridge limits all point at fixed tier numbers and must be re-pointed |
+| C | Quests for 26 tiers | Keep the hand-written early quests. Later tiers get short generated quests (build the new thing, deliver its good). Re-measure the demo |
+| D | Material bands | Lumber, bricks, cement, steel for building are tied to tiers 1 to 4. Move them onto bands of tiers |
+| E | Town levels | 24 districts over 5 town levels today (1, 6, 8, 6, 4). Spread them over more levels, 2 to 4 each |
+| F | Building experience | See below |
+| G | Fix tests and the pacing bot | They assume five tiers |
+
+## Building experience (the new mechanic)
+
+Chris: each building levels up separately with experience, so you cannot build a building and then level it all the way up. Today a building levels by paying money and materials, limited by the world tier (the code gives "Level N needs Tier X").
+
+A first proposal for review:
+- A building earns experience from the work it does (units made, units sold), not from money.
+- Each level needs more experience than the last. Money and materials are still paid, but only when the experience is reached.
+- The tier still caps how high a building may go. Experience decides when it can go up to that cap.
+- A building bought late starts at level 1 with no experience, however rich the player is.
+
+Open questions for Chris:
+1. Should money and materials still be needed to level up, or only experience?
+2. What counts as experience: units produced, units delivered, or earnings?
+3. Should the tier still cap the level, or is experience the only gate?
+4. Should upgrades of old worlds keep their current levels? (Old-save compatibility is dropped, so new worlds only.)
+
+## Risks
+
+- **Pacing.** Spreading Tier 2's 39 buildings over many tiers changes how fast the game feels. The pacing bot and a fresh-player test must re-measure it.
+- **Demo.** The demo ends in early town level 2, which is within the first few tiers. Its length should be re-checked after phase C.
+- **Early unlock order.** The locked rule (one early building unlocking at a time through the quest line) is respected: tiers 0 to 5 follow the existing sequence.
+- **Logistics.** Delaying rail and sea to tiers 12 and 14 may make the middle game feel stuck on trucks. Needs your call.
+- **Locked-in systems.** Building levels stay at ten; direct vehicle purchase, truck reach and fuel limits, and the by-product rules are unchanged.
+
+## Log
+
+| Date | By | Change |
+|---|---|---|
+| 2026-10-26 | Claude | Phase A: ladder data, test, and this plan |
