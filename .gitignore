@@ -14,3 +14,6 @@ web/public
 web/next-env.d.ts
 web/tsconfig.tsbuildinfo
 docs/town-previews/
+
+# Local-only work (never committed or deployed)
+local/
