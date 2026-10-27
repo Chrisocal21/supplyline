@@ -124,6 +124,18 @@ const FUTURE = [
     out.push('');
 
     fs.writeFileSync(path.join(root, 'docs', '08-goods-and-sites.md'), out.join('\n'));
+    // Optional: GOODS_JSON=path also writes the same data as JSON, for an interactive viewer.
+    if (process.env.GOODS_JSON) {
+      const gl = (g) => label(g);
+      const data = {
+        groups: pl.GROUPS,
+        goods: inGame.map((e) => ({ id: e.id, label: e.label, kind: e.kind, price: e.price, groups: e.groups || [], depth: e.depth, marketLevel: e.marketLevel, forBuilding: e.forBuilding, madeBy: e.madeBy.map((m) => ({ site: m.site, label: m.label, tier: m.tier, byProduct: m.byProduct, inputs: m.inputs.map(gl) })), usedBy: e.usedBy.map((u) => ({ site: u.site, label: u.label, makes: u.makes.map(gl) })) })),
+        sites: sites.map(([kind, d]) => ({ kind, label: d.label, blurb: d.blurb, category: d.category || '', tier: d.tier, cost: d.cost, node: d.node || '', inTown: !!d.inTown, takes: d.recipe ? Object.keys(d.recipe.inputs).map(gl) : [], makes: d.produce ? [gl(d.produce.good)] : d.recipe ? Object.keys(d.recipe.outputs).slice(0, 1).map(gl) : [], by: d.produce ? (d.produce.also || []).map((a) => gl(a.good)) : d.recipe ? Object.keys(d.recipe.outputs).slice(1).map(gl) : [] })),
+        planned: pl.PLANNED.map((p) => ({ id: p.id, label: p.label, kind: p.kind, price: p.price, groups: p.groups, madeBy: p.madeBy, from: p.from || [], note: p.note || '' })),
+        future: FUTURE.map(([idea, what, row]) => ({ idea, what, row })),
+      };
+      fs.writeFileSync(process.env.GOODS_JSON, JSON.stringify(data));
+    }
     console.log(`wrote docs/08-goods-and-sites.md: ${inGame.length} goods, ${sites.length} buildings, ${pl.PLANNED.length} planned`);
   } finally {
     await server.close();
