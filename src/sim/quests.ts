@@ -277,7 +277,15 @@ function checkLines(world: World, log: (text: string) => void): void {
       if (!questProgress(world, q.goal).done) break;
       world.questsDone.push(q.id);
       world.money += q.reward;
-      log(`${line.name}: ${q.label}  +$${q.reward.toLocaleString('en-US')}`);
+      log(`${line.name}: ${q.label}  +${q.reward.toLocaleString('en-US')}`);
+    }
+    // A finished route opens its branches: the next lines of the story, started for the player.
+    if (!lineSteps(world, line).next) {
+      for (const id of line.opens ?? []) {
+        if (world.lines.includes(id) || !LINES_BY_ID[id]) continue;
+        world.lines.push(id);
+        log(`Branch opened: ${LINES_BY_ID[id].name}. ${LINES_BY_ID[id].blurb}`);
+      }
     }
   }
 }

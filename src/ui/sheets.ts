@@ -26,6 +26,7 @@ import {
   FREE_FROM_TIER,
 } from '../sim/defs';
 import { BANK_TIER, DAY_TICKS, bankReport, FUND_FEE, LOAN_RATE, REAL_MONEY_ENABLED, SAVINGS_RATE, bankOf, borrow, creditLimit, deposit, divest, fundValue, invest, netWorth, repay, withdraw } from '../sim/bank';
+import { LINES_BY_ID } from '../sim/lines';
 import { focusLine, lineSteps, nextQuest, pathMastered, pathQuestState, questState, startedLines, stepOpensAt, tierNeed, tierUnlocks } from '../sim/quests';
 import { questGuide } from '../sim/guide';
 import { buildDistrict, choosePath, districtBoost, districtCost, districtError, districtLevel, districtRevenue, districtSatisfaction, pathError, townUpkeep } from '../sim/town';
@@ -1188,7 +1189,7 @@ export class Sheets {
       const follow = focusLine(world);
       mine.forEach((line) => {
         const st = lineSteps(world, line);
-        const rowH = 58;
+        const rowH = 72;
         const on = follow?.id === line.id;
         const hov = im.hit(`rt-${line.id}`, x, y, w, rowH, () => { if (st.next) world.focusLine = line.id; }, 3);
         im.rect(3, x, y, w, rowH, hov ? 0x161f29 : 0x10161e, 1, 6, st.next ? (on ? COLORS.accent : COLORS.line) : COLORS.good, on ? 1 : 0.7, on ? 2 : 1);
@@ -1196,8 +1197,10 @@ export class Sheets {
         im.text(`rt-c${line.id}`, st.next ? `${st.done} of ${line.steps.length}${on ? '  ·  following' : ''}` : 'Route complete', x + w - 12, y + 8, { size: 12, bold: true, color: on ? COLORS.accent : COLORS.muted, align: 'right', layer: 4 });
         if (st.next) {
           const opens = stepOpensAt(world, st.next);
+          if (line.opens?.length) im.text(`rt-b${line.id}`, `Finishing opens: ${line.opens.map((id) => LINES_BY_ID[id]?.name).filter(Boolean).join(', ')}`, x + 12, y + 54, { size: 11, color: COLORS.muted, layer: 4 });
           im.text(`rt-s${line.id}`, `${st.next.label}${opens === null ? '' : `  (opens at tier ${opens})`}  ·  +$${fmt(st.next.reward)}`, x + 12, y + 32, { size: 13, color: COLORS.muted, wrap: w - 24, layer: 4 });
         }
+        else if (line.opens?.length) im.text(`rt-o${line.id}`, `Opened: ${line.opens.map((id) => LINES_BY_ID[id]?.name).filter(Boolean).join(', ')}`, x + 12, y + 36, { size: 13, color: COLORS.good, layer: 4 });
         y += rowH + gap;
       });
     }

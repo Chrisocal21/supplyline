@@ -128,3 +128,10 @@ Open questions for Chris:
 - Lines never gate a tier. The quest pill follows one line: the one the player picked on the Objectives sheet (YOUR ROUTES, click a row), or else the oldest one still going. With no line started it points at the tier menu.
 - Saved in `world.lines` and `world.focusLine`; step ids (`l-...`) live in `questsDone`.
 - Not done: more lines (grain and bread, farm yard, wood, exotics, spirits, prepared foods), path quests tied to lines, achievements, side objectives with bonus cash.
+
+### 0.238: branching routes (built)
+
+- Chris: routes are branches, like timelines. Starting one opens the next. Each line in `lines.ts` has `opens`: finishing it starts those lines for the player ("Branch opened"). Examples: bricks opens cement and glass; iron opens machines and cement; harbor opens sea freight and prepared foods; bread opens farmyard and sweets; farmyard opens prepared foods; prepared foods opens exotics.
+- 23 lines now cover every chain: bricks, iron, cement, harbor, cloth, sweets, brewing, meat, bread, farmyard, dairy, wood, paper, glass, prepared foods, oil, honey, spirits, exotics, machines, rail, sea, air. Building any building of a chain still starts its line at once; a branch is the same line, started early.
+- The Objectives sheet shows each started route with "Finishing opens: ..." so the player can see where it leads.
+- Not done: achievements and bonus-cash side objectives; pacing and playtest (left alone by request).
