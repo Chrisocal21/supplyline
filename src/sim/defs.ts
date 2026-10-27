@@ -575,6 +575,15 @@ const LEVEL_TIERS = [1, 3, 6, 9, 12, 15, 18, 21, 24];
 export function levelNeedsTier(level: number): number {
   return LEVEL_TIERS[Math.min(level, LEVEL_TIERS.length) - 1] ?? 24;
 }
+/**
+ * Experience: a factory or farm earns one point for each unit it makes, and a level needs the experience of the one before it plus a
+ * share more. A building bought late starts with none, so money alone cannot take it to the top. XP_TOTAL[n] is what level n+1 needs in all.
+ */
+export const XP_TOTAL: number[] = (() => {
+  const out = [0];
+  for (let l = 1; l < MAX_LEVEL; l++) out.push(out[l - 1] + Math.round(60 * 1.9 ** (l - 1)));
+  return out;
+})();
 /** The highest building level a tier allows. */
 export function maxLevelAt(tier: number): number {
   return 1 + LEVEL_TIERS.filter((t) => t <= tier).length;

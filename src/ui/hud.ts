@@ -17,6 +17,7 @@ import {
   GOOD_LIST,
   LEVEL_CAP,
   LEVEL_SPEED,
+  XP_TOTAL,
   fleetLimit,
   maxLevelOf,
   NODE_QUALITY,
@@ -55,6 +56,8 @@ import {
   stockOf,
   unitPrice,
   upgradeCost,
+  siteXp,
+  xpNeeded,
   buyError,
   buyOptions,
   depotLeft,
@@ -3836,7 +3839,13 @@ export class HudScene extends Phaser.Scene {
     im.rect(2, x, y, w, h, can ? (hov ? 0xf4b84f : COLORS.accent) : 0x161d27, 1, 16, can ? COLORS.accent : COLORS.line, 1);
     im.text('ugT', `Upgrade to level ${next}`, x + 24, y + 14, { size: 22, bold: true, color: can ? 0x1b1204 : COLORS.muted, layer: 4 });
     im.text('ugS', can ? boost + matsText : `${err}. ${boost}`, x + 24, y + 44, { size: 12, color: can ? 0x3a2a0c : COLORS.warn, wrap: w - 220, layer: 4 });
-    im.text('ugP', `$${fmt(upgradeCost(s))}`, x + w - 24, y + 20, { size: 26, bold: true, color: can ? 0x1b1204 : COLORS.muted, align: 'right', layer: 4 });
+    const xpNeed = xpNeeded(s);
+    if (xpNeed > 0) {
+      const xp = siteXp(s);
+      im.bar(4, x + w - 200, y + 52, 176, 6, Math.min(1, (xp - (XP_TOTAL[s.level - 1] ?? 0)) / Math.max(1, xpNeed - (XP_TOTAL[s.level - 1] ?? 0))), can ? 0x3a2a0c : COLORS.accent);
+      im.text('ugX', `Experience ${fmt(Math.min(xp, xpNeed))} / ${fmt(xpNeed)}`, x + w - 24, y + 22 + 30, { size: 11, color: can ? 0x3a2a0c : COLORS.muted, align: 'right', layer: 4 });
+    }
+    im.text('ugP', `${fmt(upgradeCost(s))}`, x + w - 24, y + 20, { size: 26, bold: true, color: can ? 0x1b1204 : COLORS.muted, align: 'right', layer: 4 });
     return h;
   }
 

@@ -54,6 +54,7 @@ import {
   spanLimit,
   levelNeedsTier,
   TOWN_LEVEL_TIER,
+  XP_TOTAL,
   START_MONEY,
   TOWN_LEVELS,
   UPGRADE_COST_FACTOR,
@@ -159,6 +160,8 @@ export interface Site {
   /** Progress through the current production cycle. */
   timer: number;
   level: number;
+  /** Units made so far: what the next level asks for (see XP_TOTAL). Absent on old saves, which count as fully earned. */
+  xp?: number;
   nodeId: number | null;
   /** Set on town docks. */
   placeId: number | null;
@@ -2147,6 +2150,7 @@ function stepSite(world: World, site: Site): void {
         site.timer -= every;
         addStock(site, good, 1);
         world.produced[good] = (world.produced[good] ?? 0) + 1;
+        site.xp = siteXp(site) + 1;
       }
     }
     // By-products come out beside the main good and wait for a truck the same way. A full shelf of one never stalls the other.
@@ -2159,6 +2163,7 @@ function stepSite(world: World, site: Site): void {
           t[i] -= x.every;
           addStock(site, x.good, 1);
           world.produced[x.good] = (world.produced[x.good] ?? 0) + 1;
+          site.xp = siteXp(site) + 1;
         }
       });
     }
@@ -2191,6 +2196,7 @@ function stepSite(world: World, site: Site): void {
       for (const [g, n] of Object.entries(outputs)) {
         site.stock[g as Good] = Math.min(cap, stockOf(site, g as Good) + (n ?? 0));
         world.produced[g as Good] = (world.produced[g as Good] ?? 0) + (n ?? 0);
+        site.xp = siteXp(site) + (n ?? 0);
       }
     }
     return;
@@ -3689,6 +3695,17 @@ export function placeSite(world: World, kind: SiteKind, x: number, y: number, ro
   return null;
 }
 
+/** A building's experience; one from an old save has all that its level asks for. */
+export function siteXp(site: Site): number {
+  return site.xp ?? XP_TOTAL[site.level - 1] ?? 0;
+}
+
+/** Experience needed to take a building from its level to the next, or 0 for buildings that do not make anything. */
+export function xpNeeded(site: Site): number {
+  const def = SITE_DEFS[site.kind];
+  return def.produce || def.recipe ? XP_TOTAL[site.level] ?? 0 : 0;
+}
+
 export function upgradeCost(site: Site): number {
   return Math.round(SITE_DEFS[site.kind].cost * UPGRADE_COST_FACTOR * Math.pow(site.level, UPGRADE_COST_POWER));
 }
@@ -3717,6 +3734,8 @@ export function upgradeError(world: World, siteId: number): string | null {
   if (site.level >= maxLevelOf(def)) return 'Already at max level';
   const needTier = levelNeedsTier(site.level); // levels are spread over the ladder (see LEVEL_TIERS)
   if (world.tier < needTier) return `Level ${site.level + 1} needs Tier ${needTier}`;
+  const needXp = xpNeeded(site);
+  if (siteXp(site) < needXp) return `Level ${site.level + 1} needs experience: ${Math.floor(siteXp(site)).toLocaleString('en-US')} of ${needXp.toLocaleString('en-US')} units made`;
   const needEarn = LEVEL_EARN[site.level + 1];
   if (needEarn && world.earned < needEarn) return `Level ${site.level + 1} needs $${needEarn.toLocaleString('en-US')} earned in total`;
   if (def.airport) {

@@ -76,6 +76,7 @@ describe('upgrades and levels', () => {
     const site = w.sites[w.sites.length - 1];
     expect(SITE_DEFS[site.kind].dock).toBeUndefined();
     delete site.pending;
+    site.xp = 1e9;
     expect(upgradeSite(w, site.id)).toBeNull();
     expect(site.upgrade).toBeDefined();
     if (!site.upgrade) return;

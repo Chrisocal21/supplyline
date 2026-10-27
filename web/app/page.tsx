@@ -1,20 +1,11 @@
-import { BUILD, MAPS, PILLARS, STUDIO } from './content';
-import { ContactForm } from './ContactForm';
+import { BUILD, MAPS } from './content';
 import { Footer, Nav } from './parts';
 import { COUNTS } from './counts';
 
-const LOOP = [
-  ['01', 'Find a source', 'Claim a forest, farm, quarry or mine and start the flow of raw materials.'],
-  ['02', 'Build the chain', 'Turn raw goods into useful products, then keep every input moving.'],
-  ['03', 'Run the network', 'Connect the right places by road, rail, sea and air. Your vehicles do the hauling.'],
-  ['04', 'Grow the world', 'Deliver what towns need. A small settlement becomes a larger problem to solve.'],
-];
-
-const SYSTEMS = [
-  ['A living globe', 'Build across continents, coasts, mountains and islands on a world that wraps around you.'],
-  ['Routes that matter', 'Distance, terrain, capacity and running costs shape every connection you make.'],
-  ['Production with consequences', 'A chain only works when its inputs, outputs and buyers line up.'],
-  ['Towns worth serving', 'Markets, districts and freight yards give each town its own appetite.'],
+const PLAY = [
+  ['Claim the ground', 'Forests, fields, mines and towns sit where the world puts them. Start with what is nearby, then reach farther when the easy answers run out.'],
+  ['Make the connection', 'A useful factory still needs inputs, buyers, roads and a vehicle that can make the trip. Every link in the chain has a cost.'],
+  ['Keep it moving', 'Demand changes as towns grow. Expand a route, add a new supplier or find the one bottleneck slowing the whole network.'],
 ];
 
 const SHOTS = [
@@ -26,73 +17,71 @@ const SHOTS = [
 ];
 
 export default function Home() {
+  const map = MAPS[0];
   return (
     <>
       <Nav home />
-      <main>
-        <header className="site-hero">
-          <div className="site-hero-image" />
-          <div className="site-hero-grid" />
-          <div className="wrap site-hero-content">
-            <p className="eyebrow">Production · Logistics · Town growth</p>
-            <h1>Make the world <em>move.</em></h1>
-            <p className="site-lead">SupplyLine is a production and logistics game on a 3D globe. Build industries, draw the routes between them, and turn scattered towns into a working world.</p>
-            <div className="site-actions">
-              <a className="site-button primary" href="/access/">Get the tester build <span>Windows and Mac</span></a>
-              <a className="site-button" href="/goods/">Explore the goods</a>
+      <main className="front-page">
+        <header className="front-hero">
+          <div className="front-hero-image" />
+          <div className="front-hero-shade" />
+          <div className="front-hero-frame" aria-hidden="true"><span>SL / M3</span><span>PRODUCTION NETWORK</span></div>
+          <div className="wrap front-hero-content">
+            <p className="front-kicker">Map 3 · The Meridian Sea</p>
+            <h1>Build the line<br />that moves the world.</h1>
+            <p className="front-lead">A production and logistics game on a living 3D globe. Turn raw land into working industry, then make every road, rail line and shipment count.</p>
+            <div className="front-actions">
+              <a className="front-primary" href="/access/">Play the tester build <span>Windows and Mac</span></a>
+              <a className="front-secondary" href="#screens">Watch the network grow <span>↓</span></a>
             </div>
-            <p className="site-status"><span /> In active development{BUILD ? ` · Build ${BUILD}` : ''}</p>
+            <p className="front-build">In active development{BUILD ? ` · Build ${BUILD}` : ''}</p>
+            <a className="front-scroll" href="#game">Scroll to enter the network <i /></a>
           </div>
-          <div className="wrap site-metrics" aria-label="Game at a glance">
-            <div><strong>{COUNTS.goods}</strong><span>goods to move</span></div>
-            <div><strong>{COUNTS.buildings}</strong><span>buildings and sites</span></div>
+          <div className="wrap front-facts" aria-label="Game at a glance">
+            <div><strong>{COUNTS.goods}</strong><span>goods</span></div>
+            <div><strong>{COUNTS.buildings}</strong><span>sites</span></div>
             <div><strong>{COUNTS.vehicles}</strong><span>vehicle classes</span></div>
-            <div><strong>Map 3</strong><span>current focus</span></div>
+            <div><strong>190</strong><span>towns on Map 3</span></div>
           </div>
         </header>
 
-        <section className="site-section intro-section" id="game">
-          <div className="wrap">
-            <div className="section-heading split-heading">
-              <div><p className="eyebrow">The job</p><h2>Every delivery starts somewhere.</h2></div>
-              <p>There is no magic conveyor belt. Goods need a source, a destination and a route that makes financial sense. The rest is your network.</p>
-            </div>
-            <ol className="game-loop">
-              {LOOP.map(([n, title, body]) => <li key={n}><span>{n}</span><div><h3>{title}</h3><p>{body}</p></div></li>)}
-            </ol>
+        <div className="front-ticker" aria-label="Game systems"><div><span>Extract</span><i /> <span>Process</span><i /> <span>Haul</span><i /> <span>Trade</span><i /> <span>Grow</span><i /> <span>Road</span><i /> <span>Rail</span><i /> <span>Sea</span><i /> <span>Air</span></div></div>
+
+        <section className="front-statement" id="game">
+          <div className="wrap statement-grid">
+            <p className="front-kicker">There is no shortcut</p>
+            <div><h2>Every town needs something.<br />Every delivery needs a plan.</h2><p>SupplyLine is about seeing the whole picture: the field that grows the crop, the factory that needs it, the truck that can carry it, and the town waiting at the end of the road. Build a network that earns its keep.</p></div>
           </div>
         </section>
 
-        <section className="site-section image-break">
-          <div className="wrap image-break-grid">
-            <figure className="feature-shot"><img src="/site/shot-home.png" alt="A supply network operating around a town" loading="eager" /></figure>
-            <div className="image-break-copy"><p className="eyebrow">A network you can read</p><h2>From the first truck to a regional system.</h2><p>Start with a simple connection. Add processing, storage and bigger vehicles as demand grows. The same network that feeds a hamlet can become the spine of a city.</p><a href="#screens" className="text-link">See the world in motion <span>→</span></a></div>
+        <section className="front-feature">
+          <div className="wrap feature-grid">
+            <figure><img src="/site/shot-home.png" alt="A production town with factories and roads" loading="eager" /></figure>
+            <div className="feature-copy"><span className="front-section-number">01 / PRODUCTION</span><p className="front-kicker">Start close. Think big.</p><h2>One good route changes everything.</h2><p>Begin with a local need. Grow it into a chain of raw materials, processing and delivery. A town that gets lumber and food asks for more; a network that works opens the next problem worth solving.</p><a className="front-inline-link" href="/goods/">Explore the full goods list <span>→</span></a></div>
           </div>
         </section>
 
-        <section className="site-section systems-section">
-          <div className="wrap"><div className="section-heading"><p className="eyebrow">Built for logistics people</p><h2>Plan it. Watch it work. Fix what does not.</h2></div>
-            <div className="systems-grid">{SYSTEMS.map(([title, body], index) => <article key={title}><span>0{index + 1}</span><h3>{title}</h3><p>{body}</p></article>)}</div>
+        <section className="front-play">
+          <div className="wrap"><div className="play-heading"><div><span className="front-section-number">02 / LOGISTICS</span><p className="front-kicker">The work</p><h2>Read the land.<br />Run the system.</h2></div><p className="play-aside">The route is the machine.<br />You decide how it runs.</p></div>
+            <ol className="play-steps">{PLAY.map(([title, body], index) => <li key={title}><span>0{index + 1}</span><h3>{title}</h3><p>{body}</p></li>)}</ol>
           </div>
         </section>
 
-        <section className="site-section screen-section" id="screens">
-          <div className="wrap"><div className="section-heading split-heading"><div><p className="eyebrow">In game</p><h2>One world, seen from every scale.</h2></div><p>Zoom from a route across an ocean to the road outside a factory. The screenshots here come from the current playable build.</p></div>
-            <div className="screen-grid">{SHOTS.map(([src, alt], index) => <a href={src} target="_blank" rel="noopener" className={`screen screen-${index + 1}`} key={src}><img src={src} alt={alt} loading="lazy" /><span>{alt}</span></a>)}</div>
+        <section className="front-map" id="maps">
+          <div className="wrap"><div className="map-heading"><div><span className="front-section-number">03 / THE WORLD</span><p className="front-kicker">The current world</p></div><p>Map 3 is the focus of SupplyLine’s next chapter: a large, connected place built for long routes and ambitious companies.</p></div>
+            <article className="map-feature"><img src={map.img} alt={`Map ${map.n}: ${map.name}`} loading="lazy" /><div><span>Map {map.n}</span><h2>{map.name}</h2><p>{map.body}</p><small>{map.facts.join(' · ')}</small></div></article>
           </div>
         </section>
 
-        <section className="site-section pillars-section">
-          <div className="wrap">{PILLARS.map((p) => <article className="clean-pillar" key={p.tag}><img src={p.img} alt={p.alt} loading="lazy" /><div><p className="eyebrow">{p.n} · {p.tag}</p><h2>{p.title}</h2><p>{p.body}</p></div></article>)}</div>
+        <section className="front-screens" id="screens">
+          <div className="wrap"><div className="screens-heading"><div><span className="front-section-number">04 / IN GAME</span><p className="front-kicker">From the current build</p></div><h2>The whole system,<br />at every scale.</h2><p>Zoom out to plan the next region. Zoom in to follow a single delivery. These are real moments from the game in development.</p></div>
+            <div className="front-shot-grid">{SHOTS.map(([src, alt], index) => <a href={src} target="_blank" rel="noopener" className={`front-shot front-shot-${index + 1}`} key={src}><img src={src} alt={alt} loading="lazy" /><span>{alt}</span></a>)}</div>
+          </div>
         </section>
 
-        <section className="site-section world-section" id="maps"><div className="wrap"><div className="section-heading split-heading"><div><p className="eyebrow">The current world</p><h2>Map 3 is where the network grows.</h2></div><p>The Meridian Sea is the active focus: a large connected world of rivers, sea channels, towns and long-haul logistics.</p></div>
-          <div className="world-grid">{MAPS.map((m) => <article key={m.n}><img src={m.img} alt={`Map ${m.n}: ${m.name}`} loading="lazy" /><div><span>Map {m.n}</span><h3>{m.name}</h3><p>{m.body}</p><small>{m.facts.join(' · ')}</small></div></article>)}</div>
-        </div></section>
-
-        <section className="site-section studio-section" id="studio"><div className="wrap studio-clean"><div><p className="eyebrow">The studio</p><h2>Small team. Large logistics problem.</h2><p>{STUDIO.body[0]}</p><p>The game is being built in public, with a playable tester build and a focus on making the first hour clear, satisfying and worth replaying.</p></div><aside><span>Current focus</span><strong>Make the early game feel great.</strong><p>Tester feedback, performance and the feel of a working production chain come before the next big expansion.</p><a href="/access/" className="text-link">Join the test build <span>→</span></a></aside></div></section>
-
-        <section className="site-section contact-section" id="contact"><div className="wrap contact-clean"><div><p className="eyebrow">Get in touch</p><h2>Have a route in mind?</h2><p>Send a bug, a thought, an art portfolio or a message about the kind of logistics game you want to play.</p></div><ContactForm /></div></section>
+        <section className="front-test">
+          <div className="wrap test-grid"><div><p className="front-kicker">Help shape the first hour</p><h2>Build something worth keeping.</h2></div><div><p>SupplyLine is being made in public. The tester build is where the early economy, the routes and the feeling of a growing town get better.</p><a className="front-primary" href="/access/">Get the tester build <span>Windows and Mac</span></a></div></div>
+        </section>
       </main>
       <Footer />
     </>

@@ -175,3 +175,12 @@ Open questions for Chris:
 
 - `src/sim/achievements.ts`: about 60 one-off badges in groups (money, trade, towns, building, fleet, progress, logistics, making), each measured from the world so it cannot fall out of step. They pay nothing and never gate a tier. A log line when one is earned; the Objectives sheet lists them all under ACHIEVEMENTS, lit when done and dim with a bar when not. Stored in `world.achievements`.
 - Open: rewards (cosmetics or a perk point) if Chris wants any; pack-specific achievements; hidden ones.
+
+### 0.246: building experience (built)
+
+Decided by Chris ("you guide"), using the defaults proposed in the open questions above:
+- A factory or farm earns one experience point per unit it makes (`site.xp`). The next level needs the total in `XP_TOTAL`: 60, then 114, 217 and so on, about 1.9 times more each level (level 10 needs about 20,000 units made over the building's life).
+- Money and materials are still paid at the moment of upgrade, and the tier still caps the level. Experience decides when it can go up to that cap, so a building bought late starts at level 1 with no experience however rich the company is.
+- Buildings that make nothing (the garage, scrap yard, hub, airport, docks) are not gated by experience.
+- Old saves (no `xp` on a site) count as fully earned for their level. The upgrade card shows "Experience X / Y" and a bar, and the upgrade message says what is missing.
+- Open: whether delivered units should count too, and whether a rest-day or other gain should add to it. Pacing of the xp curve has not been tested.

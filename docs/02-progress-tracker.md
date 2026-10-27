@@ -97,6 +97,7 @@ New work must not undo these. Check the covering tests and ask first.
 
 | Release | What changed |
 |---|---|
+| 0.246 | Building experience: units made decide when a building can level up |
 | 0.245 | Achievements: about 60 lifetime badges on the Objectives sheet |
 | 0.244 | Venues open when their goods can be made; the 54-venue gap is gone |
 | 0.243 | Town levels follow the tiers (2, 5, 8, 24) |

@@ -29,9 +29,8 @@ export function Nav({ home }: { home: boolean }) {
         <Logo mark={false} />
         <nav className="nav-links">
           <a className="hide-s" href={`${h}#game`}>The game</a>
+          <a className="hide-s" href={`${h}#maps`}>Map 3</a>
           <a className="hide-s" href={`${h}#screens`}>Screens</a>
-          <a className="hide-s" href={`${h}#maps`}>Maps</a>
-          <a className="hide-s" href={`${h}#studio`}>The studio</a>
           <a className="btn sm" href="/access/">Tester build</a>
         </nav>
       </div>

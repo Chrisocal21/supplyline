@@ -1,7 +1,7 @@
 // Ten building levels, and a fleet limit per product line that grows with the level.
 import { describe, expect, it } from 'vitest';
-import { LEVEL_CAP, LEVEL_SPEED, MAX_LEVEL, fleetLimit, type SiteKind, type Terrain } from './defs';
-import { buyVehicle, createBlankWorld, fleetOf, siteById, upgradeSite, type World } from './world';
+import { LEVEL_CAP, LEVEL_SPEED, MAX_LEVEL, XP_TOTAL, fleetLimit, type SiteKind, type Terrain } from './defs';
+import { buyVehicle, createBlankWorld, fleetOf, siteById, step, upgradeSite, type World } from './world';
 
 function world(): World {
   const w = createBlankWorld(30, 14, new Array<Terrain>(30 * 14).fill('grass'));
@@ -24,6 +24,7 @@ describe('building levels', () => {
     const w = world();
     w.earned = 5e6;
     const mill = add(w, 'sawmill');
+    mill.xp = 1e9;
     for (let i = 1; i < MAX_LEVEL; i++) expect(upgradeSite(w, mill.id)).toBeNull();
     expect(mill.level).toBe(10);
     expect(upgradeSite(w, mill.id)).toMatch(/max level/);
@@ -33,6 +34,7 @@ describe('building levels', () => {
     const w = world();
     const mill = add(w, 'sawmill');
     mill.level = 5;
+    mill.xp = 1e9;
     expect(upgradeSite(w, mill.id)).toBeNull();
     expect(upgradeSite(w, mill.id)).toMatch(/earned in total/);
     w.earned = 150_000;
@@ -49,6 +51,7 @@ describe('building levels', () => {
   it('limit the vehicles a building holds until it is upgraded', () => {
     const w = world();
     const camp = add(w, 'forestry');
+    camp.xp = 1e9;
     for (let i = 0; i < fleetLimit(1); i++) expect(buyVehicle(w, camp.id, 'boxtruck')).toBeNull();
     expect(buyVehicle(w, camp.id, 'boxtruck')).toMatch(/Upgrade the building/);
     expect(upgradeSite(w, camp.id)).toBeNull();
@@ -80,5 +83,29 @@ describe('drivers', () => {
       expect(vehicleTicks(v)).toBeLessThan(last);
       last = vehicleTicks(v);
     });
+  });
+});
+
+describe('building experience', () => {
+  it('a new building cannot be levelled until it has made enough, however rich the company is', () => {
+    const w = world();
+    w.earned = 5e6;
+    w.money = 1e7;
+    const mill = add(w, 'sawmill');
+    expect(upgradeSite(w, mill.id)).toMatch(/experience/);
+    mill.xp = XP_TOTAL[1];
+    expect(upgradeSite(w, mill.id)).toBeNull();
+    expect(mill.level).toBe(2);
+    expect(upgradeSite(w, mill.id)).toMatch(/experience/);
+  });
+
+  it('is earned from the units a building makes', () => {
+    const w = world();
+    const camp = add(w, 'sawmill');
+    camp.making = true;
+    camp.stock.logs = 200;
+    const before = camp.xp ?? 0;
+    for (let i = 0; i < 400; i++) step(w);
+    expect(camp.xp ?? 0).toBeGreaterThan(before);
   });
 });

@@ -303,6 +303,7 @@ describe('towns and levels', () => {
     w.money = 100000;
     put(w, 'sawmill', 9, 4);
     const s = w.sites.find((x) => x.kind === 'sawmill')!;
+    s.xp = 1e9;
     expect(upgradeSite(w, s.id)).toMatch(/needs Tier 1/);
     w.tier = 1;
     expect(upgradeSite(w, s.id)).toBeNull();
