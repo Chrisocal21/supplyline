@@ -53,6 +53,7 @@ import {
   bodyTiles,
   spanLimit,
   levelNeedsTier,
+  TOWN_LEVEL_TIER,
   START_MONEY,
   TOWN_LEVELS,
   UPGRADE_COST_FACTOR,
@@ -2263,15 +2264,21 @@ function stepSite(world: World, site: Site): void {
 }
 
 /** Whether a town has earned its next level: enough growth, and enough different goods sold to it. */
-export function readyToGrow(place: Place): boolean {
+export function readyToGrow(place: Place, tier = 99): boolean {
   const next = TOWN_LEVELS[place.level];
-  if (!next) return false;
+  if (!next || tier < TOWN_LEVEL_TIER[place.level]) return false;
   return (place.stage ?? 2) >= 2 && place.growth >= next.growth && growthKinds(place) >= place.level && matsNeeded(place).length === 0;
 }
 
 /** A town does not grow by itself: once it has earned it, the player is told, and finishes the upgrade with growTown. */
 export function checkTown(world: World, place: Place): void {
-  if (!readyToGrow(place) || place.readyAt === place.level) return;
+  // Grown enough but the tier is not there yet: say so once, so the wait is not a mystery.
+  const held = place as Place & { heldAt?: number };
+  if (readyToGrow(place) && !readyToGrow(place, world.tier) && held.heldAt !== place.level) {
+    held.heldAt = place.level;
+    addLog(world, `${place.name} has earned its growth and will grow into a ${TOWN_LEVELS[place.level].name} at Tier ${TOWN_LEVEL_TIER[place.level]}`);
+  }
+  if (!readyToGrow(place, world.tier) || place.readyAt === place.level) return;
   place.readyAt = place.level;
   addLog(world, `${place.name} is ready to grow into a ${TOWN_LEVELS[place.level].name}`);
 }
@@ -2331,7 +2338,7 @@ export function growPreview(place: Place): GrowPreview | null {
 export function growTown(world: World, placeId: number): string | null {
   const place = world.places.find((p) => p.id === placeId);
   if (!place) return 'No such town';
-  if (!readyToGrow(place)) return `${place.name} is not ready to grow yet`;
+  if (!readyToGrow(place, world.tier)) return TOWN_LEVEL_TIER[place.level] > world.tier ? `${place.name} can grow once you reach Tier ${TOWN_LEVEL_TIER[place.level]}` : `${place.name} is not ready to grow yet`;
   const next = TOWN_LEVELS[place.level];
   place.level += 1;
   place.mats = {};

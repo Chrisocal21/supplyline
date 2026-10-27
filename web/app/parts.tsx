@@ -29,10 +29,10 @@ export function Nav({ home }: { home: boolean }) {
         <Logo mark={false} />
         <nav className="nav-links">
           <a className="hide-s" href={`${h}#game`}>The game</a>
+          <a className="hide-s" href={`${h}#screens`}>Screens</a>
           <a className="hide-s" href={`${h}#maps`}>Maps</a>
-          <a className="hide-s" href={`${h}#news`}>Updates</a>
           <a className="hide-s" href={`${h}#studio`}>The studio</a>
-          <a className="hide-s" href={`${h}#contact`}>Contact</a>
+          <a className="btn sm" href="/access/">Tester build</a>
         </nav>
       </div>
     </header>
@@ -45,7 +45,7 @@ export function Footer() {
       <div className="wrap footer-in">
         <div>
           <Logo size={40} />
-          <p>A <a href={LINKS.studio} rel="noopener">Probably Fine Studios</a> game. Made by Chris and a handful of friends with opinions, some of whom need to patch their build. The models are made with AI, because none of us can do 3D.</p>
+          <p>A <a href={LINKS.studio} rel="noopener">Probably Fine Studios</a> game. SupplyLine is in active development, and tester feedback helps shape the build.</p>
         </div>
         <nav className="footer-links">
           <a href="/steam/">Store page preview</a>

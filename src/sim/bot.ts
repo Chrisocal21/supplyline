@@ -95,7 +95,7 @@ function roadKindFor(w: World, siteId: number, r: { path: { x: number; y: number
 
 export function runChores(w: World): string[] {
   const did: string[] = [];
-  for (const p of w.places) if (readyToGrow(p) && growTown(w, p.id) === null) did.push(`grew ${p.name}`);
+  for (const p of w.places) if (readyToGrow(p, w.tier) && growTown(w, p.id) === null) did.push(`grew ${p.name}`);
   for (const site of w.sites) {
     if (SITE_DEFS[site.kind].recipe && !site.making) {
       setMaking(w, site.id, true);

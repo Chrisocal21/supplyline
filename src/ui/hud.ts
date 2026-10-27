@@ -4529,7 +4529,7 @@ export class HudScene extends Phaser.Scene {
       im.text('twV', `Needs ${p.level} kind${p.level > 1 ? 's' : ''} of goods sold to it (${kinds} so far)`, x, cy, { size: 11, color: kinds >= p.level ? COLORS.good : COLORS.warn, wrap: w, layer: 2 });
       cy += 26;
     }
-    if (readyToGrow(p)) {
+    if (readyToGrow(p, this.game3d.world.tier)) {
       this.button('twGrow', `Ready: grow into a ${TOWN_LEVELS[p.level].name}`, x, cy, w, 40, true, () => this.showGrow(p), 'main');
       cy += 48;
     }
@@ -5422,7 +5422,7 @@ export class HudScene extends Phaser.Scene {
   private growLater = new Set<string>();
 
   private pendingGrowth(): Place | undefined {
-    return this.game3d.world.places.find((p) => readyToGrow(p) && !this.growLater.has(`${p.id}:${p.level}`));
+    return this.game3d.world.places.find((p) => readyToGrow(p, this.game3d.world.tier) && !this.growLater.has(`${p.id}:${p.level}`));
   }
 
   /** Bring a town's growth popup back after Later. */
@@ -5547,7 +5547,7 @@ export class HudScene extends Phaser.Scene {
     cy += 24;
     im.text('ppKind', `${lv.name}  ·  ${STYLE_LABEL[p.style]}  ·  Level ${p.level}  ·  population ${fmt(lv.pop)}`, x, cy, { size: 12, color: COLORS.muted, wrap: w, layer: 2 });
     cy += 22;
-    if (readyToGrow(p)) {
+    if (readyToGrow(p, this.game3d.world.tier)) {
       this.button('ppGrow', `Ready: grow into a ${TOWN_LEVELS[p.level].name}`, x, cy, w, 40, true, () => this.showGrow(p), 'main');
       cy += 48;
     }

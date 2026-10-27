@@ -159,3 +159,8 @@ Open questions for Chris:
 ### Material stages, aligned (not changed in code)
 
 - Chris: logs for the first levels, then lumber and nails and so on. Aligned as FP-60 and FP-61. Logs are the tier 0 stage and lumber follows from tier 1, because the guided start teaches the Sawmill at tier 1. Nails have no maker yet and are metal, so they fit the iron stage (tiers 9 to 14) best. Open until Chris says otherwise.
+
+### 0.243: town levels follow the tiers (built)
+
+- A town needs a tier to reach each level (`TOWN_LEVEL_TIER` in defs.ts): level 2 at tier 2, level 3 at tier 5, level 4 at tier 8, level 5 at tier 24. These match the old quest tiers (town 3 at 5, city at 8, metropolis at 24). A town that has earned its growth early says so once ("will grow into a Town at Tier 5") and grows when the tier arrives. Tier goals ask for the town level the tier allows.
+- The venue gap is now 54 (was counted against old level gates). Venues still open with their district, not their goods. Real fix, still open: a venue appears only when the goods it sells can be made at the player's tier (per-venue tier), which brings the gap to zero.

@@ -776,6 +776,7 @@ describe('growing towns and old saves', () => {
     p.delivered = { lumber: 1, flour: 1, bread: 1 };
     stockLevelMats(p);
     expect(readyToGrow(p)).toBe(true);
+    w.tier = Math.max(w.tier, 25);
     expect(growTown(w, p.id)).toBeNull();
     expect(lotsAt(p)).toBeGreaterThan(l1);
     expect(isHomePlot(p, firstHome)).toBe(false);

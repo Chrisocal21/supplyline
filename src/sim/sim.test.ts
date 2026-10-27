@@ -207,6 +207,7 @@ describe('logistics loop', () => {
     w.places[0].delivered = { bread: 1, cheese: 1, jam: 1 };
     for (let i = 0; i < 30000 && !readyToGrow(w.places[0]); i++) step(w);
     expect(w.places[0].level).toBe(1);
+    w.tier = Math.max(w.tier, 25);
     expect(growTown(w, w.places[0].id)).toBeNull();
     expect(w.places[0].level).toBeGreaterThanOrEqual(2);
     expect(w.log.some((l) => /grew into/.test(l.text))).toBe(true);
@@ -284,6 +285,7 @@ describe('towns and levels', () => {
     p.delivered = { lumber: 500 };
     stockLevelMats(p);
     expect(readyToGrow(p)).toBe(true);
+    w.tier = Math.max(w.tier, 25);
     expect(growTown(w, p.id)).toBeNull();
     expect(p.level).toBe(2); // one kind is enough for level 2, but not level 3
     stockLevelMats(p);
@@ -291,6 +293,7 @@ describe('towns and levels', () => {
     p.delivered = { lumber: 500, flour: 500 };
     expect(growPreview(p)?.to).toBe('Town');
     expect(growPreview(p)?.newMarket.length).toBeGreaterThan(0);
+    w.tier = Math.max(w.tier, 25);
     expect(growTown(w, p.id)).toBeNull();
     expect(p.level).toBe(3);
   });

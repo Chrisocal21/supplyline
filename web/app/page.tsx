@@ -1,160 +1,98 @@
-import { BUILD, FAQ, LINKS, MAPS, NEWS, PILLARS, ROADMAP, SHOTS, STUDIO, TAGLINE } from './content';
+import { BUILD, MAPS, PILLARS, STUDIO } from './content';
 import { ContactForm } from './ContactForm';
-import { Footer, LinkButton, Nav } from './parts';
+import { Footer, Nav } from './parts';
 import { COUNTS } from './counts';
+
+const LOOP = [
+  ['01', 'Find a source', 'Claim a forest, farm, quarry or mine and start the flow of raw materials.'],
+  ['02', 'Build the chain', 'Turn raw goods into useful products, then keep every input moving.'],
+  ['03', 'Run the network', 'Connect the right places by road, rail, sea and air. Your vehicles do the hauling.'],
+  ['04', 'Grow the world', 'Deliver what towns need. A small settlement becomes a larger problem to solve.'],
+];
+
+const SYSTEMS = [
+  ['A living globe', 'Build across continents, coasts, mountains and islands on a world that wraps around you.'],
+  ['Routes that matter', 'Distance, terrain, capacity and running costs shape every connection you make.'],
+  ['Production with consequences', 'A chain only works when its inputs, outputs and buyers line up.'],
+  ['Towns worth serving', 'Markets, districts and freight yards give each town its own appetite.'],
+];
+
+const SHOTS = [
+  ['/site/shot-overview.png', 'The network from orbit'],
+  ['/site/shot-home.png', 'A working town and production base'],
+  ['/site/shot-river.png', 'Routes crossing a river valley'],
+  ['/site/shot-range.png', 'Industry among the mountains'],
+  ['/site/shot-island.png', 'Islands waiting for a supply line'],
+];
 
 export default function Home() {
   return (
     <>
       <Nav home />
-      <header className="hero">
-        <div className="hero-bg" />
-        <div className="wrap hero-in">
-          <span className="chip">In development{BUILD ? ` · Build ${BUILD}` : ''}</span>
-          <img className="hero-logo" src="/site/logo-full.jpg" alt="SupplyLine: a globe with a road, a railway and a factory" width={1000} height={1000} />
-          <h1><span className="sr">SupplyLine: </span>Feed the world, one truck at a time.</h1>
-          <p className="tag">{TAGLINE}</p>
-          <div className="btn-row">
-            <LinkButton href={LINKS.steam} label="Wishlist on Steam" note="Wishlist now" soon="Coming soon" />
-          </div>
-        </div>
-        <div className="stats wrap">
-          <div><b>{COUNTS.buildings}</b><span>Buildings</span></div>
-          <div><b>{COUNTS.goods}</b><span>Goods</span></div>
-          <div><b>{COUNTS.vehicles}</b><span>Vehicles</span></div>
-          <div><b>{MAPS.length}</b><span>Maps</span></div>
-        </div>
-      </header>
-
       <main>
-        <section className="section" id="game">
-          <div className="wrap pillars">
-            {PILLARS.map((p, i) => (
-              <article className={`pillar${i % 2 ? ' flip' : ''}`} key={p.tag}>
-                <div className="pillar-img"><img src={p.img} alt={p.alt} loading="lazy" /></div>
-                <div className="pillar-text">
-                  <div className="kicker"><span>{p.n}</span>{p.tag}</div>
-                  <h2>{p.title}</h2>
-                  <p>{p.body}</p>
-                </div>
-              </article>
-            ))}
-          </div>
-        </section>
-
-        <section className="section" id="studio">
-          <div className="wrap studio">
-            <div>
-              <div className="kicker">The honest bit</div>
-              <h2>Hi. We are <a href={LINKS.studio} rel="noopener">Probably Fine Studios</a>.</h2>
-              {STUDIO.body.map((b) => <p key={b}>{b}</p>)}
+        <header className="site-hero">
+          <div className="site-hero-image" />
+          <div className="site-hero-grid" />
+          <div className="wrap site-hero-content">
+            <p className="eyebrow">Production · Logistics · Town growth</p>
+            <h1>Make the world <em>move.</em></h1>
+            <p className="site-lead">SupplyLine is a production and logistics game on a 3D globe. Build industries, draw the routes between them, and turn scattered towns into a working world.</p>
+            <div className="site-actions">
+              <a className="site-button primary" href="/access/">Get the tester build <span>Windows and Mac</span></a>
+              <a className="site-button" href="/goods/">Explore the goods</a>
             </div>
-            <aside className="report">
-              <div className="report-head"><span>Studio status report</span><span>Form PF-1</span></div>
-              <dl>
-                {STUDIO.report.map(([k, v]) => <div key={k}><dt>{k}</dt><dd>{v}</dd></div>)}
-              </dl>
-              <div className="stamp">Probably fine</div>
-            </aside>
+            <p className="site-status"><span /> In active development{BUILD ? ` · Build ${BUILD}` : ''}</p>
           </div>
-        </section>
+          <div className="wrap site-metrics" aria-label="Game at a glance">
+            <div><strong>{COUNTS.goods}</strong><span>goods to move</span></div>
+            <div><strong>{COUNTS.buildings}</strong><span>buildings and sites</span></div>
+            <div><strong>{COUNTS.vehicles}</strong><span>vehicle classes</span></div>
+            <div><strong>{MAPS.length}</strong><span>world maps</span></div>
+          </div>
+        </header>
 
-        <section className="section" id="shots">
+        <section className="site-section intro-section" id="game">
           <div className="wrap">
-            <div className="kicker">Screenshots</div>
-            <h2 className="h2">A whole world to build on</h2>
-            <div className="shots">
-              {SHOTS.map((s) => (
-                <a className="shot" key={s.src} href={s.src} target="_blank" rel="noopener">
-                  <img src={s.src} alt={s.alt} loading="lazy" />
-                </a>
-              ))}
+            <div className="section-heading split-heading">
+              <div><p className="eyebrow">The job</p><h2>Every delivery starts somewhere.</h2></div>
+              <p>There is no magic conveyor belt. Goods need a source, a destination and a route that makes financial sense. The rest is your network.</p>
             </div>
+            <ol className="game-loop">
+              {LOOP.map(([n, title, body]) => <li key={n}><span>{n}</span><div><h3>{title}</h3><p>{body}</p></div></li>)}
+            </ol>
           </div>
         </section>
 
-        <section className="section" id="maps">
-          <div className="wrap">
-            <div className="kicker">Maps</div>
-            <h2 className="h2">Three worlds, wrapped round a globe</h2>
-            <div className="maps">
-              {MAPS.map((m) => (
-                <article className="map" key={m.n}>
-                  <img src={m.img} alt={`Map ${m.n}, ${m.name}, seen flat`} loading="lazy" />
-                  <div className="map-body">
-                    <span className={`pill${m.n === 1 ? ' accent' : ''}`}>{m.status}</span>
-                    <h3><small>Map {m.n}</small>{m.name}</h3>
-                    <p>{m.body}</p>
-                    <span className="map-fact">{m.facts.join(' · ')}</span>
-                  </div>
-                </article>
-              ))}
-            </div>
+        <section className="site-section image-break">
+          <div className="wrap image-break-grid">
+            <figure className="feature-shot"><img src="/site/shot-home.png" alt="A supply network operating around a town" loading="eager" /></figure>
+            <div className="image-break-copy"><p className="eyebrow">A network you can read</p><h2>From the first truck to a regional system.</h2><p>Start with a simple connection. Add processing, storage and bigger vehicles as demand grows. The same network that feeds a hamlet can become the spine of a city.</p><a href="#screens" className="text-link">See the world in motion <span>→</span></a></div>
           </div>
         </section>
 
-        <section className="section" id="news">
-          <div className="wrap devlog">
-            <div>
-              <div className="kicker">Updates</div>
-              <h2 className="h2">What is new</h2>
-              {NEWS.map((n, i) => (
-                <details className="update" key={n.v} open={i === 0}>
-                  <summary><span className="ver">{n.v}</span>{n.title}</summary>
-                  <ul>{n.items.map((x) => <li key={x}>{x}</li>)}</ul>
-                </details>
-              ))}
-            </div>
-            <div>
-              <div className="kicker">Roadmap</div>
-              <h2 className="h2">Where it is going</h2>
-              <div className="road">
-                <h3><span className="dot now" />Now</h3>
-                <ul>{ROADMAP.now.map((r) => <li key={r}>{r}</li>)}</ul>
-                <h3><span className="dot" />Next</h3>
-                <ul>{ROADMAP.next.map((r) => <li key={r}>{r}</li>)}</ul>
-              </div>
-            </div>
+        <section className="site-section systems-section">
+          <div className="wrap"><div className="section-heading"><p className="eyebrow">Built for logistics people</p><h2>Plan it. Watch it work. Fix what does not.</h2></div>
+            <div className="systems-grid">{SYSTEMS.map(([title, body], index) => <article key={title}><span>0{index + 1}</span><h3>{title}</h3><p>{body}</p></article>)}</div>
           </div>
         </section>
 
-        <section className="section" id="faq">
-          <div className="wrap faq">
-            <div>
-              <div className="kicker">Questions</div>
-              <h2 className="h2">Quick answers</h2>
-            </div>
-            <div>
-              {FAQ.map((f) => (
-                <details key={f.q}><summary>{f.q}</summary><p>{f.a}</p></details>
-              ))}
-            </div>
+        <section className="site-section screen-section" id="screens">
+          <div className="wrap"><div className="section-heading split-heading"><div><p className="eyebrow">In game</p><h2>One world, seen from every scale.</h2></div><p>Zoom from a route across an ocean to the road outside a factory. The screenshots here come from the current playable build.</p></div>
+            <div className="screen-grid">{SHOTS.map(([src, alt], index) => <a href={src} target="_blank" rel="noopener" className={`screen screen-${index + 1}`} key={src}><img src={src} alt={alt} loading="lazy" /><span>{alt}</span></a>)}</div>
           </div>
         </section>
 
-        <section className="section">
-          <div className="wrap">
-            <div className="artists">
-              <div>
-                <div className="kicker">Artists wanted. Badly.</div>
-                <h2>Can you make a barn look like a barn?</h2>
-                <p>We have the logic, the spreadsheets and plenty of opinions. We need someone who can make buildings, vehicles and town pieces, low to mid poly, in one style. It is paid work, and you would be replacing the AI.</p>
-              </div>
-              <a className="btn primary" href="#contact">Get in touch</a>
-            </div>
-          </div>
+        <section className="site-section pillars-section">
+          <div className="wrap">{PILLARS.map((p) => <article className="clean-pillar" key={p.tag}><img src={p.img} alt={p.alt} loading="lazy" /><div><p className="eyebrow">{p.n} · {p.tag}</p><h2>{p.title}</h2><p>{p.body}</p></div></article>)}</div>
         </section>
 
-        <section className="section" id="contact">
-          <div className="wrap contact">
-            <div>
-              <div className="kicker">Get in touch</div>
-              <h2 className="h2">Say hello</h2>
-              <p>Found a bug, want to pitch in as an artist, or just want to say the globe is cool? This goes straight to Chris, not a mailing list.</p>
-            </div>
-            <ContactForm />
-          </div>
-        </section>
+        <section className="site-section world-section" id="maps"><div className="wrap"><div className="section-heading split-heading"><div><p className="eyebrow">Worlds to work</p><h2>Routes do not stop at the edge of town.</h2></div><p>Each map changes the geography of your company: distance, water, terrain and the places worth connecting.</p></div>
+          <div className="world-grid">{MAPS.map((m) => <article key={m.n}><img src={m.img} alt={`Map ${m.n}: ${m.name}`} loading="lazy" /><div><span>Map {m.n}</span><h3>{m.name}</h3><p>{m.body}</p><small>{m.facts.join(' · ')}</small></div></article>)}</div>
+        </div></section>
+
+        <section className="site-section studio-section" id="studio"><div className="wrap studio-clean"><div><p className="eyebrow">The studio</p><h2>Small team. Large logistics problem.</h2><p>{STUDIO.body[0]}</p><p>The game is being built in public, with a playable tester build and a focus on making the first hour clear, satisfying and worth replaying.</p></div><aside><span>Current focus</span><strong>Make the early game feel great.</strong><p>Tester feedback, performance and the feel of a working production chain come before the next big expansion.</p><a href="/access/" className="text-link">Join the test build <span>→</span></a></aside></div></section>
+
+        <section className="site-section contact-section" id="contact"><div className="wrap contact-clean"><div><p className="eyebrow">Get in touch</p><h2>Have a route in mind?</h2><p>Send a bug, a thought, an art portfolio or a message about the kind of logistics game you want to play.</p></div><ContactForm /></div></section>
       </main>
       <Footer />
     </>

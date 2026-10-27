@@ -55,20 +55,20 @@ describe('venue goods can be sold to', () => {
   });
 });
 
-const KNOWN_VENUE_GAP = 48;
+const KNOWN_VENUE_GAP = 54;
 
 describe('venues are open when their district is', () => {
   it('each has at least one good a player can make by the tier that matches the district level', async () => {
-    const { DISTRICTS, SITE_DEFS } = await import('./defs');
+    const { DISTRICTS, SITE_DEFS, TOWN_LEVEL_TIER } = await import('./defs');
     const tierOf = (g: string): number => Math.min(99, ...Object.values(SITE_DEFS).filter((d: any) => d.produce?.good === g || (d.produce?.also ?? []).some((x: any) => x.good === g) || (d.recipe?.outputs?.[g] ?? 0) > 0).map((d: any) => d.tier));
     const bad: string[] = [];
     for (const [id, pool] of Object.entries(VENUE_POOLS)) for (const v of pool!) {
       // The tier by which a player can have a town of the district's level: level 2 comes in tier 2, level 3 and 4 in tiers 5 and 8, level 5 at the end.
-      const open = [0, 2, 3, 6, 9, 25][(DISTRICTS as Record<string, { minLevel: number }>)[id].minLevel];
+      const open = TOWN_LEVEL_TIER[(DISTRICTS as Record<string, { minLevel: number }>)[id].minLevel - 1];
       const first = Math.min(...v.goods.map(tierOf));
       if (first > open) bad.push(`${id}/${v.id}: first makeable at tier ${first}, district opens by tier ${open}`);
     }
-    // Known gap (tier remodel, phase E): town levels are not spread along the 26-tier ladder yet, so many venues open before the goods
+    // Known gap (tier remodel, phase E): town levels now follow the ladder (TOWN_LEVEL_TIER), but a venue still opens with its district, so some open before the goods
     // they sell can be made. The count must not grow; phase E brings it to zero.
     expect(bad.length, bad.join(', ')).toBeLessThanOrEqual(KNOWN_VENUE_GAP);
   });

@@ -84,6 +84,7 @@ describe('closed towns', () => {
     for (let i = 0; i < 20000 && matsNeeded(p).length > 0; i++) step(w);
     expect(matsNeeded(p)).toEqual([]);
     expect(readyToGrow(p)).toBe(true);
+    w.tier = Math.max(w.tier, 25);
     expect(growTown(w, p.id)).toBeNull();
     expect(p.level).toBe(2);
     expect(matsNeeded(p).length).toBeGreaterThan(0);

@@ -631,6 +631,11 @@ export const TOWN_LEVELS: TownLevel[] = [
   { name: 'Metropolis', pop: 60000, growth: 80000 },
 ];
 
+/** The tier a town needs to reach each level (index 0 is level 1): the five material stages, so a town's level matches the goods that exist. */
+export const TOWN_LEVEL_TIER = [0, 2, 5, 8, 24];
+/** The highest town level a tier allows. */
+export const townLevelAt = (tier: number): number => TOWN_LEVEL_TIER.filter((t) => t <= tier).length;
+
 /** Goods the Market wants at each town level: finished goods people use every day. Raw and building goods go to the Supply Yard. */
 export const MARKET_DEMAND: Good[][] = [
   ['bread', 'cheese', 'milk', 'eggs', 'fruit', 'vegetables', 'potatoes', 'firewood', 'fish'],
@@ -1142,7 +1147,7 @@ function milestones(t: number): Quest[] {
   const earn = round2(9000 * 1.2 ** (t - 3));
   const sold = round2(2500 * 1.17 ** (t - 3));
   const kinds = Math.min(40, Math.round(4 + t * 1.4));
-  const townLevel = Math.min(5, 3 + Math.floor((t - 3) / 8));
+  const townLevel = Math.max(2, townLevelAt(t));
   const towns = 1 + Math.floor(t / 8);
   const upLevel = Math.min(MAX_LEVEL, maxLevelAt(t));
   const ups = 3 + Math.floor(t / 2);

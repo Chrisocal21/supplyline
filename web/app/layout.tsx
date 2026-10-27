@@ -1,9 +1,5 @@
 import type { Metadata, Viewport } from 'next';
-import { Barlow_Condensed } from 'next/font/google';
 import './globals.css';
-
-/** The display face for titles and labels. */
-const display = Barlow_Condensed({ subsets: ['latin'], weight: ['600', '700', '800'], variable: '--display' });
 
 export const metadata: Metadata = {
   title: 'SupplyLine',
@@ -22,7 +18,7 @@ export const viewport: Viewport = { themeColor: '#0a1115' };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={display.variable}>
+    <html lang="en">
       <body>{children}</body>
     </html>
   );
