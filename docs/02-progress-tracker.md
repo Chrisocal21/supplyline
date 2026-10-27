@@ -97,6 +97,12 @@ New work must not undo these. Check the covering tests and ask first.
 
 | Release | What changed |
 |---|---|
+| 0.240 | Towns also ask for more variety as a side objective |
+| 0.239 | Routes unlock quietly as a tree; towns you ship to ask for goods or more variety (side objectives) |
+| 0.238 | Branching routes: 23 route lines cover every chain |
+| 0.237 | Route lines: the first building of a chain starts a guided line |
+| 0.236 | Free tiers from tier 3: each tier a menu of goals, finish any few |
+| 0.235 | Tier remodel: 26 tiers (0 to 25) from one unlock ladder; rail at tier 6, ports 12, air 18 |
 | 0.234 | Truck buyer chips work: a click unpins the buyer and re-routes the truck |
 | 0.233 | Far node markers much smaller |
 | 0.232 | Node markers stop flashing on hover or tool change |

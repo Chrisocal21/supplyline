@@ -1216,7 +1216,7 @@ export class Sheets {
         const pl = world.places.find((p) => p.id === o.placeId);
         const pr = sideProgress(world, o);
         im.rect(3, x, y, w, 52, 0x10161e, 1, 6, COLORS.line, 0.7);
-        im.text(`sd-n${o.id}`, `${pl?.name ?? 'A town'} wants ${fmt(o.amount)} ${GOODS[o.good].label.toLowerCase()}`, x + 12, y + 8, { size: 14, bold: true, layer: 4 });
+        im.text(`sd-n${o.id}`, o.good ? `${pl?.name ?? 'A town'} wants ${fmt(o.amount)} ${GOODS[o.good].label.toLowerCase()}` : `${pl?.name ?? 'A town'} wants more variety: ${fmt(o.amount)} kinds of goods`, x + 12, y + 8, { size: 14, bold: true, layer: 4 });
         im.text(`sd-r${o.id}`, `+${fmt(o.reward)}`, x + w - 12, y + 8, { size: 13, bold: true, color: COLORS.warn, align: 'right', layer: 4 });
         im.bar(4, x + 12, y + 36, w - 24 - 80, 6, pr.have / Math.max(1, pr.need), COLORS.accent);
         im.text(`sd-p${o.id}`, `${fmt(pr.have)} / ${fmt(pr.need)}`, x + w - 12, y + 31, { size: 12, color: COLORS.muted, align: 'right', layer: 4 });

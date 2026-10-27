@@ -6,7 +6,8 @@ import { dockDemand, type World } from './world';
 export interface SideObjective {
   id: string;
   placeId: number;
-  good: Good;
+  /** The good asked for; absent when the town asks for more kinds of goods instead (amount is then the number of kinds it should have had). */
+  good?: Good;
   amount: number;
   reward: number;
 }
@@ -22,7 +23,7 @@ function amountFor(level: number, good: Good): number {
 /** Progress of one objective: the town's own tally of that good, which was nothing when the objective was set. */
 export function sideProgress(world: World, o: SideObjective): { have: number; need: number; done: boolean } {
   const place = world.places.find((p) => p.id === o.placeId);
-  const have = place ? Math.floor(place.delivered[o.good] ?? 0) : 0;
+  const have = !place ? 0 : o.good ? Math.floor(place.delivered[o.good] ?? 0) : GOOD_LIST.filter((g) => (place.delivered[g] ?? 0) > 0).length;
   return { have: Math.min(have, o.amount), need: o.amount, done: have >= o.amount };
 }
 
@@ -36,7 +37,7 @@ export function checkSide(world: World, log: (text: string) => void): void {
     world.sideDone++;
     world.money += o.reward;
     const place = world.places.find((p) => p.id === o.placeId);
-    log(`${place?.name ?? 'A town'} got its ${GOODS[o.good].label.toLowerCase()}  +$${o.reward.toLocaleString('en-US')}`);
+    log(`${place?.name ?? 'A town'} got ${o.good ? `its ${GOODS[o.good].label.toLowerCase()}` : 'its new goods'}  +$${o.reward.toLocaleString('en-US')}`);
   }
   if (world.side.length >= MAX_OPEN) return;
   for (const place of world.places) {
@@ -47,7 +48,12 @@ export function checkSide(world: World, log: (text: string) => void): void {
     const market = world.sites.find((s) => s.placeId === place.id && SITE_DEFS[s.kind].dock === 'market');
     if (!market) continue;
     const asked = dockDemand(world, market).filter((g) => (place.delivered[g] ?? 0) === 0 && (world.produced[g] ?? 0) > 0 && GOODS[g].kind !== 'byproduct');
-    if (asked.length === 0) continue;
+    if (asked.length === 0 || (world.sideDone! % 3 === 2 && place.level >= 2)) {
+      // Or the town wants more variety: three more kinds of goods than it has had from you so far.
+      const kinds = GOOD_LIST.filter((g) => (place.delivered[g] ?? 0) > 0).length + 3;
+      world.side.push({ id: `s-${place.id}-kinds-${world.sideDone}`, placeId: place.id, amount: kinds, reward: kinds * 150 + 200 });
+      continue;
+    }
     // Prefer what this town likes most, so different towns ask for different things.
     const good = asked.slice().sort((a, b) => (place.taste[b] ?? 1) - (place.taste[a] ?? 1) || (a < b ? -1 : 1))[0];
     const amount = amountFor(place.level, good);

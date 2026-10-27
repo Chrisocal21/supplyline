@@ -102,9 +102,9 @@ it('a town you ship to asks for a good you make but have not sent it, and pays w
   checkQuests(w, log);
   const o = w.side?.find((x) => x.placeId === place.id)!;
   expect(o).toBeDefined();
-  expect(place.delivered[o.good] ?? 0).toBe(0);
+  expect(place.delivered[o.good!] ?? 0).toBe(0);
   const money = w.money;
-  place.delivered[o.good] = o.amount;
+  place.delivered[o.good!] = o.amount;
   checkQuests(w, log);
   expect(w.money).toBeGreaterThanOrEqual(money + o.reward);
   expect(w.sideDone).toBe(1);
