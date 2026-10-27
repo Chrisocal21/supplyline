@@ -23,9 +23,10 @@ import {
   VEHICLE_ORDER,
   type Good,
   type VehicleKind,
+  FREE_FROM_TIER,
 } from '../sim/defs';
 import { BANK_TIER, DAY_TICKS, bankReport, FUND_FEE, LOAN_RATE, REAL_MONEY_ENABLED, SAVINGS_RATE, bankOf, borrow, creditLimit, deposit, divest, fundValue, invest, netWorth, repay, withdraw } from '../sim/bank';
-import { nextQuest, pathMastered, pathQuestState, questState, tierNeed, tierUnlocks } from '../sim/quests';
+import { focusLine, lineSteps, nextQuest, pathMastered, pathQuestState, questState, startedLines, stepOpensAt, tierNeed, tierUnlocks } from '../sim/quests';
 import { questGuide } from '../sim/guide';
 import { buildDistrict, choosePath, districtBoost, districtCost, districtError, districtLevel, districtRevenue, districtSatisfaction, pathError, townUpkeep } from '../sim/town';
 import { buyersOf } from '../sim/buyers';
@@ -1089,7 +1090,8 @@ export class Sheets {
     y += 8;
 
     // Quest tiles.
-    const cur = state === 'now' ? nextQuest(world)?.quest.id : undefined;
+    const curId = state === 'now' ? nextQuest(world)?.quest.id : undefined;
+    const cur = curId && tier.quests.some((q) => q.id === curId) ? curId : undefined;
     const pickId = this.hubQuest && tier.quests.some((q) => q.id === this.hubQuest) ? this.hubQuest : cur ?? tier.quests[0].id;
     const tileW = 190;
     const tileH = 66;
@@ -1173,6 +1175,33 @@ export class Sheets {
       const oh = im.text('hb-opens', `${state === 'done' ? 'Opened' : 'Finishing it opens'}: ${opens.join(', ')}`, x, y, { size: 13, bold: true, color: state === 'done' ? COLORS.good : COLORS.accent, wrap: w, layer: 3 }).h;
       y += oh + 6;
     }
+
+    // The routes the player has taken: each is a short guided line that follows what they build. Click one to make the quest pill follow it.
+    if (world.tier >= FREE_FROM_TIER) {
+      y += 8;
+      im.text('rt-h', 'YOUR ROUTES', x, y, { size: 13, bold: true, color: COLORS.accent, layer: 3 });
+      y += 26;
+      const mine = startedLines(world);
+      if (mine.length === 0) {
+        y += im.text('rt-none', 'Build the first building of a chain (an iron mine, a clay pit, a harbor, a brewery...) and its route starts here, one step at a time.', x, y, { size: 13, color: COLORS.muted, wrap: w, layer: 3 }).h + 8;
+      }
+      const follow = focusLine(world);
+      mine.forEach((line) => {
+        const st = lineSteps(world, line);
+        const rowH = 58;
+        const on = follow?.id === line.id;
+        const hov = im.hit(`rt-${line.id}`, x, y, w, rowH, () => { if (st.next) world.focusLine = line.id; }, 3);
+        im.rect(3, x, y, w, rowH, hov ? 0x161f29 : 0x10161e, 1, 6, st.next ? (on ? COLORS.accent : COLORS.line) : COLORS.good, on ? 1 : 0.7, on ? 2 : 1);
+        im.text(`rt-n${line.id}`, line.name, x + 12, y + 8, { size: 14, bold: true, color: st.next ? COLORS.text : COLORS.good, layer: 4 });
+        im.text(`rt-c${line.id}`, st.next ? `${st.done} of ${line.steps.length}${on ? '  ·  following' : ''}` : 'Route complete', x + w - 12, y + 8, { size: 12, bold: true, color: on ? COLORS.accent : COLORS.muted, align: 'right', layer: 4 });
+        if (st.next) {
+          const opens = stepOpensAt(world, st.next);
+          im.text(`rt-s${line.id}`, `${st.next.label}${opens === null ? '' : `  (opens at tier ${opens})`}  ·  +$${fmt(st.next.reward)}`, x + 12, y + 32, { size: 13, color: COLORS.muted, wrap: w - 24, layer: 4 });
+        }
+        y += rowH + gap;
+      });
+    }
+
     return y + this.scroll - v.y0;
   }
 

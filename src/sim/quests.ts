@@ -4,6 +4,7 @@ import {
   BUILD_LUMBER,
   LOGS_PER_LUMBER,
   BUILD_ORDER,
+  FREE_FROM_TIER,
   GOOD_LIST,
   HIGHWAY_TIER,
   MAX_LEVEL,
@@ -25,6 +26,7 @@ import {
   type TierDef,
 } from './defs';
 import { builtDistricts, pathsInUse } from './town';
+import { LINES_BY_ID, ROUTE_LINES, type RouteLine } from './lines';
 import { sellTargets, type World } from './world';
 
 export interface Progress {
@@ -232,10 +234,66 @@ export function tierNeed(tier: TierDef): number {
   return Math.min(tier.quests.length, tier.need ?? tier.quests.length);
 }
 
+
+/** A route line's state: the lines the player started, the steps done, and the step it waits on. */
+export function lineSteps(world: World, line: RouteLine): { done: number; next: Quest | null } {
+  const done = world.questsDone ?? [];
+  const next = line.steps.find((q) => !done.includes(q.id)) ?? null;
+  return { done: line.steps.filter((q) => done.includes(q.id)).length, next };
+}
+
+/** The started lines, oldest first, with the finished ones last. */
+export function startedLines(world: World): RouteLine[] {
+  const out = (world.lines ?? []).map((id) => LINES_BY_ID[id]).filter((l): l is RouteLine => !!l);
+  return [...out.filter((l) => lineSteps(world, l).next), ...out.filter((l) => !lineSteps(world, l).next)];
+}
+
+/** The line the quest pill follows: the one the player picked, or else the oldest one still going. */
+export function focusLine(world: World): RouteLine | null {
+  const lines = startedLines(world).filter((l) => lineSteps(world, l).next);
+  return lines.find((l) => l.id === world.focusLine) ?? lines[0] ?? null;
+}
+
+/** Whether a line step is waiting on a building that is not open yet, and the tier it opens at. */
+export function stepOpensAt(world: World, q: Quest): number | null {
+  if (q.goal.kind !== 'build') return null;
+  const t = SITE_DEFS[q.goal.site].tier;
+  return t > world.tier ? t : null;
+}
+
+/** Start a line when the first building of its chain stands, and pay each step as it is done. Lines wait for the free tiers. */
+function checkLines(world: World, log: (text: string) => void): void {
+  if (world.tier < FREE_FROM_TIER) return;
+  world.lines ??= [];
+  for (const line of ROUTE_LINES) {
+    if (world.lines.includes(line.id) || !world.sites.some((s) => line.starts.includes(s.kind))) continue;
+    world.lines.push(line.id);
+    world.focusLine ??= line.id;
+    log(`New route: ${line.name}. ${line.blurb}`);
+  }
+  for (const line of startedLines(world)) {
+    for (const q of line.steps) {
+      if (world.questsDone.includes(q.id)) continue;
+      if (!questProgress(world, q.goal).done) break;
+      world.questsDone.push(q.id);
+      world.money += q.reward;
+      log(`${line.name}: ${q.label}  +$${q.reward.toLocaleString('en-US')}`);
+    }
+  }
+}
+
 /** The first unfinished quest of the current tier, or null when every quest in the game is done. */
 export function nextQuest(world: World): { quest: Quest; progress: Progress } | null {
   const tier = TIERS[world.tier];
   if (!tier) return null;
+  // From the free tiers, the pill follows the route the player has taken; with none started, it points at the tier menu.
+  const line = focusLine(world);
+  const step = line ? lineSteps(world, line).next : null;
+  if (step) {
+    const opens = stepOpensAt(world, step);
+    const progress = questProgress(world, step.goal);
+    return { quest: step, progress: opens === null ? progress : { ...progress, waiting: `Opens at tier ${opens}` } };
+  }
   for (const quest of tier.quests) {
     const progress = questState(world, tier, quest);
     if (!progress.done) return { quest, progress };
@@ -247,6 +305,7 @@ export function nextQuest(world: World): { quest: Quest; progress: Progress } | 
 export function checkQuests(world: World, log: (text: string) => void): void {
   world.questsDone ??= [];
   checkPathQuests(world, log);
+  checkLines(world, log);
   for (;;) {
     const tier = TIERS[world.tier];
     if (!tier) return;

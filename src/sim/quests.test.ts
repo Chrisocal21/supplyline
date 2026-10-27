@@ -1,7 +1,7 @@
 import { it, expect } from 'vitest';
 import { createWorldFromMap, createRoute, townStreets, type MapData } from './world';
 import { findPath } from './path';
-import { checkQuests, pathMastered, questProgress } from './quests';
+import { checkQuests, focusLine, nextQuest, pathMastered, questProgress } from './quests';
 import { PATH_QUESTS, TIERS } from './defs';
 import map1 from '../maps/map1.json';
 it('a highway laid from road to road counts for the highway quest', () => {
@@ -66,4 +66,26 @@ it('the tier goals count from where the tier began, not the lifetime total', () 
   expect(questProgress(w, q.goal).have).toBe(0);
   w.earned += 500;
   expect(questProgress(w, q.goal).have).toBe(500);
+});
+
+it('a route line starts with the first building of its chain, and follows it one step at a time', () => {
+  const w = createWorldFromMap(map1 as MapData);
+  const log = (): void => {};
+  w.tier = 11;
+  checkQuests(w, log);
+  expect(w.lines ?? []).toHaveLength(0);
+  expect(nextQuest(w)?.quest.id.startsWith('l-')).toBe(false);
+  // The first building of the iron chain starts the iron line, and the pill follows its next step.
+  const s = w.sites[0];
+  s.kind = 'oremine';
+  checkQuests(w, log);
+  expect(w.lines).toEqual(['iron']);
+  expect(focusLine(w)?.id).toBe('iron');
+  expect(nextQuest(w)?.quest.id).toBe('l-iron-build-coalmine');
+  // Steps are paid in order, and an unrelated chain does not take the pill away.
+  w.sites.push({ ...s, id: 9999, kind: 'claypit' });
+  checkQuests(w, log);
+  expect(w.lines).toEqual(['iron', 'bricks']);
+  expect(focusLine(w)?.id).toBe('iron');
+  expect(w.questsDone).toContain('l-iron-build-oremine');
 });

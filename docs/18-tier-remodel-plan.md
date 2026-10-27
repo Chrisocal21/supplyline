@@ -118,4 +118,13 @@ Open questions for Chris:
 - Tiers 0 to 2 stay guided. From tier 3 (`FREE_FROM_TIER` in defs.ts) a tier is a menu: five goals that suit any route (earn, sell volume, sell variety, grow towns, upgrade buildings) plus up to two optional "build this" goals for what the tier opens. Finish any 2 (tiers 3 to 5) or 3 (tier 6 on) and the next tier opens.
 - The earn and sell goals count from the moment the tier began (`world.tierBase`), so they cannot be satisfied by earlier play. Variety, town level and upgrade goals are about the state of the factory.
 - All numbers are in `milestones()` in defs.ts and scale with the tier. First pacing run (skilled bot, seed 11): tier 3 at 21.5 min, tier 6 at 27 min, tier 9 at 50 min, tier 12 at 74 min, tier 14 at 118 min. Tiers 3 to 5 are still too quick for the bot. A human will be slower; tune after a real playtest.
+- **Chris, later:** tiers 3 to 25 will officially be filled with a mix of goals, achievements, objectives and quests. Proposed split (not yet approved): goals = the per-tier menu above; objectives = optional "build this" and side jobs with bonus cash; quests = route-reading story lines (a bakery town, a harbor town) and pack lines; achievements = one-off lifetime badges that never gate a tier.
 - Not done yet: goals that read the player's own route (a bakery means "feed a town bread"), side objectives with bonus cash, and the pack quest lines.
+
+### 0.237: route lines (built)
+
+- Chris: quests depend on what is made. Build an iron mine and the quests follow that route, so the player is not pulled around the map: guided, but only once they have chosen the route.
+- `src/sim/lines.ts` holds 8 lines (bricks and stone, iron and steel, cement, fish and salt, cloth, sugar and sweets, brewing, pork and meat), each a few steps (build, make, sell). Building any starting site of a chain (from tier 3) starts its line. Steps are paid in order; a step that needs a building not yet open shows "opens at tier N".
+- Lines never gate a tier. The quest pill follows one line: the one the player picked on the Objectives sheet (YOUR ROUTES, click a row), or else the oldest one still going. With no line started it points at the tier menu.
+- Saved in `world.lines` and `world.focusLine`; step ids (`l-...`) live in `questsDone`.
+- Not done: more lines (grain and bread, farm yard, wood, exotics, spirits, prepared foods), path quests tied to lines, achievements, side objectives with bonus cash.

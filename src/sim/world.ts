@@ -480,6 +480,9 @@ export interface World {
   questsDone: string[];
   /** Money earned and goods sold when the current tier began: the free tiers' goals count what you do from here, not your lifetime total. */
   tierBase?: { tier: number; earned: number; sold: number };
+  /** Route lines the player has started (the first building of a chain starts one), and the one the quest pill follows. */
+  lines?: string[];
+  focusLine?: string;
   /** Company skills bought, by perk id: the level of each (see perks.ts). Old saves have none. */
   perks?: Record<string, number>;
   /** Path quests finished, by id (see PATH_QUESTS). */
