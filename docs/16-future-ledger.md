@@ -53,8 +53,12 @@ Background: [15-future-plan.md](15-future-plan.md) (the plan), [13-suggestions-f
 | FP-32 | Design principle for the whole game: variety comes from combining things the player already makes. A product has several versions, each built from different ingredients on the map (beer: malt, hops, water, yeast; wine: red, white, flavoured, using fruit and honey) | Chris's idea, applied across every industry, not just brewing. Checked: today each site has exactly one recipe (`recipe?` in `SiteDef`), beer and wine are single goods, and there is no yeast good | | Idea |
 | FP-33 | A building can run one of several recipes, chosen by the player (a recipe selector). Checked: not built | Proposed as the core new mechanic. It is a mechanic, not data (FP-05, FP-20), so it needs its own small project and tests | | Idea |
 | FP-34 | Variant goods count as their base good for demand (any beer fills "beer"), and better or rarer variants pay more or open special buyers | Proposed, Assumed. Keeps base demand and quests working (FP-25), avoids a buyer list per variant | | Idea |
-| FP-35 | Variants are a content series with a cap per product line, so the catalog grows on purpose (45 goods today, hundreds possible) | Proposed. Flows and by-product outlets must be valid for each variant (FP-19) | | Idea |
+| FP-35 | Variants are a content series with a cap per product line, so the catalog grows on purpose (45 goods today, hundreds possible) | Revised after Chris: no ceiling on variety. Grow it in planned batches, each batch must pass the flow and catalog tests before it ships (FP-19). My earlier "cap per line" is withdrawn | | Idea |
 | FP-36 | First proof is one product line only (beer), as the first deepening pack, with the recipe selector as its only new mechanic | Proposed, replaces my earlier "pick a new chain" ask in FP-06 | | Idea |
+| FP-37 | Variety across every product family, not only beer and wine. Examples: beer (pale, malt, stout, porter, sour, wheat, IPA), wine (red, white, rose, sparkling, fruit and honey wines), bread (white, rye, sourdough, whole grain), cheese (fresh, soft, hard, blue, aged), produce and preserves | Chris's direction. Proposed, Assumed: families come from what the map already grows (Checked: grain, barley, hops, grapes, milk, honey, fruit, vegetables exist) | | Idea |
+| FP-38 | Define each family once as a style table (style, ingredients, price tier, unlock), and generate its goods and recipes from it, so hundreds of variants are tested as a set and not hand-written | Proposed, Assumed. Keeps FP-35 safe at scale | | Idea |
+| FP-39 | Scale checks before variants multiply: build tray and market lists need grouping and search, each variant needs at least a colour and an icon, and the wiki must stay readable | Proposed, Assumed. Unverified: how today's menus cope with hundreds of goods | | Idea |
+| FP-40 | Missing base ingredients (yeast, malt) are added as ordinary goods with their own simple producers, not hidden | Proposed. Checked: neither exists today | | Idea |
 
 ## Open questions for Chris
 
@@ -99,6 +103,8 @@ Add longer reasoning here under the row number.
 
 **FP-32 to FP-36 (Chris, October 26).** The key is being able to use more of what you make. Beer from hops, water and yeast, then malts and pales; wine from grapes, water and yeast, then red, white and flavoured wines using other products on the map. Applies to every industry. Claude checked the code: one recipe per building and no yeast good, so the gap is a recipe selector plus variant goods. Open for ChatGPT: how variants should count for demand and price, which product lines suit the idea, and how to keep the catalog from sprawling.
 
+**FP-37 to FP-40 (Chris, October 26).** Do not stop at a few variants. Stouts, porters, sours and so on for beer, and the same for wine, bread, cheese and produce across the map. Chris will take the ledger to ChatGPT before answering the open questions. Claude's view: wide variety is the point, so the work is making it cheap and safe: styles defined as tables, tested as sets, with menus that can hold hundreds of goods.
+
 ## Log
 
 | Date | By | Change |
@@ -108,3 +114,4 @@ Add longer reasoning here under the row number.
 | 2026-10-26 | ChatGPT | Updated own positions on FP-03/06/11/17/18; added FP-24 to FP-28, checked/assumed scope, constraint flags and recommendations on four questions. Preserved Claude's wording and existing statuses; no decisions or implementation |
 | 2026-10-26 | Claude | Added FP-29 to FP-31 from Chris's deepening-pack idea |
 | 2026-10-26 | Claude | Added FP-32 to FP-36 from Chris's ingredient-variety idea, with a code check |
+| 2026-10-26 | Claude | Added FP-37 to FP-40 for variety across all families; revised my FP-35 (cap withdrawn) |
