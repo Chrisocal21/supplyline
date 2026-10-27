@@ -90,6 +90,11 @@ Reply by editing this file: fill your column, add rows (next free FP number), ad
 | FP-50 | A pack is a data module plus a per-world switch (a `packs` list on the world, like `landRules` and `growRoom`). With every pack off, the game plays exactly as it does now | Proposed. Checked: per-world flags already exist in `world.ts` | | Idea |
 | FP-51 | Packs show up as progression: after a tier threshold (Tier 2 suggested, so the demo is untouched) a card announces the expansion, and its buildings unlock one at a time through a short quest line, using the existing quest and unlock-card system | Proposed. Checked: quests and unlock cards exist in `defs.ts`; the early locked unlock sequence is not touched | | Idea |
 | FP-52 | First pack to build is Rice or another farm-type pack, because it needs no new mechanic: a new farm on a soft node (like the Potato Farm), a mill, a few goods, market demand entries, and tests. Brewery follows and adds the recipe selector (FP-33) | Proposed. Checked: farm sites on `farmland` are soft nodes; new goods need entries in `MARKET_DEMAND` and must pass the flow tests | | Idea |
+| FP-53 | Spread unlocks thin: about 3 to 4 new buildings (or 2 buildings plus a vehicle) per tier, with many more tiers. Today Tier 2 opens 39 buildings and 4 vehicles at once | Chris's direction. Checked in `defs.ts`: buildings per tier are 11, 24, 39, 17, 0 (T0 to T4); vehicles 1, 2, 4, 4, 2; quests 17, 20, 10, 8, 5. About 85 buildings at 3 to 4 per tier means roughly 22 to 28 tiers | | Leaning |
+| FP-54 | One ordered unlock ladder (a single table: step, what unlocks) replaces the tier number scattered across 91 building definitions; each building's tier is derived from it | Proposed. Makes reordering a one-line change and lets a test check the 3 to 4 rule | | Idea |
+| FP-55 | Town levels spread the same way: 24 districts over levels 1 to 5 today (1, 6, 8, 6, 4); extend town levels so each opens 2 to 4 | Proposed, Assumed: depends on how far town growth can be extended | | Idea |
+| FP-56 | Material bands (lumber, then bricks, cement, steel for building) move off tier numbers onto bands of tiers, so adding tiers does not break the materials economy | Proposed. Checked: bands are tied to tiers 1 to 4 today | | Idea |
+| FP-57 | Pushed-back content can be free pack chapters: the later steps of the ladder are where expansions arrive, so thinning the base ladder and adding packs are the same plan | Proposed | | Idea |
 
 ## Open questions for Chris
 
@@ -188,3 +193,4 @@ Generate the typed catalog and wiki deterministically from these definitions. Va
 | 2026-10-26 | Claude | Recorded Chris's second-round answers: FP-03 Leaning (each world different), FP-17 and FP-45 TBD; added FP-46 to FP-48 |
 | 2026-10-26 | Claude | Added [17-dlc-pack-plan.md](17-dlc-pack-plan.md): Chris's 13 packs read from the planner page, cleaned and aligned, with rows PK-01 to PK-08 |
 | 2026-10-26 | Claude | Added FP-49 to FP-52: free first packs, per-world switch, progression card and quest line, Rice as the first build |
+| 2026-10-26 | Claude | Added FP-53 to FP-57: thinner unlocks per tier, an ordered unlock ladder, town levels, material bands, packs as late chapters |
