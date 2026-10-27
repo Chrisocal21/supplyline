@@ -150,3 +150,8 @@ Open questions for Chris:
 - Building levels are spread over the ladder: level 2 at tier 1, then tiers 3, 6, 9, 12, 15, 18, 21 and 24 for level 10 (`LEVEL_TIERS`). The tier goals "take buildings to level N" follow it.
 - A test checks that no tier asks for a material before its maker opens.
 - Open: town levels are still gated by growth points, not tier. They may need to be tied to tiers 3, 8, 15 and 24 when phase E spreads districts.
+
+### 0.242: town levels follow the material stages (built)
+
+- Chris: towns and cities need a level per material stage, and a town that never becomes a city should need less. Kept five town levels (four level-ups) and put the stages on them: 1 to 2 lumber, 2 to 3 lumber and bricks, 3 to 4 adds cement (new), 4 to 5 the heavy goods (concrete, glass, steel, tools). Each town only asks for the next step it is on, so a small town never asks for heavy goods.
+- Open: a sixth town level ("Capital") as a later pack, if each stage should have its own level-up. Town levels still grow by points, not by tier.

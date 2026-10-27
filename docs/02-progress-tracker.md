@@ -97,6 +97,7 @@ New work must not undo these. Check the covering tests and ask first.
 
 | Release | What changed |
 |---|---|
+| 0.242 | Town level-ups follow the material stages (cement added at city step) |
 | 0.241 | One material rule by tier; building levels spread over 26 tiers |
 | 0.240 | Towns also ask for more variety as a side objective |
 | 0.239 | Routes unlock quietly as a tree; towns you ship to ask for goods or more variety (side objectives) |
