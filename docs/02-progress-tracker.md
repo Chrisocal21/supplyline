@@ -42,6 +42,20 @@ One page. Full release notes are in [04-project-log.md](04-project-log.md); the 
 | 6 | Later: sea transport, real-money cash, events | 50 |
 | 7 | Desktop version, auto-updates, WebGPU, Steam (see [05-desktop-version.md](05-desktop-version.md)) | 23 |
 
+## Demo finish line
+
+Decided by Chris, October 26, 2026. The demo ends in early town level 2, once the player starts to understand the job and how to play. The bot reaches it in about 26 minutes today; once the remaining quests are added, a demo session should run 30 to 50 minutes at least.
+
+A fresh tester, with no coaching, must be able to:
+1. Understand the opening and make a first paid delivery
+2. Build a second building and join it with a road and a truck
+3. See why a truck or building is stuck, and fix it
+4. Recover from an ordinary mistake
+5. Grow the first town to level 2
+6. Save, quit and resume
+
+Notes template for the first fresh-player session: [14-fresh-player-notes.md](14-fresh-player-notes.md). Review and ChatGPT's second opinion: [13-suggestions-for-review.md](13-suggestions-for-review.md).
+
 ## Open items
 
 **Needs Chris**
