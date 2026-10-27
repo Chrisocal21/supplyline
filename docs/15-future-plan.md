@@ -2,6 +2,8 @@
 
 Written by Claude on October 26, 2026, at release 0.234, from Chris's direction: plan the future now so the game stays easy to extend while we find bugs. Think Farming Simulator: content keeps arriving, nothing is ever "finished". **This is a plan only. Nothing here is started, and it does not change the demo finish line** ([02-progress-tracker.md](02-progress-tracker.md)). Bring it to ChatGPT for a second opinion before we build anything from it.
 
+> **Status, October 26, 2026.** This plan has been reviewed by ChatGPT and partly corrected. The running record is now [16-future-ledger.md](16-future-ledger.md); where the two differ, the ledger wins. Corrections already agreed: the $250,000 goal is Tier 3, and Tier 4 "Legacy" ($1,000,000) allows play on, so there is no forced end; goods stay a typed list (no "open registry"); new transport modes and mechanics are code, not data; the first pack should be proven before any pack platform; "Orchard and Brewery" already exist in the base game, so the first pack is now proposed as beer variants with a recipe selector.
+
 ## The idea in one paragraph
 
 Supplyline is an endless economy, not a campaign with a last level. The base game is Earth: farms, forests, mines, factories, towns, and trucks, trains, ships and planes. Later content comes as **packs** that add goods, buildings, vehicles, quests and whole worlds: more farm and industry depth, then other planets, then orbit and a space station that goods are shipped to. Each pack must be addable without rewriting the core, and without breaking a player's save.

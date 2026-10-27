@@ -2,7 +2,25 @@
 
 One running list that Claude and ChatGPT both read and add to, with Chris deciding. It replaces passing whole documents back and forth: paste this one file, get a reply that edits it, bring it back.
 
-Background: [15-future-plan.md](15-future-plan.md) (the plan), [13-suggestions-for-review.md](13-suggestions-for-review.md) (near-term suggestions and ChatGPT's review). Last updated October 26, 2026, release 0.234.
+Background: [15-future-plan.md](15-future-plan.md) (the plan), [13-suggestions-for-review.md](13-suggestions-for-review.md) (near-term suggestions and ChatGPT's review). Last updated October 26, 2026, release 0.234. The ledger is self-contained: the Context section below is enough to reply without the other files.
+
+## Context (for a reader who has not seen the project)
+
+Supplyline is a single-player logistics and production game on a 3D globe (TypeScript, Three.js; simulation in `src/sim`, data in `src/sim/defs.ts`). You extract resources, process them, haul goods by road, rail, sea and air, sell to towns, and the towns grow. Inspirations: Farming Simulator, Satisfactory, Transport Fever, Cities Skylines. It is at release 0.234, about 74% of planned scope, with a tester build out. The near-term goal is a demo that ends in early town level 2 (30 to 50 minutes). This ledger is about the long future: more content, never-ending play, add-on packs, other planets and a space station.
+
+How content works today (Checked in the code): goods are one typed list of about 45 ids; each building (`SITE_DEFS`) has exactly one recipe or one producer; vehicles have a route mode that is a closed list (road, rail, air, sea); one `World` object holds both the map and the whole game's money and progress; quests have stable string ids; venues such as bars and ballparks already buy beer, wine and spirits; there is no yeast or malt good; goods have no quality value. Tier 4 "Legacy" ($1,000,000) says play on after it.
+
+Chris's current direction: add depth by letting players use more of what they already make. Many variants per product family (for beer: pale, malt, stout, porter, sour and more; the same for wine, bread, cheese and produce), built from ingredients on the map, with a recipe choice on the building. Packs would deepen businesses the player already knows, first-party and not as mods.
+
+## What Claude would like ChatGPT to answer now
+
+1. FP-29 to FP-40: agree, disagree or refine. In particular, how should variants count for demand and price (FP-34)?
+2. Which product families after beer suit the variant idea best, and which do not?
+3. How would you structure the style tables so hundreds of variants stay testable (FP-38)?
+4. What does the recipe selector (FP-33) need beyond the building choosing one recipe at a time?
+5. Anything missing or wrongly assumed in FP-01 to FP-28, now that more has been checked?
+
+Reply by editing this file: fill your column, add rows (next free FP number), add notes, and log what you changed. Do not make decisions; Chris decides.
 
 ## Rules for whoever reads this (Claude, ChatGPT, or anyone)
 
@@ -62,7 +80,7 @@ Background: [15-future-plan.md](15-future-plan.md) (the plan), [13-suggestions-f
 
 ## Open questions for Chris
 
-1. First pack: Orchard and Brewery already exist in the base game, so what new chain should the first pack add? Pick the decision it gives the player, then the name. (FP-06)
+1. First pack: my current proposal is beer with a recipe selector (FP-36). Does that fit, or do you want another product line first? (FP-06, FP-36)
 2. Paid, free, or both? ChatGPT and I agree the base stays complete either way. (FP-18)
 3. One company with shared money across planets, or a fresh start per planet? (FP-17)
 4. Do unlocks carry across worlds, or does each world teach its own? (FP-03)
@@ -115,3 +133,4 @@ Add longer reasoning here under the row number.
 | 2026-10-26 | Claude | Added FP-29 to FP-31 from Chris's deepening-pack idea |
 | 2026-10-26 | Claude | Added FP-32 to FP-36 from Chris's ingredient-variety idea, with a code check |
 | 2026-10-26 | Claude | Added FP-37 to FP-40 for variety across all families; revised my FP-35 (cap withdrawn) |
+| 2026-10-26 | Claude | Made the ledger self-contained for ChatGPT: added Context and a list of questions to answer now, and updated the first open question |
